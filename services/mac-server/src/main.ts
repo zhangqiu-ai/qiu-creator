@@ -25,6 +25,15 @@ const shutdown = (signal: string): void => {
 process.once('SIGINT', shutdown);
 process.once('SIGTERM', shutdown);
 
+// Log the cause before dying so launchd restarts leave a trace in the log.
+// State may be inconsistent after an uncaught error, so do not keep serving.
+const fatal = (kind: string) => (err: unknown) => {
+  app.log.fatal({ err, kind }, 'fatal error, exiting');
+  process.exit(1);
+};
+process.on('uncaughtException', fatal('uncaughtException'));
+process.on('unhandledRejection', fatal('unhandledRejection'));
+
 await app.listen({ host: config.host, port: config.port });
 app.log.info(
   {

@@ -42,12 +42,19 @@ $CREATORHUB_HOME（預設 ~/CreatorHub；開發與測試一律用臨時目錄）
   library/works/<work-id>/
     source.md                  # 目前內容，Finder 可直接打開
     revisions/<revision-id>.md # 每個 revision 的不可變快照
-    assets/<asset-id>.<ext>    # 托管素材
-  cache/                       # 可重建（尚未使用）
+    assets/<asset-id>.<ext>    # M0 開發腳本登記的素材（register-asset）
+  library/assets/<asset-id>/
+    <原檔名>.<依內容判定的副檔名>  # 上傳的素材，Finder 可直接打開；以 sha256 去重，多個作品共用
+  cache/                       # 可整個刪除，需要時重建
+    thumbnails/<asset-id>.webp # 圖片縮圖（最長邊 512px）
   data/
     creatorhub.sqlite          # WAL 模式
     api-token                  # 自動產生的權杖（0600），未設 CREATORHUB_TOKEN 時使用
+    uploads/                   # 進行中的 tus 上傳（<id> 與 <id>.json）；不是快取，刪除會失去未完成的上傳
+    incoming/                  # 直傳的暫存檔，校驗後移入素材庫或刪除
 ```
+
+素材獨立於作品存放：同一個檔案可以同時是 A 作品的封面、B 作品的正文圖，關聯記在 `work_assets`。
 
 SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁碟檔案。資料庫裡的路徑都相對於 `CREATORHUB_HOME`。
 
@@ -57,9 +64,15 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 `0001_initial_schema` 建立：`works`、`revisions`、`assets`、`work_assets`、`platform_variants`（每作品每平台唯一）、`import_jobs`（`idempotency_key` 唯一）、`ai_jobs`（含 `cache_key`），以及 FTS5 虛擬表 `works_fts`（title、tags、body，`trigram` 分詞器）。搜尋 3 字以上走 FTS（支援中文子字串），1–2 字退回 `LIKE`。
 
+`0002_assets_jobs_change_log`：
+
+- `assets` 增加 `original_name`、`codec`、`metadata_status`（none／pending／ready／unavailable／failed）、`thumbnail_status`（none／pending／ready／failed）、`updated_at`。
+- `background_jobs`：縮圖、ffprobe 等背景任務（見下文「背景任務」）。
+- `change_log`：只追加的變更記錄，`seq` 自增，作為 SSE 事件 id 與日後增量同步的游標。
+
 `works` 比方案多了 `storage_mode`（managed／external）、`source_path`、`current_revision_id`，以便區分托管與外部掛載並快速核對版本。
 
-## API（M0）
+## API
 
 完整定義以 `/docs`（Swagger UI）與 `/docs/json`（OpenAPI 3）為準。
 
@@ -72,11 +85,47 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | PATCH | `/api/v1/works/:id` | 修改；需要 `base_revision` 或 `If-Match` |
 | GET | `/api/v1/works/:id/revisions` | 版本歷史 |
 | GET | `/api/v1/assets/:id/stream` | 素材串流，支援 Range |
+| POST | `/api/v1/assets/uploads?filename=` | 直傳（`application/octet-stream`，≤ 32 MiB）；新素材 201、重複內容 200 並帶 `deduplicated: true` |
+| POST／HEAD／PATCH | `/api/v1/assets/uploads/tus[/:id]` | tus 1.0.0 可續傳上傳；最後一塊 PATCH 回 200 與素材 JSON |
+| GET | `/api/v1/assets` | 素材庫列表；`kind`、`q`（原檔名）、`limit`、`offset` |
+| GET | `/api/v1/assets/:id` | 素材詳情（含縮圖、元資料狀態） |
+| GET | `/api/v1/assets/:id/thumbnail` | WebP 縮圖；`cache/` 被刪時即時重建 |
+| GET | `/api/v1/works/:id/assets` | 作品的素材，依用途與順序 |
+| POST | `/api/v1/works/:id/assets` | 關聯素材（`cover`／`body`／`video`，可指定位置；重複關聯即移動） |
+| DELETE | `/api/v1/works/:id/assets/:assetId?role=` | 移除關聯，順序自動補齊 |
+| PUT | `/api/v1/works/:id/assets/order` | 重排某個用途的全部素材 |
+| GET | `/api/v1/events` | SSE 變更事件 |
 
 - **鑑權：** `/api/*` 一律要 `Authorization: Bearer <token>`，常數時間比對；失敗回 401。
 - **錯誤格式：** `{"error":{"code","message","details?"}}`，`code` 見 contracts 的 `ErrorCodeSchema`。
 - **衝突：** `base_revision`／`If-Match` 與目前 revision 不同 → 409，`details.current_revision` 帶目前版本，不寫入任何東西。兩者都沒帶 → 428。`If-Match: *` 不被接受為前置條件。
 - **Range：** 單一區段 `bytes=a-b`、`a-`、`-n` 回 206 與 `Content-Range`；超出範圍回 416 與 `Content-Range: bytes */size`；多區段與格式錯誤依 RFC 回整檔 200。
+
+## 上傳與素材
+
+1. **接收**：小檔走直傳，邊收邊計數，超過 32 MiB 立即中止並回 413；大檔走 tus，進行中的資料在 `data/uploads/`，斷線後 `HEAD` 取得 offset 從斷點續傳。tus 建立時就拒絕超過所有類型上限的 `Upload-Length`。
+2. **校驗**（`src/media/detect.ts`）：以 magic bytes 判斷類型並對白名單；副檔名不作數（例如名為 `.mp4` 的 PNG 會被存成 `.png`；改名成 `.jpg` 的 ZIP 回 415）。再依類型檢查大小上限：圖片 50 MiB、音訊 1 GiB、視頻 20 GiB、Markdown 5 MiB。
+3. **去重**：算 sha256；已有相同內容就刪掉暫存檔，回原素材與 `deduplicated: true`。
+4. **入庫**：暫存檔 `rename` 到 `library/assets/<id>/`，同一個 SQLite 交易寫 `assets`、`change_log`，並為圖片排縮圖任務、為視頻／音訊排 ffprobe 任務。
+
+## 背景任務
+
+`src/jobs/job-queue.ts`：任務是 `background_jobs` 的資料列，與觸發它的寫入在同一個交易中入列。
+
+- 單一 worker 依序執行；入列時立即喚醒，閒置時每秒輪詢。
+- 服務重啟時，上次留在 `running` 的任務改回 `queued` 續跑，所以當機或關機不會遺失任務。
+- 失敗以指數退避重試，最多 3 次，之後標成 `failed` 並寫入 `last_error`；同一素材同類任務未完成時不重複入列。
+- `asset.thumbnail`：sharp 產生 WebP 縮圖並記錄寬高。
+- `asset.probe`：ffprobe 取時長、寬高、編碼。找不到 ffprobe 時任務照常成功，素材記為 `unavailable`，不報錯。
+
+## 變更事件（SSE）
+
+`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `work.created`、`work.updated`、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`、`asset.created`、`asset.updated`、`job.queued`、`job.running`、`job.succeeded`、`job.failed`。
+
+- 和其他 `/api` 路由一樣要 Bearer 權杖。瀏覽器的 `EventSource` 不能帶 header，所以 api-client 用 fetch 讀串流（`client.events.subscribe`）；權杖不接受放在 URL。
+- 事件先寫進 `change_log` 再推送：在寫入方的交易提交後才發出，交易回滾的變更不會被推送。
+- 斷線重連帶 `Last-Event-ID`（或 `?since=`）即可補發錯過的事件；每 15 秒送 `: ping` 保活。
+- 事件只帶提示（例如 `revision_id`、狀態），用戶端收到後再呼叫 API 取完整資料。
 
 ## 寫入資料流（M0 主鏈路）
 
@@ -110,10 +159,11 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | `CREATORHUB_PORT` | `7420` | 監聽埠；測試用 `0` |
 | `CREATORHUB_TOKEN` | （自動產生） | 至少 16 字元；未設定時使用 `data/api-token` |
 | `CREATORHUB_LOG_LEVEL` | `info` | Fastify／pino 日誌等級 |
+| `CREATORHUB_FFPROBE` | （自動尋找） | ffprobe 路徑；設為空字串停用。找不到時降級，不報錯 |
 
 ## 尚未實作（依里程碑）
 
-- M1：匯入中心（上傳續傳、URL 匯入與 SSRF 防護、資料夾監控）、外部目錄掛載、冪等鍵、縮圖與 ffprobe、SSE 變更事件、Agent 最小權限權杖。
+- M1 其餘部分：URL 匯入與 SSRF 防護、匯入任務 API、冪等鍵強制、Agent 最小權限權杖（QC-006）；外部目錄掛載與資料夾監控（QC-007）。視頻縮圖（需 ffmpeg）尚未做。
 - M2：平台版本 API、版本恢復、Electron／外部編輯器／Agent 三方衝突的完整驗收。
 - M3：AI 任務、Keychain 金鑰、Gemini 視頻理解（測試只用假服務）。
 - 生產可用：launchd 實機安裝、崩潰恢復、SQLite 備份與還原（QC-004）。

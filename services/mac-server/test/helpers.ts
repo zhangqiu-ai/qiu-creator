@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createClient, type CreatorHubClient } from '@qiu-creator/api-client';
-import { buildServer, type CreatorHubServer } from '../src/index.js';
+import { buildServer, type BuildServerOptions, type CreatorHubServer } from '../src/index.js';
 
 export const TEST_TOKEN = 'test-token-0123456789abcdef';
 
@@ -18,9 +18,19 @@ export function makeTempHome(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'creatorhub-test-'));
 }
 
-export async function startTestServer(): Promise<TestServer> {
-  const home = makeTempHome();
-  const server = await buildServer({ config: { home, token: TEST_TOKEN } });
+export interface StartOptions extends Omit<BuildServerOptions, 'config'> {
+  /** Reuse an existing home (restart scenarios); it is then not deleted on close. */
+  home?: string;
+}
+
+/**
+ * Start a server on a random port with a temp home. ffprobe is disabled
+ * unless a test passes one, so results never depend on the machine.
+ */
+export async function startTestServer(options: StartOptions = {}): Promise<TestServer> {
+  const { home: reuse, ...rest } = options;
+  const home = reuse ?? makeTempHome();
+  const server = await buildServer({ ffprobe: null, ...rest, config: { home, token: TEST_TOKEN } });
   const address = await server.app.listen({ host: '127.0.0.1', port: 0 });
   return {
     ...server,
@@ -29,7 +39,7 @@ export async function startTestServer(): Promise<TestServer> {
     client: createClient({ baseUrl: address, token: TEST_TOKEN }),
     close: async () => {
       await server.app.close();
-      fs.rmSync(home, { recursive: true, force: true });
+      if (reuse === undefined) fs.rmSync(home, { recursive: true, force: true });
     },
   };
 }

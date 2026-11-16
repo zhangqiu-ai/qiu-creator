@@ -21,6 +21,32 @@
 - 同步 API 讓「核對 revision → 寫檔 → 寫庫」在同一個事件迴圈片段內完成，同一行程內的並發請求不會交錯。
 - 替代方案：`node:sqlite`（Node 24 內建，無原生依賴，但仍標為實驗性／release candidate，API 與 FTS5 支援隨 Node 版本變動）。若日後 Electron 打包遇到原生模組問題，再評估切換。
 
+### 可續傳上傳：tus 1.0.0（@tus/server + @tus/file-store）
+
+- 選 tus 而非自訂分塊協議：開放標準，伺服器與用戶端都有成熟實作；第二期 iPhone／iPad（React Native）可直接用 tus-js-client 或 api-client 內建的極簡 tus 用戶端，不必再設計協議。
+- @tus/server 2.4.7（MIT）以 `handle(req, res)` 掛在 Fastify 路由上（`reply.hijack()`），鑑權沿用 `/api` 的 Bearer hook；@tus/file-store 2.1.2（MIT）把進行中的上傳存在 `data/uploads/`，斷線後 `HEAD` 取得 `Upload-Offset` 從斷點續傳。
+- 上傳完成時在 `onUploadFinish` 做 magic bytes 校驗、大小上限與 sha256 去重，再移入素材庫；不通過就刪檔並回 413／415。
+- 已知問題：FileStore 建構時以非同步 `mkdir` 建目錄，callback 內直接 `throw`；目錄在那瞬間被刪會變成未捕捉例外。服務端以子類別改成同步建立（見 `src/routes/assets.ts` 的 `UploadFileStore`）。可考慮回報上游。
+- 替代方案：自訂 `POST/PATCH/HEAD` 分塊協議（少一個依賴，但要自己維護用戶端與邊界情況）；@fastify/multipart（不支援續傳）。
+
+### 類型判斷：file-type（magic bytes）
+
+- file-type 22.3.0（MIT，純 ESM，Node ≥ 22）從檔頭判斷實際類型，不看副檔名。白名單：JPEG、PNG、GIF、WebP、HEIC／HEIF、AVIF、MP4／M4V、MOV、WebM、MP3、M4A、WAV。
+- Markdown 沒有 magic bytes：只有在檔名是 `.md`／`.markdown`、偵測不到任何二進位簽章、且內容是不含 NUL 的合法 UTF-8 時才接受。
+- 替代方案：libmagic（`file` 指令，需外部程式）、自寫簽章表（維護成本高）。
+
+### 縮圖：sharp
+
+- sharp 0.35.5（Apache-2.0），以 `@img/sharp-*` 預編譯套件提供 libvips（LGPL-3.0，動態連結），不需 install script。產出 WebP（最長邊 512px）到 `cache/thumbnails/`，可隨時刪除重建。
+- 打包注意：Electron／發版時要帶上對應平台的 `@img/sharp-darwin-arm64` 與 `@img/sharp-libvips-darwin-arm64`；libvips 為 LGPL，需保留其授權聲明。
+- 替代方案：macOS `sips`（只限 Mac、功能少）、jimp（純 JS，慢且格式少）。
+
+### 視頻元資料：ffprobe（外部程式，不打包）
+
+- 只在找得到時使用：`CREATORHUB_FFPROBE` 指定的路徑 → `PATH` → `/opt/homebrew/bin`、`/usr/local/bin`。找不到時任務照常成功，素材 `metadata_status` 記為 `unavailable`，介面不顯示時長／尺寸，不報錯。
+- 授權與打包：FFmpeg 為 LGPL-2.1+，啟用 GPL 元件（例如 Homebrew 預設建置含 x264／x265）時整體為 GPL。為避免把 GPL 二進位檔隨 App 散布，**目前不打包 ffprobe**，由使用者自行安裝（`brew install ffmpeg`）。若日後要內建，需改用 LGPL-only 建置並附原始碼取得方式，屆時另行決定。
+- 本機實測：Homebrew ffprobe 9.0.2。測試一律用假 ffprobe 腳本，不依賴本機安裝。
+
 ## 執行期依賴
 
 | 套件 | 版本 | 授權 | 用在 | 用途 | 替代方案 |
@@ -32,6 +58,10 @@
 | better-sqlite3 | ^13.2.0 | MIT | mac-server | SQLite（WAL、FTS5） | `node:sqlite`（見上） |
 | zod | ^4.6.7 | MIT | contracts、api-client、mac-server | 共用契約與執行期驗證 | Valibot、TypeBox |
 | commander | ^15.1.0 | MIT | agent-sdk | `creatorhub` CLI 解析 | yargs、citty |
+| @tus/server | ^2.4.7 | MIT | mac-server | tus 1.0.0 可續傳上傳伺服器 | 自訂分塊協議 |
+| @tus/file-store | ^2.1.2 | MIT | mac-server | tus 上傳暫存（`data/uploads/`） | — |
+| file-type | ^22.3.0 | MIT | mac-server | magic bytes 類型判斷 | libmagic |
+| sharp | ^0.35.5 | Apache-2.0（libvips：LGPL-3.0） | mac-server | 圖片縮圖與尺寸 | sips、jimp |
 | tsx | ^4.23.15 | MIT | mac-server、agent-sdk | 直接執行 TypeScript 原始碼（`node --import tsx`、CLI bin）；M0 尚無建置步驟 | 之後改為 `tsc` 建置產物；Node 原生 type stripping（不支援 `.js` → `.ts` 對應） |
 
 ## 開發依賴（根目錄）
@@ -51,4 +81,4 @@
 
 ## 未來候選（尚未加入）
 
-方案中提到、M1 以後才會引入：Sharp（縮圖）、Chokidar（資料夾監控）、ffprobe（視頻元資訊，需確認授權與打包）、tus 或等效續傳協議（大檔上傳）。加入時在此補記。
+方案中提到、之後才會引入：Chokidar（資料夾監控，QC-007）。加入時在此補記。Sharp、tus、ffprobe 已於 QC-005 加入（見上）。

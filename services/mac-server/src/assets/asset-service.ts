@@ -1,12 +1,33 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { AssetKind, AssetOrigin, WorkAssetRole } from '@qiu-creator/contracts';
+import { pipeline } from 'node:stream/promises';
+import {
+  AssetRecordSchema,
+  ListAssetsQuerySchema,
+  type AssetKind,
+  type AssetOrigin,
+  type AssetRecord,
+  type ListAssetsQuery,
+  type ListAssetsResponse,
+  type WorkAssetItem,
+  type WorkAssetRole,
+} from '@qiu-creator/contracts';
 import { sha256Hex, UnsafePathError } from '@qiu-creator/domain';
 import type { Db } from '../db/database.js';
 import { notFound, ServiceError } from '../errors.js';
+import type { ChangeFeed } from '../events/change-feed.js';
 import { resolveRealPathInside } from '../fs/safe-path.js';
+import type { JobQueue, JobRecord } from '../jobs/job-queue.js';
 import type { Layout } from '../layout.js';
+import {
+  DEFAULT_SIZE_LIMITS,
+  detectMedia,
+  MediaRejectedError,
+  type SizeLimits,
+} from '../media/detect.js';
+import { probeMedia } from '../media/ffprobe.js';
+import { renderThumbnail } from '../media/thumbnails.js';
 
 const MIME_BY_EXT: Record<string, { mime: string; kind: AssetKind }> = {
   '.mp4': { mime: 'video/mp4', kind: 'video' },
@@ -25,6 +46,7 @@ const MIME_BY_EXT: Record<string, { mime: string; kind: AssetKind }> = {
   '.md': { mime: 'text/markdown; charset=utf-8', kind: 'markdown' },
 };
 
+/** Extension-based guess. Only for the M0 dev helper; uploads are identified by content. */
 export function guessMedia(fileName: string): { mime: string; kind: AssetKind } {
   return (
     MIME_BY_EXT[path.extname(fileName).toLowerCase()] ?? {
@@ -42,29 +64,304 @@ export interface StreamTarget {
 
 interface AssetRow {
   id: string;
+  kind: string;
   path: string;
+  sha256: string;
   mime_type: string;
+  bytes: number;
+  duration: number | null;
+  width: number | null;
+  height: number | null;
+  origin: string;
+  created_at: string;
+  original_name: string | null;
+  codec: string | null;
+  metadata_status: string;
+  thumbnail_status: string;
+  updated_at: string | null;
+}
+
+function toRecord(row: AssetRow): AssetRecord {
+  return AssetRecordSchema.parse({ ...row, updated_at: row.updated_at ?? row.created_at });
+}
+
+/** Make an uploaded name safe for Finder while keeping it recognizable; the extension comes from the content. */
+export function storedFileName(originalName: string, ext: string): string {
+  const base = path
+    .basename(originalName.replaceAll('\\', '/'))
+    .replace(/\.[^.]*$/, '')
+    // Replace control characters and path separators.
+    .split('')
+    .map((ch) => (ch.charCodeAt(0) < 32 || '/\\:\u007f'.includes(ch) ? '_' : ch))
+    .join('')
+    .trim()
+    .replace(/^\.+/, '')
+    .slice(0, 120);
+  return `${base === '' ? 'asset' : base}.${ext}`;
+}
+
+async function sha256File(file: string): Promise<string> {
+  const hash = createHash('sha256');
+  await pipeline(fs.createReadStream(file), hash);
+  return hash.digest('hex');
+}
+
+export interface AssetServiceOptions {
+  limits?: SizeLimits;
+  /** Resolved ffprobe binary, or null when unavailable (metadata then degrades to `unavailable`). */
+  ffprobe?: string | null;
+}
+
+export interface IngestResult {
+  asset: AssetRecord;
+  deduplicated: boolean;
 }
 
 export class AssetService {
+  readonly limits: SizeLimits;
+  private readonly ffprobe: string | null;
+
   constructor(
     private readonly db: Db,
     private readonly layout: Layout,
-  ) {}
+    private readonly feed?: ChangeFeed,
+    private readonly jobs?: JobQueue,
+    options: AssetServiceOptions = {},
+  ) {
+    this.limits = options.limits ?? DEFAULT_SIZE_LIMITS;
+    this.ffprobe = options.ffprobe ?? null;
+    jobs?.register('asset.thumbnail', (job) => this.runThumbnailJob(job));
+    jobs?.register('asset.probe', (job) => this.runProbeJob(job));
+  }
+
+  /**
+   * Validate and store a fully received upload. `tempFile` is consumed: it is
+   * moved into the library on success and deleted on rejection or duplicate.
+   * Identical content (same sha256) returns the existing asset.
+   */
+  async ingest(
+    tempFile: string,
+    originalName: string,
+    origin: AssetOrigin = 'upload',
+  ): Promise<IngestResult> {
+    let media;
+    let sha;
+    try {
+      media = await detectMedia(tempFile, originalName, this.limits);
+      sha = await sha256File(tempFile);
+    } catch (err) {
+      fs.rmSync(tempFile, { force: true });
+      if (err instanceof MediaRejectedError) {
+        throw new ServiceError(
+          err.reason === 'payload_too_large' ? 413 : 415,
+          err.reason,
+          err.message,
+        );
+      }
+      throw err;
+    }
+
+    // Synchronous from here on: the duplicate check and the insert cannot interleave.
+    const existing = this.db
+      .prepare<[string], AssetRow>(
+        'SELECT * FROM assets WHERE sha256 = ? ORDER BY created_at LIMIT 1',
+      )
+      .get(sha);
+    if (existing) {
+      fs.rmSync(tempFile, { force: true });
+      return { asset: toRecord(existing), deduplicated: true };
+    }
+
+    const id = randomUUID();
+    const rel = this.layout.libraryAssetRel(id, storedFileName(originalName, media.ext));
+    const abs = this.layout.abs(rel);
+    const bytes = fs.statSync(tempFile).size;
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.renameSync(tempFile, abs);
+    const now = new Date().toISOString();
+    const wantsThumb = media.kind === 'image';
+    const wantsProbe = media.kind === 'video' || media.kind === 'audio';
+    try {
+      this.db.transaction(() => {
+        this.db
+          .prepare(
+            `INSERT INTO assets (id, kind, path, sha256, mime_type, bytes, duration, width, height, origin,
+               created_at, original_name, codec, metadata_status, thumbnail_status, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, NULL, ?, ?, ?)`,
+          )
+          .run(
+            id,
+            media.kind,
+            rel,
+            sha,
+            media.mime,
+            bytes,
+            origin,
+            now,
+            originalName,
+            wantsProbe ? 'pending' : 'none',
+            wantsThumb ? 'pending' : 'none',
+            now,
+          );
+        this.feed?.record('asset', id, 'asset.created', { kind: media.kind });
+        if (wantsThumb) this.jobs?.enqueue('asset.thumbnail', id);
+        if (wantsProbe) this.jobs?.enqueue('asset.probe', id);
+      })();
+    } catch (err) {
+      fs.rmSync(path.dirname(abs), { recursive: true, force: true });
+      throw err;
+    }
+    return { asset: this.get(id), deduplicated: false };
+  }
+
+  get(id: string): AssetRecord {
+    const row = this.db.prepare<[string], AssetRow>('SELECT * FROM assets WHERE id = ?').get(id);
+    if (!row) throw notFound('asset');
+    return toRecord(row);
+  }
+
+  list(query: ListAssetsQuery = {}): ListAssetsResponse {
+    const q = ListAssetsQuerySchema.parse(query);
+    const where: string[] = [];
+    const params: (string | number)[] = [];
+    if (q.kind) {
+      where.push('kind = ?');
+      params.push(q.kind);
+    }
+    if (q.q) {
+      where.push("original_name LIKE ? ESCAPE '\\'");
+      params.push(`%${q.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+    }
+    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const total = this.db
+      .prepare<(string | number)[], { n: number }>(`SELECT count(*) AS n FROM assets ${whereSql}`)
+      .get(...params);
+    const rows = this.db
+      .prepare<(string | number)[], AssetRow>(
+        `SELECT * FROM assets ${whereSql} ORDER BY created_at DESC, id LIMIT ? OFFSET ?`,
+      )
+      .all(...params, q.limit, q.offset);
+    return { items: rows.map(toRecord), total: total?.n ?? 0, limit: q.limit, offset: q.offset };
+  }
+
+  // ---- Work ↔ asset links -------------------------------------------------
+
+  workAssets(workId: string): WorkAssetItem[] {
+    this.requireWork(workId);
+    const rows = this.db
+      .prepare<[string], AssetRow & { link_role: string; link_position: number }>(
+        `SELECT a.*, wa.role AS link_role, wa.position AS link_position
+         FROM work_assets wa JOIN assets a ON a.id = wa.asset_id
+         WHERE wa.work_id = ? ORDER BY wa.role, wa.position`,
+      )
+      .all(workId);
+    return rows.map(({ link_role, link_position, ...row }) => ({
+      role: link_role as WorkAssetRole,
+      position: link_position,
+      asset: toRecord(row),
+    }));
+  }
+
+  /** Link an asset to a work under a role. Re-linking an existing pair moves it to `position`. */
+  link(workId: string, assetId: string, role: WorkAssetRole, position?: number): WorkAssetItem[] {
+    this.requireWork(workId);
+    this.get(assetId);
+    this.db.transaction(() => {
+      const order = this.roleOrder(workId, role).filter((id) => id !== assetId);
+      const at = position === undefined ? order.length : Math.min(position, order.length);
+      order.splice(at, 0, assetId);
+      this.db
+        .prepare(
+          'INSERT OR IGNORE INTO work_assets (work_id, asset_id, role, position) VALUES (?, ?, ?, 0)',
+        )
+        .run(workId, assetId, role);
+      this.writeOrder(workId, role, order);
+      this.feed?.record('work', workId, 'work.assets_changed', {
+        role,
+        asset_id: assetId,
+        change: 'linked',
+      });
+    })();
+    return this.workAssets(workId);
+  }
+
+  unlink(workId: string, assetId: string, role: WorkAssetRole): WorkAssetItem[] {
+    this.requireWork(workId);
+    this.db.transaction(() => {
+      const removed = this.db
+        .prepare('DELETE FROM work_assets WHERE work_id = ? AND asset_id = ? AND role = ?')
+        .run(workId, assetId, role);
+      if (removed.changes === 0) throw notFound('work asset link');
+      this.writeOrder(workId, role, this.roleOrder(workId, role));
+      this.feed?.record('work', workId, 'work.assets_changed', {
+        role,
+        asset_id: assetId,
+        change: 'unlinked',
+      });
+    })();
+    return this.workAssets(workId);
+  }
+
+  /** Replace the order of one role. `assetIds` must be exactly the assets linked under that role. */
+  reorder(workId: string, role: WorkAssetRole, assetIds: string[]): WorkAssetItem[] {
+    this.requireWork(workId);
+    this.db.transaction(() => {
+      const current = this.roleOrder(workId, role);
+      const same =
+        current.length === assetIds.length &&
+        new Set(assetIds).size === assetIds.length &&
+        assetIds.every((id) => current.includes(id));
+      if (!same) {
+        throw new ServiceError(
+          400,
+          'validation_error',
+          'asset_ids must list every asset linked with this role exactly once',
+          {
+            current: current,
+          },
+        );
+      }
+      this.writeOrder(workId, role, assetIds);
+      this.feed?.record('work', workId, 'work.assets_changed', { role, change: 'reordered' });
+    })();
+    return this.workAssets(workId);
+  }
+
+  private roleOrder(workId: string, role: WorkAssetRole): string[] {
+    return this.db
+      .prepare<[string, string], { asset_id: string }>(
+        'SELECT asset_id FROM work_assets WHERE work_id = ? AND role = ? ORDER BY position, asset_id',
+      )
+      .all(workId, role)
+      .map((r) => r.asset_id);
+  }
+
+  private writeOrder(workId: string, role: WorkAssetRole, order: string[]): void {
+    const stmt = this.db.prepare(
+      'UPDATE work_assets SET position = ? WHERE work_id = ? AND asset_id = ? AND role = ?',
+    );
+    order.forEach((assetId, index) => stmt.run(index, workId, assetId, role));
+  }
+
+  private requireWork(workId: string): void {
+    const work = this.db
+      .prepare<[string], { id: string }>('SELECT id FROM works WHERE id = ?')
+      .get(workId);
+    if (!work) throw notFound('work');
+  }
+
+  // ---- Files, thumbnails, metadata ------------------------------------------
 
   /**
    * Copy a local file into a managed work's `assets/` folder and index it.
-   * M0 helper for dev scripts and tests; the upload/URL import center is M1.
+   * M0 dev helper (scripts/register-asset.ts); uploads go through `ingest`.
    */
   registerFromFile(
     workId: string,
     sourceFile: string,
     options: { origin?: AssetOrigin; role?: WorkAssetRole } = {},
   ): { id: string } {
-    const work = this.db
-      .prepare<[string], { id: string }>('SELECT id FROM works WHERE id = ?')
-      .get(workId);
-    if (!work) throw notFound('work');
+    this.requireWork(workId);
     const id = randomUUID();
     const { mime, kind } = guessMedia(sourceFile);
     const fileName = `${id}${path.extname(sourceFile).toLowerCase()}`;
@@ -78,29 +375,64 @@ export class AssetService {
     this.db.transaction(() => {
       this.db
         .prepare(
-          `INSERT INTO assets (id, kind, path, sha256, mime_type, bytes, duration, width, height, origin, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?)`,
+          `INSERT INTO assets (id, kind, path, sha256, mime_type, bytes, duration, width, height, origin,
+             created_at, original_name, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?)`,
         )
-        .run(id, kind, rel, sha, mime, bytes, options.origin ?? 'manual', now);
+        .run(
+          id,
+          kind,
+          rel,
+          sha,
+          mime,
+          bytes,
+          options.origin ?? 'manual',
+          now,
+          path.basename(sourceFile),
+          now,
+        );
       this.db
         .prepare(
           `INSERT INTO work_assets (work_id, asset_id, role, position)
            VALUES (?, ?, ?, (SELECT count(*) FROM work_assets WHERE work_id = ?))`,
         )
         .run(workId, id, options.role ?? (kind === 'video' ? 'video' : 'body'), workId);
+      this.feed?.record('asset', id, 'asset.created', { kind });
     })();
     return { id };
   }
 
-  /** Locate an asset's file for streaming, refusing paths that escape CREATORHUB_HOME. */
+  /** Locate an asset's file, refusing paths that escape CREATORHUB_HOME. */
   streamTarget(id: string): StreamTarget {
     const row = this.db
-      .prepare<[string], AssetRow>('SELECT id, path, mime_type FROM assets WHERE id = ?')
+      .prepare<[string], Pick<AssetRow, 'id' | 'path' | 'mime_type'>>(
+        'SELECT id, path, mime_type FROM assets WHERE id = ?',
+      )
       .get(id);
     if (!row) throw notFound('asset');
-    let absPath: string;
+    const absPath = this.resolveAssetFile(row.path);
+    const stat = fs.statSync(absPath);
+    if (!stat.isFile()) throw new ServiceError(404, 'not_found', 'asset is not a regular file');
+    return { absPath, size: stat.size, mimeType: row.mime_type };
+  }
+
+  /**
+   * Path of the cached thumbnail, regenerating it if `cache/` was cleared.
+   * Only images have thumbnails in M1.
+   */
+  async thumbnailFile(id: string): Promise<string> {
+    const asset = this.get(id);
+    if (asset.kind !== 'image') throw new ServiceError(404, 'not_found', 'asset has no thumbnail');
+    const target = this.layout.abs(this.layout.thumbnailRel(id));
+    if (!fs.existsSync(target)) {
+      await this.buildThumbnail(asset);
+    }
+    return target;
+  }
+
+  private resolveAssetFile(relPath: string): string {
     try {
-      absPath = resolveRealPathInside(this.layout.home, row.path);
+      return resolveRealPathInside(this.layout.home, relPath);
     } catch (err) {
       if (err instanceof UnsafePathError) {
         throw new ServiceError(403, 'path_rejected', 'asset path is outside the CreatorHub home');
@@ -110,8 +442,65 @@ export class AssetService {
       }
       throw err;
     }
-    const stat = fs.statSync(absPath);
-    if (!stat.isFile()) throw new ServiceError(404, 'not_found', 'asset is not a regular file');
-    return { absPath, size: stat.size, mimeType: row.mime_type };
+  }
+
+  private async buildThumbnail(asset: AssetRecord): Promise<void> {
+    const source = this.resolveAssetFile(asset.path);
+    const dims = await renderThumbnail(source, this.layout.abs(this.layout.thumbnailRel(asset.id)));
+    this.updateAsset(asset.id, {
+      thumbnail_status: 'ready',
+      width: dims.width,
+      height: dims.height,
+    });
+  }
+
+  private async runThumbnailJob(job: JobRecord): Promise<void> {
+    try {
+      await this.buildThumbnail(this.get(job.subject_id));
+    } catch (err) {
+      if (job.attempts >= job.max_attempts)
+        this.updateAsset(job.subject_id, { thumbnail_status: 'failed' });
+      throw err;
+    }
+  }
+
+  private async runProbeJob(job: JobRecord): Promise<void> {
+    const asset = this.get(job.subject_id);
+    if (this.ffprobe === null) {
+      // Degrade: no duration/size, but never an error.
+      this.updateAsset(asset.id, { metadata_status: 'unavailable' });
+      return;
+    }
+    try {
+      const result = await probeMedia(this.ffprobe, this.resolveAssetFile(asset.path));
+      this.updateAsset(asset.id, { metadata_status: 'ready', ...result });
+    } catch (err) {
+      if (job.attempts >= job.max_attempts)
+        this.updateAsset(asset.id, { metadata_status: 'failed' });
+      throw err;
+    }
+  }
+
+  private updateAsset(
+    id: string,
+    fields: Partial<
+      Pick<
+        AssetRow,
+        'duration' | 'width' | 'height' | 'codec' | 'metadata_status' | 'thumbnail_status'
+      >
+    >,
+  ): void {
+    if (!this.db.open) return;
+    const entries = (
+      Object.entries(fields) as [string, string | number | null | undefined][]
+    ).filter(([, v]) => v !== undefined);
+    if (entries.length === 0) return;
+    const set = entries.map(([k]) => `${k} = ?`).join(', ');
+    this.db.transaction(() => {
+      this.db
+        .prepare(`UPDATE assets SET ${set}, updated_at = ? WHERE id = ?`)
+        .run(...entries.map(([, v]) => v), new Date().toISOString(), id);
+      this.feed?.record('asset', id, 'asset.updated', Object.fromEntries(entries));
+    })();
   }
 }
