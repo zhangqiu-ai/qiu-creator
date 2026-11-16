@@ -130,8 +130,97 @@ await sleep(400);
 const sideWidth = await p.evaluate(`document.querySelector('.side').getBoundingClientRect().width`);
 check('narrow window collapses the navigation to icons', sideWidth <= 64, `width=${sideWidth}`);
 await shot('04-library-narrow');
+await setWidth(760);
+await sleep(400);
+const stacked = await p.evaluate(
+  `(() => { const side = document.querySelector('.side').getBoundingClientRect(); const page = document.querySelector('main').getBoundingClientRect(); return { sideBottom: side.bottom, pageTop: page.top, sideWidth: side.width }; })()`,
+);
+check(
+  'below 800px the navigation stacks above the content',
+  stacked.pageTop >= stacked.sideBottom - 1 && stacked.sideWidth > 700,
+  JSON.stringify(stacked),
+);
+await shot('04b-library-stacked');
+await p.send('Emulation.setEmulatedMedia', {
+  features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+});
+const motion = await p.evaluate(
+  `({ card: getComputedStyle(document.querySelector('.wcard')).transitionDuration, seg: getComputedStyle(document.querySelector('.seg button')).transitionDuration })`,
+);
+check(
+  'Reduce Motion switches transitions off',
+  motion.card === '0s' && motion.seg === '0s',
+  JSON.stringify(motion),
+);
+await p.send('Emulation.setEmulatedMedia', { features: [] });
+const motionOn = await p.evaluate(
+  `getComputedStyle(document.querySelector('.wcard')).transitionDuration`,
+);
+check(
+  'hover transitions are 150ms otherwise',
+  motionOn.split(', ').every((d) => d === '0.15s'),
+  motionOn,
+);
 await setWidth(1440);
 await sleep(400);
+
+// 0b. Approved visual baseline: light bg token and bundled Inter.
+const lightBg = await p.evaluate(`getComputedStyle(document.body).backgroundColor`);
+check('light appearance uses the bg token (#F6F5F1)', lightBg === 'rgb(246, 245, 241)', lightBg);
+const inter = await p.evaluate(`(async () => {
+  await document.fonts.ready;
+  const faces = [...document.fonts].filter(f => f.family.replace(/"/g, '') === 'Inter Variable' && f.status === 'loaded');
+  const remote = performance.getEntriesByType('resource').filter(r => r.name.endsWith('.woff2') &&!r.name.startsWith(location.origin));
+  return { loaded: faces.length, remote: remote.length, used: getComputedStyle(document.querySelector('.page__title')).fontFamily };
+})()`);
+check(
+  'Inter is loaded from the app bundle, not the network',
+  inter.loaded > 0 && inter.remote === 0,
+  JSON.stringify(inter),
+);
+
+// 0c. Computed styles against DESIGN.md 視覺基線 (sizes, radii, type scale).
+const style = (selector, props) =>
+  p.evaluate(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return null; const cs = getComputedStyle(el); const r = el.getBoundingClientRect();
+    return Object.fromEntries(${JSON.stringify(props)}.map(k => [k, k === 'width' ? r.width : k === 'height' ? r.height : cs[k]])); })()`);
+const expectStyle = async (name, selector, expected) => {
+  const got = await style(selector, Object.keys(expected));
+  const ok =
+    got !== null && Object.entries(expected).every(([k, v]) => String(got[k]) === String(v));
+  check(`baseline: ${name}`, ok, JSON.stringify(got));
+};
+await expectStyle('sidebar 220px on sunken', '.side', {
+  width: 220,
+  backgroundColor: 'rgb(239, 237, 231)',
+});
+await expectStyle('nav item 34px, radius 7', '.nav-item', {
+  height: 34,
+  borderTopLeftRadius: '7px',
+});
+await expectStyle('page title 20px/600', '.page__title', { fontSize: '20px', fontWeight: '600' });
+await expectStyle('primary button 32px, radius 7, accent', '.page__header .btn--primary', {
+  height: 32,
+  borderTopLeftRadius: '7px',
+  backgroundColor: 'rgb(47, 79, 207)',
+});
+await expectStyle('segmented control radius 8', '.page__header .seg', {
+  borderTopLeftRadius: '8px',
+});
+await expectStyle('segment item 28px, radius 6', '.page__header .seg button', {
+  height: 28,
+  borderTopLeftRadius: '6px',
+});
+await expectStyle('card radius 10 on surface', '.wcard', {
+  borderTopLeftRadius: '10px',
+  backgroundColor: 'rgb(255, 255, 255)',
+});
+await expectStyle('card title 14px/600', '.wcard__title', { fontSize: '14px', fontWeight: '600' });
+await expectStyle('chip 22px pill', '.chip', { height: 22, borderTopLeftRadius: '999px' });
+await expectStyle('filter chip 28px pill', '.fchip', { height: 28, borderTopLeftRadius: '999px' });
+await expectStyle('header padding 16px 28px', '.page__header', {
+  paddingTop: '16px',
+  paddingLeft: '28px',
+});
 
 // 1. Opening does not save.
 const travel = await byTitle('京都');
@@ -142,6 +231,22 @@ check(
   'editor header shows r1 and a word count',
   (await text('.editor__bar')).includes('r1') && /\d+ 字/.test(await text('.editor__bar')),
 );
+await expectStyle('reading column 680px with 48px padding', '.qc-md-editor__content', {
+  maxWidth: '680px',
+  paddingLeft: '48px',
+});
+await expectStyle('long-form body 16px/1.85', '.qc-md-editor__content p', {
+  fontSize: '16px',
+  lineHeight: '29.6px',
+});
+await expectStyle('long-form h1 28px/700', '.qc-md-editor__content h1', {
+  fontSize: '28px',
+  fontWeight: '700',
+});
+await expectStyle('long-form h2 19px/600', '.qc-md-editor__content h2', {
+  fontSize: '19px',
+  fontWeight: '600',
+});
 await shot('05-editor');
 
 // 2. IME composition in the visual editor.
@@ -248,6 +353,11 @@ check(
   'dialog shows my change and the server change side by side',
   panes.includes('我的修改') && panes.includes('Agent 修改'),
 );
+await expectStyle('dialog radius 14', '.dialog', { borderTopLeftRadius: '14px' });
+await expectStyle('dialog title 16px/600', '.dialog__title', {
+  fontSize: '16px',
+  fontWeight: '600',
+});
 check(
   'editor behind the dialog is inert',
   await p.evaluate(`document.querySelector('main.editor').inert === true`),
@@ -369,7 +479,7 @@ await p.send('Emulation.setEmulatedMedia', {
 await openWork('京都');
 await shot('15-editor-dark');
 const bg = await p.evaluate(`getComputedStyle(document.body).backgroundColor`);
-check('dark appearance uses the dark canvas token', bg === 'rgb(30, 30, 30)', bg);
+check('dark appearance uses the dark bg token (#161615)', bg === 'rgb(22, 22, 21)', bg);
 await goLibrary();
 await shot('16-library-dark');
 await p.send('Emulation.setEmulatedMedia', { features: [] });

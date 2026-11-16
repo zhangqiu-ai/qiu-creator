@@ -1,3 +1,6 @@
+// Inter is bundled into the app by Vite; nothing is fetched from the network.
+import '@fontsource-variable/inter/wght.css';
+import '@fontsource-variable/inter/wght-italic.css';
 import { buildCssVariables } from '@qiu-creator/design-tokens';
 import '@qiu-creator/markdown-editor-web/style.css';
 import { StrictMode } from 'react';

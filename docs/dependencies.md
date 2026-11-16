@@ -78,12 +78,21 @@
 - 只需要把兩個 TypeScript 入口打成 CommonJS（sandbox preload 必須是單一檔案），esbuild 已在依賴樹內，`scripts/build-electron.mjs` 約 30 行。
 - 替代方案：electron-vite 6（整合度高，但多一層抽象與依賴）、electron-forge（含打包，屬發版範圍）。
 
+### 字型：Inter（QC-002）
+
+- **來源**：npm `@fontsource-variable/inter` 5.3.0，其 `files/*.woff2` 由 Fontsource 從 Inter 官方發行版（<https://github.com/rsms/inter>，The Inter Project Authors）產生。
+- **授權**：SIL Open Font License 1.1。全文在套件內的 `LICENSE`，隨 App 散布時必須一併附上。OFL 允許隨軟體打包與再散布，但不得單獨販售字型，修改後的版本也不得沿用保留名稱。我們沒有修改字型。
+- **載入方式**：renderer 匯入 `wght.css` 與 `wght-italic.css`，Vite 把 woff2 複製進建置產物，以相對路徑載入。CSP 的 `font-src 'self' data:` 不允許遠端字型。各子集以 `unicode-range` 劃分，中文仍由 PingFang TC 顯示。
+- **發版時**：「項目發版」打包時，要把 `LICENSE`（OFL）放進 App 的第三方授權說明。
+- **替代方案**：直接放官方 woff2（少一個依賴，但要自己維護 `@font-face` 與子集）；只用系統字型（不符合視覺基線）。
+
 ## 執行期依賴：Mac App 與共用前端套件（QC-002）
 
 | 套件 | 版本 | 授權 | 用在 | 用途 | 替代方案 |
 | --- | --- | --- | --- | --- | --- |
 | react / react-dom | ^19.3.1 | MIT | mac、markdown-editor-web（peer） | UI | Preact（MDXEditor 不支援） |
 | @mdxeditor/editor | ^4.5.0 | MIT | markdown-editor-web | 視覺 Markdown 編輯（見上） | Milkdown、TipTap |
+| @fontsource-variable/inter | ^5.3.0 | OFL-1.1（字型）／MIT（打包腳本） | mac | DESIGN.md 指定的 Inter 可變字型（wght 軸，正體與斜體），由 Vite 打進 App，不從網路載入（見「字型」一節） | 直接放 rsms/inter 官方 woff2；系統字體（不符視覺基線） |
 | mdast-util-from-markdown | ^2.1.0 | MIT | markdown-editor-web | 解析 Markdown，偵測可能有損語法、比對結構 | remark（較重） |
 | micromark-extension-gfm / mdast-util-gfm | ^3.0.0 / ^3.1.0 | MIT | markdown-editor-web | GFM（表格、腳註、刪除線、待辦）解析 | — |
 | micromark-extension-frontmatter / mdast-util-frontmatter | ^2.0.0 / ^2.0.1 | MIT | markdown-editor-web | YAML frontmatter 解析 | — |

@@ -180,6 +180,17 @@ function query(params: Record<string, string | number | undefined>): string {
   return s === '' ? '' : `?${s}`;
 }
 
+/**
+ * A fetch body view of `bytes`. DOM typings only accept ArrayBuffer-backed
+ * views as `BodyInit`; this reuses the same memory unless the bytes live in a
+ * SharedArrayBuffer, which is copied.
+ */
+function asBody(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
+  return bytes.buffer instanceof ArrayBuffer
+    ? new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    : new Uint8Array(bytes);
+}
+
 export function createAssetsApi(ctx: Ctx): CreatorHubAssetsApi {
   const auth = { authorization: `Bearer ${ctx.options.token}` };
   const tusHeaders = { ...auth, 'tus-resumable': '1.0.0' };
@@ -194,7 +205,7 @@ export function createAssetsApi(ctx: Ctx): CreatorHubAssetsApi {
     const res = await ctx.doFetch(`${ctx.baseUrl}/api/v1/assets/uploads${query({ filename })}`, {
       method: 'POST',
       headers: { ...auth, 'content-type': 'application/octet-stream', accept: 'application/json' },
-      body: data,
+      body: asBody(data),
       signal,
     });
     if (!res.ok) throw await toApiError(res);
@@ -240,7 +251,7 @@ export function createAssetsApi(ctx: Ctx): CreatorHubAssetsApi {
             'content-type': 'application/offset+octet-stream',
             accept: 'application/json',
           },
-          body: data.subarray(offset, end),
+          body: asBody(data.subarray(offset, end)),
           signal,
         });
       } catch (err) {

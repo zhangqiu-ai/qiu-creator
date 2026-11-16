@@ -20,14 +20,35 @@
 - 卡片封面：契約還沒有封面素材，用中性色底加類型圖示佔位；原型的色塊也只是佔位。
 - 衝突對話框的伺服器端標成「伺服器上的版本」並顯示修改時間。原型寫「磁碟上的版本」並標出來源（例如外部編輯器）；服務目前不回傳是哪個程式改的，所以沒有來源標籤。
 - 空白庫只提供「新建」；「匯入」「掛載資料夾」屬 M1。
-- 「檔案已在外部修改」橫幅需要變更事件（SSE，M1），目前要在儲存時收到 409 才會進入衝突處理。
-- 色值仍是語義 token 的佔位值（系統預設色），等原型設計會話把正式值寫進 DESIGN.md「視覺基線」並合併後再替換。token 結構已補上原型需要的 sunken、各狀態的 soft 色與 scrim。字體用系統字體，因為 CSP 不載入外部字型。
+- 「檔案已在外部修改」橫幅沒有接上變更事件。理由：
+  - 服務只有在 GET 或 PATCH 那份作品、做外部修改對帳時，才會發出 `work.external_revision`。資料夾監控屬 QC-007，目前沒有，所以 Finder 改檔不會即時產生事件。
+  - App 自己下一次儲存時，那次對帳本來就會讓這筆儲存收到 409，衝突處理已經覆蓋這個情況。
+  - 要接上，需要一條主程序訂閱 SSE、以 IPC 推給 renderer 的通道：現有轉送通道只能等整個回應結束，不支援串流。
+  - 列為後續任務，見交付說明。
+
+## 視覺基線（DESIGN.md，已核准）
+
+- token 換成 DESIGN.md 的正式名稱與色值（`bg`、`surface`、`sunken`、`ink`／`ink2`／`ink3`、`line`、`accent`／`accentSoft`／`onAccent`、`ok`／`warn`／`bad` 及其 soft 色、`scrim`、`shadowCard`、`shadowDialog`），淺色、深色兩套，全部由 `@qiu-creator/design-tokens` 輸出為 CSS 變數。頁面裡沒有寫死色值。
+- 字級、圓角（4／7／10／14／999，分段控制 8／6）、控制項高度、側欄寬度、閱讀欄、動效（hover 150ms ease、骨架 1.2s）也一併從 token 套件取得。Reduce Motion 時關閉所有過渡與動畫，骨架變成靜態底色。
+- 窄視窗：800–1180px 時側欄收成 60px 圖示列；小於 800px 時側欄疊到內容上方；編輯頁的右側面板在空間不夠時換行。
+- Inter 由 `@fontsource-variable/inter`（OFL-1.1）隨 App 打包，執行時從 App 自身載入，不連網。來源與授權記在 `docs/dependencies.md`。
+
+## 與畫布第 24 版的比對
+
+- **數值比對（通過）**：在真實的 Electron 視窗中，讀取元素的 computed style，逐項對照 DESIGN.md 的數值，共 17 項，全部相符（見 `qc002-verify-results.json` 的 `baseline:` 項）。涵蓋：
+  - 側欄寬度與底色、側欄項目高度與圓角、頁面標題字級。
+  - 主要按鈕的高度、圓角與 accent 色；分段控制及其項目。
+  - 卡片圓角與底色、卡片標題、標籤與篩選膠囊、頁首內距。
+  - 閱讀欄寬與內距、長文 h1／h2／正文字級與行高。
+  - 對話框圓角與標題。
+- **淺色與深色**：畫布 `bg` 分別量到 `rgb(246, 245, 241)` 與 `rgb(22, 22, 21)`，與 `#F6F5F1`、`#161615` 相符。
+- **並排截圖比對（NOT_VERIFIED）**：內建瀏覽器沒有登入 claude.ai，畫布 artifact 打不開；repo 裡也沒有畫布的參考截圖。我沒有在本機執行畫布 runtime（第三方程式碼）。本文件的截圖是同一批合成內容、同樣狀態下的正式介面，可以直接拿去和畫布第 24 版的 `Main`、`MacEditor`、`MacConflict` 對看。
 
 ## 環境
 
 - macOS（Apple Silicon），Node 24.14.0，pnpm 12.21.0，Electron 45.3.2。
 - 資料目錄：`mktemp -d` 建的臨時 `CREATORHUB_HOME`，用完已刪除；未讀寫 `~/CreatorHub`。
-- mac-server：`node --import tsx src/main.ts`（127.0.0.1:7420）。App：`node apps/mac/scripts/dev.mjs --remote-debugging-port=9333`（Vite 5180）。視窗以 1440 寬驗收，窄視窗以 1000 寬驗收。
+- mac-server：`node --import tsx src/main.ts`（127.0.0.1:7420）。App：`node apps/mac/scripts/dev.mjs --remote-debugging-port=9333`（Vite 5180）。視窗以 1440 寬驗收，窄視窗以 1000 寬（圖示列）和 760 寬（疊放）驗收。
 - 合成內容：`packages/markdown-editor-web/test/fixtures/` 的三份文件（結構齊全的旅行筆記、120 節中文長文、含 HTML／腳註／參照連結的文件）。
 
 ## 實機驗收方式
@@ -40,7 +61,7 @@
 
 **限制**：沒有用實體鍵盤搭配 macOS 注音／拼音輸入法實際打字。CDP 的組字事件和系統輸入法走同一條 Chromium 路徑，但候選視窗位置、系統輸入法特有的行為（連續選字、Shift 切換中英）沒有驗證，標為 `NOT_VERIFIED`。建議使用者拿到後用實體鍵盤試打一次。
 
-## 結果（40／40 通過，見 `qc002-verify-results.json`）
+## 結果（62／62 通過，見 `qc002-verify-results.json`）
 
 | 項目 | 證據 |
 | --- | --- |
@@ -48,6 +69,10 @@
 | 狀態篩選沒有結果時顯示「無符合作品」，可清除篩選 | `qc002-03-library-empty-filter.png` |
 | 搜尋：組字期間不送出，提交後才搜尋 | — |
 | 窄視窗（1000 寬）時導航收成 60px 圖示列 | `qc002-04-library-narrow.png` |
+| 小於 800px（760 寬）時導航疊到內容上方 | `qc002-04b-library-stacked.png` |
+| Reduce Motion 時過渡為 0s；平常 hover 過渡為 150ms | — |
+| 淺色 `bg` 為 #F6F5F1；Inter 從 App 自身載入，沒有遠端字型請求 | — |
+| DESIGN.md 數值比對 17 項 | `qc002-verify-results.json`（`baseline:` 項） |
 | 打開文件不產生新版本；標題列顯示 r1 與字數 | `qc002-05-editor.png` |
 | 視覺模式：組字期間不儲存（包括按 ⌘S、等超過自動儲存延遲） | `qc002-06-ime-composing.png` |
 | 提交後才儲存，狀態回到「已儲存」，游標停在新字之後 | — |
@@ -62,7 +87,7 @@
 | 含特殊語法的文件預設進原始碼模式，切到視覺前要確認 | `qc002-12-lossy-source-mode.png`、`qc002-13-lossy-confirm.png` |
 | 原始碼模式：組字期間不儲存；存檔結果等於原文逐位元組加上插入的文字 | — |
 | 中文長文（約 3.3 萬 px 高）可捲到底；每步一幀，p50 約 16ms、p95 約 19ms | `qc002-14-long-bottom.png` |
-| 深色外觀套用深色 token | `qc002-15-editor-dark.png`、`qc002-16-library-dark.png` |
+| 深色外觀套用深色 token（`bg` #161615） | `qc002-15-editor-dark.png`、`qc002-16-library-dark.png` |
 | 服務沒啟動時顯示「本機服務未回應」與位址，服務啟動後按重試即連上 | `qc002-17-service-down.png`、`qc002-18-retry-connected.png` |
 | 關閉視窗、結束 Electron 後，服務的 `/health`、列表、建立作品都照常 | `qc002-close-window.txt` |
 
@@ -78,7 +103,7 @@
 - 用實體鍵盤搭配 macOS 系統輸入法（注音、拼音）手動打字，原因見上方「限制」。
 - 圖片顯示：相對路徑 `./assets/…` 和托管素材還沒有對應的 URL，所以視覺模式顯示破圖佔位。圖片語法本身的往返有自動測試保留。
 - VoiceOver 實際朗讀：已加 `aria-label`／`role`／`aria-pressed`、對話框 `aria-modal`，背景設為 `inert`，但沒有開 VoiceOver 實測。
-- 正式色值：等 DESIGN.md「視覺基線」合併後替換，屆時要再和原型做同狀態比對。
+- 與畫布第 24 版的並排截圖比對，原因見上方「與畫布第 24 版的比對」。
 - 打包後（`file://` 加 meta CSP）的執行：沒有跑 electron-builder（屬發版範圍）。`corepack pnpm --filter @qiu-creator/mac build` 可以成功建置，CSP meta 也已寫入，但沒有用建置產物啟動驗收。
 
 ## 設計參考

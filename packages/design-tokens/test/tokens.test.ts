@@ -32,44 +32,42 @@ describe('design tokens', () => {
     }
   });
 
-  it('maps token names to kebab-case CSS variables', () => {
-    expect(cssVarName('textPrimary')).toBe('--qc-text-primary');
-    expect(cssVar('focusRing')).toBe('var(--qc-focus-ring)');
+  it('uses the approved 暖白克制 values from DESIGN.md', () => {
+    expect(palettes.light).toMatchObject({ bg: '#f6f5f1', ink: '#1c1b19', accent: '#2f4fcf' });
+    expect(palettes.dark).toMatchObject({ bg: '#161615', ink: '#eceae4', accent: '#8ea2ff' });
   });
 
-  it('emits light, dark and pinned-theme blocks', () => {
+  it('maps token names to kebab-case CSS variables', () => {
+    expect(cssVarName('ink2')).toBe('--qc-ink2');
+    expect(cssVarName('accentSoft')).toBe('--qc-accent-soft');
+    expect(cssVar('shadowCard')).toBe('var(--qc-shadow-card)');
+  });
+
+  it('emits light, dark and pinned-theme blocks with radius and motion constants', () => {
     const css = buildCssVariables();
-    expect(css).toContain('--qc-canvas: #f5f5f7;');
+    expect(css).toContain('--qc-bg: #f6f5f1;');
+    expect(css).toContain('--qc-radius-control: 7px;');
+    expect(css).toContain('--qc-motion-hover: 150ms ease;');
     expect(css).toContain('prefers-color-scheme: dark');
     expect(css).toContain(":root[data-theme='dark']");
   });
 
-  it('keeps body text and status colors at WCAG AA on canvas and surface', () => {
+  it('keeps text on bg/surface/sunken and status colors on their soft fill at WCAG AA (min 4.74)', () => {
     for (const scheme of ['light', 'dark'] as const) {
       const p = palettes[scheme];
-      for (const bg of [p.canvas, p.surface]) {
-        for (const fg of [
-          p.textPrimary,
-          p.textSecondary,
-          p.danger,
-          p.success,
-          p.warning,
-          p.accent,
-        ]) {
-          expect(contrast(fg, bg), `${scheme} ${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
-        }
+      const pairs: [string, string][] = [];
+      for (const bg of [p.bg, p.surface, p.sunken]) {
+        for (const fg of [p.ink, p.ink2, p.ink3]) pairs.push([fg, bg]);
       }
-      expect(contrast(p.onAccent, p.accent), `${scheme} onAccent`).toBeGreaterThanOrEqual(3);
-      // Status text on its own soft fill (chips, banners, diff marks).
-      for (const [fg, bg] of [
+      pairs.push(
         [p.accent, p.accentSoft],
-        [p.success, p.successSoft],
-        [p.warning, p.warningSoft],
-        [p.danger, p.dangerSoft],
-        [p.textPrimary, p.surfaceSunken],
-        [p.textSecondary, p.surfaceSunken],
-      ] as const) {
-        expect(contrast(fg, bg), `${scheme} ${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+        [p.ok, p.okSoft],
+        [p.warn, p.warnSoft],
+        [p.bad, p.badSoft],
+        [p.onAccent, p.accent],
+      );
+      for (const [fg, bg] of pairs) {
+        expect(contrast(fg, bg), `${scheme} ${fg} on ${bg}`).toBeGreaterThanOrEqual(4.74);
       }
     }
   });

@@ -30,6 +30,86 @@
     "detail": "width=60"
   },
   {
+    "name": "below 800px the navigation stacks above the content",
+    "pass": true,
+    "detail": "{\"sideBottom\":53,\"pageTop\":53,\"sideWidth\":760}"
+  },
+  {
+    "name": "Reduce Motion switches transitions off",
+    "pass": true,
+    "detail": "{\"card\":\"0s\",\"seg\":\"0s\"}"
+  },
+  {
+    "name": "hover transitions are 150ms otherwise",
+    "pass": true,
+    "detail": "0.15s, 0.15s"
+  },
+  {
+    "name": "light appearance uses the bg token (#F6F5F1)",
+    "pass": true,
+    "detail": "rgb(246, 245, 241)"
+  },
+  {
+    "name": "Inter is loaded from the app bundle, not the network",
+    "pass": true,
+    "detail": "{\"loaded\":1,\"remote\":0,\"used\":\"\\\"Inter Variable\\\", Inter, -apple-system, \\\"PingFang TC\\\", \\\"Noto Sans TC\\\", sans-serif\"}"
+  },
+  {
+    "name": "baseline: sidebar 220px on sunken",
+    "pass": true,
+    "detail": "{\"width\":220,\"backgroundColor\":\"rgb(239, 237, 231)\"}"
+  },
+  {
+    "name": "baseline: nav item 34px, radius 7",
+    "pass": true,
+    "detail": "{\"height\":34,\"borderTopLeftRadius\":\"7px\"}"
+  },
+  {
+    "name": "baseline: page title 20px/600",
+    "pass": true,
+    "detail": "{\"fontSize\":\"20px\",\"fontWeight\":\"600\"}"
+  },
+  {
+    "name": "baseline: primary button 32px, radius 7, accent",
+    "pass": true,
+    "detail": "{\"height\":32,\"borderTopLeftRadius\":\"7px\",\"backgroundColor\":\"rgb(47, 79, 207)\"}"
+  },
+  {
+    "name": "baseline: segmented control radius 8",
+    "pass": true,
+    "detail": "{\"borderTopLeftRadius\":\"8px\"}"
+  },
+  {
+    "name": "baseline: segment item 28px, radius 6",
+    "pass": true,
+    "detail": "{\"height\":28,\"borderTopLeftRadius\":\"6px\"}"
+  },
+  {
+    "name": "baseline: card radius 10 on surface",
+    "pass": true,
+    "detail": "{\"borderTopLeftRadius\":\"10px\",\"backgroundColor\":\"rgb(255, 255, 255)\"}"
+  },
+  {
+    "name": "baseline: card title 14px/600",
+    "pass": true,
+    "detail": "{\"fontSize\":\"14px\",\"fontWeight\":\"600\"}"
+  },
+  {
+    "name": "baseline: chip 22px pill",
+    "pass": true,
+    "detail": "{\"height\":22,\"borderTopLeftRadius\":\"999px\"}"
+  },
+  {
+    "name": "baseline: filter chip 28px pill",
+    "pass": true,
+    "detail": "{\"height\":28,\"borderTopLeftRadius\":\"999px\"}"
+  },
+  {
+    "name": "baseline: header padding 16px 28px",
+    "pass": true,
+    "detail": "{\"paddingTop\":\"16px\",\"paddingLeft\":\"28px\"}"
+  },
+  {
     "name": "opening a document does not create a revision",
     "pass": true,
     "detail": ""
@@ -38,6 +118,26 @@
     "name": "editor header shows r1 and a word count",
     "pass": true,
     "detail": ""
+  },
+  {
+    "name": "baseline: reading column 680px with 48px padding",
+    "pass": true,
+    "detail": "{\"maxWidth\":\"680px\",\"paddingLeft\":\"48px\"}"
+  },
+  {
+    "name": "baseline: long-form body 16px/1.85",
+    "pass": true,
+    "detail": "{\"fontSize\":\"16px\",\"lineHeight\":\"29.6px\"}"
+  },
+  {
+    "name": "baseline: long-form h1 28px/700",
+    "pass": true,
+    "detail": "{\"fontSize\":\"28px\",\"fontWeight\":\"700\"}"
+  },
+  {
+    "name": "baseline: long-form h2 19px/600",
+    "pass": true,
+    "detail": "{\"fontSize\":\"19px\",\"fontWeight\":\"600\"}"
   },
   {
     "name": "no save while IME is composing (visual, including ⌘S)",
@@ -120,6 +220,16 @@
     "detail": ""
   },
   {
+    "name": "baseline: dialog radius 14",
+    "pass": true,
+    "detail": "{\"borderTopLeftRadius\":\"14px\"}"
+  },
+  {
+    "name": "baseline: dialog title 16px/600",
+    "pass": true,
+    "detail": "{\"fontSize\":\"16px\",\"fontWeight\":\"600\"}"
+  },
+  {
     "name": "editor behind the dialog is inert",
     "pass": true,
     "detail": ""
@@ -187,7 +297,7 @@
   {
     "name": "long document scrolls to the bottom",
     "pass": true,
-    "detail": "{\"scrollHeight\":38612,\"atBottom\":true,\"p50\":15.400000095367432,\"p95\":25.90000009536743,\"max\":37.5}"
+    "detail": "{\"scrollHeight\":38612,\"atBottom\":true,\"p50\":16.40000009536743,\"p95\":19.800000190734863,\"max\":69.59999990463257}"
   },
   {
     "name": "long document did not save on open",
@@ -195,8 +305,8 @@
     "detail": ""
   },
   {
-    "name": "dark appearance uses the dark canvas token",
+    "name": "dark appearance uses the dark bg token (#161615)",
     "pass": true,
-    "detail": "rgb(30, 30, 30)"
+    "detail": "rgb(22, 22, 21)"
   }
 ]

@@ -32,7 +32,7 @@
 | `services/mac-server` | Fastify 服務、SQLite、檔案系統、OpenAPI | contracts、domain |
 | `apps/mac` | Electron Mac App（見下節） | api-client、contracts、design-tokens、markdown-editor-web |
 | `packages/markdown-editor-web` | MDXEditor 視覺模式 + `<textarea>` 原始碼模式；可能有損語法偵測與原文保護；不依賴 Electron，第二期可嵌進 WebView | @mdxeditor/editor、mdast 工具 |
-| `packages/design-tokens` | 淺色／深色語義 token（色彩、字體、4px 間距），輸出 CSS 變數；值目前是系統預設佔位，視覺方向核准後替換 | 無 |
+| `packages/design-tokens` | DESIGN.md 視覺基線（PT-20261116-001「暖白克制」）的語義 token：淺色／深色色彩、陰影、字型堆疊、字級、間距、圓角、尺寸、斷點、動效；輸出 CSS 變數，第二期 React Native 直接讀值 | 無 |
 | `packages/platform-preview` | 四平台預覽的型別與空範本（M2 實作畫面） | contracts |
 
 共用套件不依賴 Electron 或 Node 專屬 UI；`domain` 的路徑工具用到 `node:path`，第二期若要在 React Native 使用需再拆分（目前行動端不使用）。
@@ -190,7 +190,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 ## 尚未實作（依里程碑）
 
 - M1 其餘部分：URL 匯入與 SSRF 防護、匯入任務 API、冪等鍵強制、Agent 最小權限權杖（QC-006）；外部目錄掛載與資料夾監控（QC-007）。視頻縮圖（需 ffmpeg）尚未做。
-- Mac App（QC-002 之後）：圖片顯示（相對路徑與托管素材要對應到 `/api/v1/assets/:id/stream`）、版本恢復、作品狀態與標籤編輯。
+- Mac App（QC-002 之後）：圖片顯示（相對路徑與托管素材要對應到 `/api/v1/assets/:id/stream`）、版本恢復、作品狀態與標籤編輯、訂閱變更事件（主程序訂閱 SSE 再經 IPC 推給 renderer，用於外部修改提示與列表即時刷新）。
 - M2：平台版本 API、版本恢復、Electron／外部編輯器／Agent 三方衝突的完整驗收。
 - M3：AI 任務、Keychain 金鑰、Gemini 視頻理解（測試只用假服務）。
 - 生產可用：launchd 實機安裝、崩潰恢復、SQLite 備份與還原（QC-004）。
