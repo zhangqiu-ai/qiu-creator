@@ -56,6 +56,8 @@ export interface BuildServerOptions {
   jobs?: JobQueueOptions & { start?: boolean };
   /** SSE heartbeat interval. */
   heartbeatMs?: number;
+  /** Close a tus PATCH after this long without receiving bytes (default 60 s). */
+  tusIdleTimeoutMs?: number;
 }
 
 export interface CreatorHubServer {
@@ -286,7 +288,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     },
   );
 
-  registerAssetRoutes(app, assets, layout);
+  registerAssetRoutes(app, assets, layout, { tusIdleTimeoutMs: options.tusIdleTimeoutMs });
   registerEventRoutes(app, feed, options.heartbeatMs);
 
   if (options.jobs?.start !== false) jobs.start();

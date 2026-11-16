@@ -103,7 +103,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 ## 上傳與素材
 
-1. **接收**：小檔走直傳，邊收邊計數，超過 32 MiB 立即中止並回 413；大檔走 tus，進行中的資料在 `data/uploads/`，斷線後 `HEAD` 取得 offset 從斷點續傳。tus 建立時就拒絕超過所有類型上限的 `Upload-Length`。
+1. **接收**：小檔走直傳，邊收邊計數，超過 32 MiB 立即中止並回 413；大檔走 tus，進行中的資料在 `data/uploads/`，斷線後 `HEAD` 取得 offset 從斷點續傳。tus 建立時就拒絕超過所有類型上限的 `Upload-Length`。tus PATCH 連續 60 秒收不到任何位元組（用戶端無聲消失、連線未關）時，伺服器關閉該連線、保存已收資料並釋放該上傳的鎖，用戶端可立即 `HEAD` 後續傳；慢但持續傳送的上傳不受影響（QC-008）。
 2. **校驗**（`src/media/detect.ts`）：以 magic bytes 判斷類型並對白名單；副檔名不作數（例如名為 `.mp4` 的 PNG 會被存成 `.png`；改名成 `.jpg` 的 ZIP 回 415）。再依類型檢查大小上限：圖片 50 MiB、音訊 1 GiB、視頻 20 GiB、Markdown 5 MiB。
 3. **去重**：算 sha256；已有相同內容就刪掉暫存檔，回原素材與 `deduplicated: true`。
 4. **入庫**：暫存檔 `rename` 到 `library/assets/<id>/`，同一個 SQLite 交易寫 `assets`、`change_log`，並為圖片排縮圖任務、為視頻／音訊排 ffprobe 任務。

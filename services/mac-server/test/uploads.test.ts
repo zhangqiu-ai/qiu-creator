@@ -265,6 +265,149 @@ describe('resumable (tus) upload', () => {
     expect(done.asset.bytes).toBe(video.length);
   });
 
+  async function createTusUpload(srv: TestServer, length: number): Promise<string> {
+    const res = await fetch(`${srv.baseUrl}${TUS_UPLOAD_PATH}`, {
+      method: 'POST',
+      headers: {
+        ...authHeaders(),
+        'tus-resumable': '1.0.0',
+        'upload-length': String(length),
+        'upload-metadata': `filename ${Buffer.from('v.mp4').toString('base64')}`,
+      },
+    });
+    expect(res.status).toBe(201);
+    return res.headers.get('location') ?? '';
+  }
+
+  function openPatch(srv: TestServer, location: string, offset: number, length: number) {
+    return http.request(new URL(location, srv.baseUrl), {
+      method: 'PATCH',
+      headers: {
+        ...authHeaders(),
+        'tus-resumable': '1.0.0',
+        'upload-offset': String(offset),
+        'content-type': 'application/offset+octet-stream',
+        'content-length': String(length),
+      },
+    });
+  }
+
+  // QC-008: a client that vanishes without closing its socket (Wi-Fi drop, sleep)
+  // used to keep the PATCH open forever, holding the upload's lock, so every later
+  // HEAD/PATCH for that upload first waited out tus's 3 s lock drain.
+  it('closes a PATCH whose client went silent and frees the upload for the resume', async () => {
+    const srv = await start({ tusIdleTimeoutMs: 300 });
+    const video = mp4Bytes(512 * 1024);
+    const location = await createTusUpload(srv, video.length);
+    const sent = 64 * 1024;
+
+    const req = openPatch(srv, location, 0, video.length);
+    req.on('error', () => {});
+    const closed = new Promise<'closed'>((resolve) =>
+      req.on('close', () => {
+        resolve('closed');
+      }),
+    );
+    req.write(video.subarray(0, sent)); // then silence, socket left open
+    const outcome = await Promise.race([
+      closed,
+      new Promise<'still open'>((resolve) =>
+        setTimeout(() => {
+          resolve('still open');
+        }, 3000),
+      ),
+    ]);
+    req.destroy();
+    expect(outcome).toBe('closed');
+
+    const t0 = Date.now();
+    const offset = await headOffset(srv, location);
+    expect(Date.now() - t0).toBeLessThan(1000);
+    expect(offset).toBe(sent);
+
+    const finish = await fetch(new URL(location, srv.baseUrl), {
+      method: 'PATCH',
+      headers: {
+        ...authHeaders(),
+        'tus-resumable': '1.0.0',
+        'upload-offset': String(offset),
+        'content-type': 'application/offset+octet-stream',
+      },
+      body: video.subarray(offset),
+    });
+    expect(finish.status).toBe(200);
+    const { asset } = (await finish.json()) as { asset: { sha256: string } };
+    expect(asset.sha256).toBe(sha(video));
+  });
+
+  it('keeps a slow PATCH open while bytes keep arriving', async () => {
+    const srv = await start({ tusIdleTimeoutMs: 300 });
+    const video = mp4Bytes(8 * 16 * 1024);
+    const location = await createTusUpload(srv, video.length);
+
+    const req = openPatch(srv, location, 0, video.length);
+    const status = new Promise<number>((resolve, reject) => {
+      req.on('response', (res) => {
+        res.resume();
+        resolve(res.statusCode ?? 0);
+      });
+      req.on('error', reject);
+    });
+    // 8 pieces, 150 ms apart: 1.05 s in total, but never idle for 300 ms.
+    for (let i = 0; i < 8; i++) {
+      if (i > 0) await new Promise((r) => setTimeout(r, 150));
+      req.write(video.subarray(i * 16 * 1024, (i + 1) * 16 * 1024));
+    }
+    req.end();
+    expect(await status).toBe(200);
+  });
+
+  it('leaves the keep-alive socket usable after a PATCH completes', async () => {
+    const srv = await start({ tusIdleTimeoutMs: 300 });
+    const location = await createTusUpload(srv, 200_000);
+    const agent = new http.Agent({ keepAlive: true, maxSockets: 1 });
+    const send = (
+      method: string,
+      target: string,
+      headers: Record<string, string>,
+      body?: Buffer,
+    ): Promise<{ status: number; socket: unknown }> =>
+      new Promise((resolve, reject) => {
+        const req = http.request(
+          new URL(target, srv.baseUrl),
+          { method, headers, agent },
+          (res) => {
+            res.resume();
+            res.on('end', () => {
+              resolve({ status: res.statusCode ?? 0, socket: req.socket });
+            });
+          },
+        );
+        req.on('error', reject);
+        req.end(body);
+      });
+    try {
+      const patched = await send(
+        'PATCH',
+        location,
+        authHeaders({
+          'tus-resumable': '1.0.0',
+          'upload-offset': '0',
+          'content-type': 'application/offset+octet-stream',
+        }),
+        Buffer.alloc(100_000),
+      );
+      expect(patched.status).toBe(204);
+      // Idle longer than the PATCH limit: the socket is back on keep-alive timing.
+      await new Promise((r) => setTimeout(r, 800));
+      const listed = await send('GET', '/api/v1/assets?limit=1', authHeaders());
+      expect(listed.status).toBe(200);
+      expect(listed.socket).toBe(patched.socket);
+    } finally {
+      agent.destroy();
+    }
+  });
+
   it('rejects disguised content at the end of a resumable upload', async () => {
     const srv = await start();
     const err: unknown = await srv.client.assets
