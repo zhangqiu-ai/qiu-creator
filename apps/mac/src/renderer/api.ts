@@ -1,0 +1,64 @@
+import {
+  ApiError,
+  createClient,
+  type CreatorHubClient,
+  type FetchLike,
+} from '@qiu-creator/api-client';
+import type { CreatorHubBridge, ProxyRequest, ProxyResponse } from '../shared/bridge.js';
+
+/** Turn a fetch call into a bridge request (headers flattened, body as text). */
+export function toProxyRequest(input: string, init: RequestInit = {}): ProxyRequest {
+  const headers: Record<string, string> = {};
+  new Headers(init.headers).forEach((value, key) => {
+    headers[key] = value;
+  });
+  const body = init.body;
+  if (body !== undefined && body !== null && typeof body !== 'string') {
+    throw new TypeError('only string bodies are supported');
+  }
+  return { url: input, method: init.method ?? 'GET', headers, body: body ?? null };
+}
+
+export function fromProxyResponse(res: ProxyResponse): Response {
+  const nullBody = res.status === 204 || res.status === 304;
+  return new Response(nullBody ? null : res.body, {
+    status: res.status,
+    statusText: res.statusText,
+    headers: res.headers,
+  });
+}
+
+export function bridgeFetch(request: (req: ProxyRequest) => Promise<ProxyResponse>): FetchLike {
+  return async (input, init) => fromProxyResponse(await request(toProxyRequest(input, init)));
+}
+
+export type ConnectResult =
+  | { ok: true; client: CreatorHubClient }
+  | { ok: false; reason: 'home_missing' | 'service_down' | 'unauthorized' };
+
+/** Resolve the token, then prove the service is up and accepts it. */
+export async function connect(bridge: CreatorHubBridge): Promise<ConnectResult> {
+  const info = await bridge.getConnection();
+  if (!info.ok) {
+    return { ok: false, reason: info.reason === 'home_missing' ? 'home_missing' : 'service_down' };
+  }
+  const client = createClient({
+    baseUrl: info.baseUrl,
+    token: info.token,
+    fetch: bridgeFetch(bridge.request),
+  });
+  try {
+    await client.health();
+    await client.works.list({ limit: 1 });
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) return { ok: false, reason: 'unauthorized' };
+    return { ok: false, reason: 'service_down' };
+  }
+  return { ok: true, client };
+}
+
+declare global {
+  interface Window {
+    creatorhub?: CreatorHubBridge;
+  }
+}

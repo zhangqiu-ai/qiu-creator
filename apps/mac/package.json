@@ -1,0 +1,32 @@
+{
+  "name": "@qiu-creator/mac",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist-electron/main.cjs",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "vite build && node scripts/build-electron.mjs",
+    "start": "electron .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@qiu-creator/api-client": "workspace:*",
+    "@qiu-creator/contracts": "workspace:*",
+    "@qiu-creator/design-tokens": "workspace:*",
+    "@qiu-creator/markdown-editor-web": "workspace:*",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@qiu-creator/mac-server": "workspace:*",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "electron": "^45.3.2",
+    "esbuild": "^0.28.2",
+    "vite": "^8.3.8"
+  }
+}

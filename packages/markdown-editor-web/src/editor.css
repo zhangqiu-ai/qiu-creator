@@ -1,0 +1,45 @@
+/* Layout-only styles. Colors come from @qiu-creator/design-tokens CSS variables. */
+.qc-md-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.qc-md-editor__modes {
+  display: flex;
+  gap: calc(var(--qc-space, 4px) * 1);
+  padding: calc(var(--qc-space, 4px) * 2) 0;
+}
+.qc-md-editor__mode[aria-checked='true'] {
+  background: var(--qc-surface-selected);
+  color: var(--qc-text-primary);
+}
+.qc-md-editor__confirm {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--qc-space, 4px) * 2);
+  padding: calc(var(--qc-space, 4px) * 2);
+  border: 1px solid var(--qc-separator);
+  color: var(--qc-warning);
+}
+.qc-md-editor__visual {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.qc-md-editor__content {
+  max-width: 44em;
+  min-height: 60vh;
+  line-height: 1.75;
+}
+.qc-md-editor__source {
+  flex: 1;
+  min-height: 60vh;
+  resize: none;
+  font-family: var(--qc-font-mono, ui-monospace, monospace);
+  line-height: 1.6;
+  padding: calc(var(--qc-space, 4px) * 3);
+  background: var(--qc-canvas);
+  color: var(--qc-text-primary);
+  border: 1px solid var(--qc-separator);
+}

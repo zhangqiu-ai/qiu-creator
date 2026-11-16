@@ -1,0 +1,127 @@
+[
+  {
+    "name": "opening a document does not create a revision",
+    "pass": true,
+    "detail": "revisions=1"
+  },
+  {
+    "name": "no save while IME is composing (visual)",
+    "pass": true,
+    "detail": "status=已儲存"
+  },
+  {
+    "name": "composed text is saved after commit (visual)",
+    "pass": true,
+    "detail": "\"ng)\\n\\n---\\n\\n最後一段。中文輸入\\n\""
+  },
+  {
+    "name": "save status returns to 已儲存",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "caret sits right after the committed text",
+    "pass": true,
+    "detail": "\"後一段。中文輸入\""
+  },
+  {
+    "name": "⌘Z undoes the committed IME text",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "⇧⌘Z redoes it",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "document on disk matches after undo/redo",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "no save while composing in the title",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "title saved after commit",
+    "pass": true,
+    "detail": "旅行筆記：京都三日（新版）"
+  },
+  {
+    "name": "history lists every revision",
+    "pass": true,
+    "detail": "items=3"
+  },
+  {
+    "name": "external writer saved via API",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "stale save shows 版本衝突",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "server copy was not overwritten",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "local draft kept in the editor",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "diff shows both versions",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "keep-both creates a new work with my draft",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "original still has the other writer’s version",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "lossy document opens in source mode",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "switching to visual asks first",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "no save while composing (source mode)",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "source mode saves byte-exact text + insertion",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "long document scrolls to the bottom",
+    "pass": true,
+    "detail": "{\"scrollHeight\":27233,\"atBottom\":true,\"p50\":15.5,\"p95\":19,\"max\":30}"
+  },
+  {
+    "name": "long document did not save on open",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "dark appearance uses dark canvas token",
+    "pass": true,
+    "detail": "rgb(30, 30, 30)"
+  }
+]

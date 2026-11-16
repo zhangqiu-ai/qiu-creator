@@ -30,10 +30,31 @@
 | `packages/api-client` | 型別安全的 fetch 用戶端（base URL + Bearer 權杖），回應以契約驗證；409 時帶出 `currentRevision` | contracts |
 | `packages/agent-sdk` | `creatorhub` CLI（`works create`、`works list`），只走 api-client；`mcp/` 預留 | api-client、commander |
 | `services/mac-server` | Fastify 服務、SQLite、檔案系統、OpenAPI | contracts、domain |
+| `apps/mac` | Electron Mac App（見下節） | api-client、contracts、design-tokens、markdown-editor-web |
+| `packages/markdown-editor-web` | MDXEditor 視覺模式 + `<textarea>` 原始碼模式；可能有損語法偵測與原文保護；不依賴 Electron，第二期可嵌進 WebView | @mdxeditor/editor、mdast 工具 |
+| `packages/design-tokens` | 淺色／深色語義 token（色彩、字體、4px 間距），輸出 CSS 變數；值目前是系統預設佔位，視覺方向核准後替換 | 無 |
+| `packages/platform-preview` | 四平台預覽的型別與空範本（M2 實作畫面） | contracts |
 
 共用套件不依賴 Electron 或 Node 專屬 UI；`domain` 的路徑工具用到 `node:path`，第二期若要在 React Native 使用需再拆分（目前行動端不使用）。
 
 各套件目前直接匯出 TypeScript 原始碼（`exports` 指向 `src/index.ts`），由 tsx／Vitest 執行；尚無建置產物。
+
+## Mac App（apps/mac）
+
+```text
+renderer（React，sandbox，無 Node）
+  └─ api-client（fetch 由 bridge 提供）
+       └─ window.creatorhub.request ──IPC──► main process
+                                              └─ fetch http://127.0.0.1:7420/{health,api/v1/*}
+```
+
+- **只走 HTTP API。** App 不開 SQLite、不寫內容檔；所有讀寫都經 api-client 到 mac-server。
+- **權杖。** 主程序每次連線時讀 `CREATORHUB_TOKEN` 或 `$CREATORHUB_HOME/data/api-token`，經 preload 的 `contextBridge` 交給 renderer。開發模式沒設 `CREATORHUB_HOME` 就不連線（顯示「未設定 CREATORHUB_HOME」），只有打包後才預設 `~/CreatorHub`。
+- **為什麼經主程序轉送請求。** renderer 的來源是 `http://localhost:5180`（開發）或 `file://`（建置），直接 fetch `127.0.0.1:7420` 會被 CORS 擋下，而服務沒有開 CORS。主程序轉送時只允許設定的服務來源、`/health` 與 `/api/v1/*`、固定的方法與標頭、8 MB 以內的內容，不跟隨重新導向，並只接受自家頁面送來的 IPC。
+- **視窗安全。** `contextIsolation`、`sandbox` 開啟，`nodeIntegration` 關閉；CSP 在開發模式由回應標頭提供、建置後以 meta 標籤寫入；禁止頁內導航、拒絕所有權限請求、只有 `https:` 連結交給系統瀏覽器開啟。
+- **服務沒啟動時。** App 不啟動也不關閉服務（服務由 launchd 管）。連不上就顯示「服務未運行」與重試；關閉視窗或結束 App 不影響服務（`docs/evidence/qc002-close-window.txt`）。
+- **儲存。** 每個打開的作品有一個 `WorkSession`：停止輸入 0.8 秒自動儲存，⌘S 立即儲存；輸入法組字期間不儲存也不觸發快捷鍵；PATCH 一律帶 `base_revision`，同時只送一個請求。
+- **衝突（409）。** 狀態改為「版本衝突」，草稿留在編輯器，停止自動儲存；可「查看差異」（行級 diff）、「另存新作品」（保留雙方）、「重新載入」（確認後捨棄本機修改）。有未解決衝突時切換作品會先確認。
 
 ## 資料目錄
 
@@ -164,6 +185,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 ## 尚未實作（依里程碑）
 
 - M1 其餘部分：URL 匯入與 SSRF 防護、匯入任務 API、冪等鍵強制、Agent 最小權限權杖（QC-006）；外部目錄掛載與資料夾監控（QC-007）。視頻縮圖（需 ffmpeg）尚未做。
+- Mac App（QC-002 之後）：圖片顯示（相對路徑與托管素材要對應到 `/api/v1/assets/:id/stream`）、版本恢復、作品狀態與標籤編輯。
 - M2：平台版本 API、版本恢復、Electron／外部編輯器／Agent 三方衝突的完整驗收。
 - M3：AI 任務、Keychain 金鑰、Gemini 視頻理解（測試只用假服務）。
 - 生產可用：launchd 實機安裝、崩潰恢復、SQLite 備份與還原（QC-004）。
