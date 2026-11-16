@@ -2,8 +2,7 @@
   "version": 1,
   "prototype": {
     "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
-    "repoFile": "docs/design/prototype/qiu-creator-prototype.html",
-    "repoFileStatus": "not-created; v0.1 lives in the Design canvas above, export decision pending"
+    "note": "The Design canvas is the only prototype; it is not exported to the repo (開發總監, 2026-11-16)."
   },
   "entries": [
     {
@@ -19,6 +18,7 @@
       "approvedBy": null,
       "approvedAt": null,
       "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "canvasVersion": "24 (version id 1794841037-c52d)",
       "tweaks": {
         "dark": "all 8 boards",
         "narrow": "all 8 boards; sidebar collapses to a 60px icon rail (also automatic between 800px and 1180px window width; below 800px the sidebar stacks above content)",
@@ -73,14 +73,17 @@
         { "path": "/Users/feature/code/qiuge-design/cases/kubai-anti-slop-product-directives/case.md", "kind": "concept", "borrowed": "Token-only colors, fixed radius set, 4px spacing, copy reduction.", "adaptation": "Every color is a CSS variable switched by the dark Tweak; strings kept to labels and short states." },
         { "path": "/Users/feature/code/qiuge-design/cases/kubai-999-017-waiting-states/case.md", "kind": "concept", "borrowed": "Pick the waiting pattern per operation; failures retry in place.", "adaptation": "Skeletons for library, assets and AI generation; progress bars for imports and video upload; spinner chips for service start and backup; inline retry on failed saves, imports and analysis." }
       ],
+      "verified": [
+        "Static checks on all 8 artboard sources: tag balance (HTML parser), script syntax (node --check), data-props JSON parse — all pass."
+      ],
       "notVerified": [
-        "NOT_VERIFIED: artboards were not rendered or clicked after publishing (the canvas type asks not to self-verify without permission); syntax and interactions are unchecked in the live canvas.",
-        "NOT_VERIFIED: contrast checked by formula only, not measured in the rendered page.",
-        "NOT_VERIFIED: VoiceOver and Tab order not walked; narrow rail and sub-800px stacking not viewed.",
+        "NOT_VERIFIED: rendering in the live canvas — user chose to review the canvas directly (2026-11-16).",
+        "NOT_VERIFIED: interactions and Tweak switching (dark, narrow, state) — user chose to review the canvas directly (2026-11-16).",
+        "NOT_VERIFIED: measured contrast in the rendered page (formula check only) — user chose to review the canvas directly (2026-11-16).",
+        "NOT_VERIFIED: keyboard Tab order and VoiceOver — user chose to review the canvas directly (2026-11-16).",
         "Not done: recycle-bin flow, upload and URL dialogs, key entry dialog, model switch menu in the AI panel; image placeholders are color blocks."
       ],
       "openQuestions": [
-        "DESIGN.md names a single HTML file as the prototype; v0.1 lives in a Design canvas. Export to the repo file, or update DESIGN.md to point at the canvas?",
         "Software name and logo are placeholders (qiu-creator, ink square).",
         "待發布 status and primary actions share the accent color; consider a separate status hue."
       ]

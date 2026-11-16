@@ -1,12 +1,11 @@
 # 原型
 
-規則見 [DESIGN.md](../../../DESIGN.md) 的「原型流程」一節。本資料夾只放原型與帳本。
+規則見 [DESIGN.md](../../../DESIGN.md) 的「原型流程」一節。
 
 ## 位置
 
-- 原型 v0.1：Design 畫布 <https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1>（私有，需分享後才能開啟）。
-- 帳本：[changes.json](changes.json)，每批改動一個條目。
-- DESIGN.md 指定的單一 HTML `qiu-creator-prototype.html` 尚未建立；要匯出到 repo，還是改指向畫布，由總監決定。
+- 唯一原型是 Design 畫布 <https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1>（私有，需分享後才能開啟）。原型不匯出到 repo。
+- 本資料夾只放帳本 [changes.json](changes.json) 和這份說明。每批改動一個條目，條目寫明畫布網址和版本。
 
 ## 流程
 
