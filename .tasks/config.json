@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "readmeAttribution": true,
+  "idPrefix": "QC",
+  "nextId": 4,
+  "states": {
+    "Backlog": "BACKLOG.md",
+    "Next": "NEXT.md",
+    "In Progress": "IN_PROGRESS.md",
+    "Done": "DONE.md",
+    "Rejected": "REJECTED.md"
+  },
+  "priorities": ["P0", "P1", "P2", "P3", "P4"],
+  "tags": ["M0", "M1", "M2", "M3", "backend", "frontend", "prototype"],
+  "insertPosition": "top",
+  "aiPlanRequired": true,
+  "sortBy": "priority"
+}
