@@ -1,0 +1,7 @@
+node_modules
+dist
+coverage
+pnpm-lock.yaml
+.tasks
+# Markdown docs are hand-written (Traditional Chinese tables, plan text); don't reflow them.
+**/*.md

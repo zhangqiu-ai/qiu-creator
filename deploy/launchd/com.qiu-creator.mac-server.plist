@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template only. Replace every __PLACEHOLDER__ before installing; see
+  deploy/launchd/README.md. Do not load this file as-is.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.qiu-creator.mac-server</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <!-- Absolute path to Node 24, e.g. /opt/homebrew/bin/node (launchd has no shell PATH). -->
+    <string>__NODE_BIN__</string>
+    <string>--import</string>
+    <string>tsx</string>
+    <string>src/main.ts</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__REPO_DIR__/services/mac-server</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>CREATORHUB_HOME</key>
+    <string>__USER_HOME__/CreatorHub</string>
+    <key>CREATORHUB_HOST</key>
+    <string>127.0.0.1</string>
+    <key>CREATORHUB_PORT</key>
+    <string>7420</string>
+    <key>NODE_ENV</key>
+    <string>production</string>
+  </dict>
+
+  <!-- Start at login and restart after crashes; Electron is not involved. -->
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>ProcessType</key>
+  <string>Standard</string>
+
+  <key>StandardOutPath</key>
+  <string>__USER_HOME__/Library/Logs/qiu-creator/mac-server.log</string>
+  <key>StandardErrorPath</key>
+  <string>__USER_HOME__/Library/Logs/qiu-creator/mac-server.err.log</string>
+</dict>
+</plist>
