@@ -13,7 +13,6 @@ import {
   RevisionListResponseSchema,
   WorkDetailSchema,
   WorkIdParamsSchema,
-  type ErrorResponse,
 } from '@qiu-creator/contracts';
 import { parseRange, resolveBaseRevision, revisionEtag } from '@qiu-creator/domain';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -29,8 +28,15 @@ import { AssetService } from './assets/asset-service.js';
 import type { ServerConfig } from './config.js';
 import { openDatabase, type Db } from './db/database.js';
 import { ServiceError } from './errors.js';
+import { ChangeFeed } from './events/change-feed.js';
+import { errorBody } from './http/app-type.js';
 import { isAuthorized } from './http/auth.js';
+import { JobQueue, type JobQueueOptions } from './jobs/job-queue.js';
 import { Layout } from './layout.js';
+import { DEFAULT_SIZE_LIMITS, type SizeLimits } from './media/detect.js';
+import { resolveFfprobe } from './media/ffprobe.js';
+import { registerAssetRoutes } from './routes/assets.js';
+import { registerEventRoutes } from './routes/events.js';
 import { WorkService } from './works/work-service.js';
 
 export const SERVER_VERSION = '0.0.0';
@@ -39,6 +45,17 @@ export interface BuildServerOptions {
   config: Pick<ServerConfig, 'home' | 'token'> & Partial<Pick<ServerConfig, 'logLevel'>>;
   /** Enable Fastify's request logger (off in tests). */
   logger?: boolean;
+  /** Per-kind upload size limits (bytes). */
+  limits?: Partial<SizeLimits>;
+  /**
+   * ffprobe binary for video/audio metadata. `undefined` resolves from
+   * `CREATORHUB_FFPROBE`, PATH and Homebrew locations; `null` disables probing.
+   */
+  ffprobe?: string | null;
+  /** Background job queue tuning; `start: false` leaves queued jobs untouched (tests). */
+  jobs?: JobQueueOptions & { start?: boolean };
+  /** SSE heartbeat interval. */
+  heartbeatMs?: number;
 }
 
 export interface CreatorHubServer {
@@ -47,14 +64,8 @@ export interface CreatorHubServer {
   layout: Layout;
   works: WorkService;
   assets: AssetService;
-}
-
-function errorBody(
-  code: ErrorResponse['error']['code'],
-  message: string,
-  details?: Record<string, unknown>,
-): ErrorResponse {
-  return { error: details === undefined ? { code, message } : { code, message, details } };
+  feed: ChangeFeed;
+  jobs: JobQueue;
 }
 
 function isHttpError(err: unknown): err is Error & { statusCode: number } {
@@ -72,8 +83,16 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   const layout = new Layout(config.home);
   layout.ensureBase();
   const db = openDatabase(layout.databaseFile);
-  const works = new WorkService(db, layout);
-  const assets = new AssetService(db, layout);
+  const feed = new ChangeFeed(db);
+  const jobs = new JobQueue(db, feed, options.jobs);
+  const works = new WorkService(db, layout, undefined, feed);
+  const assets = new AssetService(db, layout, feed, jobs, {
+    limits: { ...DEFAULT_SIZE_LIMITS, ...options.limits },
+    ffprobe:
+      options.ffprobe === undefined
+        ? resolveFfprobe(process.env['CREATORHUB_FFPROBE'])
+        : options.ffprobe,
+  });
 
   const app = Fastify({
     logger: options.logger === true ? { level: config.logLevel ?? 'info' } : false,
@@ -81,7 +100,8 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   }).withTypeProvider<ZodTypeProvider>();
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
-  app.addHook('onClose', () => {
+  app.addHook('onClose', async () => {
+    await jobs.stop();
     db.close();
   });
 
@@ -266,5 +286,9 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     },
   );
 
-  return { app, db, layout, works, assets };
+  registerAssetRoutes(app, assets, layout);
+  registerEventRoutes(app, feed, options.heartbeatMs);
+
+  if (options.jobs?.start !== false) jobs.start();
+  return { app, db, layout, works, assets, feed, jobs };
 }

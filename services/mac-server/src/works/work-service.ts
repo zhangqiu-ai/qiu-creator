@@ -16,6 +16,7 @@ import {
 import { checkRevision, sha256Hex } from '@qiu-creator/domain';
 import type { Db } from '../db/database.js';
 import { notFound, ServiceError } from '../errors.js';
+import type { ChangeFeed } from '../events/change-feed.js';
 import {
   atomicWriteFileSync,
   nodeFsOps,
@@ -70,6 +71,7 @@ export class WorkService {
     private readonly db: Db,
     private readonly layout: Layout,
     private readonly fsOps: AtomicFsOps = nodeFsOps,
+    private readonly feed?: ChangeFeed,
   ) {}
 
   create(input: CreateWorkRequest): WorkDetail {
@@ -116,6 +118,7 @@ export class WorkService {
           created_at: now,
         });
         this.indexFts(id, req.title, req.tags, req.markdown);
+        this.feed?.record('work', id, 'work.created', { revision_id: revisionId });
       })();
     } catch (err) {
       // Nothing references this directory yet; remove it so a failed create leaves no orphan.
@@ -230,6 +233,7 @@ export class WorkService {
           created_at: now,
         });
         this.indexFts(id, title, tags, markdown);
+        this.feed?.record('work', id, 'work.updated', { revision_id: revisionId });
       })();
     } catch (err) {
       // Roll the file back so disk and database keep agreeing.
@@ -314,6 +318,7 @@ export class WorkService {
         created_at: now,
       });
       this.indexFts(row.id, row.title, parseTags(row.tags), onDisk);
+      this.feed?.record('work', row.id, 'work.external_revision', { revision_id: revisionId });
     })();
     return { ...row, current_revision_id: revisionId, updated_at: now };
   }

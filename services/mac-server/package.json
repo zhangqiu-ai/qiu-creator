@@ -19,9 +19,13 @@
     "@fastify/swagger-ui": "^6.1.4",
     "@qiu-creator/contracts": "workspace:*",
     "@qiu-creator/domain": "workspace:*",
+    "@tus/file-store": "^2.1.2",
+    "@tus/server": "^2.4.7",
     "better-sqlite3": "^13.2.0",
     "fastify": "^5.12.8",
     "fastify-type-provider-zod": "^7.0.0",
+    "file-type": "^22.3.0",
+    "sharp": "^0.35.5",
     "tsx": "^4.23.15",
     "zod": "^4.6.7"
   },

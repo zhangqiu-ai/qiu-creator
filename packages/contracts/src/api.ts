@@ -18,6 +18,8 @@ export const ErrorCodeSchema = z.enum([
   'range_not_satisfiable',
   'path_rejected',
   'internal_error',
+  'unsupported_media_type',
+  'payload_too_large',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 

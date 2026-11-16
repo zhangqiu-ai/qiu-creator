@@ -126,4 +126,49 @@ export const migrations: readonly Migration[] = [
       );
     `,
   },
+  {
+    id: '0002',
+    name: 'assets_jobs_change_log',
+    sql: /* sql */ `
+      -- Asset fields needed by uploads, thumbnails and probing.
+      ALTER TABLE assets ADD COLUMN original_name TEXT;
+      ALTER TABLE assets ADD COLUMN codec TEXT;
+      ALTER TABLE assets ADD COLUMN metadata_status TEXT NOT NULL DEFAULT 'none'
+        CHECK (metadata_status IN ('none','pending','ready','unavailable','failed'));
+      ALTER TABLE assets ADD COLUMN thumbnail_status TEXT NOT NULL DEFAULT 'none'
+        CHECK (thumbnail_status IN ('none','pending','ready','failed'));
+      ALTER TABLE assets ADD COLUMN updated_at TEXT;
+      UPDATE assets SET updated_at = created_at WHERE updated_at IS NULL;
+      CREATE INDEX assets_created_at ON assets (created_at DESC);
+
+      -- Durable background work (thumbnails, probing). Survives restarts:
+      -- rows left 'running' by a crash are re-queued on startup.
+      CREATE TABLE background_jobs (
+        id           TEXT PRIMARY KEY,
+        kind         TEXT NOT NULL,
+        subject_id   TEXT NOT NULL,
+        payload      TEXT NOT NULL DEFAULT '{}',
+        status       TEXT NOT NULL CHECK (status IN ('queued','running','succeeded','failed')),
+        attempts     INTEGER NOT NULL DEFAULT 0,
+        max_attempts INTEGER NOT NULL DEFAULT 3,
+        run_after    TEXT NOT NULL,
+        last_error   TEXT,
+        created_at   TEXT NOT NULL,
+        updated_at   TEXT NOT NULL
+      );
+      CREATE INDEX background_jobs_ready ON background_jobs (status, run_after);
+      CREATE INDEX background_jobs_subject ON background_jobs (kind, subject_id);
+
+      -- Append-only change feed behind SSE (/api/v1/events) and future
+      -- incremental sync; seq doubles as the SSE event id.
+      CREATE TABLE change_log (
+        seq        INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity     TEXT NOT NULL CHECK (entity IN ('work','asset','job')),
+        entity_id  TEXT NOT NULL,
+        action     TEXT NOT NULL,
+        data       TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+    `,
+  },
 ];

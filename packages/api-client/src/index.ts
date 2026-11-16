@@ -15,6 +15,26 @@ import {
   type WorkDetail,
 } from '@qiu-creator/contracts';
 import type { z } from 'zod';
+import {
+  createAssetsApi,
+  createEventsApi,
+  createWorkAssetsApi,
+  type CreatorHubAssetsApi,
+  type CreatorHubEventsApi,
+  type CreatorHubWorkAssetsApi,
+} from './assets.js';
+
+export {
+  base64Utf8,
+  parseSseChunk,
+  ResumableUploadError,
+  type CreatorHubAssetsApi,
+  type CreatorHubEventsApi,
+  type CreatorHubWorkAssetsApi,
+  type ResumableUploadInput,
+  type SubscribeOptions,
+  type UploadInput,
+} from './assets.js';
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -61,7 +81,12 @@ export interface CreatorHubClient {
     get(id: string): Promise<WorkDetail>;
     patch(id: string, input: PatchWorkRequest, options?: PatchWorkOptions): Promise<WorkDetail>;
     revisions(id: string): Promise<RevisionListResponse>;
-  };
+  }; /** Asset library and uploads (QC-005). */
+  assets: CreatorHubAssetsApi;
+  /** Work ↔ asset links: cover, body, video, with ordering. */
+  workAssets: CreatorHubWorkAssetsApi;
+  /** SSE change events. */
+  events: CreatorHubEventsApi;
 }
 
 export function createClient(options: CreatorHubClientOptions): CreatorHubClient {
@@ -96,7 +121,11 @@ export function createClient(options: CreatorHubClientOptions): CreatorHubClient
     return schema.parse(json);
   }
 
+  const ctx = { baseUrl, options, doFetch };
   return {
+    assets: createAssetsApi(ctx),
+    workAssets: createWorkAssetsApi(ctx),
+    events: createEventsApi(ctx),
     health: () => request(HealthResponseSchema, 'GET', '/health'),
     works: {
       create: (input) =>
