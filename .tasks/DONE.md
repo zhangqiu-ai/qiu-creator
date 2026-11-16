@@ -1,5 +1,16 @@
 # Done
 
+## QC-007: 外部目錄掛載與資料夾監控（M1 後端 3/3）
+
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M1, backend
+
+### 完成摘要
+
+- `/api/v1/mounts`（管理限主權杖）與 CLI；外部 `.md` 只索引不搬移，拒絕 9 類不安全路徑（穿越、符號連結逃逸、CREATORHUB_HOME 等），符號連結一律不跟隨。
+- Chokidar 監控（正式用 FSEvents，測試用 polling 後端避免系統事件延遲）；寫一半的檔案等寫完才索引；自身寫入不回授；啟動與每 10 分鐘重掃補漏。
+- 改名以內容雜湊接回同一作品；刪除只標 missing（寫入回 409 `source_missing`），放回即恢復；卸載不動檔案。寫回外部檔前核對 revision，快照存在 library 內；原子寫入保留原檔權限位元。
+- 驗收：總監合併後複跑全倉 276／0／276，typecheck、lint、format 通過；證據 `docs/evidence/qc007-mount-run.md`。範圍外：外部資料夾的圖片未索引；「檔案已遺失」介面待 M2。合併 2026-11-16。
+
 ## QC-006: URL 匯入、匯入任務與冪等（M1 後端 2/3）
 
 **Priority:** P0 | **Assignee:** qc-backend | **Tags:** M1, backend
