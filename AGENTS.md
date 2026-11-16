@@ -10,8 +10,10 @@
 ## 事實與範圍
 
 - 產品與技術基線是 [實施方案](docs/AI创作内容工作台_产品与技术实施方案_v1.0.md)。方案與程式碼不一致時，以程式碼和測試為準，並回報差異；不要因為某份摘要就推斷功能未實作。
-- 里程碑依序 **M0 → M1 → M2 → M3**。M4（Browser Agent 輔助發布）只保留 `PublicationTask`／`PlatformAdapter` 介面，不施工。
-- 只支援 macOS、iPhone、iPad；不做 Android、Windows、Web 公開版，也不考慮 App Store 上架。
+- **目前在第一期：Mac 端生產可用**（使用者 2026-11-16 決定，見 [決策記錄](docs/decisions.md)）。里程碑依序 M0 → M1 → M2 → M3，加上生產可用驗收，全部以 Mac 為範圍。
+- **第二期：iPhone／iPad**，Mac 生產可用驗收通過後才開工。第一期不建 `apps/mobile`，不做 Tailscale、裝置配對、RN 訊息橋，原型也只做 Mac 畫面。但 API、鑑權、409、Range、變更事件照方案實作，共用套件不得綁死 Electron，避免第二期返工。
+- M4（Browser Agent 輔助發布）只保留 `PublicationTask`／`PlatformAdapter` 介面，不施工。
+- 最終平台只有 macOS、iPhone、iPad；不做 Android、Windows、Web 公開版，也不考慮 App Store 上架。
 - 只做被授權的範圍。範圍外發現寫在交付說明，不順手修；同一根因的明確缺陷可以一起修，並寫明。
 
 ## 團隊、任務與分支
@@ -28,7 +30,7 @@
 
 | 任務 | 先讀 |
 | --- | --- |
-| 產品範圍、流程、驗收 | 實施方案相關章節；`.tasks` 中的任務 |
+| 產品範圍、流程、驗收 | [決策記錄](docs/decisions.md)、實施方案相關章節；`.tasks` 中的任務 |
 | 介面、互動、版面、原型 | [DESIGN.md](DESIGN.md)、設計參考庫（見下節）、`docs/design/prototype/`（建立後） |
 | 服務、資料、API、同步 | `docs/architecture.md`（QC-001 建立）、`packages/contracts` |
 | 新增或升級依賴 | `docs/dependencies.md` |
