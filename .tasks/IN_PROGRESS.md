@@ -1,13 +1,13 @@
 # In Progress
 
-## QC-006: URL 匯入、匯入任務與冪等（M1 後端 2/3）
+## QC-007: 外部目錄掛載與資料夾監控（M1 後端 3/3）
 
-**Priority:** P0 | **Assignee:** qc-backend | **Tags:** M1, backend
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M1, backend
 
-依賴 QC-005。`POST /api/v1/imports/urls`、`GET /api/v1/jobs/:id`、重試；防 SSRF（回環、內網、特殊位址、DNS 重綁定、重定向、大小、逾時、內容類型）；冪等鍵強制；Agent 最小權限可撤銷權杖；CLI 補 `creatorhub import url`。
+依賴 QC-005。外部 `.md` 資料夾掛載（只索引不搬移）、Chokidar 監控、寫一半的檔案先進待確認、避免自身寫入回授；外部檔案刪除／改名的處理；寫回外部檔案前版本核對與快照。
 
-## QC-002: Electron Mac 最小工程與編輯器（M0 前端）
+### Plan
 
-**Priority:** P0 | **Assignee:** qc-frontend | **Tags:** M0, frontend
-
-依賴 QC-001 合併。`apps/mac`（Electron + React + Vite，只透過 api-client 走 HTTP API）、`packages/markdown-editor-web`（MDXEditor，不綁死 Electron）、`packages/platform-preview` 骨架、共用語義 token 套件；在 Mac 打開、修改、寫回同一篇 `.md` 並保留歷史；Mac 中文輸入法與 Markdown 往返驗收；關閉視窗後服務照常可用。第一期不建 `apps/mobile`（使用者 2026-11-16 決定）。
+- 掛載表與掃描索引（只索引不搬移）；Chokidar 監控加 awaitWriteFinish，寫一半的檔案進待確認。
+- 自身寫入以內容雜湊抑制回授；外部刪除／改名標記而非刪資料。
+- 寫回外部檔案前核對 revision 並留快照；測試全用臨時目錄。

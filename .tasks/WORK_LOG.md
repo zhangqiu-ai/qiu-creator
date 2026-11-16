@@ -1,5 +1,9 @@
 # Work Log
 
+## 2026-11-16 · QC-006、QC-002
+
+- QC-006（URL 匯入、SSRF、冪等、Agent 權杖）與 QC-002（Electron Mac App 與編輯器，M0 完成）合併，全倉 262／0／262。architecture.md 衝突由總監合併兩邊條目。QC-007 開工，交 qc-backend。
+
 ## 2026-11-16 · QC-008
 
 - tus 原始卡死未重現；修好無聲斷線佔鎖（60 s 閒置逾時）。合併，114／0／114。
