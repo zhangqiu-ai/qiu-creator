@@ -1,2 +1,47 @@
 # qiu-creator
 Local-first AI content management, editing, preview and publishing for macOS, iPhone and iPad.
+
+## 開發啟動
+
+需求：Node 24（見 `.nvmrc`）、corepack（Node 內建）。pnpm 版本由 `packageManager` 鎖定，用 `corepack pnpm` 執行，不必另外安裝。
+
+```sh
+corepack pnpm install
+```
+
+### 啟動 Mac 服務
+
+開發一律使用臨時資料目錄，不碰真實的 `~/CreatorHub`（沒設定 `CREATORHUB_HOME` 時 `dev` 會拒絕啟動）：
+
+```sh
+export CREATORHUB_HOME="$(mktemp -d)"
+corepack pnpm dev                       # http://127.0.0.1:7420，修改原始碼自動重啟
+curl -s http://127.0.0.1:7420/health
+cat "$CREATORHUB_HOME/data/api-token"   # 自動產生的 API 權杖
+```
+
+API 文件：<http://127.0.0.1:7420/docs>。
+
+### creatorhub CLI
+
+```sh
+export CREATORHUB_TOKEN="$(cat "$CREATORHUB_HOME/data/api-token")"
+node packages/agent-sdk/bin/creatorhub.js works create --title "第一篇" --file ./note.md
+node packages/agent-sdk/bin/creatorhub.js works list
+```
+
+### 檢查
+
+```sh
+corepack pnpm -r typecheck
+corepack pnpm -r lint
+corepack pnpm -r test
+corepack pnpm format:check
+```
+
+## 文件
+
+- [AGENTS.md](AGENTS.md)：倉庫規則與任務路由
+- [docs/architecture.md](docs/architecture.md)：拓撲、目錄、資料流
+- [docs/dependencies.md](docs/dependencies.md)：依賴、授權與選型理由
+- [deploy/launchd/README.md](deploy/launchd/README.md)：常駐服務範本（只在發版時安裝）

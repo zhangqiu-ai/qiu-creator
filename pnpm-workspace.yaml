@@ -1,0 +1,9 @@
+packages:
+  - 'apps/*'
+  - 'services/*'
+  - 'packages/*'
+
+# Only packages whose install scripts we have reviewed may run them.
+# better-sqlite3 ships prebuilt binaries and needs no install script.
+allowBuilds:
+  esbuild: true

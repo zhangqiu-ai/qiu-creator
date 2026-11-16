@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.DS_Store
+.env
+.env.*
+!.env.example
+*.log
+.vite/
+.turbo/
+# Local data directories used during development
+.creatorhub/
+tmp/
