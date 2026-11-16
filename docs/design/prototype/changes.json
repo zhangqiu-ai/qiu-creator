@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "prototype": {
+    "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+    "repoFile": "docs/design/prototype/qiu-creator-prototype.html",
+    "repoFileStatus": "not-created; v0.1 lives in the Design canvas above, export decision pending"
+  },
+  "entries": [
+    {
+      "id": "PT-20261116-001",
+      "title": "原型 v0.1：全頁面高保真互動原型與視覺方向「暖白克制」",
+      "date": "2026-11-16",
+      "status": "pending",
+      "model": "claude-opus-5-5",
+      "session": "qc-prototype",
+      "requestedBy": "user via 開發總監",
+      "userRequest": "先最大化的設計一版原型（2026-11-16）",
+      "approvedBy": null,
+      "approvedAt": null,
+      "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "boards": [
+        { "file": "Main.dc.html", "title": "Mac · 作品庫", "device": "mac", "phase": 1, "states": ["網格", "列表", "類型篩選", "狀態篩選含計數", "搜尋", "無結果空白", "來源標示", "發布中心停用", "深色"] },
+        { "file": "MacEditor.dc.html", "title": "Mac · 編輯與 AI 改寫", "device": "mac", "phase": 1, "states": ["視覺／原始碼切換", "自動儲存：已儲存／儲存中", "revision", "AI 候選 diff", "逐處勾選（部分採用）", "採用／插入／重試／捨棄", "生成中骨架", "無候選", "採用後復原", "四平台標題候選與字數上限", "深色"] },
+        { "file": "MacPreview.dc.html", "title": "Mac · 平台模擬預覽", "device": "mac", "phase": 1, "states": ["小紅書／公眾號／抖音／視頻號分頁", "各平台獨立版本與 revision", "標題與正文字數，超限警示與預覽截斷", "封面選擇與圖片順序", "標籤增刪（組字中不觸發）", "模擬標示", "深色"] },
+        { "file": "MacConflict.dc.html", "title": "Mac · 版本衝突", "device": "mac", "phase": 1, "states": ["並排兩版", "查看差異", "保留雙方（另存副本）", "手動合併：逐處選擇與可編輯結果", "已解決", "草稿已保留", "深色"] },
+        { "file": "MacAssets.dc.html", "title": "Mac · 素材庫", "device": "mac", "phase": 1, "states": ["托管／外部掛載分區", "類型篩選", "選取", "檢視器：尺寸、時長、編碼、大小、雜湊、位置、引用", "未引用", "外部原檔只移出索引", "深色"] },
+        { "file": "MacImports.dc.html", "title": "Mac · 匯入任務", "device": "mac", "phase": 1, "states": ["API／上傳／URL／資料夾", "排隊", "進行中含進度", "成功含去向", "失敗含原因與重試", "SSRF 已阻擋", "重複沿用原作品", "取消後重試", "狀態篩選", "Agent 權杖撤銷", "監控資料夾待確認：匯入／略過", "深色"] },
+        { "file": "MacAI.dc.html", "title": "Mac · AI 工作台", "device": "mac", "phase": 1, "states": ["範本與模型選擇", "視頻理解結果：摘要、章節、封面、標題", "待核驗標示", "重複分析沿用提示", "首次雲端上傳告知", "上傳與分析進度", "取消", "用量與成本（估算）", "深色"] },
+        { "file": "MacSettings.dc.html", "title": "Mac · 設定", "device": "mac", "phase": 1, "states": ["本機服務狀態", "開機自動啟動", "防止睡眠與關閉警示", "AI 金鑰存於鑰匙圈（不顯示值）", "僅本地模型時雲端停用", "托管目錄與外部掛載", "深色"], "phase2Parts": ["Tailscale 狀態", "裝置列表與撤銷確認", "配對新裝置"] },
+        { "file": "IPad.dc.html", "title": "iPad · 雙欄編輯", "device": "ipad", "phase": 2, "states": ["雙欄", "選取", "狀態篩選", "編輯／預覽", "平台分頁模擬", "窄視窗單欄（Tweak）", "深色"] },
+        { "file": "PhoneLibrary.dc.html", "title": "iPhone · 作品", "device": "iphone", "phase": 2, "states": ["列表", "搜尋", "狀態篩選", "無結果", "新增動作表", "深色"] },
+        { "file": "PhoneEditor.dc.html", "title": "iPhone · 編輯與 AI 候選", "device": "iphone", "phase": 2, "states": ["AI 底部面板", "逐處勾選", "採用／重試／捨棄", "生成中", "採用後復原", "視頻播放", "深色"] },
+        { "file": "PhonePreview.dc.html", "title": "iPhone · 平台預覽", "device": "iphone", "phase": 2, "states": ["四平台視頻版式模擬", "標題字數超限截斷", "模擬標示", "深色"] },
+        { "file": "PhoneOffline.dc.html", "title": "iPhone · 離線與待同步", "device": "iphone", "phase": 2, "states": ["Mac 無法連線", "待同步草稿", "同步失敗與重試", "同步中", "衝突：查看差異／保留雙方／手動合併", "已同步", "初始狀態 Tweak", "深色"] }
+      ],
+      "visualDirection": {
+        "name": "暖白克制",
+        "tokens": {
+          "light": { "bg": "#F6F5F1", "surface": "#FFFFFF", "sunken": "#EFEDE7", "ink": "#1C1B19", "ink2": "#55524C", "ink3": "#6B6862", "line": "#E4E1D9", "accent": "#2F4FCF", "accentSoft": "#E9EDFC", "onAccent": "#FFFFFF", "ok": "#1E7046", "okSoft": "#E3F1E8", "warn": "#8A5300", "warnSoft": "#FBEFD9", "bad": "#B42318", "badSoft": "#FBE7E4" },
+          "dark": { "bg": "#161615", "surface": "#1F1F1D", "sunken": "#121211", "ink": "#ECEAE4", "ink2": "#B5B1A8", "ink3": "#9C988F", "line": "#33322F", "accent": "#8EA2FF", "accentSoft": "#232A47", "onAccent": "#161615", "ok": "#6CCB97", "okSoft": "#183223", "warn": "#E9B160", "warnSoft": "#3A2B12", "bad": "#FF8B7E", "badSoft": "#3D1C18" }
+        },
+        "contrastCheck": "All text tokens on bg/surface/sunken and each status color on its soft fill ≥ 4.5:1 in both themes (lowest: light ink3 on sunken 4.74, light ink3 on accentSoft 4.76). Computed with the WCAG relative-luminance formula; not checked in a browser.",
+        "type": "Inter + -apple-system/PingFang TC/Noto Sans TC; Mac UI 13px, mobile 15–17px, long-form 16–17px with 1.8–1.85 line height and 680px measure; SF Mono for paths and hashes",
+        "radius": "control 7px, card 10px, panel/dialog 14px, phone sheet 20px",
+        "spacing": "4px base",
+        "icons": "inline stroke SVG drawn for this prototype (1.8 stroke, round caps); no library chosen yet",
+        "motion": "150ms hover/toggle transitions, skeleton pulse 1.2s; all disabled under prefers-reduced-motion"
+      },
+      "adjustmentsFromBrief": [
+        "Added onAccent token: dark accent #8EA2FF is light, so primary-button text must be dark (#161615, 7.56:1) instead of white.",
+        "Added scrim token per theme for dialogs and sheets.",
+        "Mac controls are 30–34px tall (pointer); 44px minimum applies to iPhone/iPad only.",
+        "Diffs use strikethrough/underline as well as color, so deletions and insertions do not rely on red/green hue alone.",
+        "Partial adoption is per-change checkboxes (DESIGN.md requires 採用／部分採用／捨棄); the brief listed only 採用／插入／重試／捨棄.",
+        "Platform simulations use fixed neutral platform-like backgrounds, not the app theme, so dark mode does not misrepresent the platforms."
+      ],
+      "references": [
+        { "path": "/Users/feature/code/qiuge-design/cases/kubai-ai-writing-panel/case.md", "kind": "concept", "borrowed": "Selected paragraph stays highlighted in the editor while the panel shows the suggestion; apply/insert/retry grouped under the result.", "adaptation": "Mac: right-side panel next to the article; iPhone: bottom sheet with 50px buttons. Added undo bar after applying." },
+        { "path": "/Users/feature/code/qiuge-design/cases/codex-change-proposal-comparison-table/case.md", "kind": "concept", "borrowed": "One change per row so each can be judged on its own.", "adaptation": "Each AI change is a checkbox row (delete line + insert line) enabling partial adoption; conflict merge uses the same per-change rows." },
+        { "path": "/Users/feature/code/qiuge-design/cases/wechat-format-preview-before-publish/case.md", "kind": "concept", "borrowed": "Controls on the left, rendered preview on the right before anything leaves the app.", "adaptation": "Per-platform version fields on the left, phone-frame simulation on the right, labeled 模擬, no platform logos." },
+        { "path": "/Users/feature/code/qiuge-design/cases/kami-content-first-document-hierarchy/case.md", "kind": "product", "borrowed": "Warm white ground, dark ink, sparse blue; hierarchy from size and spacing rather than decoration.", "adaptation": "Applied to the whole shell; color comes from work covers." },
+        { "path": "/Users/feature/code/qiuge-design/cases/kubai-anti-slop-product-directives/case.md", "kind": "concept", "borrowed": "Token-only colors, fixed radius set, 4px spacing, copy reduction.", "adaptation": "Every color is a CSS variable switched by the dark Tweak; strings kept to labels and short states." },
+        { "path": "/Users/feature/code/qiuge-design/cases/kubai-999-017-waiting-states/case.md", "kind": "concept", "borrowed": "Pick the waiting pattern per operation; failures retry in place.", "adaptation": "Skeleton for AI generation, progress bars for imports/upload, spinner banner for sync, inline retry on failed import rows and uploads." }
+      ],
+      "notVerified": [
+        "NOT_VERIFIED: artboards were not rendered or clicked after publishing (the canvas type asks not to self-verify without permission); syntax and interactions are unchecked in the live canvas.",
+        "NOT_VERIFIED: contrast checked by formula only, not measured in the rendered page.",
+        "NOT_VERIFIED: VoiceOver/keyboard order not walked.",
+        "NOT_VERIFIED: Mac pages at narrow widths (sidebar stacks via flex-wrap) not viewed.",
+        "Not done: version history panel (button only), 回收 flow, upload dialogs, model-key entry, image placeholders are color blocks."
+      ],
+      "openQuestions": [
+        "Phase conflict: origin/main 5f74a50 (user decision 2026-11-16) says phase 1 prototypes are Mac only and excludes Tailscale/device pairing. The brief asked for 13 boards including 5 mobile boards and device pairing in Settings. They are marked phase 2 here; keep as phase-2 reference, or remove before review?",
+        "DESIGN.md names a single HTML file as the prototype; v0.1 lives in a Design canvas. Export to the repo file, or update DESIGN.md to point at the canvas?",
+        "Software name and logo are placeholders (qiu-creator, ink square)."
+      ]
+    }
+  ]
+}
