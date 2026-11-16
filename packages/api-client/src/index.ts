@@ -34,6 +34,9 @@ import {
   type IdempotencyOptions,
 } from './imports.js';
 
+import { createMountsApi, type CreatorHubMountsApi } from './mounts.js';
+export type { CreatorHubMountsApi } from './mounts.js';
+
 export {
   type CreatorHubImportsApi,
   type CreatorHubJobsApi,
@@ -113,6 +116,8 @@ export interface CreatorHubClient {
   jobs: CreatorHubJobsApi;
   /** Agent token management (owner token only). */
   tokens: CreatorHubTokensApi;
+  /** External folder mounts (QC-007). */
+  mounts: CreatorHubMountsApi;
 }
 
 export function createClient(options: CreatorHubClientOptions): CreatorHubClient {
@@ -155,6 +160,7 @@ export function createClient(options: CreatorHubClientOptions): CreatorHubClient
     imports: createImportsApi(ctx),
     jobs: createJobsApi(ctx),
     tokens: createTokensApi(ctx),
+    mounts: createMountsApi(ctx),
     health: () => request(HealthResponseSchema, 'GET', '/health'),
     works: {
       create: (input, createOptions) =>

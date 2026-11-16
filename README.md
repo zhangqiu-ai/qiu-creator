@@ -41,6 +41,8 @@ node packages/agent-sdk/bin/creatorhub.js works create --title "第一篇" --fil
 node packages/agent-sdk/bin/creatorhub.js works list
 node packages/agent-sdk/bin/creatorhub.js import url https://example.com/clip.mp4 --wait
 node packages/agent-sdk/bin/creatorhub.js jobs get <job-id>
+node packages/agent-sdk/bin/creatorhub.js mounts add ~/Documents/寫作 --name 寫作   # 就地索引，不搬移檔案
+node packages/agent-sdk/bin/creatorhub.js mounts list
 ```
 
 給外部 Agent 用時，請用主權杖建立權限受限、可撤銷的 Agent 權杖（`POST /api/v1/tokens`，`scopes` 為 `read`／`import`／`write`），不要把主權杖交給 Agent。Agent 權杖建立作品或匯入 URL 時必須帶 `Idempotency-Key`；CLI 預設每次產生新的鍵，要安全重試時用 `--idempotency-key` 指定同一個鍵。

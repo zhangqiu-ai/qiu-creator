@@ -15,6 +15,10 @@ export const ChangeActionSchema = z.enum([
   /** `source.md` was edited outside the app and recorded as an `external` revision. */
   'work.external_revision',
   'work.assets_changed',
+  /** An external work's file disappeared (deleted, moved out, or the mount became unavailable). */
+  'work.source_missing',
+  /** An external work's file reappeared or was found at a new path (rename/move). */
+  'work.source_restored',
   'asset.created',
   'asset.updated',
   'job.queued',

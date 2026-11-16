@@ -98,6 +98,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 `0003_url_imports_tokens_idempotency`：`import_jobs` 增加 `url`、`filename`、`error_code`、`result_asset_id`、`link_work_id`、`link_role`、`created_by`；新增 `api_tokens`（只存雜湊）與 `idempotency_records`。`import_jobs.idempotency_key` 存成 `<權杖 id>:<鍵>`，API 只回傳鍵本身。
 
+`0004_external_mounts`：新增 `mounts`（`root_path` 唯一、`status` 為 active／unavailable／removed）；`works` 增加 `mount_id`、`external_state`，並以 `(mount_id, source_path)` 建唯一索引。
+
 `works` 比方案多了 `storage_mode`（managed／external）、`source_path`、`current_revision_id`，以便區分托管與外部掛載並快速核對版本。
 
 ## API
@@ -127,6 +129,10 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/jobs` | 匯入任務列表；`status`、`method`、`limit`、`offset` |
 | GET | `/api/v1/jobs/:id` | 匯入任務狀態、錯誤碼、結果素材 |
 | POST | `/api/v1/jobs/:id/retry` | 重跑失敗的匯入任務（非 failed 回 409） |
+| POST | `/api/v1/mounts` | 掛載外部資料夾（只限主權杖）；索引在背景任務中進行 |
+| GET | `/api/v1/mounts`、`/api/v1/mounts/:id` | 掛載列表與狀態、作品數 |
+| POST | `/api/v1/mounts/:id/rescan` | 重新掃描（新增、變更、遺失） |
+| DELETE | `/api/v1/mounts/:id` | 卸載；檔案不動，作品與歷史保留並標成 `unmounted` |
 | POST／GET | `/api/v1/tokens` | 建立／列出 Agent 權杖（只限主權杖） |
 | DELETE | `/api/v1/tokens/:id` | 撤銷 Agent 權杖，立即失效 |
 
@@ -141,6 +147,20 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 2. **校驗**（`src/media/detect.ts`）：以 magic bytes 判斷類型並對白名單；副檔名不作數（例如名為 `.mp4` 的 PNG 會被存成 `.png`；改名成 `.jpg` 的 ZIP 回 415）。再依類型檢查大小上限：圖片 50 MiB、音訊 1 GiB、視頻 20 GiB、Markdown 5 MiB。
 3. **去重**：算 sha256；已有相同內容就刪掉暫存檔，回原素材與 `deduplicated: true`。
 4. **入庫**：暫存檔 `rename` 到 `library/assets/<id>/`，同一個 SQLite 交易寫 `assets`、`change_log`，並為圖片排縮圖任務、為視頻／音訊排 ffprobe 任務。
+
+## 外部資料夾掛載
+
+已有的 Markdown 資料夾用**掛載**的方式加入：就地索引，**不搬移、不改名、不刪除**任何檔案。實作在 `src/mounts/mount-service.ts` 與 `WorkService` 的外部作品部分。
+
+- **掛載路徑檢查**：必須是絕對路徑、可讀的資料夾；以 `realpath` 解析（符號連結或 `..` 會先展開成真正位置再檢查）。拒絕：檔案系統根目錄、使用者家目錄本身、`CREATORHUB_HOME` 或其子資料夾、包含 `CREATORHUB_HOME` 的上層資料夾、與其他掛載重疊的資料夾；同一資料夾重複掛載回 409。卸載後再掛載同一路徑會沿用原掛載，作品與歷史自動接回。
+- **掃描**：背景任務 `mount.scan` 遞迴列出 `.md`／`.markdown`（不超過 5 MiB）。略過隱藏檔與隱藏資料夾（含 `.obsidian`、編輯器暫存檔與本服務的原子寫入暫存檔）、`node_modules`、**所有符號連結**（不跟隨，掛載無法經由連結讀到資料夾外）。服務啟動時與每 10 分鐘會重掃一次，補上監控漏掉的變化。
+- **外部作品**：`works.storage_mode = 'external'`、`mount_id`、`source_path`（相對於掛載根目錄）、`external_state`（`present`／`missing`／`unmounted`）。標題取第一個 Markdown 標題，沒有就用檔名。快照仍存在 `library/works/<id>/revisions/`，不寫進使用者的資料夾。
+- **監控**（chokidar）：`awaitWriteFinish` 讓檔案停止變化一段時間（預設 2 秒）後才處理，寫一半的檔案不會進入資料庫；新增或變更走同一個對帳流程（見下）。
+- **抑制回授**：對帳時比較磁碟內容的 sha256 與目前 revision；相同就不做事。App 自己寫回檔案時會先建立 revision，所以隨後監控看到的變化與目前 revision 相同，不會再產生 `external` revision。
+- **刪除**：檔案消失只把 `external_state` 標成 `missing`，發 `work.source_missing` 事件；作品、revision 與快照全部保留，讀取時回傳最後一個快照的內容。外部作品在 `missing` 或 `unmounted` 狀態下 PATCH 回 409 `source_missing`，不會重建檔案。
+- **改名／搬移**：同一掛載內出現新檔案、而內容雜湊等於某個 `missing` 作品的目前 revision 時，視為同一作品搬到新路徑：更新路徑、恢復 `present`、發 `work.source_restored`（`reason: "moved"`，帶 `from`／`to`），不會產生重複作品。檔案回到原路徑也會恢復 `present`。
+- **寫回外部檔案**：與托管作品相同——先對帳（外部有新內容就先記成 `external` revision，舊 base 回 409）、寫入不可變快照、再以暫存檔＋`rename` 原子替換。原子替換會保留原檔的權限位元；暫存檔名以 `.` 開頭，監控會忽略。外部檔案只接受一般檔案：若原檔被換成符號連結，視為遺失，不會跟隨讀寫。
+- **卸載**：停止監控，作品標成 `unmounted`，檔案不動。
 
 ## Agent 權杖與權限
 
@@ -230,11 +250,13 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | `CREATORHUB_PORT` | `7420` | 監聽埠；測試用 `0` |
 | `CREATORHUB_TOKEN` | （自動產生） | 至少 16 字元；未設定時使用 `data/api-token` |
 | `CREATORHUB_LOG_LEVEL` | `info` | Fastify／pino 日誌等級 |
+| （程式選項）`mounts.stabilityMs` | 2000 | 檔案停止變化多久才索引 |
+| （程式選項）`mounts.rescanIntervalMs` | 600000 | 掛載的定期完整重掃；0 停用 |
 | `CREATORHUB_FFPROBE` | （自動尋找） | ffprobe 路徑；設為空字串停用。找不到時降級，不報錯 |
 
 ## 尚未實作（依里程碑）
 
-- M1 其餘部分：外部目錄掛載與資料夾監控（QC-007）。視頻縮圖（需 ffmpeg）尚未做。
+- M1 已完成。視頻縮圖（需 ffmpeg）尚未做；外部資料夾中的圖片尚未與作品關聯（目前只索引 Markdown）。
 - Mac App（QC-002 之後）：圖片顯示（相對路徑與托管素材要對應到 `/api/v1/assets/:id/stream`）、版本恢復、作品狀態與標籤編輯、訂閱變更事件（主程序訂閱 SSE 再經 IPC 推給 renderer，用於外部修改提示與列表即時刷新）。
 - M2：平台版本 API、版本恢復、Electron／外部編輯器／Agent 三方衝突的完整驗收。
 - M3：AI 任務、Keychain 金鑰、Gemini 視頻理解（測試只用假服務）。

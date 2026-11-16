@@ -50,7 +50,7 @@ export interface CreatorHubTokensApi {
   revoke(id: string): Promise<ApiToken>;
 }
 
-interface Ctx {
+export interface Ctx {
   baseUrl: string;
   options: CreatorHubClientOptions;
   doFetch: FetchLike;
@@ -65,7 +65,7 @@ function safeJson(text: string): unknown {
   }
 }
 
-async function call<S extends z.ZodType>(
+export async function call<S extends z.ZodType>(
   ctx: Ctx,
   schema: S,
   method: string,

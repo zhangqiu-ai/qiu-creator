@@ -38,9 +38,17 @@ export function atomicWriteFileSync(
   const dir = path.dirname(target);
   const tmp = path.join(dir, `.${path.basename(target)}.${randomBytes(6).toString('hex')}.tmp`);
   const bytes = typeof data === 'string' ? Buffer.from(data, 'utf8') : data;
+  // Keep the permission bits of the file being replaced (user files in mounted folders).
+  let mode = 0o644;
+  try {
+    mode = fs.statSync(target).mode & 0o7777;
+  } catch {
+    // new file: default mode
+  }
   let fd: number | undefined;
   try {
-    fd = ops.openSync(tmp, 'wx', 0o644);
+    fd = ops.openSync(tmp, 'wx', mode);
+    fs.fchmodSync(fd, mode);
     let offset = 0;
     while (offset < bytes.length) {
       offset += ops.writeSync(fd, bytes.subarray(offset));

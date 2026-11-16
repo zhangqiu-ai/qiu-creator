@@ -17,6 +17,7 @@ import {
   WorkIdParamsSchema,
 } from '@qiu-creator/contracts';
 import { parseRange, resolveBaseRevision, revisionEtag } from '@qiu-creator/domain';
+import { z } from 'zod';
 import Fastify, { type FastifyInstance } from 'fastify';
 import {
   hasZodFastifySchemaValidationErrors,
@@ -42,6 +43,8 @@ import { resolveFfprobe } from './media/ffprobe.js';
 import { registerAssetRoutes } from './routes/assets.js';
 import { registerEventRoutes } from './routes/events.js';
 import { registerImportRoutes, registerTokenRoutes } from './routes/imports.js';
+import { registerMountRoutes } from './routes/mounts.js';
+import { MountService, type MountServiceOptions } from './mounts/mount-service.js';
 import { ImportService, type DownloadSettings } from './imports/import-service.js';
 import { WorkService } from './works/work-service.js';
 
@@ -73,6 +76,8 @@ export interface BuildServerOptions {
   tusIdleTimeoutMs?: number;
   /** URL-import download limits; tests also inject a resolver and connect override here. */
   download?: DownloadSettings;
+  /** External folder watching (stability window for half-written files, etc.). */
+  mounts?: MountServiceOptions;
 }
 
 export interface CreatorHubServer {
@@ -85,6 +90,7 @@ export interface CreatorHubServer {
   jobs: JobQueue;
   imports: ImportService;
   tokens: TokenService;
+  mounts: MountService;
 }
 
 function isHttpError(err: unknown): err is Error & { statusCode: number } {
@@ -115,6 +121,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
         : options.ffprobe,
   });
   const imports = new ImportService(db, layout, assets, jobs, feed, options.download);
+  const mounts = new MountService(db, layout, works, jobs, options.mounts);
 
   const app = Fastify({
     logger: options.logger === true ? { level: config.logLevel ?? 'info' } : false,
@@ -123,6 +130,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.addHook('onClose', async () => {
+    await mounts.stop();
     await jobs.stop();
     db.close();
   });
@@ -273,7 +281,8 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
         body: PatchWorkRequestSchema,
         response: {
           200: WorkDetailSchema,
-          409: RevisionConflictResponseSchema,
+          // revision_conflict, or source_missing for an external work whose file is gone
+          409: z.union([RevisionConflictResponseSchema, ErrorResponseSchema]),
           428: ErrorResponseSchema,
           ...errorResponses,
         },
@@ -345,7 +354,9 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerEventRoutes(app, feed, options.heartbeatMs);
   registerImportRoutes(app, imports, idempotency);
   registerTokenRoutes(app, tokens);
+  registerMountRoutes(app, mounts);
 
+  mounts.start();
   if (options.jobs?.start !== false) jobs.start();
-  return { app, db, layout, works, assets, feed, jobs, imports, tokens };
+  return { app, db, layout, works, assets, feed, jobs, imports, tokens, mounts };
 }
