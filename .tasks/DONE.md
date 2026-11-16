@@ -1,5 +1,15 @@
 # Done
 
+## QC-008: 追查 tus 續傳偶發卡死（QC-005 遺留）
+
+**Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M1
+
+### 完成摘要
+
+- 原始卡死 270 次壓力嘗試未重現（NOT_VERIFIED，推論為 tsx watch 重啟或舊 FileStore 非同步 mkdir）。
+- 另修無聲斷線佔鎖：tus PATCH 加 60 s socket 閒置逾時（`tusIdleTimeoutMs` 可調），先紅後綠回歸測試；壓力腳本 `scripts/tus-stress.ts`。
+- 驗收：總監複跑 114／0／114。合併 2026-11-16。
+
 ## QC-005: 素材庫、上傳與變更事件（M1 後端 1/3）
 
 **Priority:** P0 | **Assignee:** qc-backend | **Tags:** M1, backend

@@ -6,12 +6,6 @@
 
 依賴 QC-005。`POST /api/v1/imports/urls`、`GET /api/v1/jobs/:id`、重試；防 SSRF（回環、內網、特殊位址、DNS 重綁定、重定向、大小、逾時、內容類型）；冪等鍵強制；Agent 最小權限可撤銷權杖；CLI 補 `creatorhub import url`。
 
-## QC-008: 追查 tus 續傳偶發卡死（QC-005 遺留）
-
-**Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M1
-
-QC-005 首次實機跑時 tus 續傳 PATCH 回 HTTP 000、之後伺服器不回應；後續 23 次未重現，日誌已遺失。已加 fatal 日誌。目標：壓力重現（不同速率、中斷點、並行、大檔），找出根因並補回歸測試；重現不了就記錄嘗試範圍後結案。
-
 ## QC-002: Electron Mac 最小工程與編輯器（M0 前端）
 
 **Priority:** P0 | **Assignee:** qc-frontend | **Tags:** M0, frontend
