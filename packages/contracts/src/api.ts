@@ -24,6 +24,8 @@ export const ErrorCodeSchema = z.enum([
   'url_rejected',
   'idempotency_key_reused',
   'job_not_retryable',
+  'source_missing',
+  'mount_rejected',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 

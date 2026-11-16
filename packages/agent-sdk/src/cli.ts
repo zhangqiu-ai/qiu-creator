@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import { ApiError, createClient, type CreatorHubClient } from '@qiu-creator/api-client';
 import {
   WorkAssetRoleSchema,
@@ -190,6 +191,52 @@ export function buildProgram(io: CliIo): Command {
     .action(async (id: string) => {
       const job = await client().jobs.get(id);
       io.stdout(json() ? `${JSON.stringify(job, null, 2)}\n` : describeJob(job));
+    });
+
+  const mounts = program
+    .command('mounts')
+    .description('mount external Markdown folders (indexed in place, never moved or deleted)');
+  mounts
+    .command('add <path>')
+    .description('mount a folder (owner token)')
+    .option('--name <name>', 'display name (default: folder name)')
+    .action(async (folder: string, opts: { name?: string }) => {
+      const mount = await client().mounts.create({
+        path: path.resolve(folder),
+        ...(opts.name ? { name: opts.name } : {}),
+      });
+      io.stdout(
+        json()
+          ? `${JSON.stringify(mount, null, 2)}\n`
+          : `mounted ${mount.id} ${mount.root_path} (indexing in the background)\n`,
+      );
+    });
+  mounts
+    .command('list')
+    .description('list mounts')
+    .action(async () => {
+      const page = await client().mounts.list();
+      if (json()) {
+        io.stdout(`${JSON.stringify(page, null, 2)}\n`);
+        return;
+      }
+      for (const m of page.items) {
+        io.stdout(`${m.id}\t${m.status}\t${m.work_count} works\t${m.root_path}\n`);
+      }
+    });
+  mounts
+    .command('rescan <id>')
+    .description('rescan a mount for new, changed and missing files')
+    .action(async (id: string) => {
+      const m = await client().mounts.rescan(id);
+      io.stdout(`rescan queued for ${m.id}\n`);
+    });
+  mounts
+    .command('remove <id>')
+    .description('unmount; files on disk are not touched')
+    .action(async (id: string) => {
+      const m = await client().mounts.remove(id);
+      io.stdout(`unmounted ${m.id} (${m.work_count} works kept as "unmounted")\n`);
     });
 
   return program;

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Db } from '../db/database.js';
 import type { ChangeFeed } from '../events/change-feed.js';
 
-export type JobKind = 'asset.thumbnail' | 'asset.probe' | 'import.url';
+export type JobKind = 'asset.thumbnail' | 'asset.probe' | 'import.url' | 'mount.scan';
 
 /** Throw from a handler to fail the job immediately, without the automatic retries. */
 export class PermanentJobError extends Error {

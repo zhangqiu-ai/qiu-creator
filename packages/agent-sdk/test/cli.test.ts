@@ -143,6 +143,25 @@ describe('creatorhub CLI', () => {
     expect(res.stdout).toMatch(/failed .*http_error/);
   });
 
+  it('mounts, lists and unmounts an external folder without touching it', async () => {
+    const notes = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'creatorhub-cli-notes-')));
+    try {
+      fs.writeFileSync(path.join(notes, 'idea.md'), '# 點子\n');
+      const added = await run(['mounts', 'add', notes, '--name', '筆記']);
+      expect(added.code).toBe(0);
+      const id = /^mounted ([0-9a-f-]{36}) /.exec(added.stdout)?.[1] ?? '';
+      await server.jobs.drain();
+
+      const listed = await run(['mounts', 'list']);
+      expect(listed.stdout).toContain(`${id}\tactive\t1 works\t${notes}`);
+      const removed = await run(['mounts', 'remove', id]);
+      expect(removed.stdout).toContain('1 works kept as "unmounted"');
+      expect(fs.readFileSync(path.join(notes, 'idea.md'), 'utf8')).toBe('# 點子\n');
+    } finally {
+      fs.rmSync(notes, { recursive: true, force: true });
+    }
+  });
+
   it('fails clearly without a token', async () => {
     const res = await run(['works', 'list'], { CREATORHUB_TOKEN: '' });
     expect(res.code).toBe(1);

@@ -47,6 +47,12 @@
 - 授權與打包：FFmpeg 為 LGPL-2.1+，啟用 GPL 元件（例如 Homebrew 預設建置含 x264／x265）時整體為 GPL。為避免把 GPL 二進位檔隨 App 散布，**目前不打包 ffprobe**，由使用者自行安裝（`brew install ffmpeg`）。若日後要內建，需改用 LGPL-only 建置並附原始碼取得方式，屆時另行決定。
 - 本機實測：Homebrew ffprobe 9.0.2。測試一律用假 ffprobe 腳本，不依賴本機安裝。
 
+### 資料夾監控：chokidar 6
+
+- chokidar 6.0.0（MIT，Node ≥ 22.22，唯一依賴 readdirp）。用 `awaitWriteFinish`：檔案大小在設定時間內（預設 2 秒）不再變化才觸發 add／change，寫一半的檔案不會被索引；`atomic: true` 把編輯器「刪除＋重建」式的存檔合併成一次 change；`followSymlinks: false`。
+- 已知限制：macOS 的 FSEvents 在大量 I/O 時可能延遲（測試中在多個測試檔並行時量到 12–14 秒）或合併事件。對策：每 10 分鐘對所有掛載做一次完整重掃，且服務啟動時一定重掃，保證最終一致；自動測試改用 chokidar 的 polling 後端以求穩定，原生後端在實機證據中驗證。
+- 替代方案：Node 內建 `fs.watch({ recursive: true })`（無 awaitWriteFinish、無 atomic 合併，需自行實作）、@parcel/watcher（原生模組，需 install script）。
+
 ## 執行期依賴
 
 | 套件 | 版本 | 授權 | 用在 | 用途 | 替代方案 |
@@ -62,6 +68,7 @@
 | @tus/file-store | ^2.1.2 | MIT | mac-server | tus 上傳暫存（`data/uploads/`） | — |
 | file-type | ^22.3.0 | MIT | mac-server | magic bytes 類型判斷 | libmagic |
 | sharp | ^0.35.5 | Apache-2.0（libvips：LGPL-3.0） | mac-server | 圖片縮圖與尺寸 | sips、jimp |
+| chokidar | ^6.0.0 | MIT | mac-server | 外部資料夾監控 | fs.watch、@parcel/watcher |
 | tsx | ^4.23.15 | MIT | mac-server、agent-sdk | 直接執行 TypeScript 原始碼（`node --import tsx`、CLI bin）；M0 尚無建置步驟 | 之後改為 `tsc` 建置產物；Node 原生 type stripping（不支援 `.js` → `.ts` 對應） |
 
 ### Markdown 編輯器：MDXEditor 4，原始碼模式用純 `<textarea>`（QC-002）
@@ -125,4 +132,4 @@
 
 ## 未來候選（尚未加入）
 
-方案中提到、之後才會引入：Chokidar（資料夾監控，QC-007）。加入時在此補記。Sharp、tus、ffprobe 已於 QC-005 加入（見上）。
+目前沒有。Sharp、tus、ffprobe 已於 QC-005 加入，chokidar 於 QC-007 加入（見上）。

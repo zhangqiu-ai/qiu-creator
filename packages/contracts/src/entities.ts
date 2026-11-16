@@ -38,6 +38,12 @@ export const WorkSchema = z.object({
   current_revision_id: IdSchema,
   created_at: TimestampSchema,
   updated_at: TimestampSchema,
+  /** External works only: the mount the file lives in (QC-007). Absent or null for managed works. */
+  mount_id: IdSchema.nullable().optional(),
+  /** External works only: `present`, `missing` (deleted/moved away) or `unmounted`. */
+  external_state: z.enum(['present', 'missing', 'unmounted']).nullable().optional(),
+  /** External works only: path of the file relative to the mount root. */
+  external_path: z.string().nullable().optional(),
 });
 export type Work = z.infer<typeof WorkSchema>;
 

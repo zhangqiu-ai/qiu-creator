@@ -212,4 +212,30 @@ export const migrations: readonly Migration[] = [
       );
     `,
   },
+  {
+    id: '0004',
+    name: 'external_mounts',
+    sql: /* sql */ `
+      -- Mounted external folders: indexed in place, never moved or deleted.
+      -- root_path is the realpath of the folder at mount time.
+      CREATE TABLE mounts (
+        id           TEXT PRIMARY KEY,
+        name         TEXT NOT NULL,
+        root_path    TEXT NOT NULL UNIQUE,
+        status       TEXT NOT NULL CHECK (status IN ('active','unavailable','removed')),
+        last_scan_at TEXT,
+        last_error   TEXT,
+        created_at   TEXT NOT NULL,
+        updated_at   TEXT NOT NULL
+      );
+
+      -- External works: source_path is relative to the mount root.
+      -- external_state tracks the file on disk; the work row and its
+      -- snapshots are kept whatever happens to the file.
+      ALTER TABLE works ADD COLUMN mount_id TEXT REFERENCES mounts (id);
+      ALTER TABLE works ADD COLUMN external_state TEXT
+        CHECK (external_state IS NULL OR external_state IN ('present','missing','unmounted'));
+      CREATE UNIQUE INDEX works_mount_path ON works (mount_id, source_path) WHERE mount_id IS NOT NULL;
+    `,
+  },
 ];
