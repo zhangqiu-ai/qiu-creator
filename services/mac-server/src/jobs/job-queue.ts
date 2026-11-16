@@ -2,7 +2,15 @@ import { randomUUID } from 'node:crypto';
 import type { Db } from '../db/database.js';
 import type { ChangeFeed } from '../events/change-feed.js';
 
-export type JobKind = 'asset.thumbnail' | 'asset.probe';
+export type JobKind = 'asset.thumbnail' | 'asset.probe' | 'import.url';
+
+/** Throw from a handler to fail the job immediately, without the automatic retries. */
+export class PermanentJobError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'PermanentJobError';
+  }
+}
 
 export interface JobRecord {
   id: string;
@@ -207,11 +215,13 @@ export class JobQueue {
   private async runOne(job: JobRecord): Promise<void> {
     const handler = this.handlers.get(job.kind);
     let error: string | null = null;
+    let permanent = false;
     try {
       if (!handler) throw new Error(`no handler for job kind ${job.kind}`);
       await handler(job);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
+      permanent = err instanceof PermanentJobError;
     }
     if (!this.db.open) return;
     const now = new Date();
@@ -228,7 +238,7 @@ export class JobQueue {
         });
         return;
       }
-      const retry = job.attempts < job.max_attempts;
+      const retry = !permanent && job.attempts < job.max_attempts;
       const runAfter = new Date(now.getTime() + this.retryBaseMs * 2 ** (job.attempts - 1));
       this.db
         .prepare(

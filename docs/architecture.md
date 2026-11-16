@@ -70,6 +70,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 - `background_jobs`：縮圖、ffprobe 等背景任務（見下文「背景任務」）。
 - `change_log`：只追加的變更記錄，`seq` 自增，作為 SSE 事件 id 與日後增量同步的游標。
 
+`0003_url_imports_tokens_idempotency`：`import_jobs` 增加 `url`、`filename`、`error_code`、`result_asset_id`、`link_work_id`、`link_role`、`created_by`；新增 `api_tokens`（只存雜湊）與 `idempotency_records`。`import_jobs.idempotency_key` 存成 `<權杖 id>:<鍵>`，API 只回傳鍵本身。
+
 `works` 比方案多了 `storage_mode`（managed／external）、`source_path`、`current_revision_id`，以便區分托管與外部掛載並快速核對版本。
 
 ## API
@@ -95,8 +97,14 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | DELETE | `/api/v1/works/:id/assets/:assetId?role=` | 移除關聯，順序自動補齊 |
 | PUT | `/api/v1/works/:id/assets/order` | 重排某個用途的全部素材 |
 | GET | `/api/v1/events` | SSE 變更事件 |
+| POST | `/api/v1/imports/urls` | URL 匯入，回 202 與匯入任務；支援 `Idempotency-Key` |
+| GET | `/api/v1/jobs` | 匯入任務列表；`status`、`method`、`limit`、`offset` |
+| GET | `/api/v1/jobs/:id` | 匯入任務狀態、錯誤碼、結果素材 |
+| POST | `/api/v1/jobs/:id/retry` | 重跑失敗的匯入任務（非 failed 回 409） |
+| POST／GET | `/api/v1/tokens` | 建立／列出 Agent 權杖（只限主權杖） |
+| DELETE | `/api/v1/tokens/:id` | 撤銷 Agent 權杖，立即失效 |
 
-- **鑑權：** `/api/*` 一律要 `Authorization: Bearer <token>`，常數時間比對；失敗回 401。
+- **鑑權：** `/api/*` 一律要 `Authorization: Bearer <token>`，可以是主權杖（使用者自己、Electron）或 Agent 權杖；無效或已撤銷回 401，權限不足回 403 `forbidden`。詳見下文「Agent 權杖與權限」。
 - **錯誤格式：** `{"error":{"code","message","details?"}}`，`code` 見 contracts 的 `ErrorCodeSchema`。
 - **衝突：** `base_revision`／`If-Match` 與目前 revision 不同 → 409，`details.current_revision` 帶目前版本，不寫入任何東西。兩者都沒帶 → 428。`If-Match: *` 不被接受為前置條件。
 - **Range：** 單一區段 `bytes=a-b`、`a-`、`-n` 回 206 與 `Content-Range`；超出範圍回 416 與 `Content-Range: bytes */size`；多區段與格式錯誤依 RFC 回整檔 200。
@@ -107,6 +115,43 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 2. **校驗**（`src/media/detect.ts`）：以 magic bytes 判斷類型並對白名單；副檔名不作數（例如名為 `.mp4` 的 PNG 會被存成 `.png`；改名成 `.jpg` 的 ZIP 回 415）。再依類型檢查大小上限：圖片 50 MiB、音訊 1 GiB、視頻 20 GiB、Markdown 5 MiB。
 3. **去重**：算 sha256；已有相同內容就刪掉暫存檔，回原素材與 `deduplicated: true`。
 4. **入庫**：暫存檔 `rename` 到 `library/assets/<id>/`，同一個 SQLite 交易寫 `assets`、`change_log`，並為圖片排縮圖任務、為視頻／音訊排 ffprobe 任務。
+
+## Agent 權杖與權限
+
+- **主權杖**（`CREATORHUB_TOKEN` 或 `data/api-token`）擁有全部權限，也是唯一能管理 Agent 權杖的權杖。
+- **Agent 權杖**由 `POST /api/v1/tokens` 建立，格式 `chk_<43 字元>`，明文只在建立時回傳一次。資料庫 `api_tokens` 只存 sha256 雜湊與前 12 字元的前綴（列表顯示用）；撤銷後立即回 401。
+  - 權杖是 256-bit 隨機值，所以用 sha256 雜湊即可，不需要密碼雜湊演算法。
+- **權限範圍**（`src/auth/scopes.ts`，依路由樣式判定）：
+  - `read`：所有 GET（作品、素材、任務、SSE 事件）。
+  - `import`：建立作品、上傳（直傳與 tus）、URL 匯入、重跑匯入任務，以及查看**自己建立的**匯入任務（`GET /api/v1/jobs/:id`；別人的任務回 404，不洩漏網址）。
+  - `write`：修改作品、作品與素材的關聯與排序。
+  - 未列出的 `/api` 路由（包括之後新增的）預設只有主權杖能用，不會在無意間開放給 Agent。
+
+## 冪等鍵
+
+`POST /api/v1/works` 與 `POST /api/v1/imports/urls` 接受 `Idempotency-Key` header（8–200 個可見 ASCII 字元）。
+
+- Agent 權杖在這兩個端點**必須**帶冪等鍵，否則回 428；主權杖可省略（Electron 介面由使用者操作）。
+- 同一個權杖、同一個端點、同一個鍵：回原本的結果並加上 `Idempotent-Replayed: true`，不會重建作品或重新下載。URL 匯入的重送回的是任務的**目前**狀態。
+- 同一個鍵配不同的請求內容（依排序後的 JSON 計算雜湊）回 422 `idempotency_key_reused`，不會悄悄回舊結果。
+- 鍵依權杖分開，兩個 Agent 用到同一個字串不會互相干擾。記錄存在 `idempotency_records`；查核、建立、記錄在同一個同步區段內完成，同一行程內不會重複建立。
+
+## URL 匯入與 SSRF 防護
+
+`POST /api/v1/imports/urls` `{url, filename?, work_id?, role?}` 先做便宜的檢查（只限 http／https、不得含帳密、`localhost` 與私網 IP 字面值直接 400 `url_rejected`），然後建立 `import_jobs` 列並交給背景任務佇列（`import.url`）。下載由 `src/net/safe-download.ts` 執行：
+
+1. **每一跳**（含重定向）都重新解析主機名稱。所有解析結果都必須是公網位址，只要有一個落在封鎖範圍就整個拒絕（`blocked_address`）。
+2. **釘住 IP**：連線用剛檢查過的位址（自訂 `lookup`），不再讓系統二次解析，DNS 重綁定無法把連線導向內網。TLS 的 SNI 與憑證驗證仍使用原主機名稱。
+3. **封鎖範圍**（`src/net/ip-policy.ts`）：回環、0.0.0.0/8、RFC 1918 私網、鏈路本地（含雲端 metadata 169.254.169.254）、CGNAT 100.64/10（含 Tailscale）、多播、文件／測試／保留位址、廣播；IPv6 的回環、ULA、鏈路本地、多播、文件位址，以及會內嵌或轉送到 IPv4 的 NAT64、6to4、Teredo。IPv4 對映的 IPv6（`::ffff:127.0.0.1`、`::ffff:7f00:1`）會先轉回 IPv4 再檢查。
+4. **重定向**最多 5 次，每次都回到第 1 步重新檢查；`Location` 指向回環或內網名稱都會被擋。
+5. **內容類型白名單**：`image/*`、`video/*`、`audio/*`、`text/markdown`、`text/plain`、`application/octet-stream`（沒有 Content-Type 時放行，交給 magic bytes 判斷）；`text/html`、`application/json` 等直接失敗。
+6. **大小**：先看 `Content-Length`，再數實際串流的位元組，超過就中止並刪掉暫存檔。
+7. **逾時**：連線 10 秒、無資料 60 秒、整體 30 分鐘。
+8. 不送 cookie 或任何憑證，要求 `Accept-Encoding: identity`，讓位元組數就是實際大小。
+
+下載完成後走與上傳相同的 `AssetService.ingest`：magic bytes、各類型大小上限、sha256 去重、縮圖或 ffprobe 任務。指定 `work_id` 時會自動關聯（`role` 預設依類型：視頻為 `video`，其他為 `body`）。
+
+**失敗與重試**：網路錯誤、逾時、5xx、408、429 視為暫時性錯誤，由佇列以指數退避自動重試（共 3 次）；SSRF 封鎖、4xx、類型或大小不符視為永久錯誤，立即標成 `failed`，並記錄 `error_code`（見 contracts 的 `ImportErrorCodeSchema`）。失敗的任務可用 `POST /api/v1/jobs/:id/retry` 手動重跑，`retry_count` 加 1。匯入任務的狀態變化以 `job.*` 事件（`data.type = "import"`）推送到 SSE。
 
 ## 背景任務
 
@@ -163,7 +208,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 ## 尚未實作（依里程碑）
 
-- M1 其餘部分：URL 匯入與 SSRF 防護、匯入任務 API、冪等鍵強制、Agent 最小權限權杖（QC-006）；外部目錄掛載與資料夾監控（QC-007）。視頻縮圖（需 ffmpeg）尚未做。
+- M1 其餘部分：外部目錄掛載與資料夾監控（QC-007）。視頻縮圖（需 ffmpeg）尚未做。
 - M2：平台版本 API、版本恢復、Electron／外部編輯器／Agent 三方衝突的完整驗收。
 - M3：AI 任務、Keychain 金鑰、Gemini 視頻理解（測試只用假服務）。
 - 生產可用：launchd 實機安裝、崩潰恢復、SQLite 備份與還原（QC-004）。

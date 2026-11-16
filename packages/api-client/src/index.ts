@@ -23,6 +23,24 @@ import {
   type CreatorHubEventsApi,
   type CreatorHubWorkAssetsApi,
 } from './assets.js';
+import {
+  createImportsApi,
+  createJobsApi,
+  createTokensApi,
+  idempotencyHeaders,
+  type CreatorHubImportsApi,
+  type CreatorHubJobsApi,
+  type CreatorHubTokensApi,
+  type IdempotencyOptions,
+} from './imports.js';
+
+export {
+  type CreatorHubImportsApi,
+  type CreatorHubJobsApi,
+  type CreatorHubTokensApi,
+  type IdempotencyOptions,
+  type WaitOptions,
+} from './imports.js';
 
 export {
   base64Utf8,
@@ -76,17 +94,25 @@ export interface PatchWorkOptions {
 export interface CreatorHubClient {
   health(): Promise<HealthResponse>;
   works: {
-    create(input: CreateWorkRequest): Promise<WorkDetail>;
+    /** `options.idempotencyKey` is required when using an agent token. */
+    create(input: CreateWorkRequest, options?: IdempotencyOptions): Promise<WorkDetail>;
     list(query?: ListWorksQuery): Promise<ListWorksResponse>;
     get(id: string): Promise<WorkDetail>;
     patch(id: string, input: PatchWorkRequest, options?: PatchWorkOptions): Promise<WorkDetail>;
     revisions(id: string): Promise<RevisionListResponse>;
-  }; /** Asset library and uploads (QC-005). */
+  };
+  /** Asset library and uploads (QC-005). */
   assets: CreatorHubAssetsApi;
   /** Work ↔ asset links: cover, body, video, with ordering. */
   workAssets: CreatorHubWorkAssetsApi;
   /** SSE change events. */
   events: CreatorHubEventsApi;
+  /** URL imports (QC-006). */
+  imports: CreatorHubImportsApi;
+  /** Import jobs: status, list, retry, wait. */
+  jobs: CreatorHubJobsApi;
+  /** Agent token management (owner token only). */
+  tokens: CreatorHubTokensApi;
 }
 
 export function createClient(options: CreatorHubClientOptions): CreatorHubClient {
@@ -126,11 +152,15 @@ export function createClient(options: CreatorHubClientOptions): CreatorHubClient
     assets: createAssetsApi(ctx),
     workAssets: createWorkAssetsApi(ctx),
     events: createEventsApi(ctx),
+    imports: createImportsApi(ctx),
+    jobs: createJobsApi(ctx),
+    tokens: createTokensApi(ctx),
     health: () => request(HealthResponseSchema, 'GET', '/health'),
     works: {
-      create: (input) =>
+      create: (input, createOptions) =>
         request(WorkDetailSchema, 'POST', '/api/v1/works', {
           body: CreateWorkRequestSchema.parse(input),
+          headers: idempotencyHeaders(createOptions),
         }),
       list: (query = {}) => {
         const params = new URLSearchParams();

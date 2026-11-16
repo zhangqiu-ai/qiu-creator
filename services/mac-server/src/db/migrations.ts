@@ -171,4 +171,45 @@ export const migrations: readonly Migration[] = [
       );
     `,
   },
+  {
+    id: '0003',
+    name: 'url_imports_tokens_idempotency',
+    sql: /* sql */ `
+      -- URL import details. idempotency_key stores "<principal>:<key>" so keys
+      -- from different tokens never collide.
+      ALTER TABLE import_jobs ADD COLUMN url TEXT;
+      ALTER TABLE import_jobs ADD COLUMN filename TEXT;
+      ALTER TABLE import_jobs ADD COLUMN error_code TEXT;
+      ALTER TABLE import_jobs ADD COLUMN result_asset_id TEXT REFERENCES assets (id) ON DELETE SET NULL;
+      ALTER TABLE import_jobs ADD COLUMN link_work_id TEXT REFERENCES works (id) ON DELETE SET NULL;
+      ALTER TABLE import_jobs ADD COLUMN link_role TEXT;
+      ALTER TABLE import_jobs ADD COLUMN created_by TEXT;
+      CREATE INDEX import_jobs_status ON import_jobs (status, created_at DESC);
+
+      -- Revocable least-privilege tokens for external agents. Only a sha256
+      -- of the secret is stored; prefix is shown in listings.
+      CREATE TABLE api_tokens (
+        id           TEXT PRIMARY KEY,
+        name         TEXT NOT NULL,
+        prefix       TEXT NOT NULL,
+        token_hash   TEXT NOT NULL UNIQUE,
+        scopes       TEXT NOT NULL,
+        created_at   TEXT NOT NULL,
+        last_used_at TEXT,
+        revoked_at   TEXT
+      );
+
+      -- Stored responses for Idempotency-Key replays.
+      CREATE TABLE idempotency_records (
+        principal     TEXT NOT NULL,
+        endpoint      TEXT NOT NULL,
+        key           TEXT NOT NULL,
+        request_hash  TEXT NOT NULL,
+        status_code   INTEGER NOT NULL,
+        response_body TEXT NOT NULL,
+        created_at    TEXT NOT NULL,
+        PRIMARY KEY (principal, endpoint, key)
+      );
+    `,
+  },
 ];

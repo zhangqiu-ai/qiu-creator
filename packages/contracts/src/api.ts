@@ -20,6 +20,10 @@ export const ErrorCodeSchema = z.enum([
   'internal_error',
   'unsupported_media_type',
   'payload_too_large',
+  'forbidden',
+  'url_rejected',
+  'idempotency_key_reused',
+  'job_not_retryable',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 

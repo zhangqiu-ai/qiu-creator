@@ -6,6 +6,8 @@ import {
   CreateWorkRequestSchema,
   ErrorResponseSchema,
   HealthResponseSchema,
+  IDEMPOTENCY_KEY_HEADER,
+  IDEMPOTENT_REPLAYED_HEADER,
   ListWorksQuerySchema,
   ListWorksResponseSchema,
   PatchWorkRequestSchema,
@@ -29,15 +31,26 @@ import type { ServerConfig } from './config.js';
 import { openDatabase, type Db } from './db/database.js';
 import { ServiceError } from './errors.js';
 import { ChangeFeed } from './events/change-feed.js';
+import { requiredAccess } from './auth/scopes.js';
+import { requirePrincipal, TokenService, type Principal } from './auth/token-service.js';
+import { IdempotencyService } from './idempotency/idempotency-service.js';
 import { errorBody } from './http/app-type.js';
-import { isAuthorized } from './http/auth.js';
 import { JobQueue, type JobQueueOptions } from './jobs/job-queue.js';
 import { Layout } from './layout.js';
 import { DEFAULT_SIZE_LIMITS, type SizeLimits } from './media/detect.js';
 import { resolveFfprobe } from './media/ffprobe.js';
 import { registerAssetRoutes } from './routes/assets.js';
 import { registerEventRoutes } from './routes/events.js';
+import { registerImportRoutes, registerTokenRoutes } from './routes/imports.js';
+import { ImportService, type DownloadSettings } from './imports/import-service.js';
 import { WorkService } from './works/work-service.js';
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    /** Set by the auth hook for every authenticated `/api` request. */
+    principal: Principal | null;
+  }
+}
 
 export const SERVER_VERSION = '0.0.0';
 
@@ -58,6 +71,8 @@ export interface BuildServerOptions {
   heartbeatMs?: number;
   /** Close a tus PATCH after this long without receiving bytes (default 60 s). */
   tusIdleTimeoutMs?: number;
+  /** URL-import download limits; tests also inject a resolver and connect override here. */
+  download?: DownloadSettings;
 }
 
 export interface CreatorHubServer {
@@ -68,6 +83,8 @@ export interface CreatorHubServer {
   assets: AssetService;
   feed: ChangeFeed;
   jobs: JobQueue;
+  imports: ImportService;
+  tokens: TokenService;
 }
 
 function isHttpError(err: unknown): err is Error & { statusCode: number } {
@@ -86,6 +103,8 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   layout.ensureBase();
   const db = openDatabase(layout.databaseFile);
   const feed = new ChangeFeed(db);
+  const tokens = new TokenService(db, config.token);
+  const idempotency = new IdempotencyService(db);
   const jobs = new JobQueue(db, feed, options.jobs);
   const works = new WorkService(db, layout, undefined, feed);
   const assets = new AssetService(db, layout, feed, jobs, {
@@ -95,6 +114,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
         ? resolveFfprobe(process.env['CREATORHUB_FFPROBE'])
         : options.ffprobe,
   });
+  const imports = new ImportService(db, layout, assets, jobs, feed, options.download);
 
   const app = Fastify({
     logger: options.logger === true ? { level: config.logLevel ?? 'info' } : false,
@@ -134,14 +154,32 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     reply.code(404).send(errorBody('not_found', 'route not found')),
   );
 
-  // Every /api route requires the bearer token; /health and /docs stay public.
+  // Every /api route requires a bearer token: the owner's main token or a
+  // scoped agent token. /health and /docs stay public.
+  app.decorateRequest('principal', null);
   app.addHook('onRequest', async (req, reply) => {
     if (!req.url.startsWith('/api/')) return;
-    if (!isAuthorized(req.headers.authorization, config.token)) {
+    const principal = tokens.authenticate(req.headers.authorization);
+    if (principal === null) {
       await reply
         .code(401)
         .header('www-authenticate', 'Bearer')
         .send(errorBody('unauthorized', 'missing or invalid bearer token'));
+      return;
+    }
+    req.principal = principal;
+    const access = requiredAccess(req.method, req.routeOptions.url);
+    const allowed =
+      principal.kind === 'owner' ||
+      (access === 'read_or_own_import'
+        ? principal.scopes.includes('read') || principal.scopes.includes('import')
+        : access !== 'owner' && principal.scopes.includes(access));
+    if (!allowed) {
+      await reply.code(403).send(
+        errorBody('forbidden', `this token lacks the "${access}" permission`, {
+          required: access,
+        }),
+      );
     }
   });
 
@@ -173,13 +211,28 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     '/api/v1/works',
     {
       schema: {
+        description:
+          'Create a managed work. Send an `Idempotency-Key` header (required for agent tokens): repeating a request with the same key returns the original work with `Idempotent-Replayed: true` instead of creating another.',
         body: CreateWorkRequestSchema,
-        response: { 201: WorkDetailSchema, ...errorResponses },
+        response: {
+          201: WorkDetailSchema,
+          422: ErrorResponseSchema,
+          428: ErrorResponseSchema,
+          ...errorResponses,
+        },
       },
     },
     (req, reply) => {
-      const work = works.create(req.body);
-      reply.code(201).header('etag', revisionEtag(work.current_revision_id));
+      const result = idempotency.run(
+        requirePrincipal(req.principal),
+        'POST /api/v1/works',
+        req.headers[IDEMPOTENCY_KEY_HEADER],
+        req.body,
+        () => ({ statusCode: 201, body: works.create(req.body) }),
+      );
+      const work = WorkDetailSchema.parse(result.body);
+      reply.code(result.statusCode).header('etag', revisionEtag(work.current_revision_id));
+      if (result.replayed) reply.header(IDEMPOTENT_REPLAYED_HEADER, 'true');
       return work;
     },
   );
@@ -290,7 +343,9 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
 
   registerAssetRoutes(app, assets, layout, { tusIdleTimeoutMs: options.tusIdleTimeoutMs });
   registerEventRoutes(app, feed, options.heartbeatMs);
+  registerImportRoutes(app, imports, idempotency);
+  registerTokenRoutes(app, tokens);
 
   if (options.jobs?.start !== false) jobs.start();
-  return { app, db, layout, works, assets, feed, jobs };
+  return { app, db, layout, works, assets, feed, jobs, imports, tokens };
 }

@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { buildServer, type CreatorHubServer } from '@qiu-creator/mac-server';
@@ -9,14 +11,50 @@ const TOKEN = 'cli-test-token-0123456789';
 let home: string;
 let server: CreatorHubServer;
 let baseUrl: string;
+let upstream: http.Server;
+
+// A PNG signature plus padding: enough for magic-byte detection.
+const PNG = Buffer.concat([
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  Buffer.from([0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0]),
+  Buffer.alloc(64),
+]);
 
 beforeEach(async () => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), 'creatorhub-cli-'));
-  server = await buildServer({ config: { home, token: TOKEN } });
+  // Local stand-in for a public file host; never the real internet.
+  upstream = http.createServer((req, res) => {
+    if (req.url === '/pic.png') {
+      res.writeHead(200, { 'content-type': 'image/png', 'content-length': String(PNG.length) });
+      res.end(PNG);
+    } else {
+      res.writeHead(404);
+      res.end();
+    }
+  });
+  await new Promise<void>((r) => upstream.listen(0, '127.0.0.1', r));
+  const upstreamPort = (upstream.address() as AddressInfo).port;
+  server = await buildServer({
+    config: { home, token: TOKEN },
+    ffprobe: null,
+    jobs: { pollMs: 5 },
+    download: {
+      resolver: (host) =>
+        host === 'files.example.com'
+          ? Promise.resolve([{ address: '93.184.216.34', family: 4 }])
+          : Promise.reject(new Error('ENOTFOUND')),
+      connectOverride: () => ({ host: '127.0.0.1', port: upstreamPort }),
+    },
+  });
   baseUrl = await server.app.listen({ host: '127.0.0.1', port: 0 });
 });
 afterEach(async () => {
   await server.app.close();
+  await new Promise<void>((r) => {
+    upstream.close(() => {
+      r();
+    });
+  });
   fs.rmSync(home, { recursive: true, force: true });
 });
 
@@ -65,6 +103,44 @@ describe('creatorhub CLI', () => {
       source: 'cli',
       tags: ['ai', '草稿'],
     });
+  });
+
+  it('imports a URL, waits for the job, and shows it with jobs get', async () => {
+    const res = await run([
+      'import',
+      'url',
+      'http://files.example.com/pic.png',
+      '--wait',
+      '--idempotency-key',
+      'cli-import-0001',
+    ]);
+    expect(res).toMatchObject({ code: 0, stderr: '' });
+    const match = /^job ([0-9a-f-]{36}) succeeded asset ([0-9a-f-]{36})\n$/.exec(res.stdout);
+    expect(match).not.toBeNull();
+
+    const shown = await run(['--json', 'jobs', 'get', match?.[1] ?? '']);
+    expect(JSON.parse(shown.stdout)).toMatchObject({
+      status: 'succeeded',
+      url: 'http://files.example.com/pic.png',
+      result_asset_id: match?.[2],
+      idempotency_key: 'cli-import-0001',
+    });
+
+    // Same key again: the original job comes back, nothing is downloaded twice.
+    const again = await run([
+      'import',
+      'url',
+      'http://files.example.com/pic.png',
+      '--idempotency-key',
+      'cli-import-0001',
+    ]);
+    expect(again.stdout).toContain(match?.[1] ?? 'x');
+  });
+
+  it('exits non-zero when a waited import fails', async () => {
+    const res = await run(['import', 'url', 'http://files.example.com/missing.png', '--wait']);
+    expect(res.code).toBe(1);
+    expect(res.stdout).toMatch(/failed .*http_error/);
   });
 
   it('fails clearly without a token', async () => {
