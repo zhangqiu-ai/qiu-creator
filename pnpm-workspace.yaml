@@ -7,3 +7,5 @@ packages:
 # better-sqlite3 ships prebuilt binaries and needs no install script.
 allowBuilds:
   esbuild: true
+  # Downloads the Electron binary from GitHub releases (checksum-verified by @electron/get).
+  electron: true

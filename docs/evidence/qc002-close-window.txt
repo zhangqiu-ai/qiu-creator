@@ -1,0 +1,19 @@
+# QC-002 close-window check 2026-11-16T23:20:16Z
+Page targets before: 1
+Page targets after closing the window: 0
+$ curl -s http://127.0.0.1:7420/health
+{"status":"ok","service":"creatorhub-mac-server","version":"0.0.0"}
+$ GET /api/v1/works (titles)
+total=5
+ - 視窗關閉後由 Agent 建立
+ - 含特殊語法的文件
+ - 旅行筆記：京都三日（新版）
+ - 旅行筆記：京都三日（新版）（我的修改）
+ - 中文長文捲動測試
+$ POST /api/v1/works
+HTTP 201
+
+# Quit Electron entirely (SIGTERM to the dev runner, which quits Electron and Vite)
+Electron processes after: 0
+$ curl -s http://127.0.0.1:7420/health
+{"status":"ok","service":"creatorhub-mac-server","version":"0.0.0"}

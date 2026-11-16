@@ -22,6 +22,17 @@ cat "$CREATORHUB_HOME/data/api-token"   # 自動產生的 API 權杖
 
 API 文件：<http://127.0.0.1:7420/docs>。
 
+### 啟動 Mac App（Electron）
+
+先照上一節啟動服務，再在另一個終端機用**同一個** `CREATORHUB_HOME`：
+
+```sh
+export CREATORHUB_HOME=<與服務相同的臨時目錄>
+corepack pnpm --filter @qiu-creator/mac dev     # Vite 5180 + Electron
+```
+
+App 只透過 HTTP API 連 `127.0.0.1:7420`；服務沒開時顯示「服務未運行」，可按重試。關閉視窗或結束 App 不會停止服務。
+
 ### creatorhub CLI
 
 ```sh

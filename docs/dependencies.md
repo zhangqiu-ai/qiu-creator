@@ -2,7 +2,7 @@
 
 新增或升級依賴時更新本表：授權、版本、用途、替代方案。版本以 `pnpm-lock.yaml` 為準，這裡記錄選型理由。
 
-套件管理：pnpm 12.21.0（`packageManager` 欄位，透過 `corepack pnpm` 執行）。pnpm 12 預設的供應鏈政策（發布未滿一天的版本不解析、install script 需允許）保持開啟；`pnpm-workspace.yaml` 的 `allowBuilds` 只允許 `esbuild`。
+套件管理：pnpm 12.21.0（`packageManager` 欄位，透過 `corepack pnpm` 執行）。pnpm 12 預設的供應鏈政策（發布未滿一天的版本不解析、install script 需允許）保持開啟；`pnpm-workspace.yaml` 的 `allowBuilds` 只允許 `esbuild` 與 `electron`（QC-002：`electron` 的 install script 從 GitHub Releases 下載 Electron 執行檔，`@electron/get` 以套件內附的 `checksums.json` 驗證 SHA-256）。
 
 ## 關鍵選擇
 
@@ -63,6 +63,50 @@
 | file-type | ^22.3.0 | MIT | mac-server | magic bytes 類型判斷 | libmagic |
 | sharp | ^0.35.5 | Apache-2.0（libvips：LGPL-3.0） | mac-server | 圖片縮圖與尺寸 | sips、jimp |
 | tsx | ^4.23.15 | MIT | mac-server、agent-sdk | 直接執行 TypeScript 原始碼（`node --import tsx`、CLI bin）；M0 尚無建置步驟 | 之後改為 `tsc` 建置產物；Node 原生 type stripping（不支援 `.js` → `.ts` 對應） |
+
+### Markdown 編輯器：MDXEditor 4，原始碼模式用純 `<textarea>`（QC-002）
+
+- 實施方案第 2 節指定 MDXEditor；4.5.0 以 Lexical 0.48 為核心，MIT，支援 React 19。
+- 視覺模式匯出時會正規化寫法（清單符號、表格對齊、檔尾換行）。為守住原稿：
+  - 匯出選項固定為最常見寫法（`-` 清單、`---` 分隔線、`*` 強調、表格不補空白對齊），並補回檔尾換行。
+  - 含 HTML、腳註、參照式連結、特殊表格、數學、指令區塊的文件預設進原始碼模式；切到視覺要確認。
+  - 原始碼模式用原生 `<textarea>`，不經任何轉換，中文輸入法行為最穩定，內容逐位元組保留。
+- 替代方案：Milkdown（ProseMirror，外掛多但 API 變動大）、TipTap + markdown 擴充（Markdown 是附加功能，往返較弱）、CodeMirror 6 原始碼為主加預覽（往返最安全，但沒有所見即所得）。
+
+### Electron 主程序與 preload 建置：esbuild，不用 electron-vite（QC-002）
+
+- 只需要把兩個 TypeScript 入口打成 CommonJS（sandbox preload 必須是單一檔案），esbuild 已在依賴樹內，`scripts/build-electron.mjs` 約 30 行。
+- 替代方案：electron-vite 6（整合度高，但多一層抽象與依賴）、electron-forge（含打包，屬發版範圍）。
+
+### 字型：Inter（QC-002）
+
+- **來源**：npm `@fontsource-variable/inter` 5.3.0，其 `files/*.woff2` 由 Fontsource 從 Inter 官方發行版（<https://github.com/rsms/inter>，The Inter Project Authors）產生。
+- **授權**：SIL Open Font License 1.1。全文在套件內的 `LICENSE`，隨 App 散布時必須一併附上。OFL 允許隨軟體打包與再散布，但不得單獨販售字型，修改後的版本也不得沿用保留名稱。我們沒有修改字型。
+- **載入方式**：renderer 匯入 `wght.css` 與 `wght-italic.css`，Vite 把 woff2 複製進建置產物，以相對路徑載入。CSP 的 `font-src 'self' data:` 不允許遠端字型。各子集以 `unicode-range` 劃分，中文仍由 PingFang TC 顯示。
+- **發版時**：「項目發版」打包時，要把 `LICENSE`（OFL）放進 App 的第三方授權說明。
+- **替代方案**：直接放官方 woff2（少一個依賴，但要自己維護 `@font-face` 與子集）；只用系統字型（不符合視覺基線）。
+
+## 執行期依賴：Mac App 與共用前端套件（QC-002）
+
+| 套件 | 版本 | 授權 | 用在 | 用途 | 替代方案 |
+| --- | --- | --- | --- | --- | --- |
+| react / react-dom | ^19.3.1 | MIT | mac、markdown-editor-web（peer） | UI | Preact（MDXEditor 不支援） |
+| @mdxeditor/editor | ^4.5.0 | MIT | markdown-editor-web | 視覺 Markdown 編輯（見上） | Milkdown、TipTap |
+| @fontsource-variable/inter | ^5.3.0 | OFL-1.1（字型）／MIT（打包腳本） | mac | DESIGN.md 指定的 Inter 可變字型（wght 軸，正體與斜體），由 Vite 打進 App，不從網路載入（見「字型」一節） | 直接放 rsms/inter 官方 woff2；系統字體（不符視覺基線） |
+| mdast-util-from-markdown | ^2.1.0 | MIT | markdown-editor-web | 解析 Markdown，偵測可能有損語法、比對結構 | remark（較重） |
+| micromark-extension-gfm / mdast-util-gfm | ^3.0.0 / ^3.1.0 | MIT | markdown-editor-web | GFM（表格、腳註、刪除線、待辦）解析 | — |
+| micromark-extension-frontmatter / mdast-util-frontmatter | ^2.0.0 / ^2.0.1 | MIT | markdown-editor-web | YAML frontmatter 解析 | — |
+
+## 開發依賴：Mac App 與共用前端套件（QC-002）
+
+| 套件 | 版本 | 授權 | 用在 | 用途 | 替代方案 |
+| --- | --- | --- | --- | --- | --- |
+| electron | ^45.3.2 | MIT | mac | 桌面殼層（打包屬發版範圍，未加入 electron-builder） | Tauri（非 Node 主程序，與方案不符） |
+| vite | ^8.3.8 | MIT | mac | renderer 開發伺服器（5180）與建置 | webpack |
+| @vitejs/plugin-react | ^6.3.0 | MIT | mac | React JSX 與 Fast Refresh | — |
+| esbuild | ^0.28.2 | MIT | mac | 主程序與 preload 打包（見上） | electron-vite |
+| jsdom | ^31.0.1 | MIT | markdown-editor-web | 測試中掛載真實 MDXEditor 做往返驗證。要求 Node ≥24.15，本機 24.14 可跑但安裝時有 engine 警告 | happy-dom（Lexical 相容性較少驗證） |
+| @types/react / @types/react-dom / @types/mdast | ^19.3.0 / ^19.3.0 / ^4.0.4 | MIT | mac、markdown-editor-web | 型別 | — |
 
 ## 開發依賴（根目錄）
 
