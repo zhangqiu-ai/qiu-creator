@@ -19,8 +19,8 @@
 
 ## 條目欄位
 
-`id`、`title`、`date`、`status`、`model`、`requestedBy`、`userRequest`、`approvedBy`、`approvedAt`、`canvas`、`boards`（檔名、裝置、期別、狀態）、`visualDirection`、`adjustmentsFromBrief`、`references`、`notVerified`、`openQuestions`。
+`id`、`title`、`date`、`status`、`model`、`requestedBy`、`userRequest`、`approvedBy`、`approvedAt`、`canvas`、`scope`、`tweaks`、`boards`（檔名、標題、狀態）、`visualDirection`、`adjustmentsFromBrief`、`keyboard`、`references`、`notVerified`、`openQuestions`。
 
 ## 期別
 
-依 [決策記錄](../../decisions.md)（2026-11-16），第一期只做 Mac。`phase: 2` 的畫板是第二期參考，不在第一期的核准範圍內。
+依 [決策記錄](../../decisions.md)（2026-11-16），第一期只做 Mac 畫面。iPhone／iPad 原型等第二期開工後再加。
