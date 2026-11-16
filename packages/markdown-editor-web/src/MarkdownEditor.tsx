@@ -31,6 +31,8 @@ export interface MarkdownEditorProps {
   /** Force a starting mode. Default: source for documents with lossy syntax, visual otherwise. */
   initialMode?: EditorMode;
   readOnly?: boolean;
+  /** Render the built-in 視覺／原始碼 switch. Hosts with their own switch call `requestMode`. */
+  showModeSwitch?: boolean;
   /** Accessible name for the editing area. */
   label?: string;
   className?: string;
@@ -41,6 +43,8 @@ export interface MarkdownEditorHandle {
   getMarkdown: () => string;
   isComposing: () => boolean;
   getMode: () => EditorMode;
+  /** Switch modes; switching a lossy document to visual asks for confirmation first. */
+  requestMode: (mode: EditorMode) => void;
   focus: () => void;
 }
 
@@ -157,12 +161,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         getMarkdown: () => current.current,
         isComposing: () => composing.current,
         getMode: () => mode,
+        requestMode,
         focus: () => {
           if (mode === 'visual') mdx.current?.focus();
           else textarea.current?.focus();
         },
       }),
-      [mode],
+      [mode, requestMode],
     );
 
     const plugins = useMemo(() => createEditorPlugins(), []);
@@ -182,22 +187,24 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           });
         }}
       >
-        <div className="qc-md-editor__modes" role="radiogroup" aria-label="編輯模式">
-          {(['visual', 'source'] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="radio"
-              aria-checked={mode === m}
-              className="qc-md-editor__mode"
-              onClick={() => {
-                requestMode(m);
-              }}
-            >
-              {m === 'visual' ? '視覺' : '原始碼'}
-            </button>
-          ))}
-        </div>
+        {props.showModeSwitch !== false && (
+          <div className="qc-md-editor__modes" role="radiogroup" aria-label="編輯模式">
+            {(['visual', 'source'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                role="radio"
+                aria-checked={mode === m}
+                className="qc-md-editor__mode"
+                onClick={() => {
+                  requestMode(m);
+                }}
+              >
+                {m === 'visual' ? '視覺' : '原始碼'}
+              </button>
+            ))}
+          </div>
+        )}
 
         {pendingVisual !== null && (
           <div className="qc-md-editor__confirm" role="alertdialog" aria-label="切換到視覺模式">

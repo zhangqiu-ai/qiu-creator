@@ -6,7 +6,7 @@
 
 export type ConnectionInfo =
   | { ok: true; baseUrl: string; token: string }
-  | { ok: false; reason: 'home_missing' | 'token_missing'; detail: string };
+  | { ok: false; reason: 'home_missing' | 'token_missing'; detail: string; baseUrl: string };
 
 export interface ProxyRequest {
   url: string;

@@ -1,20 +1,17 @@
-# QC-002 close-window check 2026-11-16T15:32:58Z
-Electron processes before: 4
-Page targets after close: 0
-Electron processes after: 3 (macOS keeps the app in the Dock)
+# QC-002 close-window check 2026-11-16T15:54:05Z
+Page targets after closing the window: 0
 $ curl -s http://127.0.0.1:7420/health
 {"status":"ok","service":"creatorhub-mac-server","version":"0.0.0"}
-$ curl -s -H "authorization: Bearer <token>" "http://127.0.0.1:7420/api/v1/works?limit=10" | (titles)
+$ GET /api/v1/works (titles)
 total=4
  - 含特殊語法的文件
- - 旅行筆記：京都三日（新版）（我的版本）
  - 旅行筆記：京都三日（新版）
+ - 旅行筆記：京都三日（新版）（我的修改）
  - 中文長文捲動測試
-$ POST /api/v1/works after window closed
+$ POST /api/v1/works
 HTTP 201
 
 # Quit Electron entirely (SIGTERM to the dev runner, which quits Electron and Vite)
-Electron processes before: 1
 Electron processes after: 0
 $ curl -s http://127.0.0.1:7420/health
 {"status":"ok","service":"creatorhub-mac-server","version":"0.0.0"}

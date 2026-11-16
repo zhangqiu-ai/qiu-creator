@@ -53,7 +53,7 @@ describe('connect', () => {
       getConnection: () => Promise.resolve({ ok: true, baseUrl, token: 'wrong-token-0123456789' }),
       request: (req) => performProxyRequest(baseUrl, req),
     });
-    expect(result).toEqual({ ok: false, reason: 'unauthorized' });
+    expect(result).toEqual({ ok: false, reason: 'unauthorized', baseUrl });
   });
 
   it('reports a stopped service as service_down', async () => {
@@ -62,16 +62,17 @@ describe('connect', () => {
       getConnection: () => Promise.resolve({ ok: true, baseUrl, token: TOKEN }),
       request: (req) => performProxyRequest(baseUrl, req),
     });
-    expect(result).toEqual({ ok: false, reason: 'service_down' });
+    expect(result).toEqual({ ok: false, reason: 'service_down', baseUrl });
     server = await buildServer({ config: { home, token: TOKEN } }); // for afterEach
   });
 
   it('reports a missing token file as service_down', async () => {
     const result = await connect({
-      getConnection: () => Promise.resolve({ ok: false, reason: 'token_missing', detail: 'x' }),
+      getConnection: () =>
+        Promise.resolve({ ok: false, reason: 'token_missing', detail: 'x', baseUrl }),
       request: (req) => performProxyRequest(baseUrl, req),
     });
-    expect(result).toEqual({ ok: false, reason: 'service_down' });
+    expect(result).toEqual({ ok: false, reason: 'service_down', baseUrl });
   });
 });
 
@@ -115,7 +116,7 @@ describe('WorkSession against mac-server', () => {
     session.dispose();
   });
 
-  it('on 409 keeps the draft, does not overwrite the other writer, and offers reload or keep-both', async () => {
+  it('on 409 keeps the draft, does not overwrite the other writer, and offers keep-both', async () => {
     const work = await client.works.create({ title: '衝突', markdown: '原文\n' });
     const mine = new WorkSession(client, work);
     const theirs = new WorkSession(client, work);
@@ -139,12 +140,11 @@ describe('WorkSession against mac-server', () => {
     const server = await mine.fetchServerVersion();
     expect(server.markdown).toBe('別人改的\n');
 
-    const copy = await mine.saveDraftAsNewWork();
+    // 保留雙方: my draft becomes a new work; this work shows the server version.
+    const copy = await mine.keepBoth();
     expect(copy.markdown).toBe('我又改了\n');
-    expect(copy.title).toBe('衝突（我的版本）');
+    expect(copy.title).toBe('衝突（我的修改）');
     expect(copy.id).not.toBe(work.id);
-
-    await mine.reloadFromServer();
     expect(mine.snapshot).toMatchObject({
       status: 'saved',
       conflictRevision: null,
@@ -152,10 +152,41 @@ describe('WorkSession against mac-server', () => {
       baseRevision: theirs.snapshot.baseRevision,
     });
 
-    // After reload, editing and saving works again.
+    // After resolving, editing and saving works again.
     mine.edit({ title: '衝突已解決' });
     await mine.save();
     expect(mine.snapshot.status).toBe('saved');
+    mine.dispose();
+    theirs.dispose();
+  });
+
+  it('手動合併 saves the merged text on top of the compared server revision', async () => {
+    const work = await client.works.create({ title: '合併', markdown: 'a\nb\n' });
+    const mine = new WorkSession(client, work);
+    const theirs = new WorkSession(client, work);
+    theirs.edit({ markdown: 'a\nB（別人）\n' });
+    await theirs.save();
+    mine.edit({ markdown: 'A（我）\nb\n' });
+    await mine.save();
+    expect(mine.snapshot.status).toBe('conflict');
+
+    const server = await mine.fetchServerVersion();
+    // Someone else writes again before the user finishes merging: no silent overwrite.
+    theirs.edit({ markdown: 'a\nB（別人第二次）\n' });
+    await theirs.save();
+    expect(await mine.resolveWithMerge('A（我）\nB（別人）\n', server.current_revision_id)).toBe(
+      'conflict',
+    );
+    expect(sourceFile(work.id)).toBe('a\nB（別人第二次）\n');
+
+    const latest = await mine.fetchServerVersion();
+    expect(
+      await mine.resolveWithMerge('A（我）\nB（別人第二次）\n', latest.current_revision_id),
+    ).toBe('saved');
+    expect(sourceFile(work.id)).toBe('A（我）\nB（別人第二次）\n');
+    expect(mine.snapshot).toMatchObject({ status: 'saved', conflictRevision: null });
+    const revs = await client.works.revisions(work.id);
+    expect(revs.items).toHaveLength(4); // create, theirs ×2, merge — every step recoverable
     mine.dispose();
     theirs.dispose();
   });

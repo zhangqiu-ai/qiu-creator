@@ -98,3 +98,27 @@ describe('MarkdownEditor', () => {
     m.unmount();
   });
 });
+
+describe('MarkdownEditor without its own mode switch', () => {
+  it('hides the switch and still changes mode through the handle', async () => {
+    const ref = createRef<MarkdownEditorHandle>();
+    const onModeChange = vi.fn();
+    const m = await mount(
+      <MarkdownEditor
+        ref={ref}
+        markdown={'# 標題\n'}
+        onChange={vi.fn()}
+        onModeChange={onModeChange}
+        showModeSwitch={false}
+      />,
+    );
+    expect(m.container.querySelector('.qc-md-editor__modes')).toBeNull();
+    act(() => {
+      ref.current?.requestMode('source');
+    });
+    expect(ref.current?.getMode()).toBe('source');
+    expect(onModeChange).toHaveBeenLastCalledWith('source');
+    expect(m.container.querySelector('textarea')?.value).toBe('# 標題\n');
+    m.unmount();
+  });
+});

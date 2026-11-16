@@ -198,14 +198,52 @@ export class WorkSession {
     });
   }
 
-  /** Keep both: store the local draft as a new work; this work keeps the server version. */
-  async saveDraftAsNewWork(): Promise<WorkDetail> {
+  /**
+   * 保留雙方: store my draft as a new work, then let this work show the
+   * server version. Returns the copy.
+   */
+  async keepBoth(): Promise<WorkDetail> {
     const { title, markdown } = this.state.draft;
-    return this.client.works.create({
-      title: `${title.trim() || '未命名'}（我的版本）`,
+    const copy = await this.client.works.create({
+      title: `${title.trim() || '未命名'}（我的修改）`,
       markdown,
       source: 'mac-app',
     });
+    await this.reloadFromServer();
+    return copy;
+  }
+
+  /**
+   * 手動合併: save the merged text on top of exactly the server revision the
+   * user compared against. If the server moved on again, this is another 409
+   * (status stays `conflict`) rather than a silent overwrite.
+   */
+  async resolveWithMerge(markdown: string, serverRevision: string): Promise<'saved' | 'conflict'> {
+    this.clearTimer();
+    try {
+      const work = await this.client.works.patch(this.state.workId, {
+        base_revision: serverRevision,
+        title: this.state.draft.title,
+        markdown,
+      });
+      const draft = { title: work.title, markdown: work.markdown };
+      this.set({
+        draft,
+        saved: draft,
+        baseRevision: work.current_revision_id,
+        status: 'saved',
+        conflictRevision: null,
+        errorMessage: null,
+      });
+      this.options.onSaved?.(work);
+      return 'saved';
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        this.set({ conflictRevision: err.currentRevision ?? null });
+        return 'conflict';
+      }
+      throw err;
+    }
   }
 
   /** Save pending edits (unless in conflict), then stop. */

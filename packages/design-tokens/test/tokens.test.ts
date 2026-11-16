@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildCssVariables, COLOR_TOKENS, cssVar, cssVarName, palettes } from '../src/index.js';
+import {
+  buildCssVariables,
+  COLOR_TOKENS,
+  cssVar,
+  cssVarName,
+  palettes,
+  TRANSLUCENT_TOKENS,
+} from '../src/index.js';
 
 /** WCAG relative luminance contrast for #rrggbb colors. */
 function contrast(a: string, b: string): number {
@@ -18,7 +25,9 @@ describe('design tokens', () => {
   it('defines every token in both schemes', () => {
     for (const scheme of ['light', 'dark'] as const) {
       for (const token of COLOR_TOKENS) {
-        expect(palettes[scheme][token]).toMatch(/^#[0-9a-f]{6}$/);
+        expect(palettes[scheme][token]).toMatch(
+          TRANSLUCENT_TOKENS.includes(token) ? /^rgba\(/ : /^#[0-9a-f]{6}$/,
+        );
       }
     }
   });
@@ -30,7 +39,7 @@ describe('design tokens', () => {
 
   it('emits light, dark and pinned-theme blocks', () => {
     const css = buildCssVariables();
-    expect(css).toContain('--qc-canvas: #ffffff;');
+    expect(css).toContain('--qc-canvas: #f5f5f7;');
     expect(css).toContain('prefers-color-scheme: dark');
     expect(css).toContain(":root[data-theme='dark']");
   });
@@ -51,6 +60,17 @@ describe('design tokens', () => {
         }
       }
       expect(contrast(p.onAccent, p.accent), `${scheme} onAccent`).toBeGreaterThanOrEqual(3);
+      // Status text on its own soft fill (chips, banners, diff marks).
+      for (const [fg, bg] of [
+        [p.accent, p.accentSoft],
+        [p.success, p.successSoft],
+        [p.warning, p.warningSoft],
+        [p.danger, p.dangerSoft],
+        [p.textPrimary, p.surfaceSunken],
+        [p.textSecondary, p.surfaceSunken],
+      ] as const) {
+        expect(contrast(fg, bg), `${scheme} ${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+      }
     }
   });
 });

@@ -16,10 +16,10 @@
 
 > 旅行的意義，在於路上的人。
 
-| 地點 | 時間 | 花費 |
-| --- | :-: | --: |
-| 伏見稻荷 | 08:00 | 0 |
-| 錦市場 | 12:00 | 3000 |
+| 地點     | 時間  | 花費 |
+| -------- | :---: | ---: |
+| 伏見稻荷 | 08:00 |    0 |
+| 錦市場   | 12:00 | 3000 |
 
 ```ts
 export function greet(name: string): string {
@@ -27,7 +27,7 @@ export function greet(name: string): string {
 }
 ```
 
-[京都觀光](https://example.com/kyoto "京都觀光網站")
+[京都觀光](https://example.com/kyoto '京都觀光網站')
 
 ![鴨川夕陽](https://example.com/images/kamo.jpg)
 

@@ -34,13 +34,17 @@ export function bridgeFetch(request: (req: ProxyRequest) => Promise<ProxyRespons
 
 export type ConnectResult =
   | { ok: true; client: CreatorHubClient }
-  | { ok: false; reason: 'home_missing' | 'service_down' | 'unauthorized' };
+  | { ok: false; reason: 'home_missing' | 'service_down' | 'unauthorized'; baseUrl: string };
 
 /** Resolve the token, then prove the service is up and accepts it. */
 export async function connect(bridge: CreatorHubBridge): Promise<ConnectResult> {
   const info = await bridge.getConnection();
   if (!info.ok) {
-    return { ok: false, reason: info.reason === 'home_missing' ? 'home_missing' : 'service_down' };
+    return {
+      ok: false,
+      reason: info.reason === 'home_missing' ? 'home_missing' : 'service_down',
+      baseUrl: info.baseUrl,
+    };
   }
   const client = createClient({
     baseUrl: info.baseUrl,
@@ -51,8 +55,8 @@ export async function connect(bridge: CreatorHubBridge): Promise<ConnectResult> 
     await client.health();
     await client.works.list({ limit: 1 });
   } catch (err) {
-    if (err instanceof ApiError && err.status === 401) return { ok: false, reason: 'unauthorized' };
-    return { ok: false, reason: 'service_down' };
+    const reason = err instanceof ApiError && err.status === 401 ? 'unauthorized' : 'service_down';
+    return { ok: false, reason, baseUrl: info.baseUrl };
   }
   return { ok: true, client };
 }

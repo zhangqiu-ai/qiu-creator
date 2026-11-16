@@ -37,7 +37,12 @@ export function tokenFile(home: string): string {
 /** Same precedence as mac-server: CREATORHUB_TOKEN, then `data/api-token`. */
 export function readConnection(config: AppConfig, env: NodeJS.ProcessEnv): ConnectionInfo {
   if (config.home === null) {
-    return { ok: false, reason: 'home_missing', detail: 'CREATORHUB_HOME' };
+    return {
+      ok: false,
+      reason: 'home_missing',
+      detail: 'CREATORHUB_HOME',
+      baseUrl: config.baseUrl,
+    };
   }
   const fromEnv = env['CREATORHUB_TOKEN']?.trim();
   if (fromEnv !== undefined && fromEnv !== '') {
@@ -49,5 +54,10 @@ export function readConnection(config: AppConfig, env: NodeJS.ProcessEnv): Conne
   } catch {
     // fall through: the service has not created its token yet
   }
-  return { ok: false, reason: 'token_missing', detail: tokenFile(config.home) };
+  return {
+    ok: false,
+    reason: 'token_missing',
+    detail: tokenFile(config.home),
+    baseUrl: config.baseUrl,
+  };
 }

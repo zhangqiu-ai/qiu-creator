@@ -1,18 +1,53 @@
 [
   {
-    "name": "opening a document does not create a revision",
+    "name": "library shows every work as a card",
     "pass": true,
-    "detail": "revisions=1"
+    "detail": ""
   },
   {
-    "name": "no save while IME is composing (visual)",
+    "name": "list view shows a table row per work",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "status filter with no matches shows 無符合作品",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "search does not run during IME composition",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "search runs after the composition commits",
+    "pass": true,
+    "detail": "[\"中文長文捲動測試\"]"
+  },
+  {
+    "name": "narrow window collapses the navigation to icons",
+    "pass": true,
+    "detail": "width=60"
+  },
+  {
+    "name": "opening a document does not create a revision",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "editor header shows r1 and a word count",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "no save while IME is composing (visual, including ⌘S)",
     "pass": true,
     "detail": "status=已儲存"
   },
   {
     "name": "composed text is saved after commit (visual)",
     "pass": true,
-    "detail": "\"ng)\\n\\n---\\n\\n最後一段。中文輸入\\n\""
+    "detail": ""
   },
   {
     "name": "save status returns to 已儲存",
@@ -50,17 +85,27 @@
     "detail": "旅行筆記：京都三日（新版）"
   },
   {
-    "name": "history lists every revision",
-    "pass": true,
-    "detail": "items=3"
-  },
-  {
-    "name": "external writer saved via API",
+    "name": "⌘/ switches to source mode",
     "pass": true,
     "detail": ""
   },
   {
-    "name": "stale save shows 版本衝突",
+    "name": "⌘/ switches back to visual",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "history lists every revision with r numbers",
+    "pass": true,
+    "detail": "items=3"
+  },
+  {
+    "name": "Agent writes via API",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "stale save opens the conflict dialog",
     "pass": true,
     "detail": ""
   },
@@ -70,22 +115,52 @@
     "detail": ""
   },
   {
-    "name": "local draft kept in the editor",
+    "name": "dialog shows my change and the server change side by side",
     "pass": true,
     "detail": ""
   },
   {
-    "name": "diff shows both versions",
+    "name": "editor behind the dialog is inert",
     "pass": true,
     "detail": ""
   },
   {
-    "name": "keep-both creates a new work with my draft",
+    "name": "查看差異 shows deletions and insertions",
     "pass": true,
     "detail": ""
   },
   {
-    "name": "original still has the other writer’s version",
+    "name": "保留雙方 creates a copy with my draft",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "original keeps the Agent version",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "editor shows the server version after 保留雙方",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "Agent writes again",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "second stale save opens the dialog again",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "手動合併 writes the picked sides",
+    "pass": true,
+    "detail": "hunks=2"
+  },
+  {
+    "name": "editor shows the merged version",
     "pass": true,
     "detail": ""
   },
@@ -112,7 +187,7 @@
   {
     "name": "long document scrolls to the bottom",
     "pass": true,
-    "detail": "{\"scrollHeight\":27233,\"atBottom\":true,\"p50\":15.5,\"p95\":19,\"max\":30}"
+    "detail": "{\"scrollHeight\":38612,\"atBottom\":true,\"p50\":15.400000095367432,\"p95\":25.90000009536743,\"max\":37.5}"
   },
   {
     "name": "long document did not save on open",
@@ -120,7 +195,7 @@
     "detail": ""
   },
   {
-    "name": "dark appearance uses dark canvas token",
+    "name": "dark appearance uses the dark canvas token",
     "pass": true,
     "detail": "rgb(30, 30, 30)"
   }
