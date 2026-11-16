@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "prototype": {
+    "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+    "note": "The Design canvas is the only prototype; it is not exported to the repo (開發總監, 2026-11-16)."
+  },
+  "entries": [
+    {
+      "id": "PT-20261116-001",
+      "title": "原型 v0.1：Mac 全頁面高保真互動原型與視覺方向「暖白克制」",
+      "date": "2026-11-16",
+      "status": "approved",
+      "model": "claude-opus-5-5",
+      "session": "qc-prototype",
+      "requestedBy": "user via 開發總監",
+      "userRequest": "先最大化的設計一版原型（2026-11-16）",
+      "scope": "Phase 1, Mac only (docs/decisions.md, 2026-11-16). Mobile boards were drawn, then removed from the canvas at the 總監's instruction.",
+      "approvedBy": "使用者",
+      "approvedAt": "2026-11-16",
+      "approvalQuote": "原型核准，可以寫回 DESIGN.md",
+      "approvalRelayedBy": "開發總監",
+      "approvedCanvasVersion": "24 (version id 1794841037-c52d)",
+      "approvedScope": "8 Mac artboards on canvas version 24",
+      "writtenBack": "DESIGN.md 視覺基線（已核准 PT-20261116-001）",
+      "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "canvasVersion": "24 (version id 1794841037-c52d)",
+      "tweaks": {
+        "dark": "all 8 boards",
+        "narrow": "all 8 boards; sidebar collapses to a 60px icon rail (also automatic between 800px and 1180px window width; below 800px the sidebar stacks above content)",
+        "state": "Main, MacEditor, MacAssets, MacImports, MacAI, MacSettings"
+      },
+      "boards": [
+        { "file": "Main.dc.html", "title": "Mac · 作品庫", "states": ["網格", "列表", "類型篩選", "狀態篩選含計數", "搜尋（⌘F）", "篩選無結果", "載入中骨架", "空白庫：新建／匯入／掛載", "服務未回應：重試", "來源標示", "發布中心停用"] },
+        { "file": "MacEditor.dc.html", "title": "Mac · 編輯與 AI 改寫", "states": ["視覺／原始碼切換", "自動儲存：已儲存／儲存中／儲存失敗＋重試", "revision 與字數", "外部修改提示：比對並合併／捨棄我的修改並重新載入", "版本歷史：來源、選取預覽、恢復為新版本", "AI 候選 diff 逐處勾選（部分採用）", "採用（⌘↩）／插入／重試／捨棄（esc）", "生成中骨架與停止", "生成失敗＋重試", "無候選", "採用後復原（產生新 revision）", "補充指令（Enter 送出，組字中不觸發）", "四平台標題候選與字數上限"] },
+        { "file": "MacPreview.dc.html", "title": "Mac · 平台模擬預覽", "states": ["四平台分頁", "各平台獨立版本與 revision", "標題與正文字數，超限警示與預覽截斷", "封面選擇與圖片順序", "標籤增刪（組字中不觸發）", "尚無平台版本：從原稿建立／複製公眾號版本", "模擬標示"] },
+        { "file": "MacConflict.dc.html", "title": "Mac · 版本衝突", "states": ["此視窗的修改 vs 外部編輯器寫入的磁碟版本", "查看差異", "保留雙方（另存副本）", "手動合併：逐處選擇與可編輯結果", "已解決", "你的修改已保留"] },
+        { "file": "MacAssets.dc.html", "title": "Mac · 素材庫", "states": ["托管／外部掛載分區", "類型篩選", "選取", "檢視器：尺寸、時長、編碼、大小、雜湊、位置、引用", "未引用", "外部原檔只移出索引", "載入中骨架", "空白", "掛載離線：找不到資料夾＋重新指定"] },
+        { "file": "MacImports.dc.html", "title": "Mac · 匯入任務", "states": ["API／上傳／URL／資料夾", "排隊", "進行中含進度", "成功含去向", "失敗含原因與重試", "SSRF 已阻擋", "重複沿用原作品", "取消後重試", "狀態篩選", "空白：上傳／貼上 URL／API 文件", "Agent 權杖撤銷", "監控資料夾待確認：匯入／略過"] },
+        { "file": "MacAI.dc.html", "title": "Mac · AI 工作台", "states": ["範本與模型選擇", "視頻理解結果：摘要、章節、封面、標題", "待核驗標示", "重複分析沿用提示", "首次雲端上傳告知", "上傳與分析進度", "取消", "分析失敗（429）＋重試／查看上次結果", "未設定金鑰：前往設定／改用本地模型", "用量與成本（估算）"] },
+        { "file": "MacSettings.dc.html", "title": "Mac · 設定", "states": ["本機服務：執行中／啟動中／已停止＋啟動", "開機自動啟動", "防止睡眠與關閉警示", "備份：最近備份、立即備份、每日自動備份", "從備份還原：選擇、後果說明、確認", "AI 金鑰存於鑰匙圈（不顯示值）", "僅本地模型時雲端停用", "托管目錄與外部掛載"] }
+      ],
+      "visualDirection": {
+        "name": "暖白克制",
+        "tokens": {
+          "light": { "bg": "#F6F5F1", "surface": "#FFFFFF", "sunken": "#EFEDE7", "ink": "#1C1B19", "ink2": "#55524C", "ink3": "#6B6862", "line": "#E4E1D9", "accent": "#2F4FCF", "accentSoft": "#E9EDFC", "onAccent": "#FFFFFF", "ok": "#1E7046", "okSoft": "#E3F1E8", "warn": "#8A5300", "warnSoft": "#FBEFD9", "bad": "#B42318", "badSoft": "#FBE7E4" },
+          "dark": { "bg": "#161615", "surface": "#1F1F1D", "sunken": "#121211", "ink": "#ECEAE4", "ink2": "#B5B1A8", "ink3": "#9C988F", "line": "#33322F", "accent": "#8EA2FF", "accentSoft": "#232A47", "onAccent": "#161615", "ok": "#6CCB97", "okSoft": "#183223", "warn": "#E9B160", "warnSoft": "#3A2B12", "bad": "#FF8B7E", "badSoft": "#3D1C18" }
+        },
+        "contrastCheck": "All text tokens on bg/surface/sunken and each status color on its soft fill ≥ 4.5:1 in both themes (lowest: light ink3 on sunken 4.74, light ink3 on accentSoft 4.76). Computed with the WCAG relative-luminance formula; not checked in a browser.",
+        "type": "Inter + -apple-system/PingFang TC/Noto Sans TC; UI 13px, long-form 16px with 1.85 line height and 680px measure; SF Mono for paths and hashes",
+        "radius": "control 7px, card 10px, panel/dialog 14px",
+        "spacing": "4px base",
+        "icons": "inline stroke SVG drawn for this prototype (1.8 stroke, round caps); no library chosen yet",
+        "motion": "150ms hover/toggle transitions, skeleton pulse 1.2s, spinner 0.8s; all disabled under prefers-reduced-motion"
+      },
+      "adjustmentsFromBrief": [
+        "Scope reduced to the 8 Mac boards per the 2026-11-16 Mac-first decision; mobile boards removed from the canvas.",
+        "Sidebar footer shows service and Agent API status instead of iPhone/iPad connection.",
+        "Settings drops Tailscale and device pairing (phase 2) and adds 備份／還原 (phase-1 production-ready requirement).",
+        "Conflict board reframed for phase 1: this window's edits vs a version an external editor wrote to disk.",
+        "Added onAccent token: dark accent #8EA2FF is light, so primary-button text must be dark (#161615, 7.56:1) instead of white.",
+        "Added scrim token per theme for dialogs.",
+        "Mac controls are 30–34px tall (pointer input).",
+        "Diffs use strikethrough/underline as well as color, so deletions and insertions do not rely on red/green hue alone.",
+        "Partial adoption is per-change checkboxes (DESIGN.md requires 採用／部分採用／捨棄); the brief listed only 採用／插入／重試／捨棄.",
+        "Restoring a revision or undoing an AI change creates a new revision instead of rewriting history.",
+        "Platform simulations use fixed neutral platform-like backgrounds, not the app theme."
+      ],
+      "keyboard": [
+        "Visible focus ring on every control (2px accent, 2px offset).",
+        "Shortcuts declared with aria-keyshortcuts: ⌘F search, ⌘N new, ⌘/ visual/source, ⌘P preview, ⌘↩ adopt and esc discard inside the AI panel, ⌘Z undo. Only the AI panel keys are wired in the prototype (scoped onKeyDown; the canvas forbids global key handlers).",
+        "Text inputs that act on Enter ignore Enter while an IME is composing."
+      ],
+      "references": [
+        { "path": "/Users/feature/code/qiuge-design/cases/kubai-ai-writing-panel/case.md", "kind": "concept", "borrowed": "Selected paragraph stays highlighted in the editor while the panel shows the suggestion; apply/insert/retry grouped under the result.", "adaptation": "Right-side panel next to the article with keyboard shortcuts; undo bar after applying; history shares the same panel slot." },
+        { "path": "/Users/feature/code/qiuge-design/cases/codex-change-proposal-comparison-table/case.md", "kind": "concept", "borrowed": "One change per row so each can be judged on its own.", "adaptation": "Each AI change is a checkbox row (delete line + insert line) enabling partial adoption; conflict merge uses the same per-change rows." },
+        { "path": "/Users/feature/code/qiuge-design/cases/wechat-format-preview-before-publish/case.md", "kind": "concept", "borrowed": "Controls on the left, rendered preview on the right before anything leaves the app.", "adaptation": "Per-platform version fields on the left, phone-frame simulation on the right, labeled 模擬, no platform logos." },
+        { "path": "/Users/feature/code/qiuge-design/cases/kami-content-first-document-hierarchy/case.md", "kind": "product", "borrowed": "Warm white ground, dark ink, sparse blue; hierarchy from size and spacing rather than decoration.", "adaptation": "Applied to the whole shell; color comes from work covers." },
+        { "path": "/Users/feature/code/qiuge-design/cases/kubai-anti-slop-product-directives/case.md", "kind": "concept", "borrowed": "Token-only colors, fixed radius set, 4px spacing, copy reduction.", "adaptation": "Every color is a CSS variable switched by the dark Tweak; strings kept to labels and short states." },
+        { "path": "/Users/feature/code/qiuge-design/cases/kubai-999-017-waiting-states/case.md", "kind": "concept", "borrowed": "Pick the waiting pattern per operation; failures retry in place.", "adaptation": "Skeletons for library, assets and AI generation; progress bars for imports and video upload; spinner chips for service start and backup; inline retry on failed saves, imports and analysis." }
+      ],
+      "verified": [
+        "Static checks on all 8 artboard sources: tag balance (HTML parser), script syntax (node --check), data-props JSON parse — all pass."
+      ],
+      "notVerified": [
+        "NOT_VERIFIED: rendering in the live canvas — user chose to review the canvas directly (2026-11-16).",
+        "NOT_VERIFIED: interactions and Tweak switching (dark, narrow, state) — user chose to review the canvas directly (2026-11-16).",
+        "NOT_VERIFIED: measured contrast in the rendered page (formula check only) — user chose to review the canvas directly (2026-11-16).",
+        "NOT_VERIFIED: keyboard Tab order and VoiceOver — user chose to review the canvas directly (2026-11-16).",
+        "Not done: recycle-bin flow, upload and URL dialogs, key entry dialog, model switch menu in the AI panel; image placeholders are color blocks."
+      ],
+      "openQuestions": [
+        "Software name and logo are placeholders (qiu-creator, ink square).",
+        "待發布 status and primary actions share the accent color; consider a separate status hue."
+      ]
+    }
+  ]
+}
