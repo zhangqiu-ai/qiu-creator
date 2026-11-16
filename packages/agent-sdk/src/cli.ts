@@ -1,6 +1,12 @@
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import { ApiError, createClient, type CreatorHubClient } from '@qiu-creator/api-client';
-import { WorkStatusSchema, WorkTypeSchema } from '@qiu-creator/contracts';
+import {
+  WorkAssetRoleSchema,
+  WorkStatusSchema,
+  WorkTypeSchema,
+  type ImportJobRecord,
+} from '@qiu-creator/contracts';
 import { Command, CommanderError, InvalidArgumentError } from 'commander';
 
 export const DEFAULT_SERVER_URL = 'http://127.0.0.1:7420';
@@ -72,6 +78,10 @@ export function buildProgram(io: CliIo): Command {
     .option('--tags <tags>', 'comma-separated tags', parseTags)
     .option('--type <type>', `work type (${WorkTypeSchema.options.join('|')})`)
     .option('--source <source>', 'origin label recorded on the work', 'cli')
+    .option(
+      '--idempotency-key <key>',
+      'reuse to make retries safe: the same key returns the work created the first time (default: a new random key)',
+    )
     .action(
       async (opts: {
         title: string;
@@ -79,16 +89,20 @@ export function buildProgram(io: CliIo): Command {
         tags?: string[];
         type?: string;
         source: string;
+        idempotencyKey?: string;
       }) => {
         const markdown = await fs.readFile(opts.file, 'utf8');
         const type = opts.type === undefined ? undefined : WorkTypeSchema.parse(opts.type);
-        const work = await client().works.create({
-          title: opts.title,
-          markdown,
-          source: opts.source,
-          ...(opts.tags ? { tags: opts.tags } : {}),
-          ...(type ? { type } : {}),
-        });
+        const work = await client().works.create(
+          {
+            title: opts.title,
+            markdown,
+            source: opts.source,
+            ...(opts.tags ? { tags: opts.tags } : {}),
+            ...(type ? { type } : {}),
+          },
+          { idempotencyKey: opts.idempotencyKey ?? randomUUID() },
+        );
         io.stdout(
           json()
             ? `${JSON.stringify(work, null, 2)}\n`
@@ -118,6 +132,64 @@ export function buildProgram(io: CliIo): Command {
         io.stdout(`${w.id}\t${w.status}\t${w.updated_at}\t${w.title}\n`);
       }
       io.stdout(`${page.items.length} of ${page.total}\n`);
+    });
+
+  const describeJob = (job: ImportJobRecord): string =>
+    [
+      `job ${job.id} ${job.status}`,
+      job.result_asset_id === null ? '' : ` asset ${job.result_asset_id}`,
+      job.error === null ? '' : ` error ${job.error_code ?? ''}: ${job.error}`,
+      '\n',
+    ].join('');
+
+  const importCmd = program.command('import').description('import content into CreatorHub');
+  importCmd
+    .command('url <url>')
+    .description('download a public http(s) URL into the asset library (runs as a background job)')
+    .option('--filename <name>', 'file name to store (default: from the server or URL)')
+    .option('--work <id>', 'link the imported asset to this work')
+    .option('--role <role>', `link role (${WorkAssetRoleSchema.options.join('|')})`)
+    .option(
+      '--idempotency-key <key>',
+      'reuse to make retries safe: the same key returns the original job (default: a new random key)',
+    )
+    .option('--wait', 'wait until the job finishes')
+    .action(
+      async (
+        url: string,
+        opts: {
+          filename?: string;
+          work?: string;
+          role?: string;
+          idempotencyKey?: string;
+          wait?: boolean;
+        },
+      ) => {
+        const role = opts.role === undefined ? undefined : WorkAssetRoleSchema.parse(opts.role);
+        const api = client();
+        let job = await api.imports.url(
+          {
+            url,
+            ...(opts.filename ? { filename: opts.filename } : {}),
+            ...(opts.work ? { work_id: opts.work } : {}),
+            ...(role ? { role } : {}),
+          },
+          { idempotencyKey: opts.idempotencyKey ?? randomUUID() },
+        );
+        if (opts.wait === true) job = await api.jobs.wait(job.id, { intervalMs: 500 });
+        io.stdout(json() ? `${JSON.stringify(job, null, 2)}\n` : describeJob(job));
+        if (opts.wait === true && job.status === 'failed')
+          throw new CommanderError(1, 'job.failed', '');
+      },
+    );
+
+  const jobs = program.command('jobs').description('inspect import jobs');
+  jobs
+    .command('get <id>')
+    .description('show an import job')
+    .action(async (id: string) => {
+      const job = await client().jobs.get(id);
+      io.stdout(json() ? `${JSON.stringify(job, null, 2)}\n` : describeJob(job));
     });
 
   return program;
