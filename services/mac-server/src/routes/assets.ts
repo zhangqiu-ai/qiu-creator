@@ -77,7 +77,26 @@ function byteLimit(limit: number): Transform {
   });
 }
 
-export function registerAssetRoutes(app: App, assets: AssetService, layout: Layout): void {
+/** Close a tus PATCH whose client sent nothing for this long (see `tusIdleTimeoutMs`). */
+export const DEFAULT_TUS_IDLE_TIMEOUT_MS = 60_000;
+
+export interface AssetRouteOptions {
+  /**
+   * Idle limit for a tus PATCH body. A client that vanishes without closing
+   * its socket (Wi-Fi drop, laptop sleep) would otherwise keep the request and
+   * the upload's lock forever; closing it saves what arrived so the client can
+   * resume. Only silence counts, so slow but steady uploads are unaffected.
+   */
+  tusIdleTimeoutMs?: number;
+}
+
+export function registerAssetRoutes(
+  app: App,
+  assets: AssetService,
+  layout: Layout,
+  options: AssetRouteOptions = {},
+): void {
+  const tusIdleTimeoutMs = options.tusIdleTimeoutMs ?? DEFAULT_TUS_IDLE_TIMEOUT_MS;
   const directLimit = Math.min(DIRECT_UPLOAD_MAX_BYTES, maxUploadBytes(assets.limits));
 
   // Raw bodies for uploads: hand the stream to the route instead of buffering it.
@@ -185,6 +204,10 @@ export function registerAssetRoutes(app: App, assets: AssetService, layout: Layo
 
   const tusHandler = async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
     reply.hijack();
+    // Socket idle timer for this request only: with no 'timeout' listener Node's
+    // HTTP server destroys the socket, and it resets the timer for keep-alive
+    // once the response is done.
+    if (req.method === 'PATCH') req.raw.setTimeout(tusIdleTimeoutMs);
     tusServer ??= createTus();
     await tusServer.handle(req.raw, reply.raw);
   };
