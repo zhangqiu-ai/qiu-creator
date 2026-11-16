@@ -134,7 +134,7 @@
 
 > 需求與重要狀態 → 唯一的高保真互動原型 → 使用者核准 → 用共用元件實作 → 視覺與互動驗收
 
-- **路徑**：唯一原型是 `docs/design/prototype/qiu-creator-prototype.html`，帳本是 `docs/design/prototype/changes.json`。不要把可編輯的設計分散在多個 HTML 檔裡，也不要把正式程式碼當成第一份設計提案。
+- **路徑**：唯一原型是 Claude Design 畫布 https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1（總監 2026-11-16 決定，取代原本指定的 `qiu-creator-prototype.html`）。repo 內只放帳本 `docs/design/prototype/changes.json` 與流程說明 `docs/design/prototype/README.md`，帳本條目記錄畫布網址與版本。不要另開第二張畫布或把可編輯的設計分散到 repo 的 HTML 檔，也不要把正式程式碼當成第一份設計提案。
 - **條目**：
   - 每批改動在帳本登記一個條目：`PT-YYYYMMDD-NNN`，由總監配號。
   - 條目記錄頁面與狀態、實際執行的模型、狀態（pending、approved、superseded）、核准者與日期。
