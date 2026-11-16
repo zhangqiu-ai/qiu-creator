@@ -1,14 +1,16 @@
 # In Progress
 
-## QC-005: 素材庫、上傳與變更事件（M1 後端 1/3）
+## QC-006: URL 匯入、匯入任務與冪等（M1 後端 2/3）
 
 **Priority:** P0 | **Assignee:** qc-backend | **Tags:** M1, backend
 
-### Plan
+依賴 QC-005。`POST /api/v1/imports/urls`、`GET /api/v1/jobs/:id`、重試；防 SSRF（回環、內網、特殊位址、DNS 重綁定、重定向、大小、逾時、內容類型）；冪等鍵強制；Agent 最小權限可撤銷權杖；CLI 補 `creatorhub import url`。
 
-- 素材登記與 `GET/POST /api/v1/assets*`：上傳（小檔直傳、大檔可續傳分塊）、類型／大小校驗、sha256 去重、作品–素材關聯（封面／正文／視頻、順序）。
-- 縮圖（Sharp）與視頻元資料（ffprobe，不存在時降級）任務佇列；`cache/` 可重建。
-- 變更事件 SSE（作品、素材、任務），供 Electron 刷新；作品全文搜尋（FTS5）。
+## QC-008: 追查 tus 續傳偶發卡死（QC-005 遺留）
+
+**Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M1
+
+QC-005 首次實機跑時 tus 續傳 PATCH 回 HTTP 000、之後伺服器不回應；後續 23 次未重現，日誌已遺失。已加 fatal 日誌。目標：壓力重現（不同速率、中斷點、並行、大檔），找出根因並補回歸測試；重現不了就記錄嘗試範圍後結案。
 
 ## QC-002: Electron Mac 最小工程與編輯器（M0 前端）
 
