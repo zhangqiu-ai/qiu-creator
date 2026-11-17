@@ -4,7 +4,7 @@
 
 **Priority:** P0 | **Assignee:** qc-backend | **Tags:** M2, backend
 
-前端 QC-011 依賴本任務。讀取單一歷史版本內容；恢復某版本會產生新的 revision（`source: restore`，帶 `base_revision`，衝突回 409），不改寫歷史；作品狀態與標籤的 PATCH 和驗證（若已有，補齊測試與 SSE 事件）；Markdown 圖片解析：托管作品的 `./assets/…` 與外部掛載作品資料夾內的相對路徑，對應到可帶權杖的串流 URL（Range），禁止跳出作品或掛載根目錄；外部資料夾內被引用的圖片登記為素材關聯（只索引不搬移）。
+前端 QC-011 依賴本任務。讀取單一歷史版本內容；恢復某版本會產生新的 revision（`source: restore`，帶 `base_revision`，衝突回 409），不改寫歷史；作品狀態與標籤的 PATCH 和驗證（若已有，補齊測試與 SSE 事件）；Markdown 圖片解析：托管作品的 `./assets/…` 與外部掛載作品資料夾內的相對路徑，對應到可帶權杖的串流 URL（Range），禁止跳出作品或掛載根目錄；外部資料夾內被引用的圖片登記為素材關聯（只索引不搬移）。補：素材 → 作品反查；renderer 免 header 載入的做法同樣涵蓋 `GET /assets/:id/stream`。
 
 ### Plan
 
