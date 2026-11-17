@@ -150,7 +150,7 @@ export function registerVariantRoutes(app: App, variants: VariantService): void 
     {
       schema: {
         description:
-          'Delete one platform variant and its history (the original is untouched). Requires `If-Match: "<revision>"`.',
+          'Delete one platform variant (the original is untouched). Requires `If-Match: "<revision>"`. The variant becomes a tombstone that takes the next revision and keeps the history, so revisions never repeat: recreating it continues from there and pre-delete revisions get 409.',
         params: VariantParamsSchema,
         response: { 204: z.null(), ...writeErrors },
       },

@@ -499,26 +499,21 @@ describe('same platform version, three parties', () => {
     );
   });
 
-  // DEFECT (reported to the director, not fixed on this branch): variant revision numbers
-  // restart at 1 after delete + recreate, so a window still holding revision 1 of the deleted
-  // version writes straight over the recreated one (200 instead of 409). `it.fails` keeps the
-  // expected behaviour on record and turns red the moment the defect is fixed.
-  it.fails(
-    'refuses a stale variant save made against a version that was deleted and recreated',
-    async () => {
-      const r = await variantRig();
-      const v1 = await r.app.variants.get(r.workId, PLATFORM); // the app has revision 1 open
-      await r.agent.variants.remove(r.workId, PLATFORM, v1.revision);
-      await r.agent.variants.generate(r.workId, { platforms: [PLATFORM] }); // a new draft, also revision 1
-      const err = await failure(
-        r.app.variants.patch(r.workId, PLATFORM, {
-          base_revision: v1.revision,
-          title: 'written from a stale view',
-        }),
-      );
-      expect(err.status).toBe(409);
-    },
-  );
+  // QC-019: deleting leaves a tombstone that takes a revision, so a recreated variant continues
+  // after it and a window still holding a pre-delete revision gets 409 instead of overwriting.
+  it('refuses a stale variant save made against a version that was deleted and recreated', async () => {
+    const r = await variantRig();
+    const v1 = await r.app.variants.get(r.workId, PLATFORM); // the app has revision 1 open
+    await r.agent.variants.remove(r.workId, PLATFORM, v1.revision);
+    await r.agent.variants.generate(r.workId, { platforms: [PLATFORM] }); // a new draft, revision 3
+    const err = await failure(
+      r.app.variants.patch(r.workId, PLATFORM, {
+        base_revision: v1.revision,
+        title: 'written from a stale view',
+      }),
+    );
+    expect(err.status).toBe(409);
+  });
 
   it('four platforms edited by different parties keep their own title, body and cover', async () => {
     const r = await makeRig('managed', '# 原稿\n\n原稿正文');

@@ -34,6 +34,8 @@ interface VariantRow {
   source_work_revision_id: string | null;
   created_at: string;
   updated_at: string;
+  /** Set on a tombstone: the variant was deleted but its revision counter lives on. */
+  deleted_at: string | null;
 }
 
 interface VariantRevisionRow {
@@ -108,7 +110,9 @@ export class VariantService {
   list(workId: string): PlatformVariantRecord[] {
     this.works.get(workId);
     const rows = this.db
-      .prepare<[string], VariantRow>('SELECT * FROM platform_variants WHERE work_id = ?')
+      .prepare<[string], VariantRow>(
+        'SELECT * FROM platform_variants WHERE work_id = ? AND deleted_at IS NULL',
+      )
       .all(workId);
     return rows
       .map(toRecord)
@@ -119,7 +123,7 @@ export class VariantService {
     return toRecord(this.requireRow(workId, platform));
   }
 
-  /** Create rule-based drafts for platforms that have no variant yet; others are skipped. */
+  /** Create rule-based drafts for platforms that have no live variant yet; others are skipped. */
   async generate(
     workId: string,
     platforms: readonly Platform[],
@@ -130,11 +134,12 @@ export class VariantService {
     const created: PlatformVariantRecord[] = [];
     const skipped: Platform[] = [];
     for (const platform of wanted) {
-      if (this.findRow(workId, platform) !== undefined) {
+      const row = this.findRow(workId, platform);
+      if (row !== undefined && row.deleted_at === null) {
         skipped.push(platform);
         continue;
       }
-      created.push(this.insert(workId, platform, draft.fieldsFor(platform), draft.revisionId));
+      created.push(this.create(workId, platform, row, draft.fieldsFor(platform), draft.revisionId));
     }
     return { created, skipped };
   }
@@ -152,9 +157,9 @@ export class VariantService {
   ): Promise<{ variant: PlatformVariantRecord; created: boolean }> {
     const draft = await this.draftSource(workId, principalId);
     const row = this.findRow(workId, platform);
-    if (row === undefined) {
+    if (row === undefined || row.deleted_at !== null) {
       return {
-        variant: this.insert(workId, platform, draft.fieldsFor(platform), draft.revisionId),
+        variant: this.create(workId, platform, row, draft.fieldsFor(platform), draft.revisionId),
         created: true,
       };
     }
@@ -191,18 +196,31 @@ export class VariantService {
     );
   }
 
-  /** Delete a variant and its history. The work's original is never touched. */
+  /**
+   * Delete a variant by turning it into a tombstone: content cleared, history
+   * kept, and the tombstone takes the next revision number. The counter for
+   * this work and platform therefore never goes back, so a client still
+   * holding a pre-delete revision gets 409 after the variant is recreated
+   * instead of silently overwriting the new draft (QC-019). Reads treat a
+   * tombstone as 404. The work's original is never touched.
+   */
   delete(workId: string, platform: Platform, baseRevision: string | null): void {
     const row = this.requireRow(workId, platform);
     this.checkBase(row, baseRevision);
+    const tombstone = row.revision + 1;
+    const now = new Date().toISOString();
     this.db.transaction(() => {
-      const removed = this.db
-        .prepare('DELETE FROM platform_variants WHERE id = ? AND revision = ?')
-        .run(row.id, row.revision);
-      if (removed.changes !== 1) throw this.conflict(row.id, String(row.revision));
+      const updated = this.db
+        .prepare(
+          `UPDATE platform_variants SET title = '', body = '', cover_asset_id = NULL,
+             image_asset_ids = '[]', tags = '[]', revision = ?, deleted_at = ?, updated_at = ?
+           WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+        )
+        .run(tombstone, now, now, row.id, row.revision);
+      if (updated.changes !== 1) throw this.conflict(row.id, String(row.revision));
       this.feed?.record('work', workId, 'work.variant_deleted', {
         platform,
-        revision: row.revision,
+        revision: tombstone,
       });
     })();
   }
@@ -273,6 +291,56 @@ export class VariantService {
     };
   }
 
+  /** New variant, or a tombstone brought back at the next revision (history kept). */
+  private create(
+    workId: string,
+    platform: Platform,
+    tombstone: VariantRow | undefined,
+    fields: VariantFields,
+    sourceRevision: string | null,
+  ): PlatformVariantRecord {
+    return tombstone === undefined
+      ? this.insert(workId, platform, fields, sourceRevision)
+      : this.revive(tombstone, fields, sourceRevision);
+  }
+
+  private revive(
+    row: VariantRow,
+    fields: VariantFields,
+    sourceRevision: string | null,
+  ): PlatformVariantRecord {
+    const next = row.revision + 1;
+    const now = new Date().toISOString();
+    this.db.transaction(() => {
+      const updated = this.db
+        .prepare(
+          `UPDATE platform_variants SET title = ?, body = ?, cover_asset_id = ?, image_asset_ids = ?,
+             tags = ?, revision = ?, source_work_revision_id = ?, deleted_at = NULL, updated_at = ?
+           WHERE id = ? AND revision = ? AND deleted_at IS NOT NULL`,
+        )
+        .run(
+          fields.title,
+          fields.body,
+          fields.cover_asset_id,
+          JSON.stringify(fields.image_asset_ids),
+          JSON.stringify(fields.tags),
+          next,
+          sourceRevision,
+          now,
+          row.id,
+          row.revision,
+        );
+      if (updated.changes !== 1) throw this.conflict(row.id, String(row.revision));
+      this.insertRevision(row.id, next, 'draft', fields, now);
+      this.feed?.record('work', row.work_id, 'work.variant_created', {
+        platform: row.platform,
+        revision: next,
+        source: 'draft',
+      });
+    })();
+    return this.get(row.work_id, PlatformSchema.parse(row.platform));
+  }
+
   private insert(
     workId: string,
     platform: Platform,
@@ -324,7 +392,7 @@ export class VariantService {
         .prepare(
           `UPDATE platform_variants SET title = ?, body = ?, cover_asset_id = ?, image_asset_ids = ?,
              tags = ?, revision = ?, source_work_revision_id = ?, updated_at = ?
-           WHERE id = ? AND revision = ?`,
+           WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
         )
         .run(
           fields.title,
@@ -427,6 +495,7 @@ export class VariantService {
     }
   }
 
+  /** The variant row for a platform, including a tombstone. */
   private findRow(workId: string, platform: Platform): VariantRow | undefined {
     return this.db
       .prepare<[string, string], VariantRow>(
@@ -438,7 +507,7 @@ export class VariantService {
   private requireRow(workId: string, platform: Platform): VariantRow {
     this.works.get(workId);
     const row = this.findRow(workId, platform);
-    if (!row) throw notFound('platform variant');
+    if (!row || row.deleted_at !== null) throw notFound('platform variant');
     return row;
   }
 }
