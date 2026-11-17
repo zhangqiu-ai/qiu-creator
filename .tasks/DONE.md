@@ -1,5 +1,23 @@
 # Done
 
+## QC-019: 平台版本刪除後重建，版本號重用導致靜默覆蓋
+
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M2, backend
+
+### 完成摘要
+
+- 平台版本 revision 單調遞增：刪除留墓碑列並佔一個 revision、歷史保留，讀取與列表對墓碑回 404，重建從 max+1 起算；整數 If-Match 不變，前端不用改。
+- 回歸測試加上 QC-014 的 `it.fails` 轉為一般通過測試。驗收：總監合併後複跑 441／0／441。合併 2026-11-17。
+
+## QC-014: M2 三方衝突與平台版本驗收
+
+**Priority:** P1 | **Assignee:** qc-bugfix | **Tags:** M2
+
+### 完成摘要
+
+- API 層持久測試 `m2-three-party.test.ts`：托管與外部掛載作品的三方矩陣、六種先後順序、10 個並行存檔恰好 1 勝、恢復舊 base 409、檔案消失 409 `source_missing`、四平台互不串改。
+- Electron 實機 38／38（連跑 5 次），腳本 `docs/evidence/qc014-run.sh`，紀錄 `docs/evidence/qc014-acceptance.md`。發現唯一缺陷即 QC-019。NOT_VERIFIED：建置產物啟動、極小時間窗跨行程寫入、FSEvents 延遲量化。合併 2026-11-17。
+
 ## QC-016: SSE external_revision 測試在高負載下逾時
 
 **Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M2, backend
