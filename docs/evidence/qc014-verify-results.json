@@ -1,0 +1,192 @@
+[
+  {
+    "name": "A1 APP autosaves after an outside edit: 409 opens the conflict dialog",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "A1 the outside edit is still on disk (not overwritten)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "A1 the server recorded the outside edit as an external revision, my text was not written",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "A1 the 保留雙方 button was clickable",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "A1 保留雙方 keeps my text as a separate work and the original shows the outside version",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "A2 AGENT without base_revision/If-Match: 428, nothing changes",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "A2 stale base_revision: 409 and current_revision given",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "A2 stale If-Match: 409",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "A2 If-Match * is refused",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "A2 AGENT with the fresh base: 200",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "A2 a clean window shows the agent change live, without a notice",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "A3 AGENT saves while the window has unsaved typing: the window shows the external-change notice",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "A3 my typing is kept in the window and the agent version is what is stored",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "A3 捨棄我的修改並重新載入 shows the agent version",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "B1 outside edit of the mounted file becomes an external revision",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "B1 a clean window shows it live, without a notice",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "B2 outside edit while the window has unsaved typing: notice, no silent reload",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "B2 the file on disk is not overwritten",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "B2 比對並合併 opens the conflict dialog",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "B2 the 保留雙方 button was clickable",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "B2 保留雙方: my text is a separate work, the mounted file keeps the outside version",
+    "ok": true,
+    "detail": "{\"copies\":1,\"copyMarkdown\":\"# M2 驗收 外部掛載\\n\\nVS Code 改過。我的N\\n\",\"titles\":[\"M2 驗收 外部掛載（我的修改）\",\"M2 驗收 外部掛載\",\"M2 驗收 托管\",\"M2 驗收 托管（我的修改）\"],\"file\":\"# M2 驗收 外部掛載\\n\\nVS Code 第二次改。\\n\"}"
+  },
+  {
+    "name": "B3 AGENT without a precondition on the mounted work: 428",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "B3 AGENT with a stale base_revision: 409",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "B3 AGENT with the fresh base: 200, and the file in the folder is updated atomically",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "B3 every version is still in history (original, both outside edits, agent)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "B4 file removed outside: the window turns read-only with the original path",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "B4 AGENT write is refused (409 source_missing) and the file is not recreated",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "B4 file put back: editable again, nothing was lost",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "C0 AGENT creates the four platform drafts from the original (write scope)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "C1 every platform preview is labelled 模擬 (badge and footer text)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "C2 each platform keeps its own title and body (no cross-writes)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "C3 setting the 抖音 cover changes only 抖音",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "C3 the original was not changed by any platform edit",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "C4 AGENT edits 小紅書 with its fresh revision: 200",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "C4 an outside edit of the original does not touch any platform version",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "C4 APP with unsaved typing sees the conflict notice; AGENT version is what is stored",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "C4 以我的修改覆蓋 writes mine on top of the latest revision; the agent version stays in history",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "C4 AGENT from the old revision: 409 with the current revision; without any base: 428",
+    "ok": true,
+    "detail": ""
+  }
+]
