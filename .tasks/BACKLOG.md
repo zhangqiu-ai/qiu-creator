@@ -11,3 +11,9 @@
 **Priority:** P3 | **Assignee:** 未分配 | **Tags:** mobile
 
 使用者 2026-11-16 決定：Mac 生產可用（QC-004）通過後才開工。原 M0 的手機外網存取、iPhone 中文輸入、睡眠／斷網提示移到這裡。
+
+## QC-014: M2 三方衝突與平台版本驗收
+
+**Priority:** P1 | **Assignee:** 未分配 | **Tags:** M2
+
+依賴 QC-009–QC-013。實機驗收 Electron、外部編輯器、Agent API 三方同時修改同一作品：一律 409 或 external revision，不得靜默覆蓋；四平台分別編輯標題／正文／封面互不串改；預覽標為模擬。證據放 `docs/evidence/qc014-*`。
