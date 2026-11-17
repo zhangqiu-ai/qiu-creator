@@ -44,6 +44,8 @@ import {
 } from './imports.js';
 
 import { createMountsApi, type CreatorHubMountsApi } from './mounts.js';
+import { createVariantsApi, type CreatorHubVariantsApi } from './variants.js';
+export type { CreatorHubVariantsApi, VariantWriteOptions } from './variants.js';
 export type { CreatorHubMountsApi } from './mounts.js';
 
 export {
@@ -89,6 +91,12 @@ export class ApiError extends Error {
 
   get code(): string | undefined {
     return this.body?.error.code;
+  }
+
+  /** A platform variant's current revision (an integer) after a 409 on a variant write. */
+  get currentVariantRevision(): number | undefined {
+    const value = this.body?.error.details?.['current_revision'];
+    return typeof value === 'number' ? value : undefined;
   }
 
   /** The server's current revision when the request lost a revision race (409). */
@@ -147,6 +155,8 @@ export interface CreatorHubClient {
   tokens: CreatorHubTokensApi;
   /** External folder mounts (QC-007). */
   mounts: CreatorHubMountsApi;
+  /** Platform variants: 小紅書, 公眾號, 抖音, 視頻號 (QC-009). */
+  variants: CreatorHubVariantsApi;
 }
 
 export function createClient(options: CreatorHubClientOptions): CreatorHubClient {
@@ -190,6 +200,7 @@ export function createClient(options: CreatorHubClientOptions): CreatorHubClient
     jobs: createJobsApi(ctx),
     tokens: createTokensApi(ctx),
     mounts: createMountsApi(ctx),
+    variants: createVariantsApi(ctx),
     health: () => request(HealthResponseSchema, 'GET', '/health'),
     works: {
       create: (input, createOptions) =>

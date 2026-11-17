@@ -20,6 +20,12 @@ export const ChangeActionSchema = z.enum([
   'work.source_missing',
   /** An external work's file reappeared or was found at a new path (rename/move). */
   'work.source_restored',
+  /** A platform variant was created; `data.platform`, `data.revision`, `data.source`. */
+  'work.variant_created',
+  /** A platform variant got a new revision (edit or redraft); same data as above. */
+  'work.variant_updated',
+  /** A platform variant (and its history) was deleted; `data.platform`. */
+  'work.variant_deleted',
   'asset.created',
   'asset.updated',
   'job.queued',

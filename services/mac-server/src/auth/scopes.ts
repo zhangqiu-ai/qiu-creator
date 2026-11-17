@@ -14,6 +14,10 @@ const WRITE_ROUTES = new Set([
   'DELETE /api/v1/works/:id/assets/:assetId',
   'PUT /api/v1/works/:id/assets/order',
   'POST /api/v1/works/:id/revisions/:rid/restore',
+  'POST /api/v1/works/:id/variants',
+  'PATCH /api/v1/works/:id/variants/:platform',
+  'POST /api/v1/works/:id/variants/:platform/draft',
+  'DELETE /api/v1/works/:id/variants/:platform',
 ]);
 
 /** Non-GET routes that only read (they sign URLs for files the caller can already read). */
