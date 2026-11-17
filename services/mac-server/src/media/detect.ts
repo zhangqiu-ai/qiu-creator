@@ -32,6 +32,11 @@ const ALLOWED: Record<string, DetectedMedia> = {
   'audio/x-wav': { kind: 'audio', mime: 'audio/wav', ext: 'wav' },
 };
 
+/** Allowed image/video/audio type for a MIME type reported by `file-type`, if any. */
+export function allowedMedia(mime: string): DetectedMedia | undefined {
+  return Object.hasOwn(ALLOWED, mime) ? ALLOWED[mime] : undefined;
+}
+
 const MARKDOWN: DetectedMedia = {
   kind: 'markdown',
   mime: 'text/markdown; charset=utf-8',

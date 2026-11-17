@@ -28,6 +28,11 @@ export const AssetRecordSchema = AssetSchema.extend({
   metadata_status: AssetMetadataStatusSchema,
   thumbnail_status: AssetThumbnailStatusSchema,
   updated_at: TimestampSchema,
+  /**
+   * External assets only (QC-010): the mount whose folder holds the file; `path`
+   * is then relative to the mount root. Indexed in place, never moved or copied.
+   */
+  mount_id: IdSchema.nullable().optional(),
 });
 export type AssetRecord = z.infer<typeof AssetRecordSchema>;
 

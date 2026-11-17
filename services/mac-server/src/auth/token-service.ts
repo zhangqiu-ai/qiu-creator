@@ -84,6 +84,22 @@ export class TokenService {
     return { kind: 'agent', id: token.id, name: token.name, scopes: token.scopes };
   }
 
+  /**
+   * The principal behind a principal id, if it is still allowed to read
+   * (signed media URLs re-check this on every request). `null` once an agent
+   * token is revoked or lacks `read`.
+   */
+  readerById(id: string): Principal | null {
+    if (id === OWNER.id) return OWNER;
+    const row = this.db
+      .prepare<[string], TokenRow>('SELECT * FROM api_tokens WHERE id = ?')
+      .get(id);
+    if (!row || row.revoked_at !== null) return null;
+    const token = toToken(row);
+    if (!token.scopes.includes('read')) return null;
+    return { kind: 'agent', id: token.id, name: token.name, scopes: token.scopes };
+  }
+
   create(input: CreateTokenRequest): CreateTokenResponse {
     const req = CreateTokenRequestSchema.parse(input);
     const secret = `${TOKEN_PREFIX}${randomBytes(32).toString('base64url')}`;

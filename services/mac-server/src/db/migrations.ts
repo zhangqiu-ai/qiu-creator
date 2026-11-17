@@ -238,4 +238,16 @@ export const migrations: readonly Migration[] = [
       CREATE UNIQUE INDEX works_mount_path ON works (mount_id, source_path) WHERE mount_id IS NOT NULL;
     `,
   },
+  {
+    id: '0005',
+    name: 'external_assets',
+    sql: /* sql */ `
+      -- Media referenced by external works, indexed in place (never moved or
+      -- copied). For these rows path is relative to the mount root, and
+      -- file_mtime_ms + bytes tell whether the file changed since it was hashed.
+      ALTER TABLE assets ADD COLUMN mount_id TEXT REFERENCES mounts (id);
+      ALTER TABLE assets ADD COLUMN file_mtime_ms REAL;
+      CREATE UNIQUE INDEX assets_mount_path ON assets (mount_id, path) WHERE mount_id IS NOT NULL;
+    `,
+  },
 ];

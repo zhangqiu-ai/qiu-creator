@@ -11,6 +11,7 @@ export type ChangeEntity = z.infer<typeof ChangeEntitySchema>;
  */
 export const ChangeActionSchema = z.enum([
   'work.created',
+  /** Content or metadata changed; `data.revision_id`, `data.source` (`edit`/`restore`), `data.fields`. */
   'work.updated',
   /** `source.md` was edited outside the app and recorded as an `external` revision. */
   'work.external_revision',

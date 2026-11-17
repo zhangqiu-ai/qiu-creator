@@ -10,6 +10,7 @@ import {
   type ListWorksQuery,
   type ListWorksResponse,
   type Revision,
+  type RevisionDetail,
   type RevisionSource,
   type Work,
   type WorkDetail,
@@ -61,6 +62,17 @@ export interface PatchWorkInput {
   type?: Work['type'] | undefined;
   status?: Work['status'] | undefined;
   tags?: string[] | undefined;
+}
+
+/** See `WorkService.mediaContext`. Paths in `baseDir`/`allowedPrefix` use `/`. */
+export interface MediaContext {
+  workId: string;
+  revisionId: string;
+  markdown: string;
+  mountId: string | null;
+  root: string | null;
+  baseDir: string;
+  allowedPrefix: string | null;
 }
 
 /** Where an external file lives. `null` path = mount not active, or the file is not a safe regular file. */
@@ -198,14 +210,56 @@ export class WorkService {
   }
 
   patch(id: string, input: PatchWorkInput): WorkDetail {
+    const row = this.checkedRow(id, input.baseRevision, 'edit a work');
+    const fields = (['title', 'markdown', 'type', 'status', 'tags'] as const).filter(
+      (f) => input[f] !== undefined,
+    );
+    return this.commitRevision(row, {
+      markdown: input.markdown,
+      title: input.title,
+      type: input.type,
+      status: input.status,
+      // Order kept, duplicates dropped: tags are a set.
+      tags: input.tags === undefined ? undefined : [...new Set(input.tags)],
+      source: 'edit',
+      event: { fields },
+    });
+  }
+
+  /** One historical revision with its Markdown snapshot. */
+  revision(id: string, revisionId: string): RevisionDetail {
+    this.reconcileExternalChange(this.requireRow(id));
+    const r = this.requireRevision(id, revisionId);
+    return { ...toRevision(r), title: r.title, markdown: this.readSnapshot(r) };
+  }
+
+  /**
+   * Restore an old revision: append a new `restore` revision whose Markdown
+   * and title are copied from `revisionId`. History is never rewritten; the
+   * restored-from revision and everything after it stay readable. Status,
+   * type and tags are not versioned and are left as they are.
+   */
+  restore(id: string, revisionId: string, baseRevision: string | null): WorkDetail {
+    const row = this.checkedRow(id, baseRevision, 'restore a revision');
+    const target = this.requireRevision(id, revisionId);
+    return this.commitRevision(row, {
+      markdown: this.readSnapshot(target),
+      title: target.title,
+      source: 'restore',
+      event: { restored_from: revisionId, fields: ['title', 'markdown'] },
+    });
+  }
+
+  /** Reconcile, then enforce the revision precondition (428 when absent, 409 when stale). */
+  private checkedRow(id: string, baseRevision: string | null, action: string): WorkRow {
     const row = this.reconcileExternalChange(this.requireRow(id));
-    const check = checkRevision(input.baseRevision, row.current_revision_id);
+    const check = checkRevision(baseRevision, row.current_revision_id);
     if (!check.ok) {
       if (check.reason === 'missing_base') {
         throw new ServiceError(
           428,
           'precondition_required',
-          'base_revision or If-Match is required to edit a work',
+          `base_revision or If-Match is required to ${action}`,
           { current_revision: row.current_revision_id },
         );
       }
@@ -216,36 +270,63 @@ export class WorkService {
         { current_revision: row.current_revision_id, base_revision: check.base },
       );
     }
+    return row;
+  }
 
+  /**
+   * Write a new revision: immutable snapshot first, then an atomic replace of
+   * the source file (only when the Markdown changed), then the database row.
+   * On failure the source file is rolled back and the snapshot removed.
+   */
+  private commitRevision(
+    row: WorkRow,
+    change: {
+      markdown?: string | undefined;
+      title?: string | undefined;
+      type?: Work['type'] | undefined;
+      status?: Work['status'] | undefined;
+      tags?: string[] | undefined;
+      source: RevisionSource;
+      event: Record<string, unknown>;
+    },
+  ): WorkDetail {
+    const id = row.id;
     const sourceAbs = this.writableSource(row);
     const previous = this.readCurrent(row);
-    const markdown = input.markdown ?? previous;
-    const title = input.title ?? row.title;
-    const tags = input.tags ?? parseTags(row.tags);
+    const markdown = change.markdown ?? previous;
+    const title = change.title ?? row.title;
+    const tags = change.tags ?? parseTags(row.tags);
     const revisionId = randomUUID();
     const now = new Date().toISOString();
     const snapshotRel = this.layout.snapshotRel(id, revisionId);
     const contentChanged = markdown !== previous;
 
+    fs.mkdirSync(path.dirname(this.layout.abs(snapshotRel)), { recursive: true });
     writeNewFileSync(this.layout.abs(snapshotRel), markdown);
     try {
       if (contentChanged) atomicWriteFileSync(sourceAbs, markdown, this.fsOps);
       this.db.transaction(() => {
-        this.db
+        const updated = this.db
           .prepare(
             `UPDATE works SET title = ?, type = ?, status = ?, tags = ?, current_revision_id = ?,
                updated_at = ? WHERE id = ? AND current_revision_id = ?`,
           )
           .run(
             title,
-            input.type ?? row.type,
-            input.status ?? row.status,
+            change.type ?? row.type,
+            change.status ?? row.status,
             JSON.stringify(tags),
             revisionId,
             now,
             id,
             row.current_revision_id,
           );
+        if (updated.changes !== 1) {
+          throw new ServiceError(409, 'revision_conflict', 'work was changed concurrently', {
+            current_revision: this.requireRow(id).current_revision_id,
+            base_revision: row.current_revision_id,
+          });
+        }
         this.insertRevision({
           revision_id: revisionId,
           work_id: id,
@@ -253,11 +334,15 @@ export class WorkService {
           content_hash: sha256Hex(markdown),
           snapshot_path: snapshotRel,
           title,
-          source: 'edit',
+          source: change.source,
           created_at: now,
         });
         this.indexFts(id, title, tags, markdown);
-        this.feed?.record('work', id, 'work.updated', { revision_id: revisionId });
+        this.feed?.record('work', id, 'work.updated', {
+          revision_id: revisionId,
+          source: change.source,
+          ...change.event,
+        });
       })();
     } catch (err) {
       // Roll the file back so disk and database keep agreeing.
@@ -274,6 +359,61 @@ export class WorkService {
     return this.get(id);
   }
 
+  private requireRevision(workId: string, revisionId: string): RevisionRow {
+    const r = this.db
+      .prepare<[string, string], RevisionRow>(
+        'SELECT * FROM revisions WHERE work_id = ? AND revision_id = ?',
+      )
+      .get(workId, revisionId);
+    if (!r) throw notFound('revision');
+    return r;
+  }
+
+  private readSnapshot(r: RevisionRow): string {
+    try {
+      return fs.readFileSync(this.layout.abs(r.snapshot_path), 'utf8');
+    } catch (err) {
+      throw new ServiceError(500, 'internal_error', 'revision snapshot is missing or unreadable', {
+        revision_id: r.revision_id,
+        cause: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  /**
+   * Where a work's relative media references resolve from, plus the Markdown
+   * to scan. Managed: the work folder (only `assets/…` is servable). External:
+   * the mount root, with references relative to the note's own folder.
+   * `root` is null when an external work's mount is not active.
+   */
+  mediaContext(id: string): MediaContext {
+    const row = this.reconcileExternalChange(this.requireRow(id));
+    const markdown = this.readCurrent(row);
+    if (row.storage_mode !== 'external') {
+      return {
+        workId: id,
+        revisionId: row.current_revision_id,
+        markdown,
+        mountId: null,
+        root: this.layout.abs(this.layout.workDirRel(id)),
+        baseDir: '',
+        allowedPrefix: 'assets/',
+      };
+    }
+    const location =
+      row.mount_id === null ? null : this.externalLocation(row.mount_id, row.source_path);
+    const dir = path.posix.dirname(row.source_path.split(path.sep).join('/'));
+    return {
+      workId: id,
+      revisionId: row.current_revision_id,
+      markdown,
+      mountId: row.mount_id,
+      root: location?.root ?? null,
+      baseDir: dir === '.' ? '' : dir,
+      allowedPrefix: null,
+    };
+  }
+
   revisions(id: string): Revision[] {
     this.reconcileExternalChange(this.requireRow(id));
     return this.db
@@ -281,14 +421,7 @@ export class WorkService {
         'SELECT * FROM revisions WHERE work_id = ? ORDER BY created_at DESC, rowid DESC',
       )
       .all(id)
-      .map((r) => ({
-        work_id: r.work_id,
-        revision_id: r.revision_id,
-        parent_revision_id: r.parent_revision_id,
-        content_hash: r.content_hash,
-        created_at: r.created_at,
-        source: r.source as RevisionSource,
-      }));
+      .map(toRevision);
   }
 
   // ---- External (mounted) works ---------------------------------------------
@@ -617,6 +750,17 @@ function readRegularFile(file: string): string | null {
   } catch {
     return null;
   }
+}
+
+function toRevision(r: RevisionRow): Revision {
+  return {
+    work_id: r.work_id,
+    revision_id: r.revision_id,
+    parent_revision_id: r.parent_revision_id,
+    content_hash: r.content_hash,
+    created_at: r.created_at,
+    source: r.source as RevisionSource,
+  };
 }
 
 function parseTags(raw: string): string[] {

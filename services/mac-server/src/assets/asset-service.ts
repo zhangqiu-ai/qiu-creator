@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import type { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import {
   AssetRecordSchema,
@@ -17,6 +18,7 @@ import { sha256Hex, UnsafePathError } from '@qiu-creator/domain';
 import type { Db } from '../db/database.js';
 import { notFound, ServiceError } from '../errors.js';
 import type { ChangeFeed } from '../events/change-feed.js';
+import { ContainedPathError, openContainedFile, type ContainedFile } from '../fs/contained-file.js';
 import { resolveRealPathInside } from '../fs/safe-path.js';
 import type { JobQueue, JobRecord } from '../jobs/job-queue.js';
 import type { Layout } from '../layout.js';
@@ -56,10 +58,44 @@ export function guessMedia(fileName: string): { mime: string; kind: AssetKind } 
   );
 }
 
+/** An opened file ready to stream. `open` consumes the descriptor; call `close` if not streaming. */
 export interface StreamTarget {
-  absPath: string;
   size: number;
   mimeType: string;
+  open: (start: number, end: number) => Readable;
+  close: () => void;
+}
+
+/** Stream target over an already-open descriptor (closed when the stream ends). */
+export function fdStreamTarget(fd: number, size: number, mimeType: string): StreamTarget {
+  let closed = false;
+  return {
+    size,
+    mimeType,
+    open: (start, end) => {
+      closed = true;
+      return fs.createReadStream('', { fd, start, end, autoClose: true });
+    },
+    close: () => {
+      if (!closed) {
+        closed = true;
+        fs.closeSync(fd);
+      }
+    },
+  };
+}
+
+/** What `registerExternal` needs to know about a file it indexes in place. */
+export interface ExternalFileInfo {
+  mountId: string;
+  /** Path relative to the mount root, `/`-separated. */
+  rel: string;
+  kind: AssetKind;
+  mime: string;
+  bytes: number;
+  mtimeMs: number;
+  /** Computes the sha256 only when the indexed copy is stale. */
+  sha256: () => Promise<string>;
 }
 
 interface AssetRow {
@@ -79,6 +115,8 @@ interface AssetRow {
   metadata_status: string;
   thumbnail_status: string;
   updated_at: string | null;
+  mount_id: string | null;
+  file_mtime_ms: number | null;
 }
 
 function toRecord(row: AssetRow): AssetRecord {
@@ -164,7 +202,8 @@ export class AssetService {
     // Synchronous from here on: the duplicate check and the insert cannot interleave.
     const existing = this.db
       .prepare<[string], AssetRow>(
-        'SELECT * FROM assets WHERE sha256 = ? ORDER BY created_at LIMIT 1',
+        // External files can vanish with their folder; uploads only dedupe against managed copies.
+        'SELECT * FROM assets WHERE sha256 = ? AND mount_id IS NULL ORDER BY created_at LIMIT 1',
       )
       .get(sha);
     if (existing) {
@@ -405,15 +444,170 @@ export class AssetService {
   /** Locate an asset's file, refusing paths that escape CREATORHUB_HOME. */
   streamTarget(id: string): StreamTarget {
     const row = this.db
-      .prepare<[string], Pick<AssetRow, 'id' | 'path' | 'mime_type'>>(
-        'SELECT id, path, mime_type FROM assets WHERE id = ?',
+      .prepare<[string], Pick<AssetRow, 'id' | 'path' | 'mime_type' | 'mount_id'>>(
+        'SELECT id, path, mime_type, mount_id FROM assets WHERE id = ?',
       )
       .get(id);
     if (!row) throw notFound('asset');
+    if (row.mount_id !== null) {
+      const file = this.openExternal(row.mount_id, row.path);
+      return fdStreamTarget(file.fd, file.size, row.mime_type);
+    }
     const absPath = this.resolveAssetFile(row.path);
-    const stat = fs.statSync(absPath);
-    if (!stat.isFile()) throw new ServiceError(404, 'not_found', 'asset is not a regular file');
-    return { absPath, size: stat.size, mimeType: row.mime_type };
+    const fd = fs.openSync(absPath, 'r');
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile()) {
+      fs.closeSync(fd);
+      throw new ServiceError(404, 'not_found', 'asset is not a regular file');
+    }
+    return fdStreamTarget(fd, stat.size, row.mime_type);
+  }
+
+  /** Managed asset row whose file is `rel` (relative to home), if any. */
+  findManagedByPath(rel: string): AssetRecord | undefined {
+    const row = this.db
+      .prepare<[string], AssetRow>('SELECT * FROM assets WHERE path = ? AND mount_id IS NULL')
+      .get(rel);
+    return row ? toRecord(row) : undefined;
+  }
+
+  /**
+   * Index a media file inside a mount in place (never moved or copied) and
+   * link it to `workId` as body/video media if it is not linked yet. The file
+   * is re-hashed only when its size or mtime changed since it was indexed.
+   */
+  async registerExternal(workId: string, file: ExternalFileInfo): Promise<AssetRecord> {
+    const existing = this.db
+      .prepare<[string, string], AssetRow>('SELECT * FROM assets WHERE mount_id = ? AND path = ?')
+      .get(file.mountId, file.rel);
+    const fresh =
+      existing !== undefined &&
+      existing.bytes === file.bytes &&
+      existing.file_mtime_ms === file.mtimeMs &&
+      existing.mime_type === file.mime;
+    const sha = fresh ? existing.sha256 : await file.sha256();
+
+    // Synchronous from here: the lookup-and-write cannot interleave with another request.
+    const now = new Date().toISOString();
+    const role: WorkAssetRole = file.kind === 'video' ? 'video' : 'body';
+    let assetId = '';
+    this.db.transaction(() => {
+      const row = this.db
+        .prepare<[string, string], AssetRow>('SELECT * FROM assets WHERE mount_id = ? AND path = ?')
+        .get(file.mountId, file.rel);
+      const wantsThumb = file.kind === 'image';
+      const wantsProbe = file.kind === 'video' || file.kind === 'audio';
+      if (row === undefined) {
+        assetId = randomUUID();
+        this.db
+          .prepare(
+            `INSERT INTO assets (id, kind, path, sha256, mime_type, bytes, duration, width, height, origin,
+               created_at, original_name, codec, metadata_status, thumbnail_status, updated_at,
+               mount_id, file_mtime_ms)
+             VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 'folder', ?, ?, NULL, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            assetId,
+            file.kind,
+            file.rel,
+            sha,
+            file.mime,
+            file.bytes,
+            now,
+            path.posix.basename(file.rel),
+            wantsProbe ? 'pending' : 'none',
+            wantsThumb ? 'pending' : 'none',
+            now,
+            file.mountId,
+            file.mtimeMs,
+          );
+        this.feed?.record('asset', assetId, 'asset.created', {
+          kind: file.kind,
+          mount_id: file.mountId,
+        });
+        if (wantsThumb) this.jobs?.enqueue('asset.thumbnail', assetId);
+        if (wantsProbe) this.jobs?.enqueue('asset.probe', assetId);
+      } else {
+        assetId = row.id;
+        const changed =
+          row.sha256 !== sha ||
+          row.bytes !== file.bytes ||
+          row.file_mtime_ms !== file.mtimeMs ||
+          row.mime_type !== file.mime;
+        if (changed) {
+          this.db
+            .prepare(
+              `UPDATE assets SET kind = ?, sha256 = ?, mime_type = ?, bytes = ?, file_mtime_ms = ?,
+                 thumbnail_status = ?, metadata_status = ?, updated_at = ? WHERE id = ?`,
+            )
+            .run(
+              file.kind,
+              sha,
+              file.mime,
+              file.bytes,
+              file.mtimeMs,
+              wantsThumb ? 'pending' : 'none',
+              wantsProbe ? 'pending' : 'none',
+              now,
+              assetId,
+            );
+          this.feed?.record('asset', assetId, 'asset.updated', { sha256: sha });
+          if (wantsThumb) this.jobs?.enqueue('asset.thumbnail', assetId);
+          if (wantsProbe) this.jobs?.enqueue('asset.probe', assetId);
+        }
+      }
+      const linked = this.db
+        .prepare<[string, string], { n: number }>(
+          'SELECT count(*) AS n FROM work_assets WHERE work_id = ? AND asset_id = ?',
+        )
+        .get(workId, assetId);
+      if ((linked?.n ?? 0) === 0) {
+        const order = this.roleOrder(workId, role);
+        this.db
+          .prepare(
+            'INSERT INTO work_assets (work_id, asset_id, role, position) VALUES (?, ?, ?, ?)',
+          )
+          .run(workId, assetId, role, order.length);
+        this.feed?.record('work', workId, 'work.assets_changed', {
+          role,
+          asset_id: assetId,
+          change: 'linked',
+        });
+      }
+    })();
+    return this.get(assetId);
+  }
+
+  /** Open an external asset's file without following symlinks below the mount root. */
+  private openExternal(mountId: string, rel: string): ContainedFile {
+    const mount = this.db
+      .prepare<[string], { root_path: string; status: string }>(
+        'SELECT root_path, status FROM mounts WHERE id = ?',
+      )
+      .get(mountId);
+    if (!mount || mount.status !== 'active') {
+      throw new ServiceError(404, 'not_found', 'the folder holding this asset is not mounted');
+    }
+    try {
+      return openContainedFile(mount.root_path, rel);
+    } catch (err) {
+      if (err instanceof ContainedPathError) {
+        throw err.reason === 'rejected'
+          ? new ServiceError(403, 'path_rejected', 'asset path is not allowed')
+          : new ServiceError(404, 'not_found', 'asset file is missing on disk');
+      }
+      throw err;
+    }
+  }
+
+  /** Real path of an asset's file for tools that take a path (sharp, ffprobe). */
+  private assetSourcePath(asset: AssetRecord): string {
+    if (asset.mount_id === null || asset.mount_id === undefined) {
+      return this.resolveAssetFile(asset.path);
+    }
+    const file = this.openExternal(asset.mount_id, asset.path);
+    fs.closeSync(file.fd);
+    return file.absPath;
   }
 
   /**
@@ -445,7 +639,7 @@ export class AssetService {
   }
 
   private async buildThumbnail(asset: AssetRecord): Promise<void> {
-    const source = this.resolveAssetFile(asset.path);
+    const source = this.assetSourcePath(asset);
     const dims = await renderThumbnail(source, this.layout.abs(this.layout.thumbnailRel(asset.id)));
     this.updateAsset(asset.id, {
       thumbnail_status: 'ready',
@@ -472,7 +666,7 @@ export class AssetService {
       return;
     }
     try {
-      const result = await probeMedia(this.ffprobe, this.resolveAssetFile(asset.path));
+      const result = await probeMedia(this.ffprobe, this.assetSourcePath(asset));
       this.updateAsset(asset.id, { metadata_status: 'ready', ...result });
     } catch (err) {
       if (job.attempts >= job.max_attempts)

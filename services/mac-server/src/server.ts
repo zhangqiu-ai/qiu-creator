@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+import path from 'node:path';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
 import {
@@ -11,12 +11,15 @@ import {
   ListWorksQuerySchema,
   ListWorksResponseSchema,
   PatchWorkRequestSchema,
+  RestoreRevisionRequestSchema,
   RevisionConflictResponseSchema,
+  RevisionDetailSchema,
   RevisionListResponseSchema,
+  RevisionParamsSchema,
   WorkDetailSchema,
   WorkIdParamsSchema,
 } from '@qiu-creator/contracts';
-import { parseRange, resolveBaseRevision, revisionEtag } from '@qiu-creator/domain';
+import { resolveBaseRevision, revisionEtag } from '@qiu-creator/domain';
 import { z } from 'zod';
 import Fastify, { type FastifyInstance } from 'fastify';
 import {
@@ -43,7 +46,16 @@ import { resolveFfprobe } from './media/ffprobe.js';
 import { registerAssetRoutes } from './routes/assets.js';
 import { registerEventRoutes } from './routes/events.js';
 import { registerImportRoutes, registerTokenRoutes } from './routes/imports.js';
+import { registerMediaRoutes } from './routes/media.js';
 import { registerMountRoutes } from './routes/mounts.js';
+import { sendRanged } from './http/ranged.js';
+import {
+  DEFAULT_SIGNED_URL_TTL_MS,
+  loadOrCreateSigningKey,
+  MediaUrlSigner,
+  redactSignedUrl,
+} from './media/url-signer.js';
+import { WorkMediaService } from './media/work-media.js';
 import { MountService, type MountServiceOptions } from './mounts/mount-service.js';
 import { ImportService, type DownloadSettings } from './imports/import-service.js';
 import { WorkService } from './works/work-service.js';
@@ -78,6 +90,8 @@ export interface BuildServerOptions {
   download?: DownloadSettings;
   /** External folder watching (stability window for half-written files, etc.). */
   mounts?: MountServiceOptions;
+  /** Lifetime of signed media URLs (default 1 hour); `now` is injectable for tests. */
+  signedUrls?: { ttlMs?: number; now?: () => number };
 }
 
 export interface CreatorHubServer {
@@ -91,6 +105,8 @@ export interface CreatorHubServer {
   imports: ImportService;
   tokens: TokenService;
   mounts: MountService;
+  media: WorkMediaService;
+  signer: MediaUrlSigner;
 }
 
 function isHttpError(err: unknown): err is Error & { statusCode: number } {
@@ -122,9 +138,28 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   });
   const imports = new ImportService(db, layout, assets, jobs, feed, options.download);
   const mounts = new MountService(db, layout, works, jobs, options.mounts);
+  const signer = new MediaUrlSigner(
+    loadOrCreateSigningKey(path.join(layout.home, 'data', 'media-signing.key')),
+    options.signedUrls?.ttlMs ?? DEFAULT_SIGNED_URL_TTL_MS,
+    options.signedUrls?.now,
+  );
+  const media = new WorkMediaService(works, assets, layout, signer, assets.limits);
 
   const app = Fastify({
-    logger: options.logger === true ? { level: config.logLevel ?? 'info' } : false,
+    logger:
+      options.logger === true
+        ? {
+            level: config.logLevel ?? 'info',
+            // Signed media URLs carry a signature in the query string; never log it.
+            serializers: {
+              req: (req: { method: string; url: string; ip?: string }) => ({
+                method: req.method,
+                url: redactSignedUrl(req.url),
+                remoteAddress: req.ip,
+              }),
+            },
+          }
+        : false,
     bodyLimit: 8 * 1024 * 1024,
   }).withTypeProvider<ZodTypeProvider>();
   app.setValidatorCompiler(validatorCompiler);
@@ -313,6 +348,46 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   );
 
   app.get(
+    '/api/v1/works/:id/revisions/:rid',
+    {
+      schema: {
+        description: 'One historical revision with its full Markdown snapshot and title.',
+        params: RevisionParamsSchema,
+        response: { 200: RevisionDetailSchema, ...errorResponses },
+      },
+    },
+    (req) => works.revision(req.params.id, req.params.rid),
+  );
+
+  app.post(
+    '/api/v1/works/:id/revisions/:rid/restore',
+    {
+      schema: {
+        description:
+          'Restore an old revision by appending a new `restore` revision with its Markdown and title (history is never rewritten; status, type and tags are unchanged). Requires `base_revision` or `If-Match`; a stale base returns 409 and nothing is written.',
+        params: RevisionParamsSchema,
+        body: RestoreRevisionRequestSchema,
+        response: {
+          200: WorkDetailSchema,
+          409: z.union([RevisionConflictResponseSchema, ErrorResponseSchema]),
+          428: ErrorResponseSchema,
+          ...errorResponses,
+        },
+      },
+    },
+    (req, reply) => {
+      const current = works.get(req.params.id).current_revision_id;
+      const work = works.restore(
+        req.params.id,
+        req.params.rid,
+        resolveBaseRevision(req.body.base_revision, req.headers['if-match'], current),
+      );
+      reply.header('etag', revisionEtag(work.current_revision_id));
+      return work;
+    },
+  );
+
+  app.get(
     '/api/v1/assets/:id/stream',
     {
       schema: {
@@ -320,34 +395,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
         params: AssetIdParamsSchema,
       },
     },
-    (req, reply) => {
-      const target = assets.streamTarget(req.params.id);
-      reply.header('accept-ranges', 'bytes').header('content-type', target.mimeType);
-      const range = parseRange(req.headers.range, target.size);
-      if (range.kind === 'unsatisfiable') {
-        return reply
-          .code(416)
-          .header('content-range', `bytes */${target.size}`)
-          .header('content-type', 'application/json; charset=utf-8')
-          .send(errorBody('range_not_satisfiable', 'requested range is outside the file'));
-      }
-      if (range.kind === 'partial') {
-        const { start, end } = range.range;
-        return reply
-          .code(206)
-          .header('content-range', `bytes ${start}-${end}/${target.size}`)
-          .header('content-length', end - start + 1)
-          .send(fs.createReadStream(target.absPath, { start, end }));
-      }
-      // Bound the stream to the stat'ed size: an unbounded ReadStream kept the
-      // keep-alive connection busy after the body was sent, blocking app.close().
-      // It also keeps Content-Length truthful if the file grows while streaming.
-      const body =
-        target.size === 0
-          ? Buffer.alloc(0)
-          : fs.createReadStream(target.absPath, { start: 0, end: target.size - 1 });
-      return reply.code(200).header('content-length', target.size).send(body);
-    },
+    (req, reply) => sendRanged(req, reply, assets.streamTarget(req.params.id)),
   );
 
   registerAssetRoutes(app, assets, layout, { tusIdleTimeoutMs: options.tusIdleTimeoutMs });
@@ -355,8 +403,9 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerImportRoutes(app, imports, idempotency);
   registerTokenRoutes(app, tokens);
   registerMountRoutes(app, mounts);
+  registerMediaRoutes(app, media, assets, signer, tokens);
 
   mounts.start();
   if (options.jobs?.start !== false) jobs.start();
-  return { app, db, layout, works, assets, feed, jobs, imports, tokens, mounts };
+  return { app, db, layout, works, assets, feed, jobs, imports, tokens, mounts, media, signer };
 }

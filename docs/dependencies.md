@@ -100,9 +100,11 @@
 | react / react-dom | ^19.3.1 | MIT | mac、markdown-editor-web（peer） | UI | Preact（MDXEditor 不支援） |
 | @mdxeditor/editor | ^4.5.0 | MIT | markdown-editor-web | 視覺 Markdown 編輯（見上） | Milkdown、TipTap |
 | @fontsource-variable/inter | ^5.3.0 | OFL-1.1（字型）／MIT（打包腳本） | mac | DESIGN.md 指定的 Inter 可變字型（wght 軸，正體與斜體），由 Vite 打進 App，不從網路載入（見「字型」一節） | 直接放 rsms/inter 官方 woff2；系統字體（不符視覺基線） |
-| mdast-util-from-markdown | ^2.1.0 | MIT | markdown-editor-web | 解析 Markdown，偵測可能有損語法、比對結構 | remark（較重） |
-| micromark-extension-gfm / mdast-util-gfm | ^3.0.0 / ^3.1.0 | MIT | markdown-editor-web | GFM（表格、腳註、刪除線、待辦）解析 | — |
-| micromark-extension-frontmatter / mdast-util-frontmatter | ^2.0.0 / ^2.0.1 | MIT | markdown-editor-web | YAML frontmatter 解析 | — |
+| mdast-util-from-markdown | ^2.1.0 | MIT | markdown-editor-web、mac-server | 解析 Markdown，偵測可能有損語法、比對結構 | remark（較重） |
+| micromark-extension-gfm / mdast-util-gfm | ^3.0.0 / ^3.1.0 | MIT | markdown-editor-web、mac-server | GFM（表格、腳註、刪除線、待辦）解析 | — |
+| micromark-extension-frontmatter / mdast-util-frontmatter | ^2.0.0 / ^2.0.1 | MIT | markdown-editor-web、mac-server | YAML frontmatter 解析 | — |
+
+QC-010：mac-server 用同一組 mdast 套件與版本，從 Markdown 找出圖片與影音引用（`src/media/markdown-refs.ts`），讓伺服器與編輯器對「什麼算圖片」的判斷一致。沒有新增任何套件。
 
 ## 開發依賴：Mac App 與共用前端套件（QC-002）
 
@@ -113,7 +115,7 @@
 | @vitejs/plugin-react | ^6.3.0 | MIT | mac | React JSX 與 Fast Refresh | — |
 | esbuild | ^0.28.2 | MIT | mac | 主程序與 preload 打包（見上） | electron-vite |
 | jsdom | ^31.0.1 | MIT | markdown-editor-web | 測試中掛載真實 MDXEditor 做往返驗證。要求 Node ≥24.15，本機 24.14 可跑但安裝時有 engine 警告 | happy-dom（Lexical 相容性較少驗證） |
-| @types/react / @types/react-dom / @types/mdast | ^19.3.0 / ^19.3.0 / ^4.0.4 | MIT | mac、markdown-editor-web | 型別 | — |
+| @types/react / @types/react-dom / @types/mdast | ^19.3.0 / ^19.3.0 / ^4.0.4 | MIT | mac、markdown-editor-web、mac-server（只有 @types/mdast） | 型別 | — |
 
 ## 開發依賴（根目錄）
 
