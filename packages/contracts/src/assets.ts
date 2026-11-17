@@ -94,5 +94,18 @@ export const ReorderWorkAssetsRequestSchema = z.object({
 });
 export type ReorderWorkAssetsRequest = z.input<typeof ReorderWorkAssetsRequestSchema>;
 
+/** One work that uses an asset (reverse lookup of `work_assets`). */
+export const AssetWorkItemSchema = z.object({
+  work_id: IdSchema,
+  title: z.string(),
+  role: WorkAssetRoleSchema,
+  position: z.number().int().nonnegative(),
+  updated_at: TimestampSchema,
+});
+export type AssetWorkItem = z.infer<typeof AssetWorkItemSchema>;
+
+export const AssetWorkListResponseSchema = z.object({ items: z.array(AssetWorkItemSchema) });
+export type AssetWorkListResponse = z.infer<typeof AssetWorkListResponseSchema>;
+
 export const WorkAssetParamsSchema = z.object({ id: IdSchema, assetId: IdSchema });
 export const WorkAssetRoleQuerySchema = z.object({ role: WorkAssetRoleSchema });

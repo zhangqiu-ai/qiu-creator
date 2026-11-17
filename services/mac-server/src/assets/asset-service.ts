@@ -9,6 +9,7 @@ import {
   type AssetKind,
   type AssetOrigin,
   type AssetRecord,
+  type AssetWorkItem,
   type ListAssetsQuery,
   type ListAssetsResponse,
   type WorkAssetItem,
@@ -284,6 +285,18 @@ export class AssetService {
   }
 
   // ---- Work ↔ asset links -------------------------------------------------
+
+  /** Works that use an asset, most recently updated first (one row per role). */
+  assetWorks(assetId: string): AssetWorkItem[] {
+    this.get(assetId);
+    return this.db
+      .prepare<[string], AssetWorkItem>(
+        `SELECT w.id AS work_id, w.title, wa.role, wa.position, w.updated_at
+         FROM work_assets wa JOIN works w ON w.id = wa.work_id
+         WHERE wa.asset_id = ? ORDER BY w.updated_at DESC, w.id, wa.role`,
+      )
+      .all(assetId);
+  }
 
   workAssets(workId: string): WorkAssetItem[] {
     this.requireWork(workId);

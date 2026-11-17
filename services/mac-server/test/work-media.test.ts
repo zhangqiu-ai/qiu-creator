@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { MediaRef, Mount, WorkMediaResponse } from '@qiu-creator/contracts';
 import { afterEach, describe, expect, it } from 'vitest';
-import { pngBytes } from './fixtures.js';
+import { mp4Bytes, pngBytes } from './fixtures.js';
 import { authHeaders, startTestServer, type StartOptions, type TestServer } from './helpers.js';
 
 const servers: TestServer[] = [];
@@ -425,5 +425,88 @@ describe('external work media', () => {
       headers: authHeaders(),
     });
     expect(stream.status).toBe(403);
+  });
+});
+
+describe('assets for the asset viewer (QC-010 follow-up)', () => {
+  it('lists the works that use an asset, with title, role and position', async () => {
+    const s = await start();
+    const up = await s.client.assets.upload({ filename: 'p.png', data: await pngBytes(30, 20) });
+    const id = up.asset.id;
+    expect((await s.client.assets.works(id)).items).toEqual([]);
+
+    const a = await s.client.works.create({ title: '甲作品' });
+    const b = await s.client.works.create({ title: '乙作品' });
+    const other = await s.client.assets.upload({ filename: 'o.png', data: await pngBytes(5, 5) });
+    await s.client.workAssets.link(a.id, { asset_id: other.asset.id, role: 'body' });
+    await s.client.workAssets.link(a.id, { asset_id: id, role: 'body' });
+    await s.client.workAssets.link(a.id, { asset_id: id, role: 'cover' });
+    await s.client.workAssets.link(b.id, { asset_id: id, role: 'body' });
+    // b was linked last but a is edited afterwards: most recently updated work first.
+    const patched = await s.client.works.patch(a.id, {
+      base_revision: a.current_revision_id,
+      title: '甲作品（改）',
+    });
+
+    const items = (await s.client.assets.works(id)).items;
+    expect(items.map((i) => [i.work_id, i.title, i.role, i.position])).toEqual([
+      [a.id, '甲作品（改）', 'body', 1],
+      [a.id, '甲作品（改）', 'cover', 0],
+      [b.id, '乙作品', 'body', 0],
+    ]);
+    expect(items[0]?.updated_at).toBe(patched.updated_at);
+
+    await s.client.workAssets.unlink(a.id, id, 'cover');
+    expect((await s.client.assets.works(id)).items).toHaveLength(2);
+
+    const missing = await fetch(
+      `${s.baseUrl}/api/v1/assets/00000000-0000-4000-8000-000000000000/works`,
+      { headers: authHeaders() },
+    );
+    expect(missing.status).toBe(404);
+    const reader = s.tokens.create({ name: 'r', scopes: ['read'] });
+    const asReader = await fetch(`${s.baseUrl}/api/v1/assets/${id}/works`, {
+      headers: { authorization: `Bearer ${reader.secret}` },
+    });
+    expect(asReader.status).toBe(200);
+  });
+
+  it('plays a video asset through a signed URL with Range, as <video> does', async () => {
+    const s = await start();
+    const video = mp4Bytes(256 * 1024);
+    const up = await s.client.assets.upload({ filename: 'clip.mp4', data: video });
+    const { items, expires_at } = await s.client.media.signedAssetUrls({
+      asset_ids: [up.asset.id],
+    });
+    expect(Date.parse(expires_at)).toBeGreaterThan(Date.now());
+    const url = items[0]?.url ?? '';
+
+    // <video> first asks for `bytes=0-`, then seeks with open-ended and suffix ranges.
+    const first = await getSigned(s, url, { range: 'bytes=0-' });
+    expect(first.status).toBe(206);
+    expect(first.headers.get('content-type')).toBe('video/mp4');
+    expect(first.headers.get('accept-ranges')).toBe('bytes');
+    expect(first.headers.get('content-range')).toBe(
+      `bytes 0-${String(video.length - 1)}/${String(video.length)}`,
+    );
+    expect(Buffer.from(await first.arrayBuffer()).equals(video)).toBe(true);
+
+    const seek = await getSigned(s, url, { range: 'bytes=100000-100099' });
+    expect(seek.status).toBe(206);
+    expect(Buffer.from(await seek.arrayBuffer()).equals(video.subarray(100000, 100100))).toBe(true);
+    const tail = await getSigned(s, url, { range: 'bytes=-16' });
+    expect(Buffer.from(await tail.arrayBuffer()).equals(video.subarray(-16))).toBe(true);
+    expect((await getSigned(s, url, { range: `bytes=${String(video.length)}-` })).status).toBe(416);
+
+    // No Authorization header was sent, and the same URL does not open another asset.
+    const img = await s.client.assets.upload({ filename: 'p.png', data: await pngBytes(5, 5) });
+    expect((await getSigned(s, url.replace(up.asset.id, img.asset.id))).status).toBe(403);
+    // Unknown assets are refused before any URL is signed.
+    const unknown = await fetch(`${s.baseUrl}/api/v1/media/signed-urls`, {
+      method: 'POST',
+      headers: authHeaders({ 'content-type': 'application/json' }),
+      body: JSON.stringify({ asset_ids: ['00000000-0000-4000-8000-000000000000'] }),
+    });
+    expect(unknown.status).toBe(404);
   });
 });

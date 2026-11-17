@@ -130,6 +130,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/assets` | 素材庫列表；`kind`、`q`（原檔名）、`limit`、`offset` |
 | GET | `/api/v1/assets/:id` | 素材詳情（含縮圖、元資料狀態） |
 | GET | `/api/v1/assets/:id/thumbnail` | WebP 縮圖；`cache/` 被刪時即時重建 |
+| GET | `/api/v1/assets/:id/works` | 反查使用此素材的作品：作品 id、標題、用途、位置，依作品更新時間新到舊 |
 | GET | `/api/v1/works/:id/assets` | 作品的素材，依用途與順序 |
 | POST | `/api/v1/works/:id/assets` | 關聯素材（`cover`／`body`／`video`，可指定位置；重複關聯即移動） |
 | DELETE | `/api/v1/works/:id/assets/:assetId?role=` | 移除關聯，順序自動補齊 |
@@ -187,6 +188,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 - **類型：** 以 magic bytes 判斷，只服務上傳白名單內的圖片／影音／音訊。SVG 可能夾帶腳本，因此不服務。
 - **外部圖片登記：** 外部作品引用到的檔案以 `origin: folder`、`mount_id`、`path`（相對掛載根）登記成素材，**不搬移、不複製**，並以 `body`（視頻為 `video`）關聯到作品；已經關聯過就不再動。大小或修改時間變了才重新算 sha256。縮圖與 ffprobe 直接讀原地檔案。上傳去重只比對托管素材，不會把上傳指到可能消失的外部檔案。
 - **托管素材：** `assets/…` 若對應已登記的素材，回傳其 `asset_id`。
+
+**素材檢視器（`<img>`／`<video>` 播放原檔）：** `POST /api/v1/media/signed-urls` 一次為多個素材簽發 `stream` 或 `thumbnail` 網址，得到 `/media/v1/assets/<id>/stream?exp&p&sig`。這是 `GET /api/v1/assets/:id/stream` 的簽名版，Range 行為相同：`bytes=0-`、`a-b`、`-n` 回 206，超出範圍回 416。Bearer 路由本身維持只認 header，不接受網址上的簽名，兩種憑證不混用。
 
 **為什麼用簽名網址：** Electron renderer 的 `<img>`／`<video>` 不能帶 `Authorization` header。評估過三種做法：
 
