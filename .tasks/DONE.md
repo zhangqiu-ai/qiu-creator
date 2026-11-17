@@ -1,5 +1,30 @@
 # Done
 
+## QC-010: 版本恢復、作品中繼資料與 Markdown 圖片解析（M2 後端 1/2）
+
+**Priority:** P0 | **Assignee:** qc-backend | **Tags:** M2, backend
+
+### 完成摘要
+
+- 讀單一歷史版本、恢復為新 revision（帶 base_revision，衝突 409，不改寫歷史）；狀態與標籤 PATCH 補齊。
+- `/works/:id/media` 解析托管與外部作品的相對圖片路徑（防穿越、不跟隨符號連結，外部圖片只登記不搬移）；`GET /assets/:id/works` 反查引用作品。
+- `POST /api/v1/media/signed-urls`：HMAC 簽名網址綁定路徑、到期（1 小時）與權杖主體，撤銷權杖即失效；Bearer 路由不接受簽名，Range 行為一致。
+- 驗收：總監合併後複跑 323／0／323。合併 2026-11-17。
+
+## QC-012: Mac 素材庫、匯入任務與設定頁（M2 前端 1/3）
+
+**Priority:** P0 | **Assignee:** qc-frontend | **Tags:** M2, frontend
+
+### 完成摘要
+
+- 素材庫（列表、檢視器、原圖與影音播放）、上傳（直傳與 tus）、URL 匯入、任務列表（進度、原列重試）、掛載管理、Agent 權杖（明文只顯示一次）；設定頁含服務狀態與托管目錄。
+- 主程序 SSE 經 IPC 推給 renderer（共用通道）；媒體經 `assetMediaUrl()` 走主程序代理 `qc-asset://`（白名單 thumbnail／stream 加 UUID，Range 直通）。
+- 原型中缺 API 的控制項不顯示，排入 QC-015、QC-004。驗收：總監合併 QC-010 後複跑 355／0／355；Electron 播放器實機 6/6。合併 2026-11-17。
+
+## PT-20261117-001: M2 補充狀態（原型）
+
+畫布第 31 版：外部檔案遺失、版本恢復確認、外部掛載來源標示、平台上限警告。總監依小型修改權限核准 2026-11-17；畫布實際渲染 NOT_VERIFIED。
+
 ## QC-007: 外部目錄掛載與資料夾監控（M1 後端 3/3）
 
 **Priority:** P1 | **Assignee:** qc-backend | **Tags:** M1, backend
