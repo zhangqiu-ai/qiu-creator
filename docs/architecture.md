@@ -108,6 +108,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 `0005_external_assets`：`assets` 增加 `mount_id`、`file_mtime_ms`，並以 `(mount_id, path)` 建唯一索引。外部素材的 `path` 相對於掛載根目錄，檔案留在原地。
 
+`0006_platform_variant_revisions`：`platform_variants` 增加 `image_asset_ids`（JSON 陣列，圖片順序）與 `source_work_revision_id`；新增只追加的 `platform_variant_revisions`，主鍵 `(variant_id, revision)`，每個版本存一份完整內容。
+
 `works` 比方案多了 `storage_mode`（managed／external）、`source_path`、`current_revision_id`，以便區分托管與外部掛載並快速核對版本。
 
 ## API
@@ -140,6 +142,13 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | POST | `/api/v1/works/:id/assets` | 關聯素材（`cover`／`body`／`video`，可指定位置；重複關聯即移動） |
 | DELETE | `/api/v1/works/:id/assets/:assetId?role=` | 移除關聯，順序自動補齊 |
 | PUT | `/api/v1/works/:id/assets/order` | 重排某個用途的全部素材 |
+| GET | `/api/v1/works/:id/variants` | 作品的平台版本（依小紅書、公眾號、抖音、視頻號排序），每份帶 `warnings` |
+| POST | `/api/v1/works/:id/variants` | 從原文以規則產生草稿（不呼叫 AI）；已有版本的平台略過並列在 `skipped` |
+| GET | `/api/v1/works/:id/variants/:platform` | 單一平台版本，回 `ETag: "<revision>"` |
+| PATCH | `/api/v1/works/:id/variants/:platform` | 修改標題、正文、封面、圖片順序、標籤；需要 `base_revision` 或 `If-Match` |
+| POST | `/api/v1/works/:id/variants/:platform/draft` | 從目前原文重新產生草稿；不存在時建立（201），存在時需要 base，追加 `draft` 版本 |
+| DELETE | `/api/v1/works/:id/variants/:platform` | 刪除該平台版本與其歷史；需要 `If-Match` |
+| GET | `/api/v1/works/:id/variants/:platform/revisions[/:revision]` | 平台版本歷史（含完整內容） |
 | GET | `/api/v1/events` | SSE 變更事件 |
 | POST | `/api/v1/imports/urls` | URL 匯入，回 202 與匯入任務；支援 `Idempotency-Key` |
 | GET | `/api/v1/jobs` | 匯入任務列表；`status`、`method`、`limit`、`offset` |
@@ -210,6 +219,40 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 **取捨：** 簽名網址在到期前等同對單一檔案的讀取憑證，複製出去的網址在到期前（且簽發者未撤銷時）都能讀到該檔。服務只聽本機或 Tailscale，風險可接受。要立即作廢全部網址，可刪除 `data/media-signing.key` 後重啟。
 
+## 平台版本（QC-009）
+
+每個作品在小紅書、公眾號、抖音、視頻號各最多一份平台版本（`UNIQUE (work_id, platform)`），欄位為標題、正文、封面素材、圖片順序、標籤。實作在 `src/variants/`，上限設定在 contracts 的 `PLATFORM_LIMITS`。
+
+**存放方式：SQLite，加只追加的歷史表。** 不存成檔案，理由：
+
+- 平台版本是從原文衍生的結構化資料（素材 id、圖片順序、標籤），不是使用者會在 Finder 打開的原稿。`source.md` 仍是唯一原稿；「媒體與 Markdown 原稿放磁碟」的原則針對原稿與媒體，不針對衍生版本。
+- 一次修改同時動到正文、封面、圖片順序、標籤。放在同一個 SQLite 交易裡，一定全部成功或全部不變，不需要額外處理「檔案寫了、資料庫沒寫」的半途狀態。
+- 版本號是整數，`UPDATE … WHERE revision = <base>` 一行就保證同一個 base 只會有一個寫入成功。
+- 歷史快照存在 `platform_variant_revisions`，每版一份完整內容，量小（純文字加 id），比照原稿的不可變快照。之後要做「恢復某一版」可以直接讀它。
+
+**版本與衝突：** 版本號從 1 起、每次修改加 1，也是 ETag（`"3"`）。PATCH、重新產生、刪除都要帶 `base_revision`（整數）或 `If-Match`：沒帶回 428，過期回 409 並在 `details.current_revision` 給目前版本號（整數；api-client 用 `ApiError.currentVariantRevision` 讀）。body 與 header 不一致視為衝突。每個平台各自計數，改一個平台不影響其他平台或原文。
+
+**規則草稿（不呼叫 AI）：**
+
+- 標題、標籤：照抄作品。
+- 正文：小紅書、抖音、視頻號不渲染 Markdown，轉成純文字——段落與標題各成一段，清單變成 `•`／`1.` 開頭的行，連結只留文字，圖片、HTML、front matter 去掉。公眾號保留 Markdown，只去掉 front matter。開頭若是與標題相同的 `# 標題` 會去掉，因為標題是獨立欄位。
+- 圖片：Markdown 中已登記成素材的圖片（依文中順序，經 `/works/:id/media` 解析，外部作品的圖片會順便原地登記），再接上作品其他 `body` 用途的圖片素材。
+- 封面：作品的第一個 `cover` 圖片，沒有就用第一張圖。
+- 超出上限不截斷，只產生警告。
+
+**上限與警告：** `PLATFORM_LIMITS` 標明「參考值、可調」，不爬平台網站。字數以 Unicode code point 計（中文字、英文字母、emoji 都算 1）。`checkVariantLimits()` 是純函式，伺服器在每次回應附上 `warnings`，前端也可以在輸入時即時呼叫同一個函式。超限一律照存。
+
+| 平台 | 標題 | 正文 | 圖片 | 標籤 | 正文格式 |
+| --- | --- | --- | --- | --- | --- |
+| 小紅書 | 20 | 1000 | 18 | 10 | 純文字 |
+| 微信公眾號 | 64 | 20000 | — | — | Markdown |
+| 抖音 | 30 | 1000 | 35 | 5 | 純文字 |
+| 微信視頻號 | 16 | 1000 | 9 | — | 純文字 |
+
+**驗證：** 封面與圖片必須是存在的圖片素材，否則回 400 並列出 `invalid_asset_ids`；圖片不可重複；標籤去空白、去重。
+
+**事件：** `work.variant_created`、`work.variant_updated`、`work.variant_deleted`，`entity_id` 是作品 id，`data` 帶 `platform`、`revision`、`source`（`draft`／`edit`）。
+
 ## 外部資料夾掛載
 
 已有的 Markdown 資料夾用**掛載**的方式加入：就地索引，**不搬移、不改名、不刪除**任何檔案。實作在 `src/mounts/mount-service.ts` 與 `WorkService` 的外部作品部分。
@@ -273,7 +316,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 ## 變更事件（SSE）
 
-`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`、`asset.created`、`asset.updated`、`job.queued`、`job.running`、`job.succeeded`、`job.failed`。
+`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `work.variant_created`／`work.variant_updated`／`work.variant_deleted`（平台版本）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`、`asset.created`、`asset.updated`、`job.queued`、`job.running`、`job.succeeded`、`job.failed`。
 
 - 和其他 `/api` 路由一樣要 Bearer 權杖。瀏覽器的 `EventSource` 不能帶 header，所以 api-client 用 fetch 讀串流（`client.events.subscribe`）；權杖不接受放在 URL。
 - 事件先寫進 `change_log` 再推送：在寫入方的交易提交後才發出，交易回滾的變更不會被推送。
@@ -321,6 +364,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 - M1 已完成。視頻縮圖（需 ffmpeg）尚未做。外部圖片只在呼叫 `/works/:id/media` 時登記，掛載掃描不會主動登記。
 - Mac App（QC-011）：以 `/works/:id/media` 的簽名網址顯示圖片（或沿用 QC-012 主程序代理 `qc-asset://`）、版本恢復介面、作品狀態與標籤編輯、作品列表即時刷新與外部修改提示（沿用 QC-012 的 SSE 通道）、素材檢視器接上 `GET /assets/:id/works` 反查。
 - 素材庫還缺的服務端 API：匯入任務取消、素材刪除或移出索引、監控資料夾自動匯入（QC-015）。
-- M2：平台版本 API（QC-009）、Electron／外部編輯器／Agent 三方衝突的完整驗收（QC-014）。
+- 平台版本尚無「恢復某一版」的 API（歷史已存好，可直接加）；草稿是固定規則，AI 產生平台版本屬 M3。
+- M2：Electron／外部編輯器／Agent 三方衝突的完整驗收（QC-014）。
 - M3：AI 任務、Keychain 金鑰、Gemini 視頻理解（測試只用假服務）。
 - 生產可用：launchd 實機安裝、崩潰恢復、SQLite 備份與還原（QC-004）。

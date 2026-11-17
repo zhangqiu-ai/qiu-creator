@@ -48,6 +48,8 @@ import { registerEventRoutes } from './routes/events.js';
 import { registerImportRoutes, registerTokenRoutes } from './routes/imports.js';
 import { registerMediaRoutes } from './routes/media.js';
 import { registerMountRoutes } from './routes/mounts.js';
+import { registerVariantRoutes } from './routes/variants.js';
+import { VariantService } from './variants/variant-service.js';
 import { sendRanged } from './http/ranged.js';
 import {
   DEFAULT_SIGNED_URL_TTL_MS,
@@ -107,6 +109,7 @@ export interface CreatorHubServer {
   mounts: MountService;
   media: WorkMediaService;
   signer: MediaUrlSigner;
+  variants: VariantService;
 }
 
 function isHttpError(err: unknown): err is Error & { statusCode: number } {
@@ -144,6 +147,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     options.signedUrls?.now,
   );
   const media = new WorkMediaService(works, assets, layout, signer, assets.limits);
+  const variants = new VariantService(db, works, assets, media, feed);
 
   const app = Fastify({
     logger:
@@ -404,8 +408,23 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerTokenRoutes(app, tokens);
   registerMountRoutes(app, mounts);
   registerMediaRoutes(app, media, assets, signer, tokens);
+  registerVariantRoutes(app, variants);
 
   mounts.start();
   if (options.jobs?.start !== false) jobs.start();
-  return { app, db, layout, works, assets, feed, jobs, imports, tokens, mounts, media, signer };
+  return {
+    app,
+    db,
+    layout,
+    works,
+    assets,
+    feed,
+    jobs,
+    imports,
+    tokens,
+    mounts,
+    media,
+    signer,
+    variants,
+  };
 }

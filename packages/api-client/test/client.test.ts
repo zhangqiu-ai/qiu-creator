@@ -79,6 +79,24 @@ describe('createClient', () => {
     expect(client.media.absoluteUrl('/media/v1/x?sig=1')).toBe('http://mac:7420/media/v1/x?sig=1');
   });
 
+  it('sends variant revisions as If-Match and exposes the numeric current revision', async () => {
+    const f = fakeFetch(409, {
+      error: {
+        code: 'revision_conflict',
+        message: 'stale',
+        details: { current_revision: 4, base_revision: '3' },
+      },
+    });
+    const client = createClient({ baseUrl: 'http://mac', token: 't', fetch: f.fetch });
+    const err: unknown = await client.variants
+      .patch('w', 'xiaohongshu', { title: 'x' }, { ifMatch: 3 })
+      .catch((e: unknown) => e);
+    expect(f.calls[0]?.url).toBe('http://mac/api/v1/works/w/variants/xiaohongshu');
+    expect(new Headers(f.calls[0]?.init?.headers).get('if-match')).toBe('"3"');
+    expect((err as ApiError).currentVariantRevision).toBe(4);
+    expect((err as ApiError).currentRevision).toBeUndefined();
+  });
+
   it('rejects responses that do not match the contract', async () => {
     const f = fakeFetch(200, { status: 'weird' });
     const client = createClient({ baseUrl: 'http://mac', token: 't', fetch: f.fetch });

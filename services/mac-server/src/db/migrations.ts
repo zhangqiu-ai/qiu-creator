@@ -250,4 +250,30 @@ export const migrations: readonly Migration[] = [
       CREATE UNIQUE INDEX assets_mount_path ON assets (mount_id, path) WHERE mount_id IS NOT NULL;
     `,
   },
+  {
+    id: '0006',
+    name: 'platform_variant_revisions',
+    sql: /* sql */ `
+      -- Ordered images of a platform variant (JSON array of asset ids) and the
+      -- work revision its latest draft was generated from.
+      ALTER TABLE platform_variants ADD COLUMN image_asset_ids TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE platform_variants ADD COLUMN source_work_revision_id TEXT;
+
+      -- Append-only history: one full copy of the variant per revision.
+      -- Variants are small structured records derived from the original, so
+      -- history lives in SQLite rather than as files next to source.md.
+      CREATE TABLE platform_variant_revisions (
+        variant_id      TEXT NOT NULL REFERENCES platform_variants (id) ON DELETE CASCADE,
+        revision        INTEGER NOT NULL CHECK (revision >= 1),
+        source          TEXT NOT NULL CHECK (source IN ('draft','edit')),
+        title           TEXT NOT NULL,
+        body            TEXT NOT NULL,
+        cover_asset_id  TEXT,
+        image_asset_ids TEXT NOT NULL,
+        tags            TEXT NOT NULL,
+        created_at      TEXT NOT NULL,
+        PRIMARY KEY (variant_id, revision)
+      );
+    `,
+  },
 ];
