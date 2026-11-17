@@ -304,7 +304,7 @@ describe('revisions and conflicts', () => {
     expect(res.status).toBe(201);
   });
 
-  it('delete needs If-Match, removes only that platform and its history', async () => {
+  it('delete needs If-Match, removes only that platform, and keeps its history', async () => {
     const s = await start();
     const work = await s.client.works.create({ title: 'T' });
     await s.client.variants.generate(work.id);
@@ -317,15 +317,87 @@ describe('revisions and conflicts', () => {
     expect((await del({ 'if-match': '"7"' })).status).toBe(409);
     await s.client.variants.remove(work.id, 'douyin', 1);
     expect((await apiError(s.client.variants.get(work.id, 'douyin'))).status).toBe(404);
+    expect((await apiError(s.client.variants.revisions(work.id, 'douyin'))).status).toBe(404);
+    expect((await del({ 'if-match': '"2"' })).status).toBe(404);
     expect((await s.client.variants.list(work.id)).items.map((v) => v.platform)).toEqual([
       'xiaohongshu',
       'wechat_mp',
       'wechat_channels',
     ]);
+    const [deleted] = variantEvents(s, work.id).filter((e) => e.action === 'work.variant_deleted');
+    expect(deleted?.data).toEqual({ platform: 'douyin', revision: 2 });
+
+    // Recreating continues after the tombstone (revision 2) and keeps the old history.
     const regenerated = await s.client.variants.generate(work.id);
-    expect(regenerated.created.map((v) => [v.platform, v.revision])).toEqual([['douyin', 1]]);
-    expect((await s.client.variants.revisions(work.id, 'douyin')).items).toHaveLength(1);
-    expect(variantEvents(s, work.id).some((e) => e.action === 'work.variant_deleted')).toBe(true);
+    expect(regenerated.created.map((v) => [v.platform, v.revision])).toEqual([['douyin', 3]]);
+    expect(
+      (await s.client.variants.revisions(work.id, 'douyin')).items.map((r) => [
+        r.revision,
+        r.source,
+      ]),
+    ).toEqual([
+      [3, 'draft'],
+      [1, 'draft'],
+    ]);
+    const res = await fetch(`${s.baseUrl}/api/v1/works/${work.id}/variants/douyin`, {
+      headers: authHeaders(),
+    });
+    expect(res.headers.get('etag')).toBe('"3"');
+  });
+
+  it('a client holding a pre-delete revision gets 409 after delete and recreate (QC-019)', async () => {
+    const s = await start();
+    const work = await s.client.works.create({ title: 'T', markdown: '原文' });
+    await s.client.variants.generate(work.id, { platforms: ['xiaohongshu'] });
+    // The app reads r1.
+    const appCopy = await s.client.variants.get(work.id, 'xiaohongshu');
+    expect(appCopy.revision).toBe(1);
+    // An agent deletes it and generates a fresh draft.
+    await s.client.variants.remove(work.id, 'xiaohongshu', 1);
+    const fresh = await s.client.variants.redraft(work.id, 'xiaohongshu');
+    expect(fresh.revision).toBeGreaterThan(appCopy.revision);
+
+    // The app saves against its stale r1, via body and via If-Match: both 409.
+    const viaBody = await apiError(
+      s.client.variants.patch(work.id, 'xiaohongshu', {
+        base_revision: appCopy.revision,
+        title: '舊畫面的修改',
+      }),
+    );
+    expect(viaBody.status).toBe(409);
+    expect(viaBody.currentVariantRevision).toBe(fresh.revision);
+    const viaHeader = await apiError(
+      s.client.variants.patch(
+        work.id,
+        'xiaohongshu',
+        { title: '舊畫面的修改' },
+        { ifMatch: appCopy.revision },
+      ),
+    );
+    expect(viaHeader.status).toBe(409);
+    // Stale redraft and delete are refused too.
+    expect(
+      (await apiError(s.client.variants.redraft(work.id, 'xiaohongshu', appCopy.revision))).status,
+    ).toBe(409);
+    expect(
+      (await apiError(s.client.variants.remove(work.id, 'xiaohongshu', appCopy.revision))).status,
+    ).toBe(409);
+    // The new draft is untouched.
+    expect(await s.client.variants.get(work.id, 'xiaohongshu')).toEqual(fresh);
+
+    // Repeated delete/recreate cycles never reuse a number.
+    const seen = new Set<number>([1, fresh.revision - 1, fresh.revision]);
+    let current = fresh.revision;
+    for (let i = 0; i < 3; i++) {
+      await s.client.variants.remove(work.id, 'xiaohongshu', current);
+      const again = await s.client.variants.redraft(work.id, 'xiaohongshu');
+      expect(seen.has(again.revision - 1)).toBe(false);
+      expect(seen.has(again.revision)).toBe(false);
+      seen.add(again.revision - 1);
+      seen.add(again.revision);
+      current = again.revision;
+    }
+    expect(current).toBe(9);
   });
 });
 

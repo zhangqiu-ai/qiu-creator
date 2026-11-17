@@ -276,4 +276,14 @@ export const migrations: readonly Migration[] = [
       );
     `,
   },
+  {
+    id: '0007',
+    name: 'platform_variant_tombstones',
+    sql: /* sql */ `
+      -- Deleting a variant leaves a tombstone row (content cleared, history
+      -- kept) that takes the next revision, so a work+platform revision never
+      -- goes back and stale clients get 409 after a delete and recreate.
+      ALTER TABLE platform_variants ADD COLUMN deleted_at TEXT;
+    `,
+  },
 ];

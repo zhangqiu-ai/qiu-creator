@@ -123,6 +123,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 `0006_platform_variant_revisions`：`platform_variants` 增加 `image_asset_ids`（JSON 陣列，圖片順序）與 `source_work_revision_id`；新增只追加的 `platform_variant_revisions`，主鍵 `(variant_id, revision)`，每個版本存一份完整內容。
 
+`0007_platform_variant_tombstones`：`platform_variants` 增加 `deleted_at`。刪除平台版本時留下墓碑列，不刪除資料列（QC-019）。
+
 `works` 比方案多了 `storage_mode`（managed／external）、`source_path`、`current_revision_id`，以便區分托管與外部掛載並快速核對版本。
 
 ## API
@@ -160,7 +162,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/works/:id/variants/:platform` | 單一平台版本，回 `ETag: "<revision>"` |
 | PATCH | `/api/v1/works/:id/variants/:platform` | 修改標題、正文、封面、圖片順序、標籤；需要 `base_revision` 或 `If-Match` |
 | POST | `/api/v1/works/:id/variants/:platform/draft` | 從目前原文重新產生草稿；不存在時建立（201），存在時需要 base，追加 `draft` 版本 |
-| DELETE | `/api/v1/works/:id/variants/:platform` | 刪除該平台版本與其歷史；需要 `If-Match` |
+| DELETE | `/api/v1/works/:id/variants/:platform` | 刪除該平台版本（留墓碑、保留歷史，版本號不回頭）；需要 `If-Match` |
 | GET | `/api/v1/works/:id/variants/:platform/revisions[/:revision]` | 平台版本歷史（含完整內容） |
 | GET | `/api/v1/events` | SSE 變更事件 |
 | POST | `/api/v1/imports/urls` | URL 匯入，回 202 與匯入任務；支援 `Idempotency-Key` |
@@ -245,6 +247,13 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 **版本與衝突：** 版本號從 1 起、每次修改加 1，也是 ETag（`"3"`）。PATCH、重新產生、刪除都要帶 `base_revision`（整數）或 `If-Match`：沒帶回 428，過期回 409 並在 `details.current_revision` 給目前版本號（整數；api-client 用 `ApiError.currentVariantRevision` 讀）。body 與 header 不一致視為衝突。每個平台各自計數，改一個平台不影響其他平台或原文。
 
+**刪除與重建（QC-019）：** 同一作品同一平台的版本號只增不減，刪除後也不會回頭。
+
+- 刪除把該列變成墓碑：內容清空、記下 `deleted_at`，並佔用下一個版本號（例如 r1 刪除後墓碑是 r2）。歷史表保留。
+- 墓碑對讀取、列表、修改、歷史都回 404；產生草稿或單一平台重新產生時，把墓碑復活成新草稿，版本號從墓碑 +1 起算（上例為 r3），歷史接在原本的後面。
+- 這樣，持有刪除前版本號的用戶端在重建後寫入一定回 409，不會靜默覆蓋新草稿。修正前重建會從 r1 重算，舊的 r1 寫入會成功。
+- 墓碑本身不寫進歷史表（歷史的 `source` 仍只有 `draft`／`edit`，API 形狀不變），所以重建後的歷史會在墓碑處少一個號碼。
+
 **規則草稿（不呼叫 AI）：**
 
 - 標題、標籤：照抄作品。
@@ -264,7 +273,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 **驗證：** 封面與圖片必須是存在的圖片素材，否則回 400 並列出 `invalid_asset_ids`；圖片不可重複；標籤去空白、去重。
 
-**事件：** `work.variant_created`、`work.variant_updated`、`work.variant_deleted`，`entity_id` 是作品 id，`data` 帶 `platform`、`revision`、`source`（`draft`／`edit`）。
+**事件：** `work.variant_created`（含墓碑復活）、`work.variant_updated`、`work.variant_deleted`，`entity_id` 是作品 id，`data` 帶 `platform`、`revision`、`source`（`draft`／`edit`）；刪除事件的 `revision` 是墓碑的版本號。
 
 ## 外部資料夾掛載
 
