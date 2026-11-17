@@ -1,5 +1,14 @@
 # Done
 
+## QC-018: markdown-editor-web 測試在高負載下逾時
+
+**Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M2, frontend
+
+### 完成摘要
+
+- 根因：第一個測試承擔 jsdom／CodeMirror／Lexical 冷啟動，pnpm 預設 4 套件並行造成約 36 行程搶 10 核。外部負載 20 對照：預設並行 4／4 逾時，一次一個套件 0／4。
+- 修法：根目錄 `test` 改為 `pnpm -r --workspace-concurrency=1 test`，README 與 AGENTS.md 同步；未動逾時、斷言、重試。剩餘風險：外部負載 40 時單獨跑約 2／15 逾時（接受，於負載低時驗收）。證據 `docs/evidence/qc018-editor-test-timeout.md`。合併 2026-11-17。
+
 ## QC-019: 平台版本刪除後重建，版本號重用導致靜默覆蓋
 
 **Priority:** P1 | **Assignee:** qc-backend | **Tags:** M2, backend

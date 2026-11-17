@@ -64,7 +64,7 @@
 
 ## 驗證與交付
 
-- 交付附 `pnpm -r typecheck`、`lint`、`test` 的結果，寫明 passed／failed／total；只跑受影響套件時要寫清範圍。不准放寬斷言、加長逾時或加重試來讓測試變綠。
+- 交付附 `pnpm -r typecheck`、`pnpm -r lint`、`pnpm test`（一次跑一個套件，見 QC-018）的結果，寫明 passed／failed／total；只跑受影響套件時要寫清範圍。不准放寬斷言、加長逾時或加重試來讓測試變綠。機器負載很高時逾時的結果不算數，記下負載並在負載降低後重跑。
 - 新功能和修正要補持久的自動測試。介面變更依 [DESIGN.md](DESIGN.md#驗收) 做相稱的驗收。未驗證的項目明確標 `NOT_VERIFIED`。
 - 每個里程碑要交付：可啟動的程式、自動測試、操作說明、截圖或錄屏、驗收記錄（放在 `docs/evidence/`）。
 - 收尾：關掉自己開的伺服器、Metro、Electron、Simulator、預覽，釋放埠，刪掉臨時目錄和用完的 worktree。
