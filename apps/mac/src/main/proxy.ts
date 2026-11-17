@@ -1,7 +1,13 @@
 import type { ProxyRequest, ProxyResponse } from '../shared/bridge.js';
 
 const ALLOWED_METHODS = new Set(['GET', 'POST', 'PATCH', 'PUT', 'DELETE']);
-const ALLOWED_HEADERS = new Set(['authorization', 'accept', 'content-type', 'if-match']);
+const ALLOWED_HEADERS = new Set([
+  'authorization',
+  'accept',
+  'content-type',
+  'if-match',
+  'idempotency-key',
+]);
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
 
 export class ProxyRejected extends Error {

@@ -1,0 +1,202 @@
+[
+  {
+    "name": "nav has 作品庫/素材庫/匯入任務/設定",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "asset grid shows seeded assets",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "image thumbnails load through qc-asset:// (CSP + token in main)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "viewer shows size, codec, bytes, hash, location, origin",
+    "ok": true,
+    "detail": "4032 × 3024 | image/jpeg | 71.7 KB | 858e21…2a9b | /private/tmp/claude-501/qc012-home.UMsx/library/assets/bbea8c22-cb90-4b41-b6ea-ec43584f8a9f/kyoto-arashiyama-01.jpg | 上傳 | 2026/11/17 04:29"
+  },
+  {
+    "name": "copy hash confirms",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "kind filter 視頻",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "filter with no match shows 清除篩選",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "SSE asset.created refreshes the grid without reload",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "drop queues uploads and says so",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "nav badge counts the active upload",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "imports page shows uploading row with progress",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "cancel keeps the row with 繼續",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "failed upload shows reason",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "duplicate upload reuses the existing asset",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "繼續 resumes from the uploaded offset, not from 0",
+    "ok": true,
+    "detail": "paused at 2%"
+  },
+  {
+    "name": "resumed upload completes",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "badge clears when nothing is running",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "status filter 失敗",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "沿用原素材 opens the asset in the viewer",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "URL dialog focuses the URL field",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "Enter while composing does not submit",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "private address is refused inline",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "Esc closes the dialog",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "tokens list shows active first and revoked last",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "secret shown once after creating",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "Esc does not dismiss the one-time secret",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "new token listed without its secret",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "revoke asks first with default focus on 取消",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "revoked token shows 已撤銷",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "settings shows service running and live updates connected",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "mounts listed",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "no Tailscale, pairing, backup or AI-key sections",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "missing folder shows 找不到資料夾 with guidance",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "folder back + rescan returns to 監控中",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "unmount explains files stay on disk",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "unmounted folder shows 已卸載 with 重新掛載",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "re-mount reactivates the folder",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "icon rail below 1180px",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "renderer has no Node access",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "remote fonts not requested",
+    "ok": true,
+    "detail": ""
+  }
+]

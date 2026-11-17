@@ -27,3 +27,25 @@ describe('sourceLabel', () => {
     expect(sourceLabel({ source: 'cli', storage_mode: 'external' })).toBe('外部掛載');
   });
 });
+
+describe('asset formatting', () => {
+  it('formats bytes like Finder', async () => {
+    const { formatBytes } = await import('../src/renderer/format.js');
+    expect(formatBytes(999)).toBe('999 B');
+    expect(formatBytes(840_000)).toBe('840 KB');
+    expect(formatBytes(3_200_000)).toBe('3.2 MB');
+    expect(formatBytes(1_420_000_000)).toBe('1.42 GB');
+    expect(formatBytes(312_000_000)).toBe('312 MB');
+  });
+
+  it('formats durations and dimensions', async () => {
+    const { formatDuration, formatDimensions, shortHash, assetName } =
+      await import('../src/renderer/format.js');
+    expect(formatDuration(252.4)).toBe('4:12');
+    expect(formatDuration(3725)).toBe('1:02:05');
+    expect(formatDimensions(3840, 2160)).toBe('3840 × 2160');
+    expect(formatDimensions(null, 10)).toBeNull();
+    expect(shortHash('9f2c' + '0'.repeat(56) + 'a71e')).toBe('9f2c00…a71e');
+    expect(assetName({ original_name: null, path: 'library/assets/ab/x.png' })).toBe('x.png');
+  });
+});
