@@ -52,9 +52,11 @@ node packages/agent-sdk/bin/creatorhub.js mounts list
 ```sh
 corepack pnpm -r typecheck
 corepack pnpm -r lint
-corepack pnpm -r test
+corepack pnpm test
 corepack pnpm format:check
 ```
+
+`pnpm test` 一次只跑一個套件（`--workspace-concurrency=1`）：各套件的 vitest 本來就會用滿所有核心，pnpm 預設同時跑 4 個套件會讓行程數超過核心數數倍，CPU 密集的測試（例如編輯器首次載入）在負載高時會逾時（QC-018）。
 
 ## 文件
 
