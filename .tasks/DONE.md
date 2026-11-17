@@ -1,5 +1,24 @@
 # Done
 
+## QC-009: 平台版本 API（M2 後端 2/2）
+
+**Priority:** P0 | **Assignee:** qc-backend | **Tags:** M2, backend
+
+### 完成摘要
+
+- 四平台 PlatformVariant 存 SQLite（只追加歷史表做快照，單一交易），整數 revision；寫入需 base_revision 或 If-Match（缺 428、過期 409 附目前版本）。
+- 規則草稿（不呼叫 AI）、單平台重新產生、刪除；`PLATFORM_LIMITS` 參考值放 contracts，超限照存並回 `warnings`，`checkVariantLimits()` 純函式供前端共用；SSE 事件；`client.variants`。
+- 測試涵蓋四平台互不串改與並發 409。驗收：總監合併後複跑 397／0／397。範圍外：平台版本恢復 API、AI 產生平台版本（M3）。合併 2026-11-17。
+
+## QC-011: Mac 作品管理與編輯完整化（M2 前端 2/3）
+
+**Priority:** P0 | **Assignee:** qc-frontend | **Tags:** M2, frontend
+
+### 完成摘要
+
+- 作品庫即時刷新；外部修改提示（有未存修改或組字中暫停自動儲存，可比對合併）；版本恢復（diff 加確認，409 不覆蓋）；狀態與標籤走同一儲存佇列；檔案遺失唯讀與自動恢復；外部來源標示；Markdown 圖片走簽名網址（不載入外部 http 圖片）；素材引用。
+- 驗收：總監合併後複跑 397／0／397；Electron 實機 31/31，證據 `docs/evidence/qc011-acceptance.md`。NOT_VERIFIED：實體鍵盤輸入法、VoiceOver、Finder 實開、簽名網址實機換新、外接硬碟拔除、建置版啟動。合併 2026-11-17。
+
 ## QC-010: 版本恢復、作品中繼資料與 Markdown 圖片解析（M2 後端 1/2）
 
 **Priority:** P0 | **Assignee:** qc-backend | **Tags:** M2, backend
