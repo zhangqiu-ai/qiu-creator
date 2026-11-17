@@ -2,22 +2,32 @@ import path from 'node:path';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export type AssetResource = 'thumbnail' | 'stream';
+
 /**
- * Map a `qc-asset://thumbnail/<id>` URL to the service path it stands for.
- * Anything else is refused, so the scheme cannot reach other endpoints.
+ * Map `qc-asset://thumbnail/<id>` or `qc-asset://stream/<id>` to the service
+ * path it stands for. Anything else is refused, so the scheme cannot reach
+ * other endpoints.
  */
-export function thumbnailServicePath(url: string): string | null {
+export function assetServicePath(url: string): { resource: AssetResource; path: string } | null {
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
     return null;
   }
-  if (parsed.protocol !== 'qc-asset:' || parsed.hostname !== 'thumbnail') return null;
+  if (parsed.protocol !== 'qc-asset:') return null;
+  const resource = parsed.hostname;
+  if (resource !== 'thumbnail' && resource !== 'stream') return null;
   if (parsed.search !== '' || parsed.hash !== '') return null;
   const id = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
   if (!UUID.test(id)) return null;
-  return `/api/v1/assets/${id.toLowerCase()}/thumbnail`;
+  return { resource, path: `/api/v1/assets/${id.toLowerCase()}/${resource}` };
+}
+
+/** Only a single plain byte range is forwarded to the service. */
+export function forwardableRange(header: string | null): string | null {
+  return header !== null && /^bytes=\d*-\d*$/.test(header) && header !== 'bytes=-' ? header : null;
 }
 
 /**

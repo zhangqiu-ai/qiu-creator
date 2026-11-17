@@ -1,7 +1,7 @@
 import type { CreatorHubClient } from '@qiu-creator/api-client';
 import type { AssetKind, AssetOrigin, AssetRecord } from '@qiu-creator/contracts';
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
-import { thumbnailUrl } from '../shared/bridge.js';
+import { assetMediaUrl, thumbnailUrl } from '../shared/bridge.js';
 import { Chip } from './Chip.js';
 import { useRefreshOn } from './events.js';
 import {
@@ -348,6 +348,58 @@ function Thumb({ asset, size }: { asset: AssetRecord; size: number }) {
   );
 }
 
+/**
+ * Viewer preview: the original image, a video or an audio player. Media URLs
+ * come only from `assetMediaUrl`, so the way they are authorized can change
+ * without touching this component. Formats Chromium cannot decode (e.g. some
+ * HEVC .mov files) fall back to an icon with a note instead of a broken player.
+ */
+function MediaPreview({ asset }: { asset: AssetRecord }) {
+  const [failed, setFailed] = useState(false);
+  const onError = () => {
+    setFailed(true);
+  };
+  const playable = asset.kind === 'image' || asset.kind === 'video' || asset.kind === 'audio';
+  if (!playable || failed) {
+    return (
+      <div className="viewer__preview">
+        <Thumb asset={asset} size={36} />
+        {failed && (
+          <span className="viewer__preview-note" role="status">
+            {asset.kind === 'image' ? '無法顯示原圖' : '這個格式無法在 App 內播放'}
+          </span>
+        )}
+      </div>
+    );
+  }
+  const name = assetName(asset);
+  return (
+    <div className={`viewer__preview viewer__preview--${asset.kind}`}>
+      {asset.kind === 'image' ? (
+        <img className="thumb__img" src={assetMediaUrl(asset.id)} alt={name} onError={onError} />
+      ) : asset.kind === 'video' ? (
+        <video
+          className="viewer__media"
+          src={assetMediaUrl(asset.id)}
+          controls
+          preload="metadata"
+          aria-label={name}
+          onError={onError}
+        />
+      ) : (
+        <audio
+          className="viewer__audio"
+          src={assetMediaUrl(asset.id)}
+          controls
+          preload="metadata"
+          aria-label={name}
+          onError={onError}
+        />
+      )}
+    </div>
+  );
+}
+
 function AssetTile({
   asset,
   selected,
@@ -408,9 +460,7 @@ function AssetViewer({
 
   return (
     <aside className="viewer" aria-label="檢視器">
-      <div className="viewer__preview">
-        <Thumb asset={asset} size={36} />
-      </div>
+      <MediaPreview key={asset.id} asset={asset} />
       <div className="viewer__title">
         <h2 className="mono viewer__name">{name}</h2>
         <button

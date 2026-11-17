@@ -19,7 +19,7 @@ import {
   type ProxyRequest,
   type RevealTarget,
 } from '../shared/bridge.js';
-import { abbreviateHome, resolveInsideHome, thumbnailServicePath } from './assets.js';
+import { abbreviateHome, assetServicePath, forwardableRange, resolveInsideHome } from './assets.js';
 import { readConnection, resolveConfig } from './config.js';
 import { contentSecurityPolicy } from './csp.js';
 import { EventRelay } from './event-relay.js';
@@ -37,7 +37,7 @@ const devServerUrl = process.env['VITE_DEV_SERVER_URL'] ?? null;
 const config = resolveConfig(process.env, app.isPackaged);
 
 protocol.registerSchemesAsPrivileged([
-  { scheme: ASSET_SCHEME, privileges: { standard: true, secure: true } },
+  { scheme: ASSET_SCHEME, privileges: { standard: true, secure: true, stream: true } },
 ]);
 
 function connection(): UploadConnection | null {
@@ -215,24 +215,46 @@ function registerIpc(): void {
   });
 }
 
-/** `qc-asset://thumbnail/<id>`: the main process adds the token, so <img> works without it. */
+const PASS_HEADERS = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
+
+/**
+ * `qc-asset://thumbnail/<id>` and `qc-asset://stream/<id>`: the main process
+ * adds the token so <img>, <video> and <audio> work without it. Streams pass
+ * through a single Range header and are not buffered, so seeking in a large
+ * video only reads the bytes it needs.
+ */
 function registerAssetProtocol(): void {
   protocol.handle(ASSET_SCHEME, async (request) => {
-    const servicePath = thumbnailServicePath(request.url);
+    const target = assetServicePath(request.url);
     const conn = connection();
-    if (servicePath === null || conn === null) return new Response(null, { status: 404 });
+    if (target === null || conn === null || request.method !== 'GET') {
+      return new Response(null, { status: 404 });
+    }
+    const headers: Record<string, string> = { authorization: `Bearer ${conn.token}` };
+    const range =
+      target.resource === 'stream' ? forwardableRange(request.headers.get('range')) : null;
+    if (range !== null) headers['range'] = range;
+    // Time out waiting for headers only; a long video may take minutes to play through.
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      controller.abort();
+    }, 15_000);
     try {
-      const res = await fetch(`${conn.baseUrl}${servicePath}`, {
-        headers: { authorization: `Bearer ${conn.token}` },
+      const res = await fetch(`${conn.baseUrl}${target.path}`, {
+        headers,
         redirect: 'error',
-        signal: AbortSignal.timeout(15_000),
+        signal: controller.signal,
       });
-      if (!res.ok) return new Response(null, { status: res.status });
-      return new Response(await res.arrayBuffer(), {
-        status: 200,
-        headers: { 'content-type': res.headers.get('content-type') ?? 'image/webp' },
-      });
+      clearTimeout(timer);
+      const out = new Headers();
+      for (const name of PASS_HEADERS) {
+        const value = res.headers.get(name);
+        if (value !== null) out.set(name, value);
+      }
+      if (!res.ok) return new Response(null, { status: res.status, headers: out });
+      return new Response(res.body, { status: res.status, headers: out });
     } catch {
+      clearTimeout(timer);
       return new Response(null, { status: 502 });
     }
   });

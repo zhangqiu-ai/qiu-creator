@@ -1260,8 +1260,35 @@ kbd {
   background: var(--qc-sunken);
   color: var(--qc-ink3);
 }
+.viewer__preview {
+  position: relative;
+}
 .viewer__preview .thumb__img {
   object-fit: contain;
+}
+.viewer__preview--video {
+  background: #000;
+}
+.viewer__media {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.viewer__preview--audio {
+  aspect-ratio: auto;
+  padding: 16px 12px;
+}
+.viewer__audio {
+  width: 100%;
+}
+.viewer__preview-note {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--qc-ink2);
 }
 .viewer__title {
   display: flex;

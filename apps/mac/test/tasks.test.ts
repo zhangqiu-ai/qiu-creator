@@ -1,7 +1,12 @@
 import type { ImportJobRecord } from '@qiu-creator/contracts';
 import { describe, expect, it } from 'vitest';
-import { abbreviateHome, resolveInsideHome, thumbnailServicePath } from '../src/main/assets.js';
-import { thumbnailUrl, type UploadItem } from '../src/shared/bridge.js';
+import {
+  abbreviateHome,
+  assetServicePath,
+  forwardableRange,
+  resolveInsideHome,
+} from '../src/main/assets.js';
+import { assetMediaUrl, thumbnailUrl, type UploadItem } from '../src/shared/bridge.js';
 import { urlRejectedText, validateImportUrl } from '../src/renderer/ImportsPage.js';
 import { mountErrorText, sortMounts } from '../src/renderer/SettingsPage.js';
 import { countRows, filterRows, jobRow, taskRows, uploadRow } from '../src/renderer/tasks.js';
@@ -139,12 +144,29 @@ describe('task rows', () => {
 });
 
 describe('main-process asset helpers', () => {
-  it('maps only thumbnail URLs with a UUID', () => {
-    expect(thumbnailServicePath(thumbnailUrl(ID))).toBe(`/api/v1/assets/${ID}/thumbnail`);
-    expect(thumbnailServicePath('qc-asset://thumbnail/../works')).toBeNull();
-    expect(thumbnailServicePath(`qc-asset://original/${ID}`)).toBeNull();
-    expect(thumbnailServicePath(`qc-asset://thumbnail/${ID}?x=1`)).toBeNull();
-    expect(thumbnailServicePath(`https://thumbnail/${ID}`)).toBeNull();
+  it('maps only thumbnail and stream URLs with a UUID', () => {
+    expect(assetServicePath(thumbnailUrl(ID))).toEqual({
+      resource: 'thumbnail',
+      path: `/api/v1/assets/${ID}/thumbnail`,
+    });
+    expect(assetServicePath(assetMediaUrl(ID))).toEqual({
+      resource: 'stream',
+      path: `/api/v1/assets/${ID}/stream`,
+    });
+    expect(assetServicePath('qc-asset://thumbnail/../works')).toBeNull();
+    expect(assetServicePath(`qc-asset://original/${ID}`)).toBeNull();
+    expect(assetServicePath(`qc-asset://stream/${ID}?x=1`)).toBeNull();
+    expect(assetServicePath(`https://stream/${ID}`)).toBeNull();
+  });
+
+  it('forwards only a single plain byte range', () => {
+    expect(forwardableRange('bytes=0-')).toBe('bytes=0-');
+    expect(forwardableRange('bytes=100-199')).toBe('bytes=100-199');
+    expect(forwardableRange('bytes=-500')).toBe('bytes=-500');
+    expect(forwardableRange('bytes=-')).toBeNull();
+    expect(forwardableRange('bytes=0-1,5-9')).toBeNull();
+    expect(forwardableRange('items=0-1')).toBeNull();
+    expect(forwardableRange(null)).toBeNull();
   });
 
   it('keeps reveal paths inside CREATORHUB_HOME', () => {

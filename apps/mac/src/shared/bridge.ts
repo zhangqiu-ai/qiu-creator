@@ -103,9 +103,21 @@ export const IPC = {
   copyText: 'creatorhub:copy-text',
 } as const;
 
-/** Custom scheme the renderer uses for asset thumbnails: `qc-asset://thumbnail/<id>`. */
+/**
+ * Custom scheme the main process serves with the token added:
+ * `qc-asset://thumbnail/<id>` and `qc-asset://stream/<id>` (Range supported).
+ */
 export const ASSET_SCHEME = 'qc-asset';
 
 export function thumbnailUrl(assetId: string): string {
   return `${ASSET_SCHEME}://thumbnail/${encodeURIComponent(assetId)}`;
+}
+
+/**
+ * URL for the original file, for <img>, <video> and <audio>. The only place
+ * that decides how media URLs are made: today a main-process proxy that adds
+ * the token; QC-010 may replace it with signed URLs without touching callers.
+ */
+export function assetMediaUrl(assetId: string): string {
+  return `${ASSET_SCHEME}://stream/${encodeURIComponent(assetId)}`;
 }

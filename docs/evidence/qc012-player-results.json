@@ -1,0 +1,32 @@
+[
+  {
+    "name": "original image loads through assetMediaUrl (not the 512px thumbnail)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "H.264 video loads metadata",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "seeking to 0:15 works (Range passes through the proxy)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "video plays",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "audio player loads",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "HEVC .mov either plays or shows the fallback note",
+    "ok": true,
+    "detail": "plays"
+  }
+]
