@@ -125,6 +125,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 `0007_platform_variant_tombstones`：`platform_variants` 增加 `deleted_at`。刪除平台版本時留下墓碑列，不刪除資料列（QC-019）。
 
+`0008_ai_foundation`：`ai_jobs` 增加 `provider`、`input`（重試時重送的請求）、`error_code`、`attempts`／`max_attempts`／`run_after`（退避重試）、`started_at`／`finished_at`、`usage_month`（用量算在哪個本地月份）、`estimate`（送出前估算）；新增 `ai_providers`（模型設定、首次使用告知確認、金鑰「是否已存」的時間——金鑰本身不在資料庫）與 `app_settings`（AI 月度提醒金額、價格覆寫）。
+
 `works` 比方案多了 `storage_mode`（managed／external）、`source_path`、`current_revision_id`，以便區分托管與外部掛載並快速核對版本。
 
 ## API
@@ -173,6 +175,16 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/mounts`、`/api/v1/mounts/:id` | 掛載列表與狀態、作品數 |
 | POST | `/api/v1/mounts/:id/rescan` | 重新掃描（新增、變更、遺失） |
 | DELETE | `/api/v1/mounts/:id` | 卸載；檔案不動，作品與歷史保留並標成 `unmounted` |
+| GET | `/api/v1/ai/providers` | 三家供應商：是否已存金鑰（不回傳金鑰）、模型、首次使用告知與確認狀態、`ready` |
+| PATCH | `/api/v1/ai/providers/:provider` | 設定文字模型（Gemini 另可設視頻模型） |
+| PUT／DELETE | `/api/v1/ai/providers/:provider/key` | 存入／刪除 Keychain 中的金鑰；只寫不讀 |
+| POST／DELETE | `/api/v1/ai/providers/:provider/consent` | 確認／撤回首次使用告知；`notice_version` 須為目前版本 |
+| GET／PATCH | `/api/v1/ai/settings` | 月度提醒金額、價格覆寫 |
+| POST | `/api/v1/ai/estimate` | 送出前的費用估算與本月累計，不送出任何內容 |
+| POST | `/api/v1/ai/jobs` | 建立 AI 任務（202），回估算與預算提醒；缺金鑰或未確認告知回 409；支援 `Idempotency-Key` |
+| GET | `/api/v1/ai/jobs`、`/api/v1/ai/jobs/:id` | AI 任務列表與詳情（結果、用量、估算成本、失敗原因） |
+| POST | `/api/v1/ai/jobs/:id/cancel`、`/retry` | 取消排隊或進行中的任務（中止供應商請求）；重跑失敗或已取消的任務 |
+| GET | `/api/v1/ai/usage?month=YYYY-MM` | 各供應商的 token 與估算費用、本月提醒狀態 |
 | POST／GET | `/api/v1/tokens` | 建立／列出 Agent 權杖（只限主權杖） |
 | DELETE | `/api/v1/tokens/:id` | 撤銷 Agent 權杖，立即失效 |
 
@@ -274,6 +286,58 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 **驗證：** 封面與圖片必須是存在的圖片素材，否則回 400 並列出 `invalid_asset_ids`；圖片不可重複；標籤去空白、去重。
 
 **事件：** `work.variant_created`（含墓碑復活）、`work.variant_updated`、`work.variant_deleted`，`entity_id` 是作品 id，`data` 帶 `platform`、`revision`、`source`（`draft`／`edit`）；刪除事件的 `revision` 是墓碑的版本號。
+
+## AI 基礎（QC-021）
+
+使用者決策（2026-11-17）：文字 AI 接 Gemini、Claude、GPT 三家可切換，視頻用 Gemini；本地模型延後。實作在 `src/ai/`，契約在 contracts 的 `ai.ts`。這張只做基礎，具體 AI 動作在 QC-022（文字候選與改寫）、QC-023（Gemini 視頻理解）。
+
+**供應商介面：** `AIProvider` 有 `generateText`（純文字或依 JSON Schema 的結構化輸出）與選用的 `uploadFile`（給 QC-023 的 Gemini 視頻）。三個 adapter 都用官方 SDK，所有對外 HTTP 只在 adapter 內；base URL 可注入。本地模型日後只要實作同一個介面。
+
+| 供應商 | SDK | 端點 | 結構化輸出 | 拒答／攔截 |
+| --- | --- | --- | --- | --- |
+| Claude | `@anthropic-ai/sdk` | `POST /v1/messages` | `output_config.format`（`json_schema`） | `stop_reason: "refusal"` |
+| GPT | `openai` | `POST /v1/responses`（`store: false`） | `text.format`（`json_schema`, `strict`） | 內容項 `refusal`、`incomplete_details.reason: content_filter` |
+| Gemini | `@google/genai` | `POST /v1/models/<m>:generateContent` | `responseMimeType` + `responseJsonSchema` | `promptFeedback.blockReason`、`finishReason` 為 SAFETY 等 |
+
+- Claude 在支援的模型（Opus 5.5 等）啟用伺服器端拒答備援（`fallbacks: "default"`，beta `server-side-fallback-2026-07-01`）：被拒時由 API 在同一次呼叫改用備援模型，費用以回應中實際服務的模型計價。不要時可在 adapter 移除。
+- Gemini 的思考 token 計入輸出用量。
+
+**金鑰：** 存在 macOS Keychain（`@napi-rs/keyring`，服務名 `com.qiu-creator.creatorhub.ai`，帳號為供應商 id），不經過命令列參數。API 只能寫入與刪除，任何回應都不含金鑰；資料庫只記錄「何時存過」。金鑰只在任務執行前一刻讀取，傳給 adapter 後不保留。錯誤訊息會去掉看起來像金鑰或 Bearer 的字串，並把該次使用的金鑰全文替換成 `[REDACTED]`，長度上限 200 字。測試一律用記憶體實作，`KeychainSecretStore` 在測試執行器下會拒絕建立。
+
+**首次使用告知：** 每個供應商有一段告知文字（內容會送到哪家公司、費用由誰付），帶版本號。使用者以目前版本確認後才能建立任務；沒存金鑰回 409 `ai_key_missing`，沒確認回 409 `ai_consent_required`。告知改版（版本號提高）時要重新確認。撤回確認或刪除金鑰後，已排隊的任務在送出前會再檢查一次，直接失敗（`consent_required`／`missing_key`），不會送出。
+
+**權限：** `/api/v1/ai/*` 全部只限主權杖，連讀取也是；Agent 權杖不能管理金鑰，也不能花錢呼叫 AI。
+
+**任務佇列：** AI 任務存在 `ai_jobs`，由獨立的執行器處理（預設同時 2 個），不佔用縮圖等背景任務的單一工作者。
+
+- 狀態：`queued` → `running` → `succeeded`／`failed`／`cancelled`。服務重啟時，`running` 的任務回到 `queued`。
+- 失敗原因（`error_code`）與處理：
+
+| 代碼 | 來源 | 自動重試 |
+| --- | --- | --- |
+| `rate_limited` | 429 | 是 |
+| `timeout` | 逾時（預設 120 秒） | 是 |
+| `provider_unavailable` | 5xx、529 overloaded、連線失敗 | 是 |
+| `invalid_key` | 401、403；Gemini 的 `API_KEY_INVALID` | 否 |
+| `content_blocked` | 拒答或安全攔截 | 否 |
+| `bad_request` | 400、404、422（模型名稱或參數錯） | 否 |
+| `invalid_output` | 結構化輸出無法解析成 JSON | 否 |
+| `missing_key`、`consent_required` | 排隊後金鑰被刪或告知被撤回 | 否 |
+
+- 自動重試最多 3 次，間隔 5 秒起指數退避。SDK 自帶的重試全部關閉，避免重複計費與重試次數失控。
+- 取消：排隊中直接取消；執行中會中止送往供應商的請求。重跑：失敗或已取消的任務重新排隊並重置次數。
+- `Idempotency-Key`：同一個鍵重送，回傳原本的任務而不重複建立。
+- 事件：`ai_job.queued`／`running`／`succeeded`／`failed`／`cancelled`，`entity` 是 `job`，`data` 只有 `status` 與 `provider`，不含內容。
+
+**費用：**
+
+- 價格表 `AI_PRICE_TABLE` 標明「參考價格、可調」，取自各家官方價格頁（2026-11-17），單位為每百萬 token 美元；可在設定中逐模型覆寫。Google 已公告 Gemini 價格在 2026-12-01 與 2027-01-01 調整，屆時要更新或覆寫。
+- 送出前（`/ai/estimate`，以及建立任務的回應）：輸入 token 以字數粗估（中日韓字約 1 字 1 token，其他約 4 字 1 token），加上輸出上限，得出「最多」花費。
+- 完成後：依供應商回報的 token 用量與價格表計算，記在 `cost_usd`，一律標為估算。結構化輸出解析失敗時，已花的 token 仍計入。
+- 月度提醒：設定 `monthly_budget_usd` 後，本地月份的累計（含這次任務的最多估算）超過時，回應的 `budget.over_budget` 為 true，並帶中文提醒；任務照常送出。
+- 沒有價格的模型照常執行，估算與成本為 `null`。
+
+**預設模型**（可在設定中改）：Gemini `gemini-3.8-flash`（文字與視頻）、Claude `claude-opus-5-5`、GPT `gpt-5.5`。
 
 ## 外部資料夾掛載
 
@@ -380,6 +444,9 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | （程式選項）`mounts.stabilityMs` | 2000 | 檔案停止變化多久才索引 |
 | （程式選項）`mounts.rescanIntervalMs` | 600000 | 掛載的定期完整重掃；0 停用 |
 | `CREATORHUB_FFPROBE` | （自動尋找） | ffprobe 路徑；設為空字串停用。找不到時降級，不報錯 |
+| （程式選項）`ai.concurrency` | 2 | AI 任務同時執行數 |
+| （程式選項）`ai.timeoutMs` | 120000 | 單次供應商請求逾時 |
+| （程式選項）`ai.retryBaseMs` | 5000 | AI 任務自動重試的退避基數 |
 
 ## 尚未實作（依里程碑）
 
@@ -387,5 +454,5 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 - 素材庫還缺的服務端 API：匯入任務取消、素材刪除或移出索引、監控資料夾自動匯入（QC-015）。
 - 平台版本尚無「恢復某一版」的 API（歷史已存好，可直接加）；草稿是固定規則，AI 產生平台版本屬 M3。
 - M2：Electron／外部編輯器／Agent 三方衝突的完整驗收（QC-014）。
-- M3：AI 任務、Keychain 金鑰、Gemini 視頻理解（測試只用假服務）。
+- M3：AI 基礎已完成（QC-021）。文字候選與改寫（QC-022）、Gemini 視頻理解與檔案上傳（QC-023）尚未做；本地模型延後。
 - 生產可用：launchd 實機安裝、崩潰恢復、SQLite 備份與還原（QC-004）。

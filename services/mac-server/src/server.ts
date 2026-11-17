@@ -48,6 +48,14 @@ import { registerEventRoutes } from './routes/events.js';
 import { registerImportRoutes, registerTokenRoutes } from './routes/imports.js';
 import { registerMediaRoutes } from './routes/media.js';
 import { registerMountRoutes } from './routes/mounts.js';
+import { registerAiRoutes } from './routes/ai.js';
+import { AiService, type AiRunnerOptions } from './ai/ai-service.js';
+import type { AIProvider } from './ai/provider.js';
+import { AnthropicProvider } from './ai/providers/anthropic.js';
+import { GeminiProvider } from './ai/providers/gemini.js';
+import { OpenAIProvider } from './ai/providers/openai.js';
+import { KeychainSecretStore, type SecretStore } from './ai/secret-store.js';
+import type { AiProvider } from '@qiu-creator/contracts';
 import { registerVariantRoutes } from './routes/variants.js';
 import { VariantService } from './variants/variant-service.js';
 import { sendRanged } from './http/ranged.js';
@@ -92,6 +100,18 @@ export interface BuildServerOptions {
   download?: DownloadSettings;
   /** External folder watching (stability window for half-written files, etc.). */
   mounts?: MountServiceOptions;
+  /**
+   * AI providers. `secrets` defaults to the macOS Keychain (refused under
+   * the test runner); `baseUrls` point adapters at another origin (tests use
+   * local fake servers); `providers` replaces adapters entirely.
+   */
+  ai?: AiRunnerOptions & {
+    secrets?: SecretStore;
+    baseUrls?: Partial<Record<AiProvider, string>>;
+    providers?: Partial<Record<AiProvider, AIProvider>>;
+    timeoutMs?: number;
+    start?: boolean;
+  };
   /** Lifetime of signed media URLs (default 1 hour); `now` is injectable for tests. */
   signedUrls?: { ttlMs?: number; now?: () => number };
 }
@@ -110,6 +130,7 @@ export interface CreatorHubServer {
   media: WorkMediaService;
   signer: MediaUrlSigner;
   variants: VariantService;
+  ai: AiService;
 }
 
 function isHttpError(err: unknown): err is Error & { statusCode: number } {
@@ -148,6 +169,20 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   );
   const media = new WorkMediaService(works, assets, layout, signer, assets.limits);
   const variants = new VariantService(db, works, assets, media, feed);
+  const aiOptions = options.ai ?? {};
+  const timeoutMs = aiOptions.timeoutMs ?? 120_000;
+  const adapter = (p: AiProvider) => ({ baseUrl: aiOptions.baseUrls?.[p], timeoutMs });
+  const ai = new AiService(
+    db,
+    aiOptions.secrets ?? new KeychainSecretStore(),
+    {
+      gemini: aiOptions.providers?.gemini ?? new GeminiProvider(adapter('gemini')),
+      anthropic: aiOptions.providers?.anthropic ?? new AnthropicProvider(adapter('anthropic')),
+      openai: aiOptions.providers?.openai ?? new OpenAIProvider(adapter('openai')),
+    },
+    feed,
+    aiOptions,
+  );
 
   const app = Fastify({
     logger:
@@ -169,6 +204,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.addHook('onClose', async () => {
+    await ai.stop();
     await mounts.stop();
     await jobs.stop();
     db.close();
@@ -409,9 +445,11 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerMountRoutes(app, mounts);
   registerMediaRoutes(app, media, assets, signer, tokens);
   registerVariantRoutes(app, variants);
+  registerAiRoutes(app, ai, idempotency);
 
   mounts.start();
   if (options.jobs?.start !== false) jobs.start();
+  if (aiOptions.start !== false) ai.start();
   return {
     app,
     db,
@@ -426,5 +464,6 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     media,
     signer,
     variants,
+    ai,
   };
 }

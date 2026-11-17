@@ -38,6 +38,8 @@ const IMPORT_ROUTES = new Set([
 export function requiredAccess(method: string, routeUrl: string | undefined): RequiredAccess {
   if (routeUrl === undefined) return 'read'; // unmatched: authenticated 404
   if (routeUrl.startsWith('/api/v1/tokens')) return 'owner';
+  // AI: keys, consent and anything that spends money are the owner's alone, reads included.
+  if (routeUrl === '/api/v1/ai' || routeUrl.startsWith('/api/v1/ai/')) return 'owner';
   if (routeUrl === TUS_UPLOAD_PATH || routeUrl.startsWith(`${TUS_UPLOAD_PATH}/`)) return 'import';
   const key = `${method} ${routeUrl}`;
   if (key === 'GET /api/v1/jobs/:id' || key === 'HEAD /api/v1/jobs/:id')

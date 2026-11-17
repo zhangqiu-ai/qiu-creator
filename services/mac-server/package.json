@@ -15,8 +15,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.9.0",
     "@fastify/swagger": "^9.9.3",
     "@fastify/swagger-ui": "^6.1.4",
+    "@google/genai": "^3.4.0",
+    "@napi-rs/keyring": "^2.1.2",
     "@qiu-creator/contracts": "workspace:*",
     "@qiu-creator/domain": "workspace:*",
     "@tus/file-store": "^2.1.2",
@@ -31,6 +34,7 @@
     "mdast-util-gfm": "^3.1.0",
     "micromark-extension-frontmatter": "^2.0.0",
     "micromark-extension-gfm": "^3.0.0",
+    "openai": "^7.57.0",
     "sharp": "^0.35.5",
     "tsx": "^4.23.15",
     "zod": "^4.6.7"
