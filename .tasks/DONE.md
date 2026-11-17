@@ -1,5 +1,24 @@
 # Done
 
+## QC-016: SSE external_revision 測試在高負載下逾時
+
+**Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M2, backend
+
+### 完成摘要
+
+- 根因：測試輔助 `collect` 訂閱 SSE 後只固定等 50 ms，高負載時連線晚於事件而漏收；伺服器行為正確未改。
+- 修法：訂閱前取 `feed.latestSeq()` 當 Last-Event-ID、移除固定等待；新增延遲連線回歸測試（先紅後綠）。負載 25 對照：舊版 4／60 失敗、新版 0／60。證據 `docs/evidence/qc016-sse-external-flake.md`。合併 2026-11-17。
+
+## QC-013: 四平台模擬預覽（M2 前端 3/3）
+
+**Priority:** P0 | **Assignee:** qc-frontend | **Tags:** M2, frontend
+
+### 完成摘要
+
+- `packages/platform-preview`：純 TS 的 `buildPreviewModel()` 加四個模擬模板，畫面元件在 `./react`，不綁死 Electron；全部標「模擬」、無官方標誌。
+- 平台預覽頁：各平台獨立 revision、自動儲存（組字中不存）、從原稿建立／重新產生（先確認）、即時超限警告；409 時由使用者選「載入最新」或明確「以我的修改覆蓋」（舊版留在歷史）。
+- 驗收：總監合併後複跑 417／0／417（含 QC-016）；Electron 實機 20/20，證據 `docs/evidence/qc013-acceptance.md`。NOT_VERIFIED：實體輸入法、VoiceOver、雙實機視窗、上限是否符合真實平台、影片預覽、建置版。合併 2026-11-17。
+
 ## QC-009: 平台版本 API（M2 後端 2/2）
 
 **Priority:** P0 | **Assignee:** qc-backend | **Tags:** M2, backend
