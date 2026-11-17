@@ -76,6 +76,7 @@ $CREATORHUB_HOME（預設 ~/CreatorHub；開發與測試一律用臨時目錄）
   data/
     creatorhub.sqlite          # WAL 模式
     api-token                  # 自動產生的權杖（0600），未設 CREATORHUB_TOKEN 時使用
+    media-signing.key          # 簽名媒體網址的 HMAC 金鑰（0600，自動產生）；刪除後重啟即作廢所有已發出的網址
     uploads/                   # 進行中的 tus 上傳（<id> 與 <id>.json）；不是快取，刪除會失去未完成的上傳
     incoming/                  # 直傳的暫存檔，校驗後移入素材庫或刪除
 ```
@@ -100,6 +101,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 `0004_external_mounts`：新增 `mounts`（`root_path` 唯一、`status` 為 active／unavailable／removed）；`works` 增加 `mount_id`、`external_state`，並以 `(mount_id, source_path)` 建唯一索引。
 
+`0005_external_assets`：`assets` 增加 `mount_id`、`file_mtime_ms`，並以 `(mount_id, path)` 建唯一索引。外部素材的 `path` 相對於掛載根目錄，檔案留在原地。
+
 `works` 比方案多了 `storage_mode`（managed／external）、`source_path`、`current_revision_id`，以便區分托管與外部掛載並快速核對版本。
 
 ## API
@@ -114,12 +117,20 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/works/:id` | 讀取（含 Markdown），回 `ETag: "<revision>"` |
 | PATCH | `/api/v1/works/:id` | 修改；需要 `base_revision` 或 `If-Match` |
 | GET | `/api/v1/works/:id/revisions` | 版本歷史 |
+| GET | `/api/v1/works/:id/revisions/:rid` | 單一歷史版本：標題與完整 Markdown 快照 |
+| POST | `/api/v1/works/:id/revisions/:rid/restore` | 恢復某版本：追加一個 `restore` revision；需要 `base_revision` 或 `If-Match` |
+| GET | `/api/v1/works/:id/media` | 解析 Markdown 引用的圖片／影音，回每項狀態與簽名網址；外部作品的引用登記成素材 |
+| GET | `/api/v1/works/:id/files/*` | 以 Bearer 讀作品內的媒體檔，支援 Range（規則同簽名路由） |
+| POST | `/api/v1/media/signed-urls` | 為素材（`stream`／`thumbnail`）簽發短期網址 |
+| GET | `/media/v1/works/:id/files/*?exp&p&sig` | 簽名媒體檔，不需 Authorization，支援 Range |
+| GET | `/media/v1/assets/:id/{stream,thumbnail}?exp&p&sig` | 簽名素材串流與縮圖 |
 | GET | `/api/v1/assets/:id/stream` | 素材串流，支援 Range |
 | POST | `/api/v1/assets/uploads?filename=` | 直傳（`application/octet-stream`，≤ 32 MiB）；新素材 201、重複內容 200 並帶 `deduplicated: true` |
 | POST／HEAD／PATCH | `/api/v1/assets/uploads/tus[/:id]` | tus 1.0.0 可續傳上傳；最後一塊 PATCH 回 200 與素材 JSON |
 | GET | `/api/v1/assets` | 素材庫列表；`kind`、`q`（原檔名）、`limit`、`offset` |
 | GET | `/api/v1/assets/:id` | 素材詳情（含縮圖、元資料狀態） |
 | GET | `/api/v1/assets/:id/thumbnail` | WebP 縮圖；`cache/` 被刪時即時重建 |
+| GET | `/api/v1/assets/:id/works` | 反查使用此素材的作品：作品 id、標題、用途、位置，依作品更新時間新到舊 |
 | GET | `/api/v1/works/:id/assets` | 作品的素材，依用途與順序 |
 | POST | `/api/v1/works/:id/assets` | 關聯素材（`cover`／`body`／`video`，可指定位置；重複關聯即移動） |
 | DELETE | `/api/v1/works/:id/assets/:assetId?role=` | 移除關聯，順序自動補齊 |
@@ -147,6 +158,52 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 2. **校驗**（`src/media/detect.ts`）：以 magic bytes 判斷類型並對白名單；副檔名不作數（例如名為 `.mp4` 的 PNG 會被存成 `.png`；改名成 `.jpg` 的 ZIP 回 415）。再依類型檢查大小上限：圖片 50 MiB、音訊 1 GiB、視頻 20 GiB、Markdown 5 MiB。
 3. **去重**：算 sha256；已有相同內容就刪掉暫存檔，回原素材與 `deduplicated: true`。
 4. **入庫**：暫存檔 `rename` 到 `library/assets/<id>/`，同一個 SQLite 交易寫 `assets`、`change_log`，並為圖片排縮圖任務、為視頻／音訊排 ffprobe 任務。
+
+## 版本恢復（QC-010）
+
+- `GET /works/:id/revisions/:rid` 讀快照檔，回該版本的標題與 Markdown。
+- `POST …/restore` 走與 PATCH 相同的寫入流程：先對帳外部修改、核對 base（沒帶回 428，過期回 409 並帶 `current_revision`）、寫新快照、內容有變才原子寫入原稿、同一交易更新資料庫。新版本 `source: "restore"`，`parent_revision_id` 是恢復前的目前版本，Markdown 與標題複製自被恢復的版本；舊版本與快照完全不動，恢復本身也能再被恢復。
+- 狀態、類型、標籤不屬於版本內容，恢復時保持現值。
+- 外部作品恢復時寫回掛載資料夾的原檔；檔案遺失或未掛載回 409 `source_missing`，不重建檔案。
+- 事件：`work.updated`，`data` 帶 `revision_id`、`source`（`edit`／`restore`）、`fields`，恢復時另帶 `restored_from`。
+
+**PATCH 狀態與標籤：** `status` 只接受四種狀態；標籤會去掉首尾空白、去除重複（保留順序），每個 1–64 字、最多 64 個，格式不符回 400 且不寫入。只改中繼資料也會產生新 revision（標題記在 revision 上），同樣受 409 保護。
+
+## Markdown 媒體解析與簽名網址（QC-010）
+
+`GET /works/:id/media` 用與編輯器相同的 mdast + GFM + front matter 解析器，找出 `![](…)`、參照式圖片、HTML 中 `<img>`／`<video>`／`<audio>`／`<source>` 的 `src`（程式碼區塊與 front matter 不算），逐一分類：
+
+| 狀態 | 意思 |
+| --- | --- |
+| `resolved` | 允許範圍內的圖片／影音檔，帶 `url`（簽名）、`kind`、`mime_type`、`bytes`、`asset_id` |
+| `missing` | 路徑允許但檔案不存在，或外部作品的掛載不在 |
+| `rejected` | 跳出根目錄、經過符號連結、絕對路徑、`file:` 等其他 scheme、無法解碼的 `%` 序列，或托管作品的 `assets/` 以外 |
+| `unsupported` | 檔案存在但不是白名單內的圖片／影音（例如 SVG、HTML），或超過該類型大小上限 |
+| `remote` | `http(s)://` 或 `//`；不下載，需要時走 URL 匯入 |
+| `inline` | `data:` URI |
+
+- **根目錄：** 托管作品以作品資料夾為根，只能讀 `assets/…`，`source.md`、`revisions/` 都讀不到。外部作品以掛載根目錄為根，引用相對於筆記所在資料夾解析，可以用 `../` 指到同一掛載的其他資料夾，但不能超出掛載根目錄。
+- **路徑處理：** 去掉 `?query` 與 `#fragment`、做 `%` 解碼，再以 POSIX 規則正規化；含反斜線、NUL、絕對路徑一律拒絕。
+- **不跟隨符號連結：** 根目錄以下逐段 `lstat`，任何一段是符號連結就拒絕；最後以 `O_NOFOLLOW` 開檔並比對 inode，防止檢查與開檔之間被換成連結。串流使用同一個檔案描述符。
+- **類型：** 以 magic bytes 判斷，只服務上傳白名單內的圖片／影音／音訊。SVG 可能夾帶腳本，因此不服務。
+- **外部圖片登記：** 外部作品引用到的檔案以 `origin: folder`、`mount_id`、`path`（相對掛載根）登記成素材，**不搬移、不複製**，並以 `body`（視頻為 `video`）關聯到作品；已經關聯過就不再動。大小或修改時間變了才重新算 sha256。縮圖與 ffprobe 直接讀原地檔案。上傳去重只比對托管素材，不會把上傳指到可能消失的外部檔案。
+- **托管素材：** `assets/…` 若對應已登記的素材，回傳其 `asset_id`。
+
+**素材檢視器（`<img>`／`<video>` 播放原檔）：** `POST /api/v1/media/signed-urls` 一次為多個素材簽發 `stream` 或 `thumbnail` 網址，得到 `/media/v1/assets/<id>/stream?exp&p&sig`。這是 `GET /api/v1/assets/:id/stream` 的簽名版，Range 行為相同：`bytes=0-`、`a-b`、`-n` 回 206，超出範圍回 416。Bearer 路由本身維持只認 header，不接受網址上的簽名，兩種憑證不混用。
+
+**為什麼用簽名網址：** Electron renderer 的 `<img>`／`<video>` 不能帶 `Authorization` header。評估過三種做法：
+
+1. **短期簽名網址（採用）。** 伺服器以 HMAC-SHA256 簽 `(principal, 到期時間, 正規化路徑)`，網址形如 `/media/v1/works/<id>/files/assets/a.png?exp=…&p=owner&sig=…`。
+   - 一個網址只能開一個檔案；改路徑、延長到期、換 principal 都會 403。
+   - 預設 1 小時到期（看長視頻與拖動進度夠用），過期重新呼叫 `/media` 即可。
+   - 每次請求都重新確認簽發者仍有效：Agent 權杖撤銷或失去 `read` 後，它拿到的網址立刻失效。
+   - 權杖本身不會出現在網址裡。日誌記錄網址時把 `sig` 遮掉。
+   - 回應帶 `Cache-Control: private, max-age≤300`、`X-Content-Type-Options: nosniff`、`Referrer-Policy: no-referrer`、`Content-Security-Policy: default-src 'none'; sandbox`。
+   - 第二期的 iPhone／iPad WebView 可以直接沿用。
+2. **主程序代理（自訂 protocol 轉發並加 header）。** 權杖也不進 renderer，但 Range、串流背壓、錯誤碼都要在主程序重做一次，而且只在 Electron 有效。
+3. **Cookie 或網址帶長期權杖。** 前者要處理 CSRF 與跨來源，後者讓權杖進入歷史、日誌與 Referer。不採用。
+
+**取捨：** 簽名網址在到期前等同對單一檔案的讀取憑證，複製出去的網址在到期前（且簽發者未撤銷時）都能讀到該檔。服務只聽本機或 Tailscale，風險可接受。要立即作廢全部網址，可刪除 `data/media-signing.key` 後重啟。
 
 ## 外部資料夾掛載
 
@@ -211,7 +268,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 ## 變更事件（SSE）
 
-`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `work.created`、`work.updated`、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`、`asset.created`、`asset.updated`、`job.queued`、`job.running`、`job.succeeded`、`job.failed`。
+`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`、`asset.created`、`asset.updated`、`job.queued`、`job.running`、`job.succeeded`、`job.failed`。
 
 - 和其他 `/api` 路由一樣要 Bearer 權杖。瀏覽器的 `EventSource` 不能帶 header，所以 api-client 用 fetch 讀串流（`client.events.subscribe`）；權杖不接受放在 URL。
 - 事件先寫進 `change_log` 再推送：在寫入方的交易提交後才發出，交易回滾的變更不會被推送。
@@ -256,8 +313,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 ## 尚未實作（依里程碑）
 
-- M1 已完成。視頻縮圖（需 ffmpeg）尚未做；外部資料夾中的圖片尚未與作品關聯（目前只索引 Markdown）。
-- Mac App（QC-002 之後）：圖片顯示（相對路徑與托管素材要對應到 `/api/v1/assets/:id/stream`）、版本恢復、作品狀態與標籤編輯、訂閱變更事件（主程序訂閱 SSE 再經 IPC 推給 renderer，用於外部修改提示與列表即時刷新）。
-- M2：平台版本 API、版本恢復、Electron／外部編輯器／Agent 三方衝突的完整驗收。
+- M1 已完成。視頻縮圖（需 ffmpeg）尚未做。外部圖片只在呼叫 `/works/:id/media` 時登記，掛載掃描不會主動登記。
+- Mac App（QC-011）：以 `/works/:id/media` 的簽名網址顯示圖片、版本恢復介面、作品狀態與標籤編輯、訂閱變更事件。
+- M2：平台版本 API（QC-009）、Electron／外部編輯器／Agent 三方衝突的完整驗收。
 - M3：AI 任務、Keychain 金鑰、Gemini 視頻理解（測試只用假服務）。
 - 生產可用：launchd 實機安裝、崩潰恢復、SQLite 備份與還原（QC-004）。

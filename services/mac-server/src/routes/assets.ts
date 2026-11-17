@@ -6,6 +6,7 @@ import { pipeline } from 'node:stream/promises';
 import {
   AssetIdParamsSchema,
   AssetRecordSchema,
+  AssetWorkListResponseSchema,
   DIRECT_UPLOAD_MAX_BYTES,
   DirectUploadQuerySchema,
   ErrorResponseSchema,
@@ -235,6 +236,19 @@ export function registerAssetRoutes(
       },
     },
     (req) => assets.get(req.params.id),
+  );
+
+  app.get(
+    '/api/v1/assets/:id/works',
+    {
+      schema: {
+        description:
+          'Works that use this asset, with their title and the role (cover/body/video) and position the asset has in each. Most recently updated work first.',
+        params: AssetIdParamsSchema,
+        response: { 200: AssetWorkListResponseSchema, ...errorResponses },
+      },
+    },
+    (req) => ({ items: assets.assetWorks(req.params.id) }),
   );
 
   app.get(

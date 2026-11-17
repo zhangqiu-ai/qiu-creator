@@ -13,7 +13,11 @@ const WRITE_ROUTES = new Set([
   'POST /api/v1/works/:id/assets',
   'DELETE /api/v1/works/:id/assets/:assetId',
   'PUT /api/v1/works/:id/assets/order',
+  'POST /api/v1/works/:id/revisions/:rid/restore',
 ]);
+
+/** Non-GET routes that only read (they sign URLs for files the caller can already read). */
+const READ_ROUTES = new Set(['POST /api/v1/media/signed-urls']);
 
 const IMPORT_ROUTES = new Set([
   'POST /api/v1/works',
@@ -36,6 +40,7 @@ export function requiredAccess(method: string, routeUrl: string | undefined): Re
     return 'read_or_own_import';
   if (IMPORT_ROUTES.has(key)) return 'import';
   if (WRITE_ROUTES.has(key)) return 'write';
+  if (READ_ROUTES.has(key)) return 'read';
   if (method === 'GET' || method === 'HEAD') return 'read';
   return 'owner';
 }

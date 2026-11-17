@@ -59,6 +59,26 @@ describe('createClient', () => {
     expect((err as ApiError).currentRevision).toBe('r2');
   });
 
+  it('restores a revision with base_revision or If-Match, and builds absolute media URLs', async () => {
+    const f = fakeFetch(409, {
+      error: {
+        code: 'revision_conflict',
+        message: 'stale',
+        details: { current_revision: 'r3', base_revision: 'r2' },
+      },
+    });
+    const client = createClient({ baseUrl: 'http://mac:7420/', token: 't', fetch: f.fetch });
+    const err: unknown = await client.works
+      .restore('w 1', 'r1', { base_revision: 'r2' }, { ifMatch: 'r2' })
+      .catch((e: unknown) => e);
+    expect(f.calls[0]?.url).toBe('http://mac:7420/api/v1/works/w%201/revisions/r1/restore');
+    expect(f.calls[0]?.init?.method).toBe('POST');
+    expect(f.calls[0]?.init?.body).toBe('{"base_revision":"r2"}');
+    expect(new Headers(f.calls[0]?.init?.headers).get('if-match')).toBe('"r2"');
+    expect((err as ApiError).currentRevision).toBe('r3');
+    expect(client.media.absoluteUrl('/media/v1/x?sig=1')).toBe('http://mac:7420/media/v1/x?sig=1');
+  });
+
   it('rejects responses that do not match the contract', async () => {
     const f = fakeFetch(200, { status: 'weird' });
     const client = createClient({ baseUrl: 'http://mac', token: 't', fetch: f.fetch });

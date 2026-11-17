@@ -28,6 +28,11 @@ export const AssetRecordSchema = AssetSchema.extend({
   metadata_status: AssetMetadataStatusSchema,
   thumbnail_status: AssetThumbnailStatusSchema,
   updated_at: TimestampSchema,
+  /**
+   * External assets only (QC-010): the mount whose folder holds the file; `path`
+   * is then relative to the mount root. Indexed in place, never moved or copied.
+   */
+  mount_id: IdSchema.nullable().optional(),
 });
 export type AssetRecord = z.infer<typeof AssetRecordSchema>;
 
@@ -88,6 +93,19 @@ export const ReorderWorkAssetsRequestSchema = z.object({
   asset_ids: z.array(IdSchema).min(1),
 });
 export type ReorderWorkAssetsRequest = z.input<typeof ReorderWorkAssetsRequestSchema>;
+
+/** One work that uses an asset (reverse lookup of `work_assets`). */
+export const AssetWorkItemSchema = z.object({
+  work_id: IdSchema,
+  title: z.string(),
+  role: WorkAssetRoleSchema,
+  position: z.number().int().nonnegative(),
+  updated_at: TimestampSchema,
+});
+export type AssetWorkItem = z.infer<typeof AssetWorkItemSchema>;
+
+export const AssetWorkListResponseSchema = z.object({ items: z.array(AssetWorkItemSchema) });
+export type AssetWorkListResponse = z.infer<typeof AssetWorkListResponseSchema>;
 
 export const WorkAssetParamsSchema = z.object({ id: IdSchema, assetId: IdSchema });
 export const WorkAssetRoleQuerySchema = z.object({ role: WorkAssetRoleSchema });

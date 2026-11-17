@@ -1,5 +1,6 @@
 import {
   AssetRecordSchema,
+  AssetWorkListResponseSchema,
   ChangeEventSchema,
   DIRECT_UPLOAD_MAX_BYTES,
   ErrorResponseSchema,
@@ -9,6 +10,7 @@ import {
   UploadAssetResponseSchema,
   WorkAssetListResponseSchema,
   type AssetRecord,
+  type AssetWorkListResponse,
   type ChangeEvent,
   type LinkWorkAssetRequest,
   type ListAssetsQuery,
@@ -58,6 +60,8 @@ export interface CreatorHubAssetsApi {
   uploadResumable(input: ResumableUploadInput): Promise<UploadAssetResponse>;
   list(query?: ListAssetsQuery): Promise<ListAssetsResponse>;
   get(id: string): Promise<AssetRecord>;
+  /** Works that use this asset (title, role, position). */
+  works(id: string): Promise<AssetWorkListResponse>;
   /** WebP thumbnail bytes (images only). */
   thumbnail(id: string): Promise<Uint8Array>;
 }
@@ -278,6 +282,13 @@ export function createAssetsApi(ctx: Ctx): CreatorHubAssetsApi {
     uploadResumable,
     list: (q = {}) => call(ctx, ListAssetsResponseSchema, 'GET', `/api/v1/assets${query(q)}`),
     get: (id) => call(ctx, AssetRecordSchema, 'GET', `/api/v1/assets/${encodeURIComponent(id)}`),
+    works: (id) =>
+      call(
+        ctx,
+        AssetWorkListResponseSchema,
+        'GET',
+        `/api/v1/assets/${encodeURIComponent(id)}/works`,
+      ),
     thumbnail: async (id) => {
       const res = await ctx.doFetch(
         `${ctx.baseUrl}/api/v1/assets/${encodeURIComponent(id)}/thumbnail`,

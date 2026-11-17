@@ -3,16 +3,25 @@ import {
   ErrorResponseSchema,
   HealthResponseSchema,
   ListWorksResponseSchema,
+  RevisionDetailSchema,
   RevisionListResponseSchema,
+  SignedAssetUrlsRequestSchema,
+  SignedAssetUrlsResponseSchema,
   WorkDetailSchema,
+  WorkMediaResponseSchema,
   type CreateWorkRequest,
   type ErrorResponse,
   type HealthResponse,
   type ListWorksQuery,
   type ListWorksResponse,
   type PatchWorkRequest,
+  type RestoreRevisionRequest,
+  type RevisionDetail,
   type RevisionListResponse,
+  type SignedAssetUrlsRequest,
+  type SignedAssetUrlsResponse,
   type WorkDetail,
+  type WorkMediaResponse,
 } from '@qiu-creator/contracts';
 import type { z } from 'zod';
 import {
@@ -103,6 +112,26 @@ export interface CreatorHubClient {
     get(id: string): Promise<WorkDetail>;
     patch(id: string, input: PatchWorkRequest, options?: PatchWorkOptions): Promise<WorkDetail>;
     revisions(id: string): Promise<RevisionListResponse>;
+    /** One historical revision with its Markdown. */
+    revision(id: string, revisionId: string): Promise<RevisionDetail>;
+    /**
+     * Restore `revisionId` as a new `restore` revision. Pass `base_revision`
+     * (or `options.ifMatch`); a stale base throws `ApiError` 409.
+     */
+    restore(
+      id: string,
+      revisionId: string,
+      input: RestoreRevisionRequest,
+      options?: PatchWorkOptions,
+    ): Promise<WorkDetail>;
+    /** Resolve media referenced from the work's Markdown, with signed URLs (relative; see `mediaUrl`). */
+    media(id: string): Promise<WorkMediaResponse>;
+  };
+  /** Signed, header-less URLs for `<img>`/`<video>` (QC-010). */
+  media: {
+    signedAssetUrls(input: SignedAssetUrlsRequest): Promise<SignedAssetUrlsResponse>;
+    /** Absolute URL for a relative signed `url` returned by the server. */
+    absoluteUrl(relative: string): string;
   };
   /** Asset library and uploads (QC-005). */
   assets: CreatorHubAssetsApi;
@@ -192,6 +221,34 @@ export function createClient(options: CreatorHubClientOptions): CreatorHubClient
           'GET',
           `/api/v1/works/${encodeURIComponent(id)}/revisions`,
         ),
+      revision: (id, revisionId) =>
+        request(
+          RevisionDetailSchema,
+          'GET',
+          `/api/v1/works/${encodeURIComponent(id)}/revisions/${encodeURIComponent(revisionId)}`,
+        ),
+      restore: (id, revisionId, input, restoreOptions = {}) =>
+        request(
+          WorkDetailSchema,
+          'POST',
+          `/api/v1/works/${encodeURIComponent(id)}/revisions/${encodeURIComponent(revisionId)}/restore`,
+          {
+            body: input,
+            headers:
+              restoreOptions.ifMatch === undefined
+                ? {}
+                : { 'if-match': `"${restoreOptions.ifMatch}"` },
+          },
+        ),
+      media: (id) =>
+        request(WorkMediaResponseSchema, 'GET', `/api/v1/works/${encodeURIComponent(id)}/media`),
+    },
+    media: {
+      signedAssetUrls: (input) =>
+        request(SignedAssetUrlsResponseSchema, 'POST', '/api/v1/media/signed-urls', {
+          body: SignedAssetUrlsRequestSchema.parse(input),
+        }),
+      absoluteUrl: (relative) => `${baseUrl}${relative.startsWith('/') ? '' : '/'}${relative}`,
     },
   };
 }
