@@ -57,6 +57,7 @@ export function App() {
   const [connection, setConnection] = useState<Connection>({ state: 'connecting' });
   const [route, setRoute] = useState<Route>({ page: 'library' });
   const [home, setHome] = useState<string | null>(null);
+  const [userHome, setUserHome] = useState<string | null>(null);
 
   const tryConnect = useCallback(() => {
     const bridge = window.creatorhub;
@@ -68,6 +69,7 @@ export function App() {
     void connect(bridge).then(setConnection);
     void bridge.appInfo().then((info) => {
       setHome(info.home);
+      setUserHome(info.userHome);
     });
   }, []);
 
@@ -139,6 +141,7 @@ export function App() {
       ) : route.page === 'library' ? (
         <LibraryPage
           client={connection.client}
+          userHome={userHome}
           onOpen={openWork}
           onCreated={(work) => {
             setRoute({ page: 'editor', work });
@@ -149,6 +152,7 @@ export function App() {
           key={route.work.id}
           client={connection.client}
           work={route.work}
+          userHome={userHome}
           onBack={() => {
             setRoute({ page: 'library' });
           }}
@@ -158,7 +162,9 @@ export function App() {
           key={route.focusAssetId ?? 'assets'}
           client={connection.client}
           home={home}
+          userHome={userHome}
           focusAssetId={route.focusAssetId}
+          onOpenWork={openWork}
           onOpenImports={() => {
             go('imports');
           }}

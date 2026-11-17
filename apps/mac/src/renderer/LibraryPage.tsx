@@ -2,8 +2,10 @@ import type { CreatorHubClient } from '@qiu-creator/api-client';
 import type { Work, WorkDetail, WorkStatus, WorkType } from '@qiu-creator/contracts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Chip } from './Chip.js';
+import { useRefreshOn } from './events.js';
 import { formatWhen, sourceLabel, WORK_STATUS, WORK_TYPE } from './format.js';
 import { Icon } from './Icon.js';
+import { externalSource, useMounts } from './mounts.js';
 
 type View = 'grid' | 'list';
 type TypeFilter = 'all' | WorkType;
@@ -37,12 +39,23 @@ function writeView(view: View): void {
 
 export interface LibraryPageProps {
   client: CreatorHubClient;
+  /** For showing mount folders as `~/…`. */
+  userHome: string | null;
   onOpen: (id: string) => void;
   onCreated: (work: WorkDetail) => void;
 }
 
-/** 作品庫 from the approved prototype: search, type/status filters, grid or list. */
-export function LibraryPage({ client, onOpen, onCreated }: LibraryPageProps) {
+/** True when an external work's file is gone or its folder unmounted (PT-20261117-001). */
+export function isMissing(work: Pick<Work, 'external_state'>): boolean {
+  return work.external_state === 'missing' || work.external_state === 'unmounted';
+}
+
+/**
+ * 作品庫 from the approved prototype: search, type/status filters, grid or
+ * list. Refreshes live from SSE work events; external works show their mount
+ * and a 檔案遺失 chip when the file is gone (PT-20261117-001).
+ */
+export function LibraryPage({ client, userHome, onOpen, onCreated }: LibraryPageProps) {
   const [works, setWorks] = useState<readonly Work[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState('');
@@ -73,6 +86,8 @@ export function LibraryPage({ client, onOpen, onCreated }: LibraryPageProps) {
   }, [client, appliedQuery, type]);
 
   useEffect(load, [load]);
+  useRefreshOn(['work'], load, 300);
+  const mounts = useMounts(client);
 
   // Search is debounced and never runs while the IME is still composing.
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -272,7 +287,7 @@ export function LibraryPage({ client, onOpen, onCreated }: LibraryPageProps) {
               <li key={w.id}>
                 <button
                   type="button"
-                  className="wcard"
+                  className={isMissing(w) ? 'wcard wcard--missing' : 'wcard'}
                   onClick={() => {
                     onOpen(w.id);
                   }}
@@ -285,9 +300,12 @@ export function LibraryPage({ client, onOpen, onCreated }: LibraryPageProps) {
                     <span className="wcard__meta">
                       <Chip tone={WORK_STATUS[w.status].tone}>{WORK_STATUS[w.status].label}</Chip>
                       <span>{WORK_TYPE[w.type].label}</span>
+                      {isMissing(w) && <MissingChip />}
                     </span>
                     <span className="wcard__meta wcard__meta--muted">
-                      <span>{sourceLabel(w)}</span>
+                      <span title={externalSource(w, mounts, userHome)?.file ?? undefined}>
+                        {externalSource(w, mounts, userHome)?.label ?? sourceLabel(w)}
+                      </span>
                       <span className="wcard__when">{formatWhen(w.updated_at)}</span>
                     </span>
                   </span>
@@ -314,24 +332,43 @@ export function LibraryPage({ client, onOpen, onCreated }: LibraryPageProps) {
                 {shown.map((w) => (
                   <tr key={w.id}>
                     <td>
-                      <button
-                        type="button"
-                        className="tbl__open"
-                        onClick={() => {
-                          onOpen(w.id);
-                        }}
-                      >
-                        <span className="tbl__thumb" aria-hidden="true">
-                          <Icon name={WORK_TYPE[w.type].icon} size={14} />
-                        </span>
-                        {w.title}
-                      </button>
+                      <span className="tbl__title">
+                        <button
+                          type="button"
+                          className="tbl__open"
+                          onClick={() => {
+                            onOpen(w.id);
+                          }}
+                        >
+                          <span
+                            className={
+                              isMissing(w) ? 'tbl__thumb tbl__thumb--missing' : 'tbl__thumb'
+                            }
+                            aria-hidden="true"
+                          >
+                            <Icon name={WORK_TYPE[w.type].icon} size={14} />
+                          </span>
+                          {w.title}
+                        </button>
+                        {w.storage_mode === 'external' && (
+                          <span
+                            className="src-ext src-ext--small"
+                            title={externalSource(w, mounts, userHome)?.folder ?? undefined}
+                          >
+                            <Icon name="folder" size={11} />
+                            外部
+                          </span>
+                        )}
+                        {isMissing(w) && <MissingChip />}
+                      </span>
                     </td>
                     <td className="muted">{WORK_TYPE[w.type].label}</td>
                     <td>
                       <Chip tone={WORK_STATUS[w.status].tone}>{WORK_STATUS[w.status].label}</Chip>
                     </td>
-                    <td className="muted">{sourceLabel(w)}</td>
+                    <td className="muted">
+                      {externalSource(w, mounts, userHome)?.label ?? sourceLabel(w)}
+                    </td>
                     <td className="faint">{w.tags.map((t) => `#${t}`).join(' ')}</td>
                     <td className="faint tbl__right">{formatWhen(w.updated_at)}</td>
                   </tr>
@@ -342,5 +379,14 @@ export function LibraryPage({ client, onOpen, onCreated }: LibraryPageProps) {
         )}
       </section>
     </main>
+  );
+}
+
+function MissingChip() {
+  return (
+    <span className="chip chip--bad">
+      <Icon name="fileMissing" size={12} />
+      檔案遺失
+    </span>
   );
 }

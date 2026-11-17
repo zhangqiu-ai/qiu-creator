@@ -1,9 +1,17 @@
 import type { CreatorHubClient } from '@qiu-creator/api-client';
-import type { AssetKind, AssetOrigin, AssetRecord } from '@qiu-creator/contracts';
+import type {
+  AssetKind,
+  AssetOrigin,
+  AssetRecord,
+  AssetWorkItem,
+  Mount,
+  WorkAssetRole,
+} from '@qiu-creator/contracts';
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
 import { assetMediaUrl, thumbnailUrl } from '../shared/bridge.js';
 import { Chip } from './Chip.js';
 import { useRefreshOn } from './events.js';
+import { useMounts } from './mounts.js';
 import {
   ASSET_KIND,
   assetName,
@@ -11,6 +19,7 @@ import {
   formatDimensions,
   formatDuration,
   shortHash,
+  tildePath,
 } from './format.js';
 import { Icon } from './Icon.js';
 
@@ -25,6 +34,40 @@ const ORIGIN_LABEL: Readonly<Record<AssetOrigin, string>> = {
   api: 'Agent API',
   manual: '手動',
 };
+
+const ROLE_LABEL: Readonly<Record<WorkAssetRole, string>> = {
+  cover: '封面',
+  body: '正文',
+  video: '影片',
+};
+
+export interface AssetGroup {
+  key: string;
+  /** null for the managed library. */
+  mount: Mount | null;
+  items: AssetRecord[];
+}
+
+/** Managed assets first, then one group per mount (QC-010 indexes mounted files in place). */
+export function groupAssets(
+  items: readonly AssetRecord[],
+  mounts: ReadonlyMap<string, Mount>,
+): AssetGroup[] {
+  const managed: AssetRecord[] = [];
+  const byMount = new Map<string, AssetRecord[]>();
+  for (const a of items) {
+    const id = a.mount_id ?? null;
+    if (id === null) managed.push(a);
+    else byMount.set(id, [...(byMount.get(id) ?? []), a]);
+  }
+  const groups: AssetGroup[] =
+    managed.length > 0 ? [{ key: 'managed', mount: null, items: managed }] : [];
+  for (const [id, list] of byMount) {
+    const mount = mounts.get(id) ?? null;
+    groups.push({ key: id, mount, items: list });
+  }
+  return groups;
+}
 
 const dateTime = new Intl.DateTimeFormat('zh-TW', {
   year: 'numeric',
@@ -48,12 +91,16 @@ interface Listing {
 export function AssetsPage({
   client,
   home,
+  userHome,
   focusAssetId,
+  onOpenWork,
   onOpenImports,
   onOpenSettings,
 }: {
   client: CreatorHubClient;
   home: string | null;
+  userHome: string | null;
+  onOpenWork: (workId: string) => void;
   /** Select this asset on open (e.g. 開啟 from the task list), even if it is not on the first page. */
   focusAssetId?: string | null;
   onOpenImports: () => void;
@@ -98,6 +145,7 @@ export function AssetsPage({
   }, [load]);
 
   useRefreshOn(['asset'], load);
+  const mounts = useMounts(client);
 
   useEffect(() => {
     if (focusAssetId === undefined || focusAssetId === null) return;
@@ -260,26 +308,49 @@ export function AssetsPage({
               </div>
             )
           ) : (
-            <section className="asset-section" aria-labelledby="asset-managed">
-              <div className="asset-section__head">
-                <Icon name="library" />
-                <h2 id="asset-managed" className="asset-section__title">
-                  托管
-                </h2>
-                {home !== null && <span className="mono faint">{home}/library</span>}
-              </div>
-              <div className="asset-grid">
-                {items.map((a) => (
-                  <AssetTile
-                    key={a.id}
-                    asset={a}
-                    selected={a.id === selectedId}
-                    onSelect={() => {
-                      setSelectedId(a.id === selectedId ? null : a.id);
-                    }}
-                  />
-                ))}
-              </div>
+            <>
+              {groupAssets(items, mounts).map((g) => {
+                const offline = g.mount !== null && g.mount.status !== 'active';
+                const headId = `asset-group-${g.key}`;
+                return (
+                  <section key={g.key} className="asset-section" aria-labelledby={headId}>
+                    <div className="asset-section__head">
+                      <Icon name={g.mount === null ? 'library' : 'folder'} />
+                      <h2 id={headId} className="asset-section__title">
+                        {g.mount === null ? '托管' : `外部掛載 · ${g.mount.name}`}
+                      </h2>
+                      <span className="mono faint">
+                        {g.mount === null
+                          ? home === null
+                            ? ''
+                            : `${home}/library`
+                          : tildePath(g.mount.root_path, userHome)}
+                      </span>
+                      {g.mount !== null && (
+                        <span className="asset-section__chip">
+                          {offline ? (
+                            <Chip tone="bad">找不到資料夾</Chip>
+                          ) : (
+                            <Chip tone="warn">原檔不移動</Chip>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                    <div className={offline ? 'asset-grid asset-grid--offline' : 'asset-grid'}>
+                      {g.items.map((a) => (
+                        <AssetTile
+                          key={a.id}
+                          asset={a}
+                          selected={a.id === selectedId}
+                          onSelect={() => {
+                            setSelectedId(a.id === selectedId ? null : a.id);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
               {listing.total > items.length && (
                 <div className="asset-more">
                   <span className="faint">
@@ -299,15 +370,23 @@ export function AssetsPage({
                   )}
                 </div>
               )}
-            </section>
+            </>
           )}
         </section>
       </div>
 
       {selected !== null && (
         <AssetViewer
+          client={client}
           asset={selected}
           home={home}
+          mount={
+            selected.mount_id === null || selected.mount_id === undefined
+              ? null
+              : (mounts.get(selected.mount_id) ?? null)
+          }
+          userHome={userHome}
+          onOpenWork={onOpenWork}
           onClose={() => {
             setSelectedId(null);
           }}
@@ -437,13 +516,82 @@ function metadataNote(asset: AssetRecord): string | null {
   return null;
 }
 
+function AssetRefs({
+  client,
+  assetId,
+  onOpenWork,
+}: {
+  client: CreatorHubClient;
+  assetId: string;
+  onOpenWork: (workId: string) => void;
+}) {
+  const [refs, setRefs] = useState<AssetWorkItem[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const load = useCallback(() => {
+    client.assets
+      .works(assetId)
+      .then((res) => {
+        setFailed(false);
+        setRefs(res.items);
+      })
+      .catch(() => {
+        setFailed(true);
+      });
+  }, [client, assetId]);
+  useEffect(() => {
+    setRefs(null);
+    load();
+  }, [load]);
+  // Linking or unlinking arrives as work.assets_changed.
+  useRefreshOn(['work'], load, 400);
+
+  return (
+    <div className="viewer__refs">
+      <span className="faint">引用</span>
+      {failed ? (
+        <span className="muted">無法載入引用</span>
+      ) : refs === null ? (
+        <span className="skel skel--line" aria-busy="true" />
+      ) : refs.length === 0 ? (
+        <span className="muted">未引用</span>
+      ) : (
+        <ul className="refs">
+          {refs.map((r) => (
+            <li key={`${r.work_id}:${r.role}`}>
+              <button
+                type="button"
+                className="ref"
+                onClick={() => {
+                  onOpenWork(r.work_id);
+                }}
+              >
+                <Icon name="library" size={14} />
+                <span className="ref__title">{r.title}</span>
+                <span className="faint">{ROLE_LABEL[r.role]}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function AssetViewer({
+  client,
   asset,
   home,
+  mount,
+  userHome,
+  onOpenWork,
   onClose,
 }: {
+  client: CreatorHubClient;
   asset: AssetRecord;
   home: string | null;
+  mount: Mount | null;
+  userHome: string | null;
+  onOpenWork: (workId: string) => void;
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -474,7 +622,7 @@ function AssetViewer({
       </div>
       <div className="viewer__chips">
         <Chip>{ASSET_KIND[asset.kind].label}</Chip>
-        <Chip>托管</Chip>
+        {asset.mount_id == null ? <Chip>托管</Chip> : <Chip tone="warn">外部掛載</Chip>}
       </div>
       {note !== null && (
         <p className="viewer__note" role="status">
@@ -516,16 +664,21 @@ function AssetViewer({
           )}
         </dd>
         <dt>位置</dt>
-        <dd className="mono">{home === null ? asset.path : `${home}/${asset.path}`}</dd>
+        <dd className="mono">
+          {asset.mount_id == null
+            ? home === null
+              ? asset.path
+              : `${home}/${asset.path}`
+            : mount === null
+              ? asset.path
+              : `${tildePath(mount.root_path, userHome)}/${asset.path}`}
+        </dd>
         <dt>來源</dt>
         <dd>{ORIGIN_LABEL[asset.origin]}</dd>
         <dt>加入</dt>
         <dd>{dateTime.format(new Date(asset.created_at))}</dd>
       </dl>
-      <div className="viewer__refs">
-        <span className="faint">引用</span>
-        <span className="muted">引用的作品要等本機服務提供反查後才能顯示</span>
-      </div>
+      <AssetRefs client={client} assetId={asset.id} onOpenWork={onOpenWork} />
       <div className="viewer__actions">
         <button
           type="button"

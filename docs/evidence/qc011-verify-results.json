@@ -1,0 +1,157 @@
+[
+  {
+    "name": "grid shows 外部掛載 · 寫作 for mounted works",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "list shows 外部 chip with the folder on hover",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "deleting the file shows 檔案遺失 without reloading",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "grid card is greyed with the 檔案遺失 chip",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "missing work opens read-only with path and recovery hint",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "save chip says 唯讀; body, title, status and tags are not editable",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "header shows 外部掛載 · ~/… with the file path on hover",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "restore is disabled while the file is missing",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "putting the file back restores editing automatically",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "an external edit while typing shows the notice, not a silent reload",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "my text stays in the window",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "the file on disk is not overwritten",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "比對並合併 opens the conflict dialog",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "after keeping both, the work shows the external version",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "a change from an agent is shown live when nothing is unsaved",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "no notice for a clean window",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "Markdown image loads through a signed URL",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "missing image shows a placeholder instead of a broken icon",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "image stays inside the reading column",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "status change saves right away",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "Enter while composing does not add a tag",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "Enter adds a tag",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "removing a tag saves",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "selecting the current revision says 即目前版本 and disables restore",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "an older revision shows its differences",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "restore asks first and says it becomes a new revision",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "restored as a new revision; nothing removed from history",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "editor shows the restored text",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "service recorded a restore revision",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "引用 lists works with their role",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "clicking a reference opens the work",
+    "ok": true,
+    "detail": ""
+  }
+]

@@ -122,3 +122,31 @@ describe('MarkdownEditor without its own mode switch', () => {
     m.unmount();
   });
 });
+
+describe('MarkdownEditor images', () => {
+  it('asks the host to resolve image src for display and keeps the Markdown unchanged', async () => {
+    const onChange = vi.fn();
+    const ref = createRef<MarkdownEditorHandle>();
+    const original = '# 圖\n\n![桌面](assets/desk.jpg)\n';
+    const resolveImage = vi.fn((src: string) =>
+      Promise.resolve(`http://svc/media/v1/${src}?sig=1`),
+    );
+    const m = await mount(
+      <MarkdownEditor
+        ref={ref}
+        markdown={original}
+        onChange={onChange}
+        resolveImage={resolveImage}
+      />,
+    );
+    // MDXEditor suspends the <img> until it loads, which jsdom never does; the
+    // rendered image is checked in the Electron acceptance run instead.
+    await vi.waitFor(() => {
+      expect(resolveImage).toHaveBeenCalled();
+    });
+    expect(resolveImage).toHaveBeenCalledWith('assets/desk.jpg');
+    expect(ref.current?.getMarkdown()).toBe(original);
+    expect(onChange).not.toHaveBeenCalled();
+    m.unmount();
+  });
+});

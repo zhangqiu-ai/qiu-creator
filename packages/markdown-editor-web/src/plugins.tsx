@@ -62,6 +62,11 @@ function Toolbar() {
 export interface EditorPluginOptions {
   /** Include the formatting toolbar (off in headless tests). */
   toolbar?: boolean;
+  /**
+   * Map an image `src` as written in the Markdown to a URL the view can load.
+   * Display only: the Markdown keeps the original `src`.
+   */
+  resolveImage?: (src: string) => Promise<string>;
 }
 
 /**
@@ -76,7 +81,9 @@ export function createEditorPlugins(options: EditorPluginOptions = {}): RealmPlu
     thematicBreakPlugin(),
     linkPlugin(),
     linkDialogPlugin(),
-    imagePlugin(),
+    imagePlugin(
+      options.resolveImage === undefined ? {} : { imagePreviewHandler: options.resolveImage },
+    ),
     // No column padding: editing one cell must not rewrite every row of the table.
     tablePlugin({ tablePipeAlign: false }),
     frontmatterPlugin(),
