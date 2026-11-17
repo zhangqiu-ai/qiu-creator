@@ -20,7 +20,19 @@ export type IconName =
   | 'image'
   | 'video'
   | 'mixed'
-  | 'offline';
+  | 'offline'
+  | 'assets'
+  | 'imports'
+  | 'settings'
+  | 'upload'
+  | 'link'
+  | 'folder'
+  | 'key'
+  | 'retry'
+  | 'audio'
+  | 'file'
+  | 'api'
+  | 'refresh';
 
 const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   library: ['M4 7.5 12 3l8 4.5-8 4.5Z', 'M4 12.5l8 4.5 8-4.5', 'M4 17l8 4 8-4'],
@@ -40,6 +52,39 @@ const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   image: ['M4 5h16v14H4Z', 'M9 10.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z', 'm20 15-5-5-9 9'],
   video: ['M4 6h11v12H4Z', 'm15 10 5-3v10l-5-3'],
   mixed: ['M4 4h7v7H4Z', 'M13 13h7v7h-7Z', 'M13 4h7', 'M13 8h7', 'M4 16h7', 'M4 20h7'],
+  assets: ['M3 4h18v16H3Z', 'M9 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z', 'm21 16-5-5-9 9'],
+  imports: ['M12 3v12', 'm7 10 5 5 5-5', 'M4 19h16'],
+  settings: [
+    'M4 6h10',
+    'M18 6h2',
+    'M4 12h4',
+    'M12 12h8',
+    'M4 18h12',
+    'M16 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',
+    'M10 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',
+    'M18 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',
+  ],
+  upload: ['M12 21V9', 'm7 14 5-5 5 5', 'M4 4h16'],
+  link: [
+    'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1',
+    'M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+  ],
+  folder: ['M3 6h6l2 2h10v11H3Z'],
+  key: ['M8 19a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'm11 12 9-9', 'm17 6 3 3'],
+  retry: ['M20 11a8 8 0 1 0-2.3 5.7', 'M20 4v7h-7'],
+  audio: [
+    'M9 18V6l11-2v12',
+    'M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
+    'M17 19a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
+  ],
+  file: ['M6 3h8l4 4v14H6Z', 'M14 3v4h4'],
+  api: ['m8 8-4 4 4 4', 'm16 8 4 4-4 4'],
+  refresh: [
+    'M4 12a8 8 0 0 1 14-5.3L20 9',
+    'M20 4v5h-5',
+    'M20 12a8 8 0 0 1-14 5.3L4 15',
+    'M4 20v-5h5',
+  ],
   offline: [
     'M3 3l18 18',
     'M8.5 16.5a5 5 0 0 1 7 0',

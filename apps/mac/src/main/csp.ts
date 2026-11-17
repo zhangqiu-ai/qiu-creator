@@ -7,7 +7,7 @@ export function contentSecurityPolicy(devServerUrl: string | null): string {
     'script-src': dev === null ? ["'self'"] : ["'self'", "'unsafe-inline'"],
     // MDXEditor, Radix and CodeMirror set inline styles.
     'style-src': ["'self'", "'unsafe-inline'"],
-    'img-src': ["'self'", 'data:', 'blob:', 'https:'],
+    'img-src': ["'self'", 'data:', 'blob:', 'https:', 'qc-asset:'],
     'font-src': ["'self'", 'data:'],
     'connect-src': dev === null ? ["'self'"] : ["'self'", `ws://${dev.host}`],
     'object-src': ["'none'"],
