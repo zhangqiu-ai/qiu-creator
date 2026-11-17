@@ -1,0 +1,102 @@
+[
+  {
+    "name": "預覽 opens the platform preview for this work",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "four platform tabs, text names only",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "empty platform offers 從原稿建立 and the phone says 模擬",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "視頻號 can copy the 公眾號 version",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "preview never shows a platform logo: only the cover and our own shapes",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "each platform keeps its own title and body (no cross-writes)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "the original is not modified",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "setting the 抖音 cover saves only 抖音",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "the phone shows the new cover",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "over-limit title: warning bar, counter, field hint, truncated preview, tab dot",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "over-limit still saves",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "more than 9 images on 視頻號: count 12/9, extra thumbnails dimmed, hint",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "Enter while composing does not add a tag",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "Enter adds a tag to 公眾號 only",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "another writer on the same platform shows the conflict notice",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "the other writer was not overwritten",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "以我的修改覆蓋 writes mine on top of the latest revision",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "載入最新版本 shows the other writer's version",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "a clean window picks up changes live",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "平台預覽 in the navigation opens the last work",
+    "ok": true,
+    "detail": ""
+  }
+]

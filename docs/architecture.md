@@ -33,7 +33,7 @@
 | `apps/mac` | Electron Mac App（見下節） | api-client、contracts、design-tokens、markdown-editor-web |
 | `packages/markdown-editor-web` | MDXEditor 視覺模式 + `<textarea>` 原始碼模式；可能有損語法偵測與原文保護；不依賴 Electron，第二期可嵌進 WebView | @mdxeditor/editor、mdast 工具 |
 | `packages/design-tokens` | DESIGN.md 視覺基線（PT-20261116-001「暖白克制」）的語義 token：淺色／深色色彩、陰影、字型堆疊、字級、間距、圓角、尺寸、斷點、動效；輸出 CSS 變數，第二期 React Native 直接讀值 | 無 |
-| `packages/platform-preview` | 四平台預覽的型別與空範本（M2 實作畫面） | contracts |
+| `packages/platform-preview` | 四平台模擬預覽：純 TS 的模板與 view model（主入口），DOM 模板在 `./react`、樣式在 `./style.css` | contracts（react 為 peer） |
 
 共用套件不依賴 Electron 或 Node 專屬 UI；`domain` 的路徑工具用到 `node:path`，第二期若要在 React Native 使用需再拆分（目前行動端不使用）。
 
@@ -65,6 +65,11 @@ renderer（React，sandbox，無 Node）
 - **縮圖與媒體（QC-012）。** `qc-asset://thumbnail/<id>` 與 `qc-asset://stream/<id>` 由主程序的 protocol handler 帶上權杖向服務取得；串流只轉送單一 `bytes=` Range、不緩衝，影片可以跳轉。只接受 UUID 形式的 id，CSP 的 `img-src` 與 `media-src` 加上 `qc-asset:`。renderer 一律透過 `assetMediaUrl()` 取得媒體 URL，QC-010 改用簽名 URL 時只換這個函式。
 - **在 Finder 顯示、資料夾選擇、剪貼簿。** renderer 只傳素材或掛載的 id，主程序向服務查出路徑再顯示（素材路徑必須在 `CREATORHUB_HOME` 內）；掛載資料夾用系統資料夾選擇器；複製雜湊與權杖走主程序的 `clipboard`（renderer 的權限請求一律拒絕）。
 - **頁面（QC-012）。** 素材庫（網格、類型篩選、檔名搜尋、檢視器、拖放上傳）、匯入任務（URL 匯入任務加本次上傳，依狀態篩選，在原列重試／取消／繼續，重複內容標「已存在」並可沿用原素材；右欄 Agent 權杖，明文只在建立後顯示一次，撤銷前確認）、設定（服務狀態與即時更新連線、托管目錄、外部掛載的新增、重新掃描、卸載與重新掛載）。設定頁不放服務啟停、備份、AI 金鑰、Tailscale 與裝置配對：前兩者沒有 API，AI 金鑰是 M3，後兩者是第二期。
+- **平台預覽（QC-013）。**
+  - **套件。** `@qiu-creator/platform-preview` 的主入口沒有 DOM 或 Electron 依賴：`buildPreviewModel()` 依 contracts 的 `PLATFORM_LIMITS` 算出平台會顯示的標題（超限截斷加…）、正文（公眾號為 Markdown 區塊，其他為純文字）、標籤、圖片（超出張數的不顯示）與警告。Mac 用 `./react` 的 `PlatformPreview` 加手機框；第二期移動端可以用同一個 model 畫原生畫面，或在 WebView 用 DOM 模板。畫面固定中性配色、不跟 App 主題，不用平台標誌，平台名稱只用文字，每個畫面都有「模擬」標籤。
+  - **頁面。** 從編輯頁「預覽」（⌘P，先存檔）或導航「平台預覽」（開最後編輯的作品，沒有則先選作品）進入。四個分頁各自一個 `VariantSession`，有自己的 revision：自動儲存帶 `base_revision`，組字時不存；封面、圖片順序與標籤立即儲存。409 不覆蓋，草稿留在視窗，使用者選「載入最新版本」或「以我的修改覆蓋」（以最新 revision 為基準明確寫入，若又被改則再 409）。SSE `work.variant_*` 事件：視窗沒有未儲存修改就直接更新，有則轉為同樣的選擇。分頁上以圓點標示超出上限（橘）與衝突（紅）。
+  - **超限（PT-20261117-001）。** 輸入時直接呼叫 `checkVariantLimits()`：表單頂部「N 項超出上限・不影響儲存」、計數變警告色、輸入框警告邊框、欄位下方「超出 N 字，預覽已截斷」、圖片「12/9 張」並把多出的縮圖變淡加虛線框。上限是 contracts 的參考值（抖音標題 30、視頻號 16，與原型示意值不同，以 contracts 為準）。
+  - **草稿。** 「從原稿建立」「重新從原稿產生」（先確認，成為新 revision，舊版留在歷史）走 QC-009 的固定規則，不用 AI，原稿不變；「複製公眾號版本」先建立再寫入公眾號的欄位。縮圖與預覽圖片走 `qc-asset://thumbnail` 代理。
 - **作品管理與編輯（QC-011）。**
   - **即時更新。** 作品庫、素材檢視器的「引用」與編輯頁都用 QC-012 的 SSE hook。編輯頁收到同一作品的 `work.updated`／`work.external_revision` 時交給 `WorkSession.remoteRevision`：沒有未儲存修改就直接載入新版本（編輯器以 `epoch` 重新掛載）；有未儲存修改或正在組字時，顯示「檔案已在外部修改」橫幅並暫停自動儲存，使用者選「比對並合併」（進入衝突對話框）或「捨棄我的修改並重新載入」。自己送出的 revision 會被記住，SSE 回聲（包括請求還在途中就先到的）不會被當成外部修改。重新連線後會再對一次最新 revision 與外部檔案狀態。
   - **狀態與標籤。** 也是草稿的一部分，和內文走同一個儲存佇列（每次 PATCH 都會產生 revision 並帶 `base_revision`），按下就立即儲存；標籤輸入在組字時按 Enter 不會新增。

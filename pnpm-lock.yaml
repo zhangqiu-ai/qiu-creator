@@ -223,6 +223,9 @@ importers:
       '@qiu-creator/markdown-editor-web':
         specifier: workspace:*
         version: link:../../packages/markdown-editor-web
+      '@qiu-creator/platform-preview':
+        specifier: workspace:*
+        version: link:../../packages/platform-preview
       react:
         specifier: ^19.3.1
         version: 19.3.1
@@ -335,6 +338,22 @@ importers:
       '@qiu-creator/contracts':
         specifier: workspace:*
         version: link:../contracts
+    devDependencies:
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      jsdom:
+        specifier: ^31.0.1
+        version: 31.0.1
+      react:
+        specifier: ^19.0.0
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.3.1(react@19.3.1)
 
   services/mac-server:
     dependencies:

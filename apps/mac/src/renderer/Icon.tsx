@@ -33,7 +33,8 @@ export type IconName =
   | 'file'
   | 'api'
   | 'refresh'
-  | 'fileMissing';
+  | 'fileMissing'
+  | 'phone';
 
 const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   library: ['M4 7.5 12 3l8 4.5-8 4.5Z', 'M4 12.5l8 4.5 8-4.5', 'M4 17l8 4 8-4'],
@@ -87,6 +88,7 @@ const PATHS: Readonly<Record<IconName, readonly string[]>> = {
     'M4 20v-5h5',
   ],
   fileMissing: ['M14 3H6v18h12V7Z', 'M14 3v4h4', 'm10 12 4 4', 'm14 12-4 4'],
+  phone: ['M7 2h10v20H7Z', 'M11 18h2'],
   offline: [
     'M3 3l18 18',
     'M8.5 16.5a5 5 0 0 1 7 0',
