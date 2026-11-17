@@ -1,14 +1,10 @@
 # In Progress
 
-## QC-021: AI 任務基礎：供應商介面、Keychain 金鑰、任務佇列與用量記錄
+## QC-022: 文字 AI：標題／簡介／標籤候選與文章改寫候選
 
-**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend | **Started:** 2026-11-17
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend | **依賴:** QC-021（已完成） | **Started:** 2026-11-17
 
-- `AIProvider` 介面（文字生成、結構化輸出、檔案上傳），假供應商給測試用；真實供應商的 HTTP 呼叫集中在 adapter，可注入 base URL 以便用本機假伺服器測。
-- 金鑰存 macOS Keychain（推薦 `@napi-rs/keyring`，記入 `docs/dependencies.md`；不用 `security` 命令列帶明文參數）。API：設定、刪除、查詢「是否已設定」，永遠不回傳值；日誌與錯誤訊息遮蔽請求內容與標頭。測試用記憶體實作，不碰真實 Keychain。
-- `ai_jobs` 啟用：排隊／進行中／成功／失敗／取消、可讀失敗原因（429、金鑰無效、逾時、內容被拒）、重試、取消；冪等鍵；SSE 事件。
-- 用量與成本：記錄供應商回報的 token／秒數，依可調整的價格表估算成本（標「估算」）。費用控制：任務送出前回傳估算；月度累計超過使用者設定金額時，回應帶提醒但不拒絕。
-- 供應商 adapter：Gemini、Anthropic（Claude）、OpenAI（GPT）三家，模型名稱可設定；本地模型不做，介面預留。
-- 首次使用告知：每個供應商記錄使用者已確認的告知（內容會送到哪個第三方），未確認時 API 拒絕送出。
-- 只有 owner 權杖能用 AI 與金鑰路由；Agent 權杖不行。
+- 四平台分別產生標題、簡介、標籤候選，套用平台上限（`PLATFORM_LIMITS`），結果存在任務裡；採用時走既有平台版本 API（帶 `base_revision`），不直接寫入。
+- 改寫：潤色、縮寫、擴寫、語氣調整、補充指令。結果是候選，記住 `source_revision`；採用時以 `base_revision = source_revision` 寫回，原稿已變就回 409。採用後的 revision 來源標為 AI，可以恢復。
+- 部分採用由前端組好最終文字再送出，服務端不自動合併。
 

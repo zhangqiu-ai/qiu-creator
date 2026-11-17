@@ -1,5 +1,16 @@
 # Done
 
+## QC-021: AI 任務基礎：供應商介面、Keychain 金鑰、任務佇列與用量記錄
+
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend
+
+### 完成摘要
+
+- Gemini、Claude、GPT 三家 adapter 用官方 SDK（`@google/genai`、`@anthropic-ai/sdk`、`openai`），base URL 可注入，SDK 自帶重試關閉；本機假伺服器測通文字、結構化 JSON、拒答與安全攔截。Claude 預設開啟伺服器端拒答備援（`fallbacks: "default"`），總監已對照 Claude API 指引核實。
+- 金鑰用 `@napi-rs/keyring` 存 Keychain，API 只能存刪不回傳，測試環境碰 Keychain 直接丟錯；帶版本號的首次使用告知，缺金鑰或未確認回 409。
+- 獨立 AI 任務執行器（並行 2）：取消、重跑、冪等、SSE、重啟續跑，429／逾時／故障最多重試 3 次。費用：送出前估算、完成後估算實際、月度超額提醒不擋。`/api/v1/ai/*` 只限 owner。
+- 總監合併後複跑 typecheck／lint／format 通過，測試 465／0／465（負載約 3）。證據 `docs/evidence/qc021-ai-foundation-run.md`。合併 2026-11-17。
+
 ## QC-018: markdown-editor-web 測試在高負載下逾時
 
 **Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M2, frontend
