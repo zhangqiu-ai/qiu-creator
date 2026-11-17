@@ -1,0 +1,283 @@
+/*
+ * Simulated platform screens. Fixed neutral colors on purpose: the phone
+ * screen does not follow the app's light/dark theme, and nothing here copies
+ * a platform's brand colors or logos.
+ */
+.pp-phone {
+  width: 340px;
+  height: 720px;
+  flex: none;
+  padding: 10px;
+  border-radius: 44px;
+  background: #0e0e0d;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 18%);
+}
+.pp-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 34px;
+  background: #fff;
+  color: #1a1a1a;
+  font-family: -apple-system, 'PingFang TC', 'Noto Sans TC', sans-serif;
+  text-align: left;
+}
+.pp-sim {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgb(20 20 20 / 72%);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.pp-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: #f2f2f2;
+  color: #707070;
+  font-size: 14px;
+}
+.pp-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-line;
+}
+.pp-link {
+  color: #24508f;
+}
+.pp-meta {
+  font-size: 12px;
+  color: #707070;
+}
+.pp-avatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #c8662f;
+}
+.pp-avatar--ring {
+  width: 40px;
+  height: 40px;
+  border: 2px solid #fff;
+}
+.pp-avatar--square {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+}
+.pp-cover {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  background: #e8e6e1;
+}
+.pp-cover__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.pp-cover__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #707070;
+  font-size: 13px;
+}
+.pp-counter {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: rgb(0 0 0 / 50%);
+  color: #fff;
+  font-size: 11px;
+}
+
+/* 小紅書-style note */
+.pp-xhs {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.pp-xhs__author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 14px 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.pp-xhs__text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  overflow: hidden;
+}
+.pp-xhs__title {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.pp-xhs__body {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #333;
+}
+
+/* 公眾號-style article */
+.pp-mp {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100%;
+  padding: 56px 18px 18px;
+  overflow: hidden;
+}
+.pp-mp .pp-cover {
+  border-radius: 4px;
+}
+.pp-mp__title {
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.pp-mp__by {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  color: #707070;
+}
+.pp-mp__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.8;
+  color: #333;
+  text-align: justify;
+}
+.pp-mp__body p {
+  margin: 0;
+}
+.pp-mp__h {
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+/* 抖音-style full-screen card */
+.pp-dy {
+  position: relative;
+  height: 100%;
+  background: #2b2b2b;
+  color: #fff;
+}
+.pp-dy__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.pp-dy__empty {
+  color: #bbb;
+}
+.pp-dy__shade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 55%;
+  background: linear-gradient(transparent, rgb(0 0 0 / 78%));
+}
+.pp-dy__rail {
+  position: absolute;
+  right: 12px;
+  bottom: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+.pp-dy__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 85%);
+}
+.pp-dy__caption {
+  position: absolute;
+  left: 14px;
+  right: 70px;
+  bottom: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.pp-dy__author {
+  font-size: 15px;
+  font-weight: 600;
+}
+.pp-dy__dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.pp-dot {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 45%);
+}
+.pp-dot--on {
+  background: #fff;
+}
+
+/* 視頻號-style feed card */
+.pp-sph {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  padding: 52px 14px 14px;
+  overflow: hidden;
+}
+.pp-sph__author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pp-sph__name {
+  font-size: 14px;
+  font-weight: 600;
+}
+.pp-sph__text {
+  font-size: 15px;
+  line-height: 1.55;
+}
+.pp-sph__media {
+  width: 78%;
+}
+.pp-sph__media .pp-cover {
+  border-radius: 4px;
+}

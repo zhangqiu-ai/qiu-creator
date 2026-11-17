@@ -8,6 +8,7 @@ import { useRefreshOn, useUploads } from './events.js';
 import { Icon, type IconName } from './Icon.js';
 import { ImportsPage } from './ImportsPage.js';
 import { LibraryPage } from './LibraryPage.js';
+import { PreviewPage } from './PreviewPage.js';
 import { SettingsPage } from './SettingsPage.js';
 
 type Connection = { state: 'connecting' } | ConnectResult;
@@ -16,13 +17,15 @@ type Route =
   | { page: 'editor'; work: WorkDetail }
   | { page: 'assets'; focusAssetId: string | null }
   | { page: 'imports' }
+  | { page: 'preview'; workId: string | null; from: WorkDetail | null }
   | { page: 'settings' };
-type NavPage = 'library' | 'assets' | 'imports' | 'settings';
+type NavPage = 'library' | 'assets' | 'imports' | 'preview' | 'settings';
 
 const NAV: readonly { page: NavPage; label: string; icon: IconName }[] = [
   { page: 'library', label: '作品庫', icon: 'library' },
   { page: 'assets', label: '素材庫', icon: 'assets' },
   { page: 'imports', label: '匯入任務', icon: 'imports' },
+  { page: 'preview', label: '平台預覽', icon: 'phone' },
   { page: 'settings', label: '設定', icon: 'settings' },
 ];
 
@@ -83,14 +86,19 @@ export function App() {
     (id: string) => {
       if (client === null) return;
       void client.works.get(id).then((work) => {
+        setLastWorkId(work.id);
         setRoute({ page: 'editor', work });
       });
     },
     [client],
   );
 
+  // The work last opened in the editor, so 平台預覽 in the navigation goes straight to it.
+  const [lastWorkId, setLastWorkId] = useState<string | null>(null);
   const go = (page: NavPage) => {
-    setRoute(page === 'assets' ? { page, focusAssetId: null } : { page });
+    if (page === 'assets') setRoute({ page, focusAssetId: null });
+    else if (page === 'preview') setRoute({ page, workId: lastWorkId, from: null });
+    else setRoute({ page });
   };
   const current: NavPage = route.page === 'editor' ? 'library' : route.page;
 
@@ -153,6 +161,9 @@ export function App() {
           client={connection.client}
           work={route.work}
           userHome={userHome}
+          onPreview={() => {
+            setRoute({ page: 'preview', workId: route.work.id, from: route.work });
+          }}
           onBack={() => {
             setRoute({ page: 'library' });
           }}
@@ -171,6 +182,22 @@ export function App() {
           onOpenSettings={() => {
             go('settings');
           }}
+        />
+      ) : route.page === 'preview' ? (
+        <PreviewPage
+          client={connection.client}
+          workId={route.workId}
+          onPickWork={(id) => {
+            setLastWorkId(id);
+            setRoute({ page: 'preview', workId: id, from: null });
+          }}
+          onBack={
+            route.workId === null
+              ? null
+              : () => {
+                  if (route.workId !== null) openWork(route.workId);
+                }
+          }
         />
       ) : route.page === 'imports' ? (
         <ImportsPage

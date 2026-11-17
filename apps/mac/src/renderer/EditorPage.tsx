@@ -32,6 +32,8 @@ export interface EditorPageProps {
   /** For showing mount folders as `~/…`. */
   userHome: string | null;
   onBack: () => void;
+  /** Open 平台預覽 for this work (⌘P). */
+  onPreview?: () => void;
 }
 
 /**
@@ -66,6 +68,7 @@ function SessionEditor({
   work,
   userHome,
   onBack,
+  onPreview,
   session,
 }: EditorPageProps & { session: WorkSession }) {
   const state = useSyncExternalStore(
@@ -172,6 +175,9 @@ function SessionEditor({
       if (!e.shiftKey && e.key.toLowerCase() === 's') {
         e.preventDefault();
         void session.save();
+      } else if (!e.shiftKey && e.key.toLowerCase() === 'p' && onPreview !== undefined) {
+        e.preventDefault();
+        void session.save().finally(onPreview);
       } else if (e.key === '/') {
         e.preventDefault();
         editor.current?.requestMode(editor.current.getMode() === 'visual' ? 'source' : 'visual');
@@ -181,7 +187,7 @@ function SessionEditor({
     return () => {
       window.removeEventListener('keydown', onKey);
     };
-  }, [session]);
+  }, [session, onPreview]);
 
   const readOnly = state.readOnly !== null;
   const save = readOnly ? { label: '唯讀', tone: 'neutral' as const } : SAVE_STATUS[state.status];
@@ -270,6 +276,19 @@ function SessionEditor({
                 </button>
               ))}
             </div>
+            {onPreview !== undefined && (
+              <button
+                type="button"
+                className="btn"
+                aria-keyshortcuts="Meta+P"
+                onClick={() => {
+                  void session.save().finally(onPreview);
+                }}
+              >
+                <Icon name="phone" />
+                預覽
+              </button>
+            )}
             <button
               type="button"
               className="btn btn--ghost"
