@@ -272,6 +272,122 @@
         "Software name and logo are placeholders (qiu-creator, ink square).",
         "待發布 status and primary actions share the accent color; consider a separate status hue."
       ]
+    },
+    {
+      "id": "PT-20261117-001",
+      "title": "M2 補充狀態：外部檔案遺失、版本恢復確認、外部掛載來源標示、平台上限警告",
+      "date": "2026-11-17",
+      "status": "pending",
+      "model": "claude-opus-5-5",
+      "session": "qc-prototype",
+      "requestedBy": "開發總監",
+      "approvalAuthority": "開發總監（既有方向內的小型修改）",
+      "approvedBy": null,
+      "approvedAt": null,
+      "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "baseCanvasVersion": "24 (version id 1794841037-c52d)",
+      "canvasVersion": "31 (version id 1794917665-dc4e)",
+      "changes": [
+        {
+          "item": "外部作品檔案已遺失",
+          "boards": [
+            {
+              "file": "Main.dc.html",
+              "title": "Mac · 作品庫",
+              "tweak": "狀態 = 外部檔案遺失",
+              "states": ["外部作品封面變灰", "「檔案遺失」標籤（網格與列表）"]
+            },
+            {
+              "file": "MacEditor.dc.html",
+              "title": "Mac · 編輯與 AI 改寫",
+              "tweak": "狀態 = 外部檔案遺失",
+              "states": [
+                "紅色橫幅：找不到原檔，唯讀；原檔路徑；放回原處後自動恢復；在 Finder 顯示資料夾",
+                "儲存狀態改為「唯讀」",
+                "正文變淡且不可編輯，原始碼模式輸入無效",
+                "AI 改寫與恢復版本停用"
+              ]
+            }
+          ]
+        },
+        {
+          "item": "版本恢復確認",
+          "boards": [
+            {
+              "file": "MacEditor.dc.html",
+              "title": "Mac · 編輯與 AI 改寫",
+              "tweak": "開啟「歷史」後選取任一版本",
+              "states": [
+                "r目前 → r選取 與差異摘要",
+                "與目前版本的差異（刪除線／底線）",
+                "選取目前版本時顯示「即目前版本」並停用恢復",
+                "恢復此版本 → 確認框：恢復為新版本 r(n+1)，歷史版本全部保留 → 確認恢復／取消"
+              ]
+            }
+          ]
+        },
+        {
+          "item": "外部掛載來源標示",
+          "boards": [
+            {
+              "file": "Main.dc.html",
+              "title": "Mac · 作品庫",
+              "tweak": "正常",
+              "states": [
+                "列表標題旁「外部」標籤（hover 顯示路徑）",
+                "網格與列表來源欄「外部掛載 · 寫作」"
+              ]
+            },
+            {
+              "file": "MacEditor.dc.html",
+              "title": "Mac · 編輯與 AI 改寫",
+              "tweak": "狀態 = 外部掛載",
+              "states": ["標頭標籤「外部掛載 · ~/Documents/寫作」（hover 顯示完整檔案路徑）"]
+            }
+          ]
+        },
+        {
+          "item": "平台版本超出上限警告（只警告不阻擋）",
+          "boards": [
+            {
+              "file": "MacPreview.dc.html",
+              "title": "Mac · 平台模擬預覽",
+              "tweak": "狀態 = 超出上限（小紅書標題超字；視頻號 12 張超過 9 張）",
+              "states": [
+                "表單頂部「N 項超出上限・不影響儲存」",
+                "字數計數變警告色，輸入框警告邊框",
+                "欄位下方提示：超出 N 字，預覽已截斷／超出 N 字",
+                "圖片計數「12/9 張」，超出的縮圖變淡並加虛線框，提示多出的不會顯示",
+                "平台分頁警告點涵蓋標題、正文、圖片"
+              ]
+            }
+          ]
+        }
+      ],
+      "references": [
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/codex-change-proposal-comparison-table/case.md",
+          "kind": "concept",
+          "borrowed": "Show what changes before committing to it.",
+          "adaptation": "Restore shows the paragraph diff against the current revision before a separate confirm step."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-017-waiting-states/case.md",
+          "kind": "concept",
+          "borrowed": "Status shown in place on the affected row or field.",
+          "adaptation": "Missing-file chip on the work card/row; over-limit hints directly under each field instead of a dialog."
+        }
+      ],
+      "verified": [
+        "Static checks on the changed sources (Main, MacEditor, MacPreview): tag balance, script syntax (node --check), data-props JSON — all pass."
+      ],
+      "notVerified": [
+        "NOT_VERIFIED: rendering and interactions in the live canvas — the built-in browser cannot load claude.ai artifacts; review in the canvas.",
+        "NOT_VERIFIED: platform image limits (小紅書 18, 抖音 35, 視頻號 9, 公眾號 none) and text limits are prototype values; packages/platform-preview must confirm them."
+      ],
+      "notes": [
+        "In the external-mount states the editor's history list still shows the managed work's revisions (prototype simplification)."
+      ]
     }
   ]
 }
