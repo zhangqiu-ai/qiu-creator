@@ -126,7 +126,17 @@ async function reveal(target: RevealTarget): Promise<boolean> {
       await serviceGet(`/api/v1/assets/${encodeURIComponent(target.id)}`),
     );
     if (!asset.success) return false;
-    const full = resolveInsideHome(config.home, asset.data.path);
+    const mountId = asset.data.mount_id ?? null;
+    let root = config.home;
+    if (mountId !== null) {
+      // Mounted files are indexed in place; their path is relative to the mount root.
+      const mount = MountSchema.safeParse(
+        await serviceGet(`/api/v1/mounts/${encodeURIComponent(mountId)}`),
+      );
+      if (!mount.success || !path.isAbsolute(mount.data.root_path)) return false;
+      root = mount.data.root_path;
+    }
+    const full = resolveInsideHome(root, asset.data.path);
     if (full === null) return false;
     shell.showItemInFolder(full);
     return true;
@@ -154,6 +164,7 @@ function registerIpc(): void {
   });
   handle(IPC.appInfo, (): AppInfo => ({
     home: config.home === null ? null : abbreviateHome(config.home, os.homedir()),
+    userHome: os.homedir(),
   }));
   handle(IPC.getEventStatus, () => {
     // A renderer asking for status after the user pressed 重試 should not wait out the backoff.
@@ -261,7 +272,7 @@ function registerAssetProtocol(): void {
 }
 
 function hardenSession(): void {
-  const csp = contentSecurityPolicy(devServerUrl);
+  const csp = contentSecurityPolicy(devServerUrl, config.baseUrl);
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: { ...details.responseHeaders, 'Content-Security-Policy': [csp] },

@@ -33,6 +33,12 @@ export interface MarkdownEditorProps {
   readOnly?: boolean;
   /** Render the built-in 視覺／原始碼 switch. Hosts with their own switch call `requestMode`. */
   showModeSwitch?: boolean;
+  /**
+   * Map image `src` values to loadable URLs for display (e.g. relative paths to
+   * signed media URLs). The Markdown itself is never changed. Read through a
+   * ref, so a new function does not remount the editor.
+   */
+  resolveImage?: (src: string) => Promise<string>;
   /** Accessible name for the editing area. */
   label?: string;
   className?: string;
@@ -170,7 +176,20 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       [mode, requestMode],
     );
 
-    const plugins = useMemo(() => createEditorPlugins(), []);
+    const resolveImageRef = useRef(props.resolveImage);
+    resolveImageRef.current = props.resolveImage;
+    const hasResolver = props.resolveImage !== undefined;
+    const plugins = useMemo(
+      () =>
+        createEditorPlugins(
+          hasResolver
+            ? {
+                resolveImage: (src) => resolveImageRef.current?.(src) ?? Promise.resolve(src),
+              }
+            : {},
+        ),
+      [hasResolver],
+    );
     const label = props.label ?? '內文';
 
     return (

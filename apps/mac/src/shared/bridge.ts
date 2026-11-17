@@ -51,6 +51,8 @@ export interface UploadItem {
 export interface AppInfo {
   /** CREATORHUB_HOME as shown to the user (home directory abbreviated to `~`), or null. */
   home: string | null;
+  /** The user's home directory, to show other paths (mount folders) as `~/…`. */
+  userHome: string;
 }
 
 export type RevealTarget =

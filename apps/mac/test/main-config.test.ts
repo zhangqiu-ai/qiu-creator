@@ -75,6 +75,14 @@ describe('contentSecurityPolicy', () => {
     expect(csp).toContain("object-src 'none'");
   });
 
+  it('loads images only from the app, the asset proxy and the Mac service', () => {
+    const csp = contentSecurityPolicy(null, 'http://127.0.0.1:7421/');
+    expect(csp).toContain("img-src 'self' data: blob: qc-asset: http://127.0.0.1:7421;");
+    expect(csp).toContain("media-src 'self' qc-asset: http://127.0.0.1:7421;");
+    expect(csp).not.toMatch(/img-src[^;]*https:/);
+    expect(contentSecurityPolicy(null)).toContain('http://127.0.0.1:7420');
+  });
+
   it('adds only the Vite HMR socket in development', () => {
     expect(contentSecurityPolicy('http://localhost:5180/')).toContain(
       "connect-src 'self' ws://localhost:5180",

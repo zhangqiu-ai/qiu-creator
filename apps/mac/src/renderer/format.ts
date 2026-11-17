@@ -128,3 +128,11 @@ export function assetName(asset: Pick<AssetRecord, 'original_name' | 'path'>): s
 export function shortHash(sha256: string): string {
   return sha256.length <= 12 ? sha256 : `${sha256.slice(0, 6)}…${sha256.slice(-4)}`;
 }
+
+/** `/Users/me/Documents/寫作` → `~/Documents/寫作` when inside `userHome`. */
+export function tildePath(path: string, userHome: string | null): string {
+  if (userHome === null || userHome === '') return path;
+  const home = userHome.replace(/\/+$/, '');
+  if (path === home) return '~';
+  return path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
+}
