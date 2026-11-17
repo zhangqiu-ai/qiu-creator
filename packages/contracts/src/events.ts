@@ -28,6 +28,12 @@ export const ChangeActionSchema = z.enum([
   'work.variant_deleted',
   'asset.created',
   'asset.updated',
+  /** AI jobs (entity `job`); `data.status`, `data.provider`. No content or keys. */
+  'ai_job.queued',
+  'ai_job.running',
+  'ai_job.succeeded',
+  'ai_job.failed',
+  'ai_job.cancelled',
   'job.queued',
   'job.running',
   'job.succeeded',

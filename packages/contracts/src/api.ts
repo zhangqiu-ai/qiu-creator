@@ -26,6 +26,12 @@ export const ErrorCodeSchema = z.enum([
   'job_not_retryable',
   'source_missing',
   'mount_rejected',
+  /** The provider's first-use notice has not been confirmed (or a newer version exists). */
+  'ai_consent_required',
+  /** No API key stored in the Keychain for this provider. */
+  'ai_key_missing',
+  /** The job already finished, failed or was cancelled. */
+  'job_not_cancellable',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 

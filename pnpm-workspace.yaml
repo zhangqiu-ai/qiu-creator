@@ -9,3 +9,5 @@ allowBuilds:
   esbuild: true
   # Downloads the Electron binary from GitHub releases (checksum-verified by @electron/get).
   electron: true
+  # Dependency of @google/genai; its postinstall only prints version-scheme warnings. Not needed.
+  protobufjs: false

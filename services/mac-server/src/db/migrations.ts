@@ -286,4 +286,45 @@ export const migrations: readonly Migration[] = [
       ALTER TABLE platform_variants ADD COLUMN deleted_at TEXT;
     `,
   },
+  {
+    id: '0008',
+    name: 'ai_foundation',
+    sql: /* sql */ `
+      -- AI jobs (table from 0001): provider, the request to replay on retry,
+      -- classified failures, attempts with backoff, timing and the local
+      -- month the usage is counted in. cost_estimate holds the post-run cost
+      -- estimate; estimate_max_usd the pre-run upper bound.
+      ALTER TABLE ai_jobs ADD COLUMN provider TEXT;
+      ALTER TABLE ai_jobs ADD COLUMN input TEXT;
+      ALTER TABLE ai_jobs ADD COLUMN error_code TEXT;
+      ALTER TABLE ai_jobs ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE ai_jobs ADD COLUMN max_attempts INTEGER NOT NULL DEFAULT 3;
+      ALTER TABLE ai_jobs ADD COLUMN run_after TEXT;
+      ALTER TABLE ai_jobs ADD COLUMN started_at TEXT;
+      ALTER TABLE ai_jobs ADD COLUMN finished_at TEXT;
+      ALTER TABLE ai_jobs ADD COLUMN usage_month TEXT;
+      ALTER TABLE ai_jobs ADD COLUMN estimate TEXT;
+      CREATE INDEX ai_jobs_queue ON ai_jobs (status, run_after);
+      CREATE INDEX ai_jobs_usage_month ON ai_jobs (usage_month);
+
+      -- Per-provider settings. Keys are NOT here: they live in the Keychain;
+      -- key_set_at only records that one was stored.
+      CREATE TABLE ai_providers (
+        provider        TEXT PRIMARY KEY CHECK (provider IN ('gemini','anthropic','openai')),
+        key_set_at      TEXT,
+        text_model      TEXT,
+        video_model     TEXT,
+        consent_version INTEGER,
+        consent_at      TEXT,
+        updated_at      TEXT NOT NULL
+      );
+
+      -- Small JSON settings (AI budget, price overrides).
+      CREATE TABLE app_settings (
+        key        TEXT PRIMARY KEY,
+        value      TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
 ];

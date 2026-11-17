@@ -69,7 +69,20 @@
 | file-type | ^22.3.0 | MIT | mac-server | magic bytes 類型判斷 | libmagic |
 | sharp | ^0.35.5 | Apache-2.0（libvips：LGPL-3.0） | mac-server | 圖片縮圖與尺寸 | sips、jimp |
 | chokidar | ^6.0.0 | MIT | mac-server | 外部資料夾監控 | fs.watch、@parcel/watcher |
+| @anthropic-ai/sdk | ^1.9.0 | MIT | mac-server | Claude（Messages API）adapter（QC-021） | 自寫 fetch（官方建議用 SDK；型別與錯誤類別省工） |
+| openai | ^7.57.0 | Apache-2.0 | mac-server | GPT（Responses API）adapter（QC-021） | 自寫 fetch |
+| @google/genai | ^3.4.0 | Apache-2.0 | mac-server | Gemini（`generateContent`、之後的檔案上傳）adapter（QC-021） | 自寫 fetch；舊的 `@google/generative-ai`（已停止維護） |
+| @napi-rs/keyring | ^2.1.2 | MIT | mac-server | macOS Keychain 存取 AI 金鑰（QC-021） | `security` 命令列（明文會出現在參數中，不採用）；keytar（已封存） |
 | tsx | ^4.23.15 | MIT | mac-server、agent-sdk | 直接執行 TypeScript 原始碼（`node --import tsx`、CLI bin）；M0 尚無建置步驟 | 之後改為 `tsc` 建置產物；Node 原生 type stripping（不支援 `.js` → `.ts` 對應） |
+
+### AI 供應商 SDK 與 Keychain（QC-021）
+
+- 三家都用官方 SDK，不自寫 HTTP：各家的認證標頭、錯誤類別、結構化輸出參數由 SDK 維護，跟得上 API 變動。實際觀察到的差異（以 SDK 為準，不是憑記憶）：
+  - `@anthropic-ai/sdk` 1.x 把 API 金鑰放在 `Authorization: Bearer`，並送 `anthropic-version: 2026-10-21`。
+  - `@google/genai` 3.x 呼叫 `/v1/models/<model>:generateContent`（REST 文件範例是 `/v1beta`）。
+- 三個 SDK 都可以注入 base URL，測試一律指向本機假伺服器；SDK 自帶的重試全部關掉（Anthropic／OpenAI `maxRetries: 0`、Gemini `retryOptions.attempts: 1`），重試由 AI 任務佇列統一管理。
+- `@google/genai` 依賴的 `protobufjs` 有 postinstall，內容只是印版本格式警告，在 `pnpm-workspace.yaml` 的 `allowBuilds` 明確設為 `false`。
+- `@napi-rs/keyring` 走 Security framework，金鑰不經過命令列參數；附 darwin-arm64／x64 預建二進位，不需要安裝腳本。測試時 `KeychainSecretStore` 會拒絕建立，改用記憶體實作。
 
 ### Markdown 編輯器：MDXEditor 4，原始碼模式用純 `<textarea>`（QC-002）
 
@@ -134,4 +147,4 @@ QC-010：mac-server 用同一組 mdast 套件與版本，從 Markdown 找出圖�
 
 ## 未來候選（尚未加入）
 
-目前沒有。Sharp、tus、ffprobe 已於 QC-005 加入，chokidar 於 QC-007 加入（見上）。
+目前沒有。Sharp、tus、ffprobe 已於 QC-005 加入，chokidar 於 QC-007 加入，AI SDK 與 keyring 於 QC-021 加入（見上）。

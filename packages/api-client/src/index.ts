@@ -45,6 +45,8 @@ import {
 
 import { createMountsApi, type CreatorHubMountsApi } from './mounts.js';
 import { createVariantsApi, type CreatorHubVariantsApi } from './variants.js';
+import { createAiApi, type CreatorHubAiApi } from './ai.js';
+export type { CreatorHubAiApi } from './ai.js';
 export type { CreatorHubVariantsApi, VariantWriteOptions } from './variants.js';
 export type { CreatorHubMountsApi } from './mounts.js';
 
@@ -157,6 +159,8 @@ export interface CreatorHubClient {
   mounts: CreatorHubMountsApi;
   /** Platform variants: 小紅書, 公眾號, 抖音, 視頻號 (QC-009). */
   variants: CreatorHubVariantsApi;
+  /** AI providers, Keychain keys, consent, jobs and usage (QC-021). Owner token only. */
+  ai: CreatorHubAiApi;
 }
 
 export function createClient(options: CreatorHubClientOptions): CreatorHubClient {
@@ -201,6 +205,7 @@ export function createClient(options: CreatorHubClientOptions): CreatorHubClient
     tokens: createTokensApi(ctx),
     mounts: createMountsApi(ctx),
     variants: createVariantsApi(ctx),
+    ai: createAiApi(ctx),
     health: () => request(HealthResponseSchema, 'GET', '/health'),
     works: {
       create: (input, createOptions) =>

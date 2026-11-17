@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createClient, type CreatorHubClient } from '@qiu-creator/api-client';
+import { MemorySecretStore } from '../src/ai/secret-store.js';
 import { buildServer, type BuildServerOptions, type CreatorHubServer } from '../src/index.js';
 
 export const TEST_TOKEN = 'test-token-0123456789abcdef';
@@ -30,7 +31,14 @@ export interface StartOptions extends Omit<BuildServerOptions, 'config'> {
 export async function startTestServer(options: StartOptions = {}): Promise<TestServer> {
   const { home: reuse, ...rest } = options;
   const home = reuse ?? makeTempHome();
-  const server = await buildServer({ ffprobe: null, ...rest, config: { home, token: TEST_TOKEN } });
+  const server = await buildServer({
+    ffprobe: null,
+    ...rest,
+    // Never the real Keychain. Provider adapters only reach the network when a test stores
+    // a key, and those tests point them at local fake servers.
+    ai: { secrets: new MemorySecretStore(), ...rest.ai },
+    config: { home, token: TEST_TOKEN },
+  });
   const address = await server.app.listen({ host: '127.0.0.1', port: 0 });
   return {
     ...server,
