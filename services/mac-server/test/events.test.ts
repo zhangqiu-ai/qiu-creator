@@ -3,7 +3,8 @@ import path from 'node:path';
 import type { ChangeEvent } from '@qiu-creator/contracts';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { pngBytes } from './fixtures.js';
-import { startTestServer, type TestServer } from './helpers.js';
+import { createClient, type FetchLike } from '@qiu-creator/api-client';
+import { startTestServer, TEST_TOKEN, type TestServer } from './helpers.js';
 
 let s: TestServer;
 beforeEach(async () => {
@@ -13,12 +14,19 @@ afterEach(async () => {
   await s.close();
 });
 
-/** Collect events until `until` matches, using the api-client SSE reader. */
+/**
+ * Collect events until `until` matches, using the api-client SSE reader.
+ *
+ * The stream starts at the feed's current seq (taken before subscribing) via
+ * Last-Event-ID, so events committed by `act` are delivered however long the
+ * connection takes to attach. Never wait a fixed time for the attach: on a busy
+ * machine that is a race, and a missed event is not replayed otherwise.
+ */
 async function collect(
   srv: TestServer,
   until: (events: ChangeEvent[]) => boolean,
   act: () => Promise<void>,
-  lastEventId?: number,
+  lastEventId: number = srv.feed.latestSeq(),
 ): Promise<ChangeEvent[]> {
   const events: ChangeEvent[] = [];
   const controller = new AbortController();
@@ -32,10 +40,8 @@ async function collect(
         controller.abort();
       }
     },
-    { signal: controller.signal, ...(lastEventId === undefined ? {} : { lastEventId }) },
+    { signal: controller.signal, lastEventId },
   );
-  // Give the stream a moment to attach before acting.
-  await new Promise((r) => setTimeout(r, 50));
   await act();
   const timeout = setTimeout(() => {
     controller.abort();
@@ -92,6 +98,25 @@ describe('GET /api/v1/events (SSE)', () => {
     expect(ext).toMatchObject({ entity: 'work', entity_id: work.id });
     const revisions = await s.client.works.revisions(work.id);
     expect(ext?.data['revision_id']).toBe(revisions.items[0]?.revision_id);
+  });
+
+  // QC-016: a loaded machine can attach the SSE stream later than
+  // the action under test. The helper must still see events committed before it
+  // attached, so it must not depend on how long attaching takes.
+  it('collect sees events committed before the stream attached', async () => {
+    const slowAttach: FetchLike = async (input, init) => {
+      if (input.endsWith('/api/v1/events')) await new Promise((r) => setTimeout(r, 400));
+      return fetch(input, init);
+    };
+    const client = createClient({ baseUrl: s.baseUrl, token: TEST_TOKEN, fetch: slowAttach });
+    const events = await collect(
+      { ...s, client },
+      (ev) => ev.some((e) => e.action === 'work.created'),
+      async () => {
+        await s.client.works.create({ title: 'early', markdown: 'v1' });
+      },
+    );
+    expect(events.map((e) => e.action)).toContain('work.created');
   });
 
   it('streams asset and job events for an upload', async () => {
