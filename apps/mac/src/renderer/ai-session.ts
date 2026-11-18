@@ -442,7 +442,8 @@ export class RewriteSession {
     const done = this.state.done;
     if (done === null) return 'blocked';
     const r = await this.work.restore(done.previousRevisionId);
-    if (r === 'restored') this.set({ done: null, notice: null });
+    // The candidate was based on the text before 採用; it is stale now.
+    if (r === 'restored') this.set({ done: null, notice: '原稿已變更，請重新生成' });
     else if (r === 'conflict') this.set({ done: null, notice: '作品已在別處修改，未復原' });
     return r;
   }

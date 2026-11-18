@@ -35,6 +35,11 @@
     "detail": "選取：第 2 段 · 62 字"
   },
   {
+    "name": "語氣: the box asks for a tone and sending needs one",
+    "ok": true,
+    "detail": ""
+  },
+  {
     "name": "Enter sends; skeleton with 停止 while generating",
     "ok": true,
     "detail": ""
@@ -95,6 +100,11 @@
     "detail": ""
   },
   {
+    "name": "復原 says the original changed and asks to regenerate",
+    "ok": true,
+    "detail": ""
+  },
+  {
     "name": "復原 brings back the original text",
     "ok": true,
     "detail": ""
@@ -150,6 +160,11 @@
     "detail": ""
   },
   {
+    "name": "標題 generating uses the same skeleton and 停止",
+    "ok": true,
+    "detail": ""
+  },
+  {
     "name": "four platforms with candidates and limits",
     "ok": true,
     "detail": "小紅書上限 20 | 公眾號上限 64 | 抖音上限 30 | 視頻號上限 16"
@@ -160,9 +175,9 @@
     "detail": ""
   },
   {
-    "name": "寫入平台版本 reports what it wrote",
+    "name": "寫入平台版本 names the platforms it created",
     "ok": true,
-    "detail": "已寫入 4 個版本（4 個新建）"
+    "detail": "已寫入 4 個版本（新建：小紅書、公眾號、抖音、視頻號）"
   },
   {
     "name": "each platform got its picked title",

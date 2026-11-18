@@ -201,7 +201,11 @@ describe('RewriteSession', () => {
       'restore',
       'ai_accepted',
     ]);
-    expect(rewrite.snapshot.done).toBeNull();
+    expect(rewrite.snapshot).toMatchObject({
+      done: null,
+      phase: 'idle',
+      notice: '原稿已變更，請重新生成',
+    });
   });
 
   it('插入 keeps the original and adds the candidate after it', async () => {

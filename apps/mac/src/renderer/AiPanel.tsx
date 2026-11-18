@@ -409,7 +409,7 @@ const OUTCOME_LABEL: Readonly<Record<WriteOutcome, string>> = {
 function writtenSummary(written: Partial<Record<Platform, WriteOutcome>>) {
   const entries = Object.entries(written) as [Platform, WriteOutcome][];
   const ok = entries.filter(([, o]) => o === 'updated' || o === 'created');
-  const created = entries.filter(([, o]) => o === 'created').length;
+  const created = entries.filter(([, o]) => o === 'created').map(([p]) => getTemplate(p).shortName);
   const failed = entries.filter(([, o]) => o === 'conflict' || o === 'error');
   return { ok: ok.length, created, failed };
 }
@@ -504,9 +504,9 @@ function TitleTab({ titles, readOnly, onOpenSettings }: AiPanelProps) {
             重試
           </button>
           {summary !== null && summary.ok > 0 && (
-            <span className="chip chip--ok" role="status">
+            <span className="chip chip--ok ai__written" role="status">
               已寫入 {summary.ok} 個版本
-              {summary.created > 0 && `（${String(summary.created)} 個新建）`}
+              {summary.created.length > 0 && `（新建：${summary.created.join('、')}）`}
             </span>
           )}
         </div>

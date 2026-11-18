@@ -2472,3 +2472,11 @@ kbd {
 .ai__count.chip--warn {
   color: var(--qc-warn);
 }
+.ai__written {
+  height: auto;
+  max-width: 100%;
+  padding-block: 3px;
+  white-space: normal;
+  line-height: 1.5;
+  border-radius: 8px;
+}

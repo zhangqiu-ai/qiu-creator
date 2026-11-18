@@ -148,6 +148,18 @@ check(
   await text('.ai__sel'),
 );
 
+// Tone: the extra-instruction box becomes the tone and must not be empty.
+await click('.ai__preset', '語氣');
+check(
+  '語氣: the box asks for a tone and sending needs one',
+  await until(
+    `document.querySelector('.ai__prompt input').placeholder === '語氣，例如：輕鬆口語' && document.querySelector('.ai__send').disabled`,
+  ),
+);
+await shot('12-tone');
+await click('.ai__preset', '潤色');
+await selectFirstParagraph();
+
 // 3. Generating, then 停止.
 setMode('slow');
 await typePrompt('更口語');
@@ -219,6 +231,13 @@ await shot('05-accepted');
 // 6. 復原 restores the previous text as a new revision.
 await click('.ai__undo');
 check('復原 clears the bar', await until(`document.querySelector('.ai__done') === null`));
+check(
+  '復原 says the original changed and asks to regenerate',
+  await until(
+    `document.querySelector('.ai__empty')?.textContent.includes('原稿已變更，請重新生成')`,
+  ),
+);
+await shot('11-undo-hint');
 const undone = await current();
 check('復原 brings back the original text', undone.markdown === ORIGINAL);
 const revs2 = await api('GET', `/api/v1/works/${work.id}/revisions`);
@@ -304,10 +323,18 @@ check(
   '標題 tab starts with 無候選',
   await until(`document.querySelector('.ai__empty')?.textContent.includes('生成標題候選')`),
 );
+await shot('13-titles-empty');
+setMode('slow');
 await click('.ai__empty .btn', '生成標題候選');
 check(
+  '標題 generating uses the same skeleton and 停止',
+  await until(`document.querySelector('[aria-label="生成中"] .ai__stop') !== null`),
+);
+await shot('14-titles-generating');
+setMode('ok');
+check(
   'four platforms with candidates and limits',
-  await until(`document.querySelectorAll('.ai__pl').length === 4`, 10000),
+  await until(`document.querySelectorAll('.ai__pl').length === 4`, 15000),
   await p.evaluate(
     `[...document.querySelectorAll('.ai__pl-name')].map((l) => l.textContent).join(' | ')`,
   ),
@@ -323,9 +350,9 @@ await p.evaluate(
 );
 await click('.ai__row .btn', '寫入平台版本');
 check(
-  '寫入平台版本 reports what it wrote',
+  '寫入平台版本 names the platforms it created',
   await until(
-    `document.querySelector('.ai__row .chip--ok')?.textContent.includes('已寫入 4 個版本（4 個新建）')`,
+    `document.querySelector('.ai__row .chip--ok')?.textContent.includes('已寫入 4 個版本（新建：小紅書、公眾號、抖音、視頻號）')`,
   ),
   await text('.ai__row .chip--ok'),
 );
