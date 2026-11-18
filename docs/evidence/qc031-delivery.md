@@ -1,5 +1,7 @@
 # QC-031 進度（qc-frontend，2026-11-18）：實作完成，待 QC-030 合併後做實機驗收
 
+> **更新（rebase 到 6c4e138 之後）**：分支是 `5a3d945`、`fe4f84f`、`c8081e9`。依 QC-030 的錯誤碼調整了錯誤處理，見下方「錯誤碼調整」。
+
 - **分支與 commit**：`feat/qc031-backup-ui` 的 `d54342a`，基底是 `4432736`（QC-030 契約）。未推送。
 - **worktree**：`/Users/feature/code/qiu-creator-qc031`
 - **目前卡在哪裡**：`4432736` 只有契約，服務端還沒實作備份 API，`/health` 也還沒回傳 `commit`／`built_at`。所以 App 用新契約連不上這個基底的服務。
@@ -86,7 +88,25 @@
 
 原型的服務啟動／停止、開機自動啟動、防止睡眠仍然不做（沒有 API）。
 
-## 需要後端（QC-030）留意
+## 錯誤碼調整（c8081e9）
+
+- **還原收到 409 `backup_failed`**：結果是確定的，介面寫「無法先備份目前的資料，所以沒有還原；資料沒有變更」，原因取 `details.detail`。不會再出現「無法確定是否已還原」。
+- **409 `backup_not_restorable`**：文字改為「未通過完整性檢查，或來自較新的版本」。
+- **手動備份收到 500 `backup_failed`**：介面寫「備份失敗，沒有產生副本」，附 `details.detail`。
+- **503 `restoring`**，以及還原或備份時收到的 409 `restore_in_progress`：
+  - 不當成失敗，改為顯示「本機服務正在還原資料庫」，側欄底部也變成「還原中」。
+  - 輪詢 `/health`；看到失敗後又恢復，或收到 `backup.restored`，就結束並全 App 重新抓資料。60 秒後即使都沒看到也會結束，並重新抓一次。
+- **其他頁面的寫入**：所有經由 bridge 的回應只要是 503 `restoring`，App 都會進入上述等待狀態。
+  - 存檔、平台版本、AI、匯入、掛載的錯誤文字改為「服務正在還原資料庫，請稍候再試」。
+  - 編輯器的修改仍保留在視窗內。
+- **`/health` 的 `commit` 與 `built_at`**：可能沒有這兩個欄位，舊版服務會這樣；兩者都沒有時顯示「從原始碼執行」。
+- **測試**：`backups.test.ts` 新增 6 個情境（409 `backup_failed`、還原遇 503、立即備份遇 503、從其他頁面得知還原、外部還原逾時、自己的還原不算外部），版本缺欄位的斷言併入既有的版本測試。另新增 `restoring.test.ts` 3 個。
+- **apps/mac 範圍**：
+  - typecheck 與 lint 都是 0 錯誤，prettier 通過。
+  - 受影響的 3 個測試檔：29／0／29。
+  - 全套：160／11／171，當時 load average 110～133（機器負載極高）。失敗的 11 個都是 8～20 秒的伺服器整合測試逾時；`work-session` 與 `ai-workbench` 單獨重跑是 26／26。依規則這次全套結果不算數，等負載降下來重跑。
+
+## 需要後端（QC-030）留意（已由 6c4e138 處理）
 
 - 服務端用的錯誤碼 `restore_in_progress`、`backup_not_restorable`、`backup_failed` 不在 `ErrorCodeSchema` 裡。api-client 的 `ErrorResponseSchema.safeParse` 會失敗，`ApiError.code` 變成 undefined，介面只能退回通用文字。`backup_failed` 若是 5xx，還會被誤報成「無法確定是否已還原」。
   - 建議在 QC-030 把這三個碼加進契約。我這邊已經依這三個碼寫好對應文字和測試。
