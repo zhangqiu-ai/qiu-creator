@@ -1,5 +1,26 @@
 # Done
 
+## QC-024: 編輯器 AI 改寫與平台標題候選介面
+
+**Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend
+
+### 完成摘要
+
+- 編輯頁右側 AI 面板（`ai-session.ts` 邏輯、`AiPanel.tsx` 畫面）：改寫候選依句子 diff 逐處勾選、採用（⌘↩）／插入／重試／捨棄、生成中與停止、失敗重試、無候選、補充指令（組字中不觸發）、採用後復原（新 revision）；採用 409 轉為草稿並開衝突對話框。四平台標題候選，寫入時逐平台帶 base_revision，無版本先從原稿建立並列出新建平台。
+- 原型未畫的 8 項依總監核可實作（金鑰／告知提示、供應商自動選擇、語氣輸入、標題分頁狀態、新建版本、復原後提示、409 草稿、選取擴展成段落），截圖在 `docs/evidence/qc024-acceptance.md`，待 qc-prototype 補登畫布。
+- 與 QC-023 合併後補兩個錯誤碼訊息（`fix/qc024-ai-error-codes`）。Electron 實機 39／39。合併 2026-11-17。
+
+## QC-023: Gemini 原生視頻理解
+
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend
+
+### 完成摘要
+
+- `POST /assets/:id/ai/video-understanding`（只收素材 id）與 `…/estimate`：官方文件查證（2026-11-17）寫進 architecture，2 GB、時長、格式超限在送出前回 413／400／415，不在本機轉檔。
+- 可續傳上傳自行實作（SDK 無進度與續傳），8 MiB 分段，進度事件；取消、429／逾時重試續傳，結束後刪遠端檔。結構化結果每個時間點標需核驗。
+- 快取鍵 = 檔案雜湊＋任務類型＋提示詞版本＋模型＋解析度；命中不送不計費，`reanalyze` 才重送；進行中不重複。遷移 0010。
+- 與 QC-024 一起合併後複跑：全部閘門通過，測試 515／0／515（負載約 30，無失敗）。證據 `docs/evidence/qc023-gemini-video-run.md`。合併 2026-11-17。
+
 ## QC-022: 文字 AI：標題／簡介／標籤候選與文章改寫候選
 
 **Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend
