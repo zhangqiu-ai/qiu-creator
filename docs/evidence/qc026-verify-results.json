@@ -1,0 +1,312 @@
+[
+  {
+    "name": "0 start: no AI keys, no AI jobs",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "0 editor AI panel says 尚未設定 AI 金鑰 and cannot send",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "1 Claude key entered in a password field, notice confirmed",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "1 Gemini key entered in a password field, notice confirmed",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "1 the Claude key is nowhere in the window or web storage",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "1 the Gemini key is nowhere in the window or web storage",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "1 the API reports the keys as stored without returning them",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "2 the panel uses Claude · 雲端",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "2 a candidate with a diff appears",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "2 the candidate is not written: text, file and history are unchanged",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "2 the provider received the real key and only one request",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "2 accepting after the outside edit opens the conflict dialog (409)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "2 the outside edit is still on disk and no AI revision was written",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "2 保留雙方 keeps the AI text as a separate work",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "2 the original work now shows the outside version",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "2 採用 shows 已採用",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "2 the adopted text is a new ai_accepted revision, written to the file",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "2 復原 restores the text from before as a new revision; every version is kept",
+    "ok": true,
+    "detail": "restore,ai_accepted,external,create"
+  },
+  {
+    "name": "3 title candidates for four platforms appear",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "3 nothing was written: no platform version was created or changed, the work is unchanged",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "3 only the explicit 寫入平台版本 creates the four versions",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "4 the workbench estimates before anything is sent",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "4 estimating sent nothing to Gemini",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "4 a confirm dialog opens before anything is sent",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "4 …with size, duration and 最多花費 (估算)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "4 progress is shown",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "4 exactly one analysis job exists for the video",
+    "ok": true,
+    "detail": "1"
+  },
+  {
+    "name": "4 the service went down and came back",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "4 after the restart the job runs on and the result appears in the window",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "4 one job, succeeded, analysed and billed once",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "4 the original file was sent as it is (same bytes), no extra data",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "4 no copy of the video is left at Gemini",
+    "ok": true,
+    "detail": "{\"starts\":1,\"chunks\":23,\"generates\":1,\"deletes\":1,\"liveRemoteFiles\":0,\"lastUploadBytes\":5894284,\"lastUploadSha256\":\"6c3618a4581de07b6a4c0741c77f94097bd9ec9eebb3aa7188c507c9ba5247fa\",\"apiKeys\":[\"AIzaQC026-FAKE-gemini-key-0123456789abcdef\"]}"
+  },
+  {
+    "name": "4 the result is marked 待核驗 with a disclaimer; a time point past the end is flagged",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "4 usage counts one Gemini job with a cost",
+    "ok": true,
+    "detail": "{\"provider\":\"gemini\",\"jobs\":1,\"input_tokens\":9200,\"output_tokens\":400,\"cost_usd\":0.0084}"
+  },
+  {
+    "name": "4 opening the analysed video shows its stored result at once",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "4 沿用結果 sends nothing and costs nothing",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "4 重新分析 asks again about the charge",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "4 only the deliberate 重新分析 made a second job, and it was billed",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "5 Gemini 429 that does not clear: 分析失敗 · 請求太頻繁（429） with 重試 and 查看上次結果",
+    "ok": true,
+    "detail": "分析失敗請求太頻繁（429）：供應商限流（429），稍後會自動重試 (HTTP 429)重試查看上次結果"
+  },
+  {
+    "name": "5 the failed job records the code and 3 attempts",
+    "ok": true,
+    "detail": "[\"rate_limited\",3]"
+  },
+  {
+    "name": "5 重試 runs the same job again and succeeds",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "5 取消 cancels the analysis",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "5 …and the uploaded copy at Gemini is deleted",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "5 Claude 429 that does not clear: 生成失敗 · 請求太頻繁（429） with 重試",
+    "ok": true,
+    "detail": "生成失敗 · 請求太頻繁（429）供應商限流（429），稍後會自動重試 (HTTP 429)重試關閉"
+  },
+  {
+    "name": "5 重試 produces a candidate",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "5 an invalid key (the provider even echoes it): 生成失敗 · 金鑰無效, not retried",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "5 the stored error and the window do not contain the key",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "6 after withdrawing, the editor panel asks for the notice again and cannot send",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "6 the API answers 409 ai_consent_required for a new analysis",
+    "ok": true,
+    "detail": "{\"code\":\"ai_consent_required\",\"message\":\"confirm the Gemini notice before sending content to Google\",\"details\":{\"provider\":\"gemini\",\"notice_version\":1}}"
+  },
+  {
+    "name": "6 nothing was sent while consent was withdrawn",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "7 over the reminder the dialog warns",
+    "ok": true,
+    "detail": "上傳至 Google Gemini影片會傳到 Google 處理，並產生費用（重新分析會再次計費）。這次的費用（估算）0:56coffee-v60.mp45.89 MB時長0:56模型gemini-3.8-flash輸入約 17,263 tokens（估算）最多花費$0.03（估算）本月累計$0.07 / 提醒 $0.001（估算）低解析度（較省、可分析到約 3 小時）本月 AI 費用估算 0.1"
+  },
+  {
+    "name": "7 …but the analysis still runs and succeeds",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "7 the usage card shows the over-reminder notice",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "8 the anthropic key is nowhere in the window, inputs, web storage, IndexedDB or cookies",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "8 the gemini key is nowhere in the window, inputs, web storage, IndexedDB or cookies",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "8 the window made no request to any non-local host",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "8 the service log has the request lines (it was really on)",
+    "ok": true,
+    "detail": "195945 bytes"
+  },
+  {
+    "name": "8 the anthropic key is not in the service log",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "8 the gemini key is not in the service log",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "8 no work text, prompt or AI output is in the service log",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "8 no key is in any file of the data directory (database, WAL, library, cache)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "8 no stored AI job contains a key",
+    "ok": true,
+    "detail": ""
+  }
+]
