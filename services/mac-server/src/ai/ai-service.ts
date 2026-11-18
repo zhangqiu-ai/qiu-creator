@@ -23,6 +23,8 @@ import {
   type AiProvider,
   type AiProviderStatus,
   type AiSettings,
+  type AiTask,
+  AiTaskSchema,
   type AiTextInput,
   type AiUsageResponse,
   type ChangeAction,
@@ -83,7 +85,20 @@ interface JobRow {
   finished_at: string | null;
   usage_month: string | null;
   estimate: string;
+  task: string | null;
+  accepted_revision_id: string | null;
+  accepted_at: string | null;
 }
+
+/**
+ * Shapes a task's raw provider output into its stored `result` (QC-022).
+ * Throw `ProviderError('invalid_output')` when the output cannot be used.
+ */
+export type AiTaskFinalizer = (
+  output: { text: string; json: unknown },
+  task: AiTask,
+  job: { id: string; work_id: string | null; source_revision: string | null },
+) => { text: string; json?: unknown };
 
 const SETTINGS_KEY = 'ai';
 
@@ -114,6 +129,7 @@ export class AiService {
   private stopped = true;
   private active = 0;
   private readonly inflight = new Set<Promise<void>>();
+  private readonly finalizers = new Map<AiTask['type'], AiTaskFinalizer>();
 
   constructor(
     private readonly db: Db,
@@ -324,11 +340,19 @@ export class AiService {
 
   // ---- Jobs ------------------------------------------------------------------------------
 
+  /** Register how a task type's output becomes its stored result. */
+  registerFinalizer(type: AiTask['type'], finalize: AiTaskFinalizer): void {
+    this.finalizers.set(type, finalize);
+  }
+
   /**
    * Queue a job. Refuses (409) unless the provider has a key and the current
    * notice is confirmed. Over budget only adds a warning.
    */
-  submit(request: CreateAiJobRequest): { job: AiJobRecord; budget: AiBudgetStatus } {
+  submit(
+    request: CreateAiJobRequest,
+    options: { task?: AiTask } = {},
+  ): { job: AiJobRecord; budget: AiBudgetStatus } {
     const req = CreateAiJobRequestSchema.parse(request);
     this.assertReady(req.provider);
     if (req.work_id !== undefined) {
@@ -354,8 +378,8 @@ export class AiService {
       this.db
         .prepare(
           `INSERT INTO ai_jobs (id, work_id, model, action, source_revision, status, created_at,
-             updated_at, provider, input, attempts, max_attempts, run_after, estimate)
-           VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, 0, 3, ?, ?)`,
+             updated_at, provider, input, attempts, max_attempts, run_after, estimate, task)
+           VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, 0, 3, ?, ?, ?)`,
         )
         .run(
           id,
@@ -369,6 +393,7 @@ export class AiService {
           JSON.stringify(req.input),
           now,
           JSON.stringify(estimate),
+          options.task === undefined ? null : JSON.stringify(options.task),
         );
       this.event(id, 'ai_job.queued', req.provider);
     })();
@@ -405,6 +430,16 @@ export class AiService {
       )
       .all(...params, q.limit, q.offset);
     return { items: rows.map(toRecord), total, limit: q.limit, offset: q.offset };
+  }
+
+  /** Record that a job's candidate became `revisionId` (QC-022). */
+  markAccepted(id: string, revisionId: string): void {
+    const now = this.now().toISOString();
+    this.db
+      .prepare(
+        'UPDATE ai_jobs SET accepted_revision_id = ?, accepted_at = ?, updated_at = ? WHERE id = ?',
+      )
+      .run(revisionId, now, now, id);
   }
 
   /** Cancel a queued or running job; a running call is aborted. */
@@ -570,10 +605,20 @@ export class AiService {
         }
       }
       this.recordUsage(row.id, result.model, result.usage);
+      const task = row.task === null ? null : AiTaskSchema.parse(JSON.parse(row.task));
+      const finalize = task === null ? undefined : this.finalizers.get(task.type);
+      const shaped =
+        task === null || finalize === undefined
+          ? json === undefined
+            ? { text: result.text }
+            : { text: result.text, json }
+          : finalize({ text: result.text, json }, task, {
+              id: row.id,
+              work_id: row.work_id,
+              source_revision: row.source_revision,
+            });
       this.finish(row.id, provider, 'succeeded', {
-        result: JSON.stringify(
-          json === undefined ? { text: result.text } : { text: result.text, json },
-        ),
+        result: JSON.stringify(shaped),
         error: null,
         error_code: null,
       });
@@ -719,5 +764,7 @@ function toRecord(row: JobRow): AiJobRecord {
     updated_at: row.updated_at,
     started_at: row.started_at,
     finished_at: row.finished_at,
+    task: parseJson(row.task),
+    accepted_revision_id: row.accepted_revision_id,
   });
 }

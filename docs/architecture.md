@@ -127,6 +127,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 `0008_ai_foundation`：`ai_jobs` 增加 `provider`、`input`（重試時重送的請求）、`error_code`、`attempts`／`max_attempts`／`run_after`（退避重試）、`started_at`／`finished_at`、`usage_month`（用量算在哪個本地月份）、`estimate`（送出前估算）；新增 `ai_providers`（模型設定、首次使用告知確認、金鑰「是否已存」的時間——金鑰本身不在資料庫）與 `app_settings`（AI 月度提醒金額、價格覆寫）。
 
+`0009_text_ai_tasks`：`ai_jobs` 增加 `task`（文字 AI 任務的種類與參數，JSON）、`accepted_revision_id`、`accepted_at`；`revisions` 增加 `ai_job_id`（`ai_accepted` 版本對應的 AI 任務）。
+
 `works` 比方案多了 `storage_mode`（managed／external）、`source_path`、`current_revision_id`，以便區分托管與外部掛載並快速核對版本。
 
 ## API
@@ -185,6 +187,9 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/ai/jobs`、`/api/v1/ai/jobs/:id` | AI 任務列表與詳情（結果、用量、估算成本、失敗原因） |
 | POST | `/api/v1/ai/jobs/:id/cancel`、`/retry` | 取消排隊或進行中的任務（中止供應商請求）；重跑失敗或已取消的任務 |
 | GET | `/api/v1/ai/usage?month=YYYY-MM` | 各供應商的 token 與估算費用、本月提醒狀態 |
+| POST | `/api/v1/works/:id/ai/suggestions` | 四平台標題／簡介／標籤候選（202，AI 任務）；不寫入任何東西 |
+| POST | `/api/v1/works/:id/ai/rewrite` | 改寫候選：潤色、縮寫、擴寫、語氣、自訂指令；全文或選取範圍（202，AI 任務） |
+| POST | `/api/v1/works/:id/ai/jobs/:jobId/accept` | 採用改寫：送出前端組好的全文，以 `base_revision = source_revision` 寫成 `ai_accepted` 版本；原稿已變回 409 |
 | POST／GET | `/api/v1/tokens` | 建立／列出 Agent 權杖（只限主權杖） |
 | DELETE | `/api/v1/tokens/:id` | 撤銷 Agent 權杖，立即失效 |
 
@@ -339,6 +344,40 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 **預設模型**（可在設定中改）：Gemini `gemini-3.8-flash`（文字與視頻）、Claude `claude-opus-5-5`、GPT `gpt-5.5`。
 
+## 文字 AI：平台候選與改寫（QC-022）
+
+建在 QC-021 的任務執行器上（`src/ai/text-tasks.ts`），兩種都是 AI 任務：建立後立即回 202，前端輪詢 `GET /api/v1/ai/jobs/:id` 或聽 `ai_job.*` 事件。金鑰、告知確認、費用估算與月度提醒、只限主權杖，全部沿用 QC-021。
+
+**給前端（QC-024）的操作對應：**
+
+| 操作 | API |
+| --- | --- |
+| 停止生成 | `POST /api/v1/ai/jobs/:id/cancel`（api-client 另有 `ai.stop`）：中止送往供應商的請求 |
+| 重試 | `POST /api/v1/ai/jobs/:id/retry`：重送同一份提示詞，所以仍以原本的 `source_revision` 為準 |
+| 重新產生（以目前原稿） | 再呼叫一次 `suggestions` 或 `rewrite`，得到新任務 |
+| 這篇作品的 AI 紀錄 | `GET /api/v1/ai/jobs?work_id=` |
+| 讀結果 | `job.result.json`；api-client 的 `suggestionsOf(job)`、`rewriteOf(job)` 直接回型別化結果 |
+
+**平台候選：** 一次任務、一次供應商呼叫，涵蓋選定的平台與欄位（預設四平台 × 標題、簡介、標籤 × 3 個候選）。
+
+- 提示詞依 `PLATFORM_LIMITS` 寫明各平台的字數與數量上限，並附平台風格提示（編輯建議，不是平台規則）；用各家原生的結構化輸出，Schema 只包含要求的平台與欄位。
+- 結果整理：去頭尾空白、去重、裁到要求的數量；標籤去掉 `#`、去重、丟掉空的。每個候選附上 `PLATFORM_LIMITS` 的超限警告（簡介以平台正文上限檢查）。形狀不對時任務記 `invalid_output`。
+- `task.variant_revisions` 記下產生當時各平台版本的版本號（沒有版本為 null），方便前端判斷候選是否根據較舊的狀態。
+- 採用：前端把選中的候選用 `PATCH /api/v1/works/:id/variants/:platform` 寫入，帶該平台目前的 `base_revision`；服務端不會自動寫平台版本。
+
+**改寫：** 模式為潤色、縮寫、擴寫、語氣調整（須給 `tone`）、自訂（須給 `instruction`）；其他模式也可加補充指令。
+
+- 建立時以作品目前版本為 `source_revision`，提示詞與結果都根據這個版本。可只改寫選取範圍（UTF-16 位移）；空白範圍或超出全文回 400。
+- 結果（`RewriteResult`）：改寫後的文字、取代的範圍、拼回去的全文 `full_markdown`。若供應商把輸出包在程式碼圍欄裡會去掉；選取範圍原本的前後空白會保留，拼接時不會黏行。
+- 採用：前端送出最終全文（全部採用就送 `full_markdown`，部分採用或手動修改由前端組好），可同時改標題。服務端不合併，以 `base_revision = source_revision` 寫入；作品在這之後被改過就回 409 `revision_conflict`，什麼都不寫。成功時新版本 `source` 為 `ai_accepted`、`ai_job_id` 指向該任務，任務記下 `accepted_revision_id`，事件 `work.updated` 帶 `source: "ai_accepted"` 與 `ai_job_id`。和其他版本一樣可以恢復。
+- 只有同一作品、已成功的改寫任務能採用，否則回 409 `ai_job_not_acceptable`。
+
+**提示詞與隱私：**
+
+- 原文一律放在 `<原文>` 標籤內，並明說它是素材不是指令，以降低原文中夾帶指令的影響。要求不杜撰原文沒有的事實、沿用原文的語言與繁簡。
+- 提示詞只含作品內容與使用者的指令，不含金鑰。服務端不記錄提示詞或原文；Fastify 日誌只有方法與路徑。
+- 提示詞超過 50 萬字回 413，不送出。
+
 ## 外部資料夾掛載
 
 已有的 Markdown 資料夾用**掛載**的方式加入：就地索引，**不搬移、不改名、不刪除**任何檔案。實作在 `src/mounts/mount-service.ts` 與 `WorkService` 的外部作品部分。
@@ -454,5 +493,5 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 - 素材庫還缺的服務端 API：匯入任務取消、素材刪除或移出索引、監控資料夾自動匯入（QC-015）。
 - 平台版本尚無「恢復某一版」的 API（歷史已存好，可直接加）；草稿是固定規則，AI 產生平台版本屬 M3。
 - M2：Electron／外部編輯器／Agent 三方衝突的完整驗收（QC-014）。
-- M3：AI 基礎已完成（QC-021）。文字候選與改寫（QC-022）、Gemini 視頻理解與檔案上傳（QC-023）尚未做；本地模型延後。
+- M3：AI 基礎（QC-021）與文字候選、改寫（QC-022）已完成。Gemini 視頻理解與檔案上傳（QC-023）尚未做；本地模型延後。
 - 生產可用：launchd 實機安裝、崩潰恢復、SQLite 備份與還原（QC-004）。

@@ -32,6 +32,8 @@ export const ErrorCodeSchema = z.enum([
   'ai_key_missing',
   /** The job already finished, failed or was cancelled. */
   'job_not_cancellable',
+  /** The AI job is not a succeeded rewrite of this work, so there is nothing to accept. */
+  'ai_job_not_acceptable',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 

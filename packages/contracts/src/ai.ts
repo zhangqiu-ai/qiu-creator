@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AIActionSchema, IdSchema, TimestampSchema } from './entities.js';
+import { AIActionSchema, IdSchema, PlatformSchema, TimestampSchema } from './entities.js';
 
 // ---- Providers ------------------------------------------------------------------
 
@@ -245,6 +245,34 @@ export const AiBudgetStatusSchema = z.object({
 });
 export type AiBudgetStatus = z.infer<typeof AiBudgetStatusSchema>;
 
+// ---- Text AI task metadata (QC-022; requests and results are in ai-text.ts) -------------
+
+export const SuggestionFieldSchema = z.enum(['title', 'summary', 'tags']);
+export type SuggestionField = z.infer<typeof SuggestionFieldSchema>;
+
+/** 潤色 / 縮寫 / 擴寫 / 語氣調整 / 補充指令（自訂）. */
+export const RewriteModeSchema = z.enum(['polish', 'shorten', 'expand', 'tone', 'custom']);
+export type RewriteMode = z.infer<typeof RewriteModeSchema>;
+
+export const AiTaskSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('platform_suggestions'),
+    platforms: z.array(PlatformSchema),
+    fields: z.array(SuggestionFieldSchema),
+    count: z.number().int(),
+    /** Each platform variant's revision when the job was created (null = no variant yet). */
+    variant_revisions: z.record(z.string(), z.number().int().positive().nullable()),
+  }),
+  z.object({
+    type: z.literal('rewrite'),
+    mode: RewriteModeSchema,
+    tone: z.string().nullable(),
+    instruction: z.string().nullable(),
+    range: z.object({ start: z.number().int(), end: z.number().int() }),
+  }),
+]);
+export type AiTask = z.infer<typeof AiTaskSchema>;
+
 export const AiJobRecordSchema = z.object({
   id: IdSchema,
   provider: AiProviderSchema,
@@ -267,6 +295,10 @@ export const AiJobRecordSchema = z.object({
   updated_at: TimestampSchema,
   started_at: TimestampSchema.nullable(),
   finished_at: TimestampSchema.nullable(),
+  /** What a text AI job was for (QC-022); null for generic jobs. */
+  task: AiTaskSchema.nullable().optional(),
+  /** Revision created when the user accepted this job's rewrite (QC-022). */
+  accepted_revision_id: IdSchema.nullable().optional(),
 });
 export type AiJobRecord = z.infer<typeof AiJobRecordSchema>;
 

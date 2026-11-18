@@ -110,6 +110,8 @@ export const RevisionSchema = z.object({
   content_hash: Sha256Schema,
   created_at: TimestampSchema,
   source: RevisionSourceSchema,
+  /** For `ai_accepted` revisions: the AI job whose candidate was accepted (QC-022). */
+  ai_job_id: IdSchema.nullable().optional(),
 });
 export type Revision = z.infer<typeof RevisionSchema>;
 

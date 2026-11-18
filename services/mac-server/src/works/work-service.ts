@@ -52,6 +52,8 @@ interface RevisionRow {
   title: string;
   source: string;
   created_at: string;
+  /** Only for `ai_accepted` revisions. */
+  ai_job_id?: string | null;
 }
 
 export interface PatchWorkInput {
@@ -250,6 +252,35 @@ export class WorkService {
     });
   }
 
+  /**
+   * Write the text the user composed from an AI candidate (QC-022) as an
+   * `ai_accepted` revision, against the revision the candidate was made from.
+   * If the work changed since, 409 and nothing is written. Restorable like
+   * any other revision.
+   */
+  acceptAi(
+    id: string,
+    baseRevision: string,
+    change: { markdown: string; title?: string | undefined; aiJobId: string },
+  ): WorkDetail {
+    const row = this.checkedRow(id, baseRevision, 'accept an AI candidate');
+    return this.commitRevision(row, {
+      markdown: change.markdown,
+      title: change.title,
+      source: 'ai_accepted',
+      aiJobId: change.aiJobId,
+      event: {
+        ai_job_id: change.aiJobId,
+        fields: change.title === undefined ? ['markdown'] : ['title', 'markdown'],
+      },
+    });
+  }
+
+  /** Markdown of one revision (for AI prompts built from a fixed source revision). */
+  revisionMarkdown(id: string, revisionId: string): string {
+    return this.readSnapshot(this.requireRevision(id, revisionId));
+  }
+
   /** Reconcile, then enforce the revision precondition (428 when absent, 409 when stale). */
   private checkedRow(id: string, baseRevision: string | null, action: string): WorkRow {
     const row = this.reconcileExternalChange(this.requireRow(id));
@@ -288,6 +319,7 @@ export class WorkService {
       tags?: string[] | undefined;
       source: RevisionSource;
       event: Record<string, unknown>;
+      aiJobId?: string;
     },
   ): WorkDetail {
     const id = row.id;
@@ -336,6 +368,7 @@ export class WorkService {
           title,
           source: change.source,
           created_at: now,
+          ai_job_id: change.aiJobId ?? null,
         });
         this.indexFts(id, title, tags, markdown);
         this.feed?.record('work', id, 'work.updated', {
@@ -719,7 +752,7 @@ export class WorkService {
     this.db
       .prepare(
         `INSERT INTO revisions (revision_id, work_id, parent_revision_id, content_hash, snapshot_path,
-           title, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           title, source, created_at, ai_job_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         r.revision_id,
@@ -730,6 +763,7 @@ export class WorkService {
         r.title,
         r.source,
         r.created_at,
+        r.ai_job_id ?? null,
       );
   }
 
@@ -760,6 +794,7 @@ function toRevision(r: RevisionRow): Revision {
     content_hash: r.content_hash,
     created_at: r.created_at,
     source: r.source as RevisionSource,
+    ai_job_id: r.ai_job_id ?? null,
   };
 }
 

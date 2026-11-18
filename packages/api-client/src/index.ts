@@ -46,7 +46,7 @@ import {
 import { createMountsApi, type CreatorHubMountsApi } from './mounts.js';
 import { createVariantsApi, type CreatorHubVariantsApi } from './variants.js';
 import { createAiApi, type CreatorHubAiApi } from './ai.js';
-export type { CreatorHubAiApi } from './ai.js';
+export { rewriteOf, suggestionsOf, type CreatorHubAiApi } from './ai.js';
 export type { CreatorHubVariantsApi, VariantWriteOptions } from './variants.js';
 export type { CreatorHubMountsApi } from './mounts.js';
 

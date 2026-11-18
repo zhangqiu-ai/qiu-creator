@@ -8,6 +8,17 @@ import {
   CreateAiJobRequestSchema,
   CreateAiJobResponseSchema,
   ListAiJobsResponseSchema,
+  PlatformSuggestionsRequestSchema,
+  PlatformSuggestionsResultSchema,
+  RewriteRequestSchema,
+  RewriteResultSchema,
+  WorkDetailSchema,
+  type AcceptRewriteRequest,
+  type PlatformSuggestionsRequest,
+  type PlatformSuggestionsResult,
+  type RewriteRequest,
+  type RewriteResult,
+  type WorkDetail,
   type AiEstimateResponse,
   type AiJobRecord,
   type AiProvider,
@@ -45,6 +56,28 @@ export interface CreatorHubAiApi {
   cancel(id: string): Promise<AiJobRecord>;
   retry(id: string): Promise<AiJobRecord>;
   usage(month?: string): Promise<AiUsageResponse>;
+
+  // ---- Text AI on a work (QC-022) ----
+  /** Queue per-platform title / summary / tag candidates. Apply one via `variants.patch`. */
+  suggest(workId: string, input: PlatformSuggestionsRequest): Promise<CreateAiJobResponse>;
+  /** Queue a rewrite candidate of the whole text or a selection. */
+  rewrite(workId: string, input: RewriteRequest): Promise<CreateAiJobResponse>;
+  /** Write the composed full text as an `ai_accepted` revision; 409 if the work changed since. */
+  accept(workId: string, jobId: string, input: AcceptRewriteRequest): Promise<WorkDetail>;
+  /** "停止生成": same as `cancel`. */
+  stop(jobId: string): Promise<AiJobRecord>;
+}
+
+/** Typed suggestions of a succeeded `platform_suggestions` job, or null. */
+export function suggestionsOf(job: AiJobRecord): PlatformSuggestionsResult | null {
+  const parsed = PlatformSuggestionsResultSchema.safeParse(job.result?.json);
+  return parsed.success ? parsed.data : null;
+}
+
+/** Typed candidate of a succeeded `rewrite` job, or null. */
+export function rewriteOf(job: AiJobRecord): RewriteResult | null {
+  const parsed = RewriteResultSchema.safeParse(job.result?.json);
+  return parsed.success ? parsed.data : null;
 }
 
 export function createAiApi(ctx: Ctx): CreatorHubAiApi {
@@ -94,6 +127,31 @@ export function createAiApi(ctx: Ctx): CreatorHubAiApi {
     job: (id) => call(ctx, AiJobRecordSchema, 'GET', j(id)),
     cancel: (id) => call(ctx, AiJobRecordSchema, 'POST', `${j(id)}/cancel`),
     retry: (id) => call(ctx, AiJobRecordSchema, 'POST', `${j(id)}/retry`),
+    suggest: (workId, input) =>
+      call(
+        ctx,
+        CreateAiJobResponseSchema,
+        'POST',
+        `/api/v1/works/${encodeURIComponent(workId)}/ai/suggestions`,
+        PlatformSuggestionsRequestSchema.parse(input),
+      ),
+    rewrite: (workId, input) =>
+      call(
+        ctx,
+        CreateAiJobResponseSchema,
+        'POST',
+        `/api/v1/works/${encodeURIComponent(workId)}/ai/rewrite`,
+        RewriteRequestSchema.parse(input),
+      ),
+    accept: (workId, jobId, input) =>
+      call(
+        ctx,
+        WorkDetailSchema,
+        'POST',
+        `/api/v1/works/${encodeURIComponent(workId)}/ai/jobs/${encodeURIComponent(jobId)}/accept`,
+        input,
+      ),
+    stop: (jobId) => call(ctx, AiJobRecordSchema, 'POST', `${j(jobId)}/cancel`),
     usage: (month) =>
       call(
         ctx,
