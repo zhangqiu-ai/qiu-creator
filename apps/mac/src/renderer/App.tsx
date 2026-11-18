@@ -164,6 +164,9 @@ export function App() {
           onPreview={() => {
             setRoute({ page: 'preview', workId: route.work.id, from: route.work });
           }}
+          onOpenSettings={() => {
+            setRoute({ page: 'settings' });
+          }}
           onBack={() => {
             setRoute({ page: 'library' });
           }}

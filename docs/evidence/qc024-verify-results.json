@@ -1,0 +1,197 @@
+[
+  {
+    "name": "editor opens with the AI panel",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "AI panel tabs 改寫／標題",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "no key: 「尚未設定 AI 金鑰」 with 前往設定, generate disabled",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "前往設定 opens the settings page",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "no AI job was created without a key",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "provider chip shows Claude · 雲端",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "selection label follows the editor selection",
+    "ok": true,
+    "detail": "選取：第 2 段 · 62 字"
+  },
+  {
+    "name": "語氣: the box asks for a tone and sending needs one",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "Enter sends; skeleton with 停止 while generating",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "停止 returns to 無候選",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "停止 cancels the job on the server",
+    "ok": true,
+    "detail": "cancelled"
+  },
+  {
+    "name": "Enter during IME composition does not send",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "candidate shows 3 處修改 as a sentence diff",
+    "ok": true,
+    "detail": "3 處修改62 → 47 字"
+  },
+  {
+    "name": "3 hunks with strike-through and insertion",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "unchecking a hunk turns 採用 into 採用 2/3",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "⌘↩ accepts: 已部分採用 with the new revision number",
+    "ok": true,
+    "detail": "已部分採用 · r2復原"
+  },
+  {
+    "name": "server text has hunks 1 and 3, keeps sentence 2",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "accepted revision source is ai_accepted",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "editor shows the accepted text",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "復原 clears the bar",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "復原 says the original changed and asks to regenerate",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "復原 brings back the original text",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "復原 is a new restore revision; history kept",
+    "ok": true,
+    "detail": "restore,ai_accepted,create"
+  },
+  {
+    "name": "插入 keeps the paragraph and adds the candidate after it",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "esc discards the candidate",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "esc writes nothing",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "failure shows 生成失敗 · 逾時 with 重試",
+    "ok": true,
+    "detail": "生成失敗 · 逾時fake provider timed out重試關閉"
+  },
+  {
+    "name": "重試 produces a candidate",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "採用 after an outside change opens the existing conflict dialog",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "the other writer’s text was not overwritten",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "保留雙方 keeps the composed AI text as a copy",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "標題 tab starts with 無候選",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "標題 generating uses the same skeleton and 停止",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "four platforms with candidates and limits",
+    "ok": true,
+    "detail": "小紅書上限 20 | 公眾號上限 64 | 抖音上限 30 | 視頻號上限 16"
+  },
+  {
+    "name": "小紅書 over-limit candidate is flagged against 20",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "寫入平台版本 names the platforms it created",
+    "ok": true,
+    "detail": "已寫入 4 個版本（新建：小紅書、公眾號、抖音、視頻號）"
+  },
+  {
+    "name": "each platform got its picked title",
+    "ok": true,
+    "detail": "[[\"xiaohongshu\",\"書房改剪輯室，半年後我後悔了嗎\"],[\"wechat_mp\",\"我把書房改成剪輯室：半年後的五個取捨\"],[\"douyin\",\"剪輯室改造半年復盤\"],[\"wechat_channels\",\"半年前，我把書房改成了剪輯室\"]]"
+  },
+  {
+    "name": "narrow window: the panel stays usable",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "no request left the machine (fake provider only)",
+    "ok": true,
+    "detail": "server built with in-process fake providers"
+  }
+]

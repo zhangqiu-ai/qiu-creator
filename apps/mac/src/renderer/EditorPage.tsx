@@ -1,11 +1,15 @@
 import type { CreatorHubClient } from '@qiu-creator/api-client';
 import type { Revision, WorkDetail, WorkStatus } from '@qiu-creator/contracts';
 import {
+  blockNumbers,
   MarkdownEditor,
   type EditorMode,
   type MarkdownEditorHandle,
+  type MarkdownRange,
 } from '@qiu-creator/markdown-editor-web';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { AiPanel, type AiSelection } from './AiPanel.js';
+import { AiProviders, RewriteSession, TitleSession } from './ai-session.js';
 import { Chip } from './Chip.js';
 import { ConflictDialog } from './ConflictDialog.js';
 import { useChangeEvents, useEventStatus } from './events.js';
@@ -34,13 +38,15 @@ export interface EditorPageProps {
   onBack: () => void;
   /** Open 平台預覽 for this work (⌘P). */
   onPreview?: () => void;
+  /** 「前往設定」 from the AI panel when no key or consent is set. */
+  onOpenSettings?: () => void;
 }
 
 /**
- * 編輯頁 from the approved prototype plus PT-20261117-001 (the AI panel and
- * 預覽 come with later tasks): live external-change notice, missing-file
- * read-only state, external source label, status and tags, Markdown images,
- * and history with restore.
+ * 編輯頁 from the approved prototype plus PT-20261117-001: live
+ * external-change notice, missing-file read-only state, external source
+ * label, status and tags, Markdown images, history with restore, and the AI
+ * panel (QC-024), which history replaces while open.
  */
 export function EditorPage(props: EditorPageProps) {
   const { client, work } = props;
@@ -69,6 +75,7 @@ function SessionEditor({
   userHome,
   onBack,
   onPreview,
+  onOpenSettings,
   session,
 }: EditorPageProps & { session: WorkSession }) {
   const state = useSyncExternalStore(
@@ -95,6 +102,42 @@ function SessionEditor({
   useEffect(loadRevisions, [loadRevisions, state.baseRevision]);
   const numbers = useMemo(() => revisionNumbers(revisions), [revisions]);
 
+  // AI panel (QC-024): sessions live as long as this editor.
+  const [ai, setAi] = useState<{ rewrite: RewriteSession; titles: TitleSession } | null>(null);
+  useEffect(() => {
+    const providers = new AiProviders(client);
+    const rewrite = new RewriteSession(client, session, providers);
+    const titles = new TitleSession(client, work.id, providers);
+    setAi({ rewrite, titles });
+    void rewrite.loadProvider();
+    return () => {
+      rewrite.dispose();
+      titles.dispose();
+    };
+  }, [client, session, work.id]);
+  const [selectionRange, setSelectionRange] = useState<MarkdownRange | null>(null);
+  useEffect(() => {
+    setSelectionRange(null);
+  }, [state.epoch, editorKey]);
+  const aiSelection = useMemo((): AiSelection => {
+    const md = state.draft.markdown;
+    const range =
+      selectionRange !== null &&
+      selectionRange.end <= md.length &&
+      selectionRange.end > selectionRange.start
+        ? selectionRange
+        : null;
+    if (range === null) return { range: null, label: '全文', words: countWords(md) };
+    const n = blockNumbers(md, range);
+    const label =
+      n === null
+        ? '全文'
+        : n.first === n.last
+          ? `第 ${String(n.first)} 段`
+          : `第 ${String(n.first)}–${String(n.last)} 段`;
+    return { range, label, words: countWords(md.slice(range.start, range.end)) };
+  }, [selectionRange, state.draft.markdown]);
+
   const mounts = useMounts(client);
   const source = externalSource(work, mounts, userHome);
 
@@ -112,6 +155,11 @@ function SessionEditor({
 
   // Live changes to this work from the shared SSE channel.
   useChangeEvents((event) => {
+    if (event.entity === 'job' && event.action.startsWith('ai_job.')) {
+      void ai?.rewrite.jobChanged(event.entity_id);
+      void ai?.titles.jobChanged(event.entity_id);
+      return;
+    }
     if (event.entity !== 'work' || event.entity_id !== work.id) return;
     const rid = typeof event.data['revision_id'] === 'string' ? event.data['revision_id'] : null;
     switch (event.action) {
@@ -427,8 +475,22 @@ function SessionEditor({
               onCompositionChange={(composing) => {
                 session.setComposing(composing);
               }}
+              onSelectionChange={setSelectionRange}
             />
           </section>
+
+          {!historyOpen && ai !== null && (
+            <AiPanel
+              rewrite={ai.rewrite}
+              titles={ai.titles}
+              selection={aiSelection}
+              readOnly={readOnly}
+              revisionNumber={(id) => numbers.get(id)}
+              onOpenSettings={() => {
+                void session.save().finally(() => onOpenSettings?.());
+              }}
+            />
+          )}
 
           {historyOpen && (
             <HistoryPanel

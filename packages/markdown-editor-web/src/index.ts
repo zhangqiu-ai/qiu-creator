@@ -15,3 +15,11 @@ export {
   type EditorPluginOptions,
 } from './plugins.js';
 export { translateZhTW } from './translation.js';
+export {
+  blockNumbers,
+  expandToBlocks,
+  markdownBlocks,
+  rangeForBlockTexts,
+  type MarkdownBlock,
+  type MarkdownRange,
+} from './selection.js';

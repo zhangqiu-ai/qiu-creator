@@ -47,6 +47,7 @@ export interface WorkSessionOptions {
 }
 
 export type RestoreResult = 'restored' | 'conflict' | 'blocked';
+export type AcceptResult = 'accepted' | 'conflict' | 'blocked';
 
 function draftOf(work: WorkDetail): Draft {
   return { title: work.title, markdown: work.markdown, status: work.status, tags: work.tags };
@@ -392,6 +393,58 @@ export class WorkSession {
     }
   }
 
+  /**
+   * 採用 an AI rewrite (QC-024): save pending edits, then write the composed
+   * full text as an `ai_accepted` revision based on the job's source revision.
+   * If the work moved on since the candidate was generated (409), the composed
+   * text becomes this window's draft and the existing conflict flow opens:
+   * nothing on the server is overwritten and the user's choice is kept.
+   */
+  async acceptAi(jobId: string, markdown: string): Promise<AcceptResult> {
+    if (this.state.readOnly !== null || this.state.status === 'conflict') return 'blocked';
+    await this.save();
+    // Read through a method: TypeScript would otherwise keep the narrowing from before the await.
+    const now = this.current();
+    if (now.readOnly !== null || now.status === 'conflict') return 'blocked';
+    if (this.state.remote !== null) {
+      this.toConflict(markdown, this.state.remote.revisionId);
+      return 'conflict';
+    }
+    if (this.hasUnsavedChanges()) return 'blocked';
+    try {
+      const work = await this.exclusive(() =>
+        this.client.ai.accept(this.state.workId, jobId, { markdown }),
+      );
+      if (this.disposed) return 'accepted';
+      this.adopt(work, true);
+      this.options.onSaved?.(work);
+      return 'accepted';
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'source_missing') {
+        await this.refreshExternalState();
+        return 'blocked';
+      }
+      if (err instanceof ApiError && err.code === 'revision_conflict') {
+        const latest = err.currentRevision ?? (await this.fetchServerVersion()).current_revision_id;
+        this.toConflict(markdown, latest);
+        return 'conflict';
+      }
+      throw err;
+    }
+  }
+
+  private toConflict(markdown: string, serverRevision: string): void {
+    this.clearTimer();
+    this.set({
+      draft: { ...this.state.draft, markdown },
+      remote: null,
+      status: 'conflict',
+      conflictRevision: serverRevision,
+      errorMessage: null,
+      epoch: this.state.epoch + 1,
+    });
+  }
+
   /** Fetch the server's current version (for the diff view). */
   fetchServerVersion(): Promise<WorkDetail> {
     return this.client.works.get(this.state.workId);
@@ -456,6 +509,10 @@ export class WorkSession {
       return;
     }
     this.dispose();
+  }
+
+  private current(): WorkSessionState {
+    return this.state;
   }
 
   /** Read through a method: TypeScript would otherwise narrow `disposed` across awaits. */

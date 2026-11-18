@@ -3,6 +3,7 @@ import '@mdxeditor/editor/style.css';
 import {
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -16,6 +17,7 @@ import {
   type LossyReason,
 } from './lossy.js';
 import { createEditorPlugins, TO_MARKDOWN_OPTIONS } from './plugins.js';
+import { expandToBlocks, rangeForBlockTexts, type MarkdownRange } from './selection.js';
 import { translateZhTW } from './translation.js';
 
 export type EditorMode = 'visual' | 'source';
@@ -39,6 +41,13 @@ export interface MarkdownEditorProps {
    * ref, so a new function does not remount the editor.
    */
   resolveImage?: (src: string) => Promise<string>;
+  /**
+   * Told when the user's selection inside the editor moves, as a Markdown
+   * source range. Visual mode widens it to whole blocks; a collapsed caret in
+   * source mode also widens to its block. Selections outside the editor (for
+   * example in a side panel) are not reported, so hosts keep the last one.
+   */
+  onSelectionChange?: (range: MarkdownRange | null) => void;
   /** Accessible name for the editing area. */
   label?: string;
   className?: string;
@@ -52,6 +61,8 @@ export interface MarkdownEditorHandle {
   /** Switch modes; switching a lossy document to visual asks for confirmation first. */
   requestMode: (mode: EditorMode) => void;
   focus: () => void;
+  /** The current selection as a Markdown source range (see `onSelectionChange`), or null. */
+  getSelectionRange: () => MarkdownRange | null;
 }
 
 /**
@@ -85,6 +96,50 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const composing = useRef(false);
     const mdx = useRef<MDXEditorMethods>(null);
     const textarea = useRef<HTMLTextAreaElement>(null);
+    const container = useRef<HTMLDivElement>(null);
+
+    const selectionRange = useCallback((): MarkdownRange | null => {
+      if (mode === 'source') {
+        const t = textarea.current;
+        if (t === null) return null;
+        const { selectionStart: start, selectionEnd: end } = t;
+        return start === end ? expandToBlocks(current.current, { start, end }) : { start, end };
+      }
+      const root = container.current?.querySelector('.qc-md-editor__content');
+      const sel = window.getSelection();
+      if (root == null || sel === null || sel.rangeCount === 0) return null;
+      const r = sel.getRangeAt(0);
+      if (!root.contains(r.startContainer) || !root.contains(r.endContainer)) return null;
+      const top = (node: Node): Element | null => {
+        let n: Node | null = node;
+        while (n !== null && n.parentNode !== root) n = n.parentNode;
+        return n instanceof Element ? n : null;
+      };
+      const a = top(r.startContainer);
+      const b = top(r.endContainer);
+      if (a === null || b === null) return null;
+      const children = Array.from(root.children);
+      return rangeForBlockTexts(current.current, a.textContent, b.textContent, {
+        start: children.indexOf(a),
+        end: children.indexOf(b),
+      });
+    }, [mode]);
+
+    const { onSelectionChange } = props;
+    const reportSourceSelection = useCallback(() => {
+      onSelectionChange?.(selectionRange());
+    }, [onSelectionChange, selectionRange]);
+    useEffect(() => {
+      if (onSelectionChange === undefined || mode !== 'visual') return;
+      const onChange = () => {
+        const range = selectionRange();
+        if (range !== null) onSelectionChange(range);
+      };
+      document.addEventListener('selectionchange', onChange);
+      return () => {
+        document.removeEventListener('selectionchange', onChange);
+      };
+    }, [mode, onSelectionChange, selectionRange]);
 
     const emit = useCallback(() => {
       if (composing.current || current.current === lastEmitted.current) return;
@@ -172,8 +227,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           if (mode === 'visual') mdx.current?.focus();
           else textarea.current?.focus();
         },
+        getSelectionRange: selectionRange,
       }),
-      [mode, requestMode],
+      [mode, requestMode, selectionRange],
     );
 
     const resolveImageRef = useRef(props.resolveImage);
@@ -194,6 +250,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
     return (
       <div
+        ref={container}
         className={['qc-md-editor', props.className].filter(Boolean).join(' ')}
         data-mode={mode}
         onCompositionStartCapture={() => {
@@ -270,6 +327,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
             aria-label={label}
             value={sourceText}
             onChange={handleSourceChange}
+            onSelect={reportSourceSelection}
+            onKeyUp={reportSourceSelection}
+            onMouseUp={reportSourceSelection}
             readOnly={readOnly}
             spellCheck={false}
           />
