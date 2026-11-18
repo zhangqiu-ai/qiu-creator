@@ -56,7 +56,11 @@ export interface AppInfo {
 }
 
 export type RevealTarget =
-  { kind: 'home' } | { kind: 'asset'; id: string } | { kind: 'mount'; id: string };
+  | { kind: 'home' }
+  /** `<CREATORHUB_HOME>/backups` (QC-031). */
+  | { kind: 'backups' }
+  | { kind: 'asset'; id: string }
+  | { kind: 'mount'; id: string };
 
 export interface CreatorHubBridge {
   /** Re-reads the token each call, so a service started after the app is picked up. */

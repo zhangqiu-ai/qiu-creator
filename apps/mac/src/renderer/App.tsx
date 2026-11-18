@@ -1,10 +1,11 @@
 import type { CreatorHubClient } from '@qiu-creator/api-client';
 import type { WorkDetail } from '@qiu-creator/contracts';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { connect, type ConnectResult } from './api.js';
 import { AssetsPage } from './AssetsPage.js';
+import { BackupSession, type BackupState } from './backups.js';
 import { EditorPage } from './EditorPage.js';
-import { useRefreshOn, useUploads } from './events.js';
+import { useChangeEvents, useRefreshOn, useUploads } from './events.js';
 import { Icon, type IconName } from './Icon.js';
 import { ImportsPage } from './ImportsPage.js';
 import { LibraryPage } from './LibraryPage.js';
@@ -33,7 +34,7 @@ const NAV: readonly { page: NavPage; label: string; icon: IconName }[] = [
 ];
 
 /** Queued and running import jobs on the service plus this session's active uploads. */
-function useActiveTaskCount(client: CreatorHubClient | null): number {
+function useActiveTaskCount(client: CreatorHubClient | null, dataEpoch: number): number {
   const [jobs, setJobs] = useState(0);
   const uploads = useUploads();
   const load = useCallback(() => {
@@ -49,9 +50,46 @@ function useActiveTaskCount(client: CreatorHubClient | null): number {
         // Badge only; the 匯入任務 page reports errors.
       });
   }, [client]);
-  useEffect(load, [load]);
+  useEffect(load, [load, dataEpoch]);
   useRefreshOn(['job'], load, 300);
   return jobs + uploads.filter((u) => u.state === 'queued' || u.state === 'uploading').length;
+}
+
+const NO_BACKUPS = (): (() => void) => () => undefined;
+
+/**
+ * Backups for this connection (QC-031). Kept at the app level so a restore
+ * keeps being followed when the user leaves 設定, and so the whole app can
+ * refetch once the service runs on the restored database.
+ */
+function useBackupSession(client: CreatorHubClient | null, onDataReplaced: () => void) {
+  const [session, setSession] = useState<BackupSession | null>(null);
+  useEffect(() => {
+    if (client === null) {
+      setSession(null);
+      return;
+    }
+    // Created in the effect: StrictMode would dispose a memoized instance (QC-025).
+    const s = new BackupSession({
+      client,
+      onDataReplaced,
+      wakeEvents: () => {
+        void window.creatorhub?.eventStatus();
+      },
+    });
+    setSession(s);
+    return () => {
+      s.dispose();
+    };
+  }, [client, onDataReplaced]);
+  useChangeEvents((event) => {
+    session?.onEvent(event);
+  });
+  const state = useSyncExternalStore<BackupState | null>(
+    session?.subscribe ?? NO_BACKUPS,
+    () => session?.getSnapshot() ?? null,
+  );
+  return { session, state };
 }
 
 /**
@@ -81,8 +119,19 @@ export function App() {
   useEffect(tryConnect, [tryConnect]);
 
   const client = 'state' in connection || !connection.ok ? null : connection.client;
+  // Bumped when a backup restore replaced the database: every page refetches.
+  const [dataEpoch, setDataEpoch] = useState(0);
+  const onDataReplaced = useCallback(() => {
+    setDataEpoch((n) => n + 1);
+  }, []);
+  const backups = useBackupSession(client, onDataReplaced);
+  const restoring =
+    backups.state !== null &&
+    (backups.state.restore.phase === 'sending' ||
+      backups.state.restore.phase === 'reloading' ||
+      backups.state.externalRestore);
   const serviceUp = client !== null;
-  const activeTasks = useActiveTaskCount(client);
+  const activeTasks = useActiveTaskCount(client, dataEpoch);
 
   const openWork = useCallback(
     (id: string) => {
@@ -132,9 +181,18 @@ export function App() {
             )}
           </button>
         ))}
-        <div className="side__foot" role="status" title={serviceUp ? '服務運行中' : '服務未回應'}>
-          <span className={serviceUp ? 'dot' : 'dot dot--off'} aria-hidden="true" />
-          <span className="side__label">{serviceUp ? '服務運行中' : '服務未回應'}</span>
+        <div
+          className="side__foot"
+          role="status"
+          title={restoring ? '還原中' : serviceUp ? '服務運行中' : '服務未回應'}
+        >
+          <span
+            className={restoring ? 'dot dot--warn' : serviceUp ? 'dot' : 'dot dot--off'}
+            aria-hidden="true"
+          />
+          <span className="side__label">
+            {restoring ? '還原中' : serviceUp ? '服務運行中' : '服務未回應'}
+          </span>
         </div>
       </nav>
 
@@ -150,6 +208,7 @@ export function App() {
         </main>
       ) : route.page === 'library' ? (
         <LibraryPage
+          key={`library:${String(dataEpoch)}`}
           client={connection.client}
           userHome={userHome}
           onOpen={openWork}
@@ -175,7 +234,7 @@ export function App() {
         />
       ) : route.page === 'assets' ? (
         <AssetsPage
-          key={`${route.focusAssetId ?? 'assets'}:${String(route.startAt ?? '')}`}
+          key={`${route.focusAssetId ?? 'assets'}:${String(route.startAt ?? '')}:${String(dataEpoch)}`}
           client={connection.client}
           home={home}
           userHome={userHome}
@@ -191,6 +250,7 @@ export function App() {
         />
       ) : route.page === 'preview' ? (
         <PreviewPage
+          key={`preview:${String(dataEpoch)}`}
           client={connection.client}
           workId={route.workId}
           onPickWork={(id) => {
@@ -207,6 +267,7 @@ export function App() {
         />
       ) : route.page === 'ai' ? (
         <AiWorkbenchPage
+          key={`ai:${String(dataEpoch)}`}
           client={connection.client}
           onOpenSettings={() => {
             setRoute({ page: 'settings', section: 'ai' });
@@ -220,6 +281,7 @@ export function App() {
         />
       ) : route.page === 'imports' ? (
         <ImportsPage
+          key={`imports:${String(dataEpoch)}`}
           client={connection.client}
           onOpenAsset={(id) => {
             setRoute({ page: 'assets', focusAssetId: id });
@@ -230,8 +292,11 @@ export function App() {
           key={route.section ?? 'settings'}
           client={connection.client}
           home={home}
+          userHome={userHome}
           baseUrl={connection.baseUrl}
           focusSection={route.section}
+          backups={backups.session}
+          dataEpoch={dataEpoch}
         />
       )}
     </div>

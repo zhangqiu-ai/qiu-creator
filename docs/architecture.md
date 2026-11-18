@@ -50,8 +50,8 @@ renderer（React，sandbox，無 Node）
 
 - **只走 HTTP API。** App 不開 SQLite、不寫內容檔；所有讀寫都經 api-client 到 mac-server。
 - **權杖。** 主程序每次連線時讀 `CREATORHUB_TOKEN` 或 `$CREATORHUB_HOME/data/api-token`，經 preload 的 `contextBridge` 交給 renderer。開發模式沒設 `CREATORHUB_HOME` 就不連線（顯示「未設定 CREATORHUB_HOME」），只有打包後才預設 `~/CreatorHub`。
-- **為什麼經主程序轉送請求。** renderer 的來源是 `http://localhost:5180`（開發）或 `file://`（建置），直接 fetch `127.0.0.1:7420` 會被 CORS 擋下，而服務沒有開 CORS。主程序轉送時只允許設定的服務來源、`/health` 與 `/api/v1/*`、固定的方法與標頭、8 MB 以內的內容，不跟隨重新導向，並只接受自家頁面送來的 IPC。
-- **視窗安全。** `contextIsolation`、`sandbox` 開啟，`nodeIntegration` 關閉；CSP 在開發模式由回應標頭提供、建置後以 meta 標籤寫入；禁止頁內導航、拒絕所有權限請求、只有 `https:` 連結交給系統瀏覽器開啟。
+- **為什麼經主程序轉送請求。** renderer 的來源是 `http://localhost:5180`（開發）或 `qc-app://renderer`（建置，QC-031），直接 fetch `127.0.0.1:7420` 會被 CORS 擋下，而服務沒有開 CORS。主程序轉送時只允許設定的服務來源、`/health` 與 `/api/v1/*`、固定的方法與標頭、8 MB 以內的內容，不跟隨重新導向，並只接受自家頁面送來的 IPC。
+- **視窗安全。** `contextIsolation`、`sandbox` 開啟，`nodeIntegration` 關閉；CSP 一律由回應標頭提供，依實際的服務位址（`CREATORHUB_HOST`／`CREATORHUB_PORT`）產生：開發模式由 `onHeadersReceived` 加上，建置後主程序以 `qc-app://renderer/` 提供 `dist/`（只服務 `dist` 內的檔案），每個回應都帶 CSP。建置產物不再寫入 meta 標籤，因為 meta 與標頭兩條政策會同時生效，寫死 `127.0.0.1:7420` 的 meta 會擋掉改埠後的服務圖片（QC-031）；禁止頁內導航、拒絕所有權限請求、只有 `https:` 連結交給系統瀏覽器開啟。
 - **服務沒啟動時。** App 不啟動也不關閉服務（服務由 launchd 管）。連不上就顯示「服務未運行」與重試；關閉視窗或結束 App 不影響服務（`docs/evidence/qc002-close-window.txt`）。
 - **儲存。** 每個打開的作品有一個 `WorkSession`：停止輸入 0.8 秒自動儲存，⌘S 立即儲存；輸入法組字期間不儲存也不觸發快捷鍵；PATCH 一律帶 `base_revision`，同時只送一個請求。
 - **衝突（409）。** 停止自動儲存，草稿留著，開啟衝突對話框（背景 `inert`）。對話框裡可以：

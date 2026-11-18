@@ -2,6 +2,8 @@ import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
 import type { HealthResponse, Mount, MountStatus } from '@qiu-creator/contracts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AiSettingsSection } from './AiSettingsSection.js';
+import { BackupSection } from './BackupSection.js';
+import { versionLabel, formatStamp, type BackupSession } from './backups.js';
 import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
 import { useEventStatus, useRefreshOn } from './events.js';
@@ -37,20 +39,29 @@ export function sortMounts(mounts: readonly Mount[]): Mount[] {
 }
 
 /**
- * 設定 (prototype board MacSettings), phase-one subset: service status,
- * AI keys and models (QC-025), and folders (managed home, external mounts).
- * Service start/stop and backups need APIs that do not exist yet; Tailscale
- * and device pairing are phase two. Those sections are left out, not faked.
+ * 設定 (prototype board MacSettings), phase-one subset: service status and
+ * version, backups (QC-031), AI keys and models (QC-025), and folders
+ * (managed home, external mounts). Service start/stop, start at login and
+ * sleep prevention need APIs that do not exist yet; Tailscale and device
+ * pairing are phase two. Those are left out, not faked.
  */
 export function SettingsPage({
   client,
   home,
+  userHome = null,
   baseUrl,
   focusSection,
+  backups = null,
+  dataEpoch = 0,
 }: {
   client: CreatorHubClient;
   home: string | null;
+  userHome?: string | null;
   baseUrl: string;
+  /** The app's backup session; null hides the section (e.g. in tests without one). */
+  backups?: BackupSession | null;
+  /** Changes when a restore replaced the database: refetch everything shown here. */
+  dataEpoch?: number;
   /** Scroll to and focus a section, e.g. from 「前往設定」. */
   focusSection?: 'ai';
 }) {
@@ -91,8 +102,11 @@ export function SettingsPage({
       });
   }, [client]);
 
-  useEffect(checkHealth, [checkHealth]);
-  useEffect(loadMounts, [loadMounts]);
+  useEffect(checkHealth, [checkHealth, dataEpoch]);
+  useEffect(loadMounts, [loadMounts, dataEpoch]);
+  useEffect(() => {
+    void backups?.load();
+  }, [backups]);
   // Scans and missing/restored files arrive as work events.
   useRefreshOn(['work'], loadMounts, 400);
 
@@ -169,7 +183,9 @@ export function SettingsPage({
             {up && (
               <div className="ln">
                 <span className="ln__k ln__main">版本</span>
-                <span className="ln__v mono">{health.version}</span>
+                <span className="ln__v mono" title={health.commit ?? undefined}>
+                  {versionLabel(health, (iso) => formatStamp(iso))}
+                </span>
               </div>
             )}
             <div className="ln">
@@ -190,7 +206,9 @@ export function SettingsPage({
           </div>
         </section>
 
-        <AiSettingsSection client={client} headingRef={aiHeading} />
+        {backups !== null && <BackupSection session={backups} userHome={userHome} />}
+
+        <AiSettingsSection key={dataEpoch} client={client} headingRef={aiHeading} />
 
         <section className="settings__sec" aria-labelledby="set-folders">
           <h2 id="set-folders" className="settings__h">

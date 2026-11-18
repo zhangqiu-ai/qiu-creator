@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { AssetRecordSchema, MountSchema } from '@qiu-creator/contracts';
@@ -19,6 +20,13 @@ import {
   type ProxyRequest,
   type RevealTarget,
 } from '../shared/bridge.js';
+import {
+  APP_INDEX_URL,
+  APP_SCHEME,
+  appFilePath,
+  appResponseHeaders,
+  isAppUrl,
+} from './app-protocol.js';
 import { abbreviateHome, assetServicePath, forwardableRange, resolveInsideHome } from './assets.js';
 import { readConnection, resolveConfig } from './config.js';
 import { contentSecurityPolicy } from './csp.js';
@@ -38,6 +46,8 @@ const config = resolveConfig(process.env, app.isPackaged);
 
 protocol.registerSchemesAsPrivileged([
   { scheme: ASSET_SCHEME, privileges: { standard: true, secure: true, stream: true } },
+  // The built renderer (QC-031): a secure origin of its own, so 'self' and module scripts work.
+  { scheme: APP_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
 function connection(): UploadConnection | null {
@@ -88,14 +98,13 @@ function isProxyRequest(value: unknown): value is ProxyRequest {
 function isRevealTarget(value: unknown): value is RevealTarget {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
-  if (v['kind'] === 'home') return true;
+  if (v['kind'] === 'home' || v['kind'] === 'backups') return true;
   return (v['kind'] === 'asset' || v['kind'] === 'mount') && typeof v['id'] === 'string';
 }
 
 /** Only our own renderer may use the bridge. */
 function isTrustedSender(event: IpcMainInvokeEvent): boolean {
-  const url = event.senderFrame?.url ?? '';
-  return devServerUrl !== null ? url.startsWith(devServerUrl) : url.startsWith('file://');
+  return isAppUrl(event.senderFrame?.url ?? '', devServerUrl);
 }
 
 /** GET a JSON resource from the service with the owner token (main-process lookups only). */
@@ -120,6 +129,10 @@ async function reveal(target: RevealTarget): Promise<boolean> {
   if (target.kind === 'home') {
     await shell.openPath(config.home);
     return true;
+  }
+  if (target.kind === 'backups') {
+    // shell.openPath answers with an error message (not a throw) when the folder is missing.
+    return (await shell.openPath(path.join(config.home, 'backups'))) === '';
   }
   if (target.kind === 'asset') {
     const asset = AssetRecordSchema.safeParse(
@@ -271,8 +284,24 @@ function registerAssetProtocol(): void {
   });
 }
 
+/** Serve the built renderer with the CSP for the actual service address (no file:// pages). */
+function registerAppProtocol(csp: string): void {
+  const root = path.join(__dirname, '..', 'dist');
+  protocol.handle(APP_SCHEME, async (request) => {
+    const file = request.method === 'GET' ? appFilePath(request.url, root) : null;
+    if (file === null) return new Response(null, { status: 404 });
+    try {
+      const body = await fs.readFile(file);
+      return new Response(body, { status: 200, headers: appResponseHeaders(file, csp) });
+    } catch {
+      return new Response(null, { status: 404 });
+    }
+  });
+}
+
 function hardenSession(): void {
   const csp = contentSecurityPolicy(devServerUrl, config.baseUrl);
+  if (devServerUrl === null) registerAppProtocol(csp);
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: { ...details.responseHeaders, 'Content-Security-Policy': [csp] },
@@ -318,7 +347,7 @@ function createWindow(): void {
   if (devServerUrl !== null) {
     void win.loadURL(devServerUrl);
   } else {
-    void win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+    void win.loadURL(APP_INDEX_URL);
   }
 }
 
