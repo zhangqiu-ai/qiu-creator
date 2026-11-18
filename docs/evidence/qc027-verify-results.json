@@ -1,0 +1,22 @@
+[
+  {
+    "name": "candidate shown",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "the outside edit is shown in the editor (adopted silently)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "採用 opens the conflict dialog",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "the dialog says the candidate was based on r1 and the server is at r2",
+    "ok": true,
+    "detail": "你的修改基於 r1，伺服器已是 r2你的修改已保留你的修改此視窗基於"
+  }
+]

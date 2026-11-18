@@ -415,7 +415,7 @@ export class RewriteSession {
     this.set({ phase: 'busy', notice: null });
     let result: ApplyResult;
     try {
-      result = await this.work.acceptAi(c.jobId, markdown);
+      result = await this.work.acceptAi(c.jobId, markdown, c.result.source_revision);
     } catch (err) {
       this.set({ phase: 'pending', notice: `無法採用：${messageOf(err)}` });
       return 'blocked';

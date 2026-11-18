@@ -18,6 +18,11 @@ export interface RemoteChange {
   revisionId: string;
   /** `external` for an edit outside the app (Finder, VS Code), `edit`/`restore` for another client. */
   source: 'external' | 'edit' | 'restore' | 'other';
+  /**
+   * The revision the unsaved draft was based on when the newer one arrived.
+   * `baseRevision` may already point at the newer revision by then (QC-027).
+   */
+  draftBase: string;
 }
 
 export interface WorkSessionState {
@@ -30,6 +35,12 @@ export interface WorkSessionState {
   status: SaveStatus;
   /** Server revision that beat us (409). */
   conflictRevision: string | null;
+  /**
+   * The revision this window's draft was based on when the conflict began
+   * (for 「你的修改基於 rN」). Not `baseRevision`, which can already have moved
+   * to the server's revision (QC-027).
+   */
+  conflictBase: string | null;
   errorMessage: string | null;
   /** Non-null while the external file is missing or its folder unmounted: no saves, no restore. */
   readOnly: ReadOnlyReason | null;
@@ -104,6 +115,7 @@ export class WorkSession {
       baseRevision: work.current_revision_id,
       status: 'saved',
       conflictRevision: null,
+      conflictBase: null,
       errorMessage: null,
       readOnly: readOnlyOf(work),
       remote: null,
@@ -236,6 +248,7 @@ export class WorkSession {
             draft: saved,
             status: 'saved' as const,
             conflictRevision: null,
+            conflictBase: null,
             errorMessage: null,
             remote: null,
             epoch: this.state.epoch + 1,
@@ -257,10 +270,11 @@ export class WorkSession {
     if (sent.markdown !== saved.markdown) changes.markdown = sent.markdown;
     if (sent.status !== saved.status) changes.status = sent.status;
     if (!sameTags(sent.tags, saved.tags)) changes.tags = [...sent.tags];
+    const sentBase = this.state.baseRevision;
     this.set({ status: 'saving', errorMessage: null });
     try {
       const work = await this.client.works.patch(this.state.workId, {
-        base_revision: this.state.baseRevision,
+        base_revision: sentBase,
         ...changes,
       });
       if (this.disposed) return;
@@ -284,6 +298,7 @@ export class WorkSession {
         this.set({
           status: 'conflict',
           conflictRevision: err.currentRevision ?? null,
+          conflictBase: sentBase,
           errorMessage: null,
         });
         return;
@@ -305,7 +320,7 @@ export class WorkSession {
     if (this.disposed) return;
     if (revisionId === this.state.baseRevision || this.own.has(revisionId)) return;
     if (this.inFlight !== null) {
-      this.pendingRemote = { revisionId, source };
+      this.pendingRemote = { revisionId, source, draftBase: this.state.baseRevision };
       return;
     }
     if (this.state.status === 'conflict') return; // the conflict dialog already compares
@@ -321,8 +336,10 @@ export class WorkSession {
       if (this.isDisposed()) return;
       // The user started typing while we fetched: do not replace their text.
       if (this.state.draft !== before) {
+        // The draft is still based on the revision it was before this fetch.
+        const draftBase = this.state.baseRevision;
         this.adopt(work, false);
-        this.set({ remote: { revisionId: work.current_revision_id, source } });
+        this.set({ remote: { revisionId: work.current_revision_id, source, draftBase } });
         this.clearTimer();
         return;
       }
@@ -330,7 +347,7 @@ export class WorkSession {
       return;
     }
     this.clearTimer();
-    this.set({ remote: { revisionId, source } });
+    this.set({ remote: { revisionId, source, draftBase: this.state.baseRevision } });
   }
 
   /** 比對並合併: open the conflict flow against the newer server revision. */
@@ -338,7 +355,12 @@ export class WorkSession {
     const remote = this.state.remote;
     if (remote === null) return;
     this.clearTimer();
-    this.set({ remote: null, status: 'conflict', conflictRevision: remote.revisionId });
+    this.set({
+      remote: null,
+      status: 'conflict',
+      conflictRevision: remote.revisionId,
+      conflictBase: remote.draftBase,
+    });
   }
 
   /** The external file disappeared, came back, or its folder was (un)mounted. */
@@ -400,14 +422,14 @@ export class WorkSession {
    * text becomes this window's draft and the existing conflict flow opens:
    * nothing on the server is overwritten and the user's choice is kept.
    */
-  async acceptAi(jobId: string, markdown: string): Promise<AcceptResult> {
+  async acceptAi(jobId: string, markdown: string, sourceRevision: string): Promise<AcceptResult> {
     if (this.state.readOnly !== null || this.state.status === 'conflict') return 'blocked';
     await this.save();
     // Read through a method: TypeScript would otherwise keep the narrowing from before the await.
     const now = this.current();
     if (now.readOnly !== null || now.status === 'conflict') return 'blocked';
     if (this.state.remote !== null) {
-      this.toConflict(markdown, this.state.remote.revisionId);
+      this.toConflict(markdown, this.state.remote.revisionId, sourceRevision);
       return 'conflict';
     }
     if (this.hasUnsavedChanges()) return 'blocked';
@@ -426,20 +448,22 @@ export class WorkSession {
       }
       if (err instanceof ApiError && err.code === 'revision_conflict') {
         const latest = err.currentRevision ?? (await this.fetchServerVersion()).current_revision_id;
-        this.toConflict(markdown, latest);
+        this.toConflict(markdown, latest, sourceRevision);
         return 'conflict';
       }
       throw err;
     }
   }
 
-  private toConflict(markdown: string, serverRevision: string): void {
+  /** The composed text was written from `draftBase` (the candidate's source revision). */
+  private toConflict(markdown: string, serverRevision: string, draftBase: string): void {
     this.clearTimer();
     this.set({
       draft: { ...this.state.draft, markdown },
       remote: null,
       status: 'conflict',
       conflictRevision: serverRevision,
+      conflictBase: draftBase,
       errorMessage: null,
       epoch: this.state.epoch + 1,
     });
