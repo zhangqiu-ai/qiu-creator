@@ -1,5 +1,15 @@
 # Done
 
+## QC-029: AI 任務的重啟沿用遠端檔與文字任務去重
+
+**Priority:** P2 | **Assignee:** qc-backend | **Tags:** M3, backend
+
+### 完成摘要
+
+- 根因：服務關閉的中止被當成使用者取消，刪了遠端檔。改為關閉時保留 `remote_state`，重啟後先查遠端檔：處理中或可用且離到期 1 小時以上就沿用，否則刪舊檔重傳；未傳完的上傳同一根因，一併保留續傳。
+- 改寫與平台候選：支援 `Idempotency-Key`；相同參數與 source_revision 的排隊或執行中任務直接回傳（`in_progress: true`），不重複計費。前端沿用回傳的任務即可，無需改動。
+- 持久測試補在 `ai-video.test.ts`、`ai-text.test.ts`。總監合併後全部閘門通過，566／0／566（負載約 3）。合併 2026-11-18。
+
 ## QC-026: M3 驗收記錄
 
 **Priority:** P1 | **Assignee:** qc-bugfix | **Tags:** M3
