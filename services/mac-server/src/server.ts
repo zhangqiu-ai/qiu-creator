@@ -49,6 +49,8 @@ import { registerImportRoutes, registerTokenRoutes } from './routes/imports.js';
 import { registerMediaRoutes } from './routes/media.js';
 import { registerMountRoutes } from './routes/mounts.js';
 import { registerAiRoutes } from './routes/ai.js';
+import { registerAiTextRoutes } from './routes/ai-text.js';
+import { TextAiService } from './ai/text-tasks.js';
 import { AiService, type AiRunnerOptions } from './ai/ai-service.js';
 import type { AIProvider } from './ai/provider.js';
 import { AnthropicProvider } from './ai/providers/anthropic.js';
@@ -446,6 +448,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerMediaRoutes(app, media, assets, signer, tokens);
   registerVariantRoutes(app, variants);
   registerAiRoutes(app, ai, idempotency);
+  registerAiTextRoutes(app, new TextAiService(ai, works, variants));
 
   mounts.start();
   if (options.jobs?.start !== false) jobs.start();

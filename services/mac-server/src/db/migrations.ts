@@ -327,4 +327,18 @@ export const migrations: readonly Migration[] = [
       );
     `,
   },
+  {
+    id: '0009',
+    name: 'text_ai_tasks',
+    sql: /* sql */ `
+      -- What a text AI job was for (platform suggestions or a rewrite, as
+      -- JSON), and the revision created when its rewrite was accepted.
+      ALTER TABLE ai_jobs ADD COLUMN task TEXT;
+      ALTER TABLE ai_jobs ADD COLUMN accepted_revision_id TEXT;
+      ALTER TABLE ai_jobs ADD COLUMN accepted_at TEXT;
+
+      -- ai_accepted revisions point at the job whose candidate was accepted.
+      ALTER TABLE revisions ADD COLUMN ai_job_id TEXT;
+    `,
+  },
 ];
