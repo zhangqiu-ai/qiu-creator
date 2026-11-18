@@ -10,7 +10,7 @@ import {
   type Mount,
 } from '@qiu-creator/contracts';
 import { isPathInside } from '@qiu-creator/domain';
-import { watch, type FSWatcher } from 'chokidar';
+import { FSWatcher, type ChokidarOptions, type Scheduler } from 'chokidar';
 import type { Db } from '../db/database.js';
 import { notFound, ServiceError } from '../errors.js';
 import type { JobQueue, JobRecord } from '../jobs/job-queue.js';
@@ -46,6 +46,8 @@ export interface MountServiceOptions {
   pollIntervalMs?: number;
   /** Safety-net full rescan of every active mount (default 10 min; 0 disables). */
   rescanIntervalMs?: number;
+  /** Clock and timers for the watcher (tests only; default is chokidar's real clock). */
+  scheduler?: Scheduler;
   log?: (msg: string, err?: unknown) => void;
 }
 
@@ -57,6 +59,15 @@ export function isIgnoredName(name: string): boolean {
   return name.startsWith('.') || name.endsWith('~') || SKIPPED_DIRS.has(name);
 }
 
+/** chokidar's `watch()` with an injectable scheduler (undefined = chokidar's real clock). */
+function watch(
+  scheduler: Scheduler | undefined,
+  root: string,
+  options?: ChokidarOptions,
+): FSWatcher {
+  return new FSWatcher(options, scheduler).add(root);
+}
+
 /**
  * Mounted external folders. Files are indexed in place: this service never
  * moves, renames or deletes anything inside a mount. Symlinks are not
@@ -66,8 +77,8 @@ export class MountService {
   private readonly watchers = new Map<string, FSWatcher>();
   private readonly readyPromises = new Map<string, Promise<void>>();
   private rescanTimer: NodeJS.Timeout | undefined;
-  private readonly opts: Required<Omit<MountServiceOptions, 'log'>> &
-    Pick<MountServiceOptions, 'log'>;
+  private readonly opts: Required<Omit<MountServiceOptions, 'log' | 'scheduler'>> &
+    Pick<MountServiceOptions, 'log' | 'scheduler'>;
 
   constructor(
     private readonly db: Db,
@@ -83,6 +94,7 @@ export class MountService {
       backend: options.backend ?? 'auto',
       pollIntervalMs: options.pollIntervalMs ?? 1000,
       rescanIntervalMs: options.rescanIntervalMs ?? 10 * 60 * 1000,
+      scheduler: options.scheduler,
       log: options.log,
     };
     jobs.register('mount.scan', (job) => this.runScan(job));
@@ -289,7 +301,7 @@ export class MountService {
   private startWatcher(row: MountRow): void {
     if (!this.opts.watch || this.watchers.has(row.id) || row.status !== 'active') return;
     const root = row.root_path;
-    const watcher = watch(root, {
+    const watcher = watch(this.opts.scheduler, root, {
       ignoreInitial: true,
       followSymlinks: false,
       persistent: true,

@@ -4,10 +4,17 @@ import os from 'node:os';
 import path from 'node:path';
 import { ApiError, createClient } from '@qiu-creator/api-client';
 import type { ChangeEvent, Mount } from '@qiu-creator/contracts';
+import type { Scheduler, SchedulerTimer } from 'chokidar';
 import { afterEach, describe, expect, it } from 'vitest';
 import { startTestServer, type StartOptions, type TestServer } from './helpers.js';
 
 const STABILITY_MS = 300;
+const MOUNT_OPTIONS = {
+  stabilityMs: STABILITY_MS,
+  writePollMs: 50,
+  backend: 'polling',
+  pollIntervalMs: 50,
+} as const;
 const servers: TestServer[] = [];
 const dirs: string[] = [];
 
@@ -20,7 +27,7 @@ async function start(extra: StartOptions = {}): Promise<TestServer> {
   const s = await startTestServer({
     jobs: { pollMs: 5 },
     // Polling: deterministic under parallel test load (FSEvents was seen arriving 12 s late).
-    mounts: { stabilityMs: STABILITY_MS, writePollMs: 50, backend: 'polling', pollIntervalMs: 50 },
+    mounts: MOUNT_OPTIONS,
     ...extra,
   });
   servers.push(s);
@@ -74,6 +81,67 @@ async function mountAndScan(s: TestServer, dir: string): Promise<Mount> {
   await s.jobs.drain();
   await s.mounts.ready(mount.id);
   return s.client.mounts.get(mount.id);
+}
+
+/**
+ * A chokidar scheduler whose clock only moves when the test advances it; its
+ * timers are real. The write-finish check measures "unchanged for
+ * stabilityMs" on this clock, so event-loop stalls under load can no longer
+ * make a file look finished. Write-finish polls are told apart by their
+ * delay: `writePollMs` must differ from every other chokidar timer delay
+ * (poll interval 50, change throttle 50, atomic 100, empty-file hold 10).
+ */
+function manualClock(writePollMs: number) {
+  let now = Date.now();
+  let polls = 0;
+  let autoStep = 0;
+  const waiters = new Set<() => void>();
+  const timers = new Map<SchedulerTimer, NodeJS.Timeout>();
+  const scheduler: Scheduler = {
+    now: () => now,
+    setTimeout: (callback, delay) => {
+      const timer = setTimeout(() => {
+        timers.delete(timer);
+        if (delay === writePollMs) now += autoStep;
+        callback();
+        if (delay === writePollMs) polls += 1;
+        for (const wake of [...waiters]) wake();
+      }, delay);
+      timers.set(timer, timer);
+      return timer;
+    },
+    clearTimeout: (timer) => {
+      const t = timer === undefined ? undefined : timers.get(timer);
+      if (t === undefined) return;
+      clearTimeout(t);
+      timers.delete(t);
+    },
+  };
+  return {
+    scheduler,
+    advance(ms: number): void {
+      now += ms;
+    },
+    /** From now on, move the clock `ms` forward before every write-finish poll. */
+    run(ms: number): void {
+      autoStep = ms;
+    },
+    get polls(): number {
+      return polls;
+    },
+    /** Resolves once `done()` holds, checked after every chokidar timer callback (no fixed sleeps). */
+    until(done: () => boolean): Promise<void> {
+      return new Promise((resolve) => {
+        const check = (): void => {
+          if (!done()) return;
+          waiters.delete(check);
+          resolve();
+        };
+        waiters.add(check);
+        check();
+      });
+    },
+  };
 }
 
 const byPath = async (s: TestServer, rel: string) =>
@@ -207,22 +275,44 @@ describe('scanning', () => {
 
 describe('watching', () => {
   it('indexes a new file only after it stops changing (half-written files never enter)', async () => {
-    const s = await start();
+    const WRITE_POLL_MS = 30; // distinct from every other chokidar timer delay, see manualClock
+    const clock = manualClock(WRITE_POLL_MS);
+    const s = await start({
+      jobs: { pollMs: 5 },
+      mounts: { ...MOUNT_OPTIONS, writePollMs: WRITE_POLL_MS, scheduler: clock.scheduler },
+    });
     const dir = folder();
     await mountAndScan(s, dir);
     const file = path.join(dir, 'draft.md');
+    const created = (): boolean => events(s, 'work.created').length > 0;
+    // Two write-finish polls fired after this point means one that started after the
+    // last write has finished (each poll is scheduled only when the previous one is done).
+    // An early index stops the polls, so it also ends the wait and fails the assertion below.
+    const polled = async (): Promise<void> => {
+      const target = clock.polls + 2;
+      await clock.until(() => clock.polls >= target || created());
+    };
+    const step = (STABILITY_MS * 2) / 3; // each step stays inside the stability window
 
     fs.writeFileSync(file, '# 草稿\n\n第一段');
-    await new Promise((r) => setTimeout(r, STABILITY_MS / 3));
+    await polled(); // the watcher is now waiting for the write to finish
+    clock.advance(step);
     fs.appendFileSync(file, '\n\n第二段');
-    await new Promise((r) => setTimeout(r, STABILITY_MS / 3));
+    await polled();
+    clock.advance(step); // longer than the window since the file appeared, not since its last change
+    await polled();
+    expect(created()).toBe(false);
     expect(await byPath(s, 'draft.md')).toBeUndefined(); // still being written
     fs.appendFileSync(file, '\n\n完。');
+    await polled();
+    expect(created()).toBe(false);
 
-    const work = await waitFor(
-      () => byPath(s, 'draft.md'),
-      (w) => w !== undefined,
-    );
+    // Let time run: a full window per write-finish poll until the file is indexed. A
+    // change notice that arrives late restarts the window at the current time, which
+    // a single advance of a frozen clock would never get past.
+    clock.run(STABILITY_MS);
+    await clock.until(created);
+    const work = await byPath(s, 'draft.md');
     expect((await s.client.works.get(work?.id ?? '')).markdown).toBe(
       '# 草稿\n\n第一段\n\n第二段\n\n完。',
     );
