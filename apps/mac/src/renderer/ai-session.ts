@@ -43,6 +43,8 @@ export const FAILURE_LABEL: Readonly<Record<AiFailureCode, string>> = {
   provider_unavailable: '服務暫時無法使用',
   bad_request: '請求無效',
   invalid_output: '結果格式無法解析',
+  file_processing_failed: 'Gemini 處理影片失敗',
+  source_unavailable: '素材檔案找不到',
   unknown: '未知錯誤',
 };
 
