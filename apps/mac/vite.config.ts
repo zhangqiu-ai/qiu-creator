@@ -1,27 +1,18 @@
 import path from 'node:path';
 import react from '@vitejs/plugin-react';
-import { defineConfig, type Plugin } from 'vite';
-import { contentSecurityPolicy } from './src/main/csp.js';
+import { defineConfig } from 'vite';
 
-/** file:// pages get no response headers, so the production CSP goes in a meta tag. */
-function cspMeta(): Plugin {
-  return {
-    name: 'qc-csp-meta',
-    apply: 'build',
-    transformIndexHtml: () => [
-      {
-        tag: 'meta',
-        attrs: { 'http-equiv': 'Content-Security-Policy', content: contentSecurityPolicy(null) },
-        injectTo: 'head-prepend',
-      },
-    ],
-  };
-}
+/*
+ * No CSP meta tag in the build: the main process serves the renderer from
+ * qc-app:// with a CSP header for the actual service address (QC-031). A
+ * meta tag baked here would pin 127.0.0.1:7420 and, since both policies
+ * apply, block a service on any other port.
+ */
 
 export default defineConfig({
   root: path.join(import.meta.dirname, 'src/renderer'),
   base: './',
-  plugins: [react(), cspMeta()],
+  plugins: [react()],
   server: { port: 5180, strictPort: true, host: 'localhost' },
   build: {
     outDir: path.join(import.meta.dirname, 'dist'),

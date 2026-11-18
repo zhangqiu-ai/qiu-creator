@@ -1,4 +1,5 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
+import { serviceErrorText } from './restoring.js';
 import type { Platform, PlatformVariantRecord } from '@qiu-creator/contracts';
 
 export interface VariantDraft {
@@ -223,7 +224,7 @@ export class VariantSession {
       }
       this.set({
         status: 'error',
-        errorMessage: err instanceof ApiError ? err.message : '無法連線到服務',
+        errorMessage: serviceErrorText(err),
       });
     }
   }

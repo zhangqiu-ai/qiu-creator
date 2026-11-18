@@ -1,4 +1,5 @@
 import { ApiError, rewriteOf, suggestionsOf, type CreatorHubClient } from '@qiu-creator/api-client';
+import { serviceErrorText } from './restoring.js';
 import {
   charCount,
   PLATFORM_LIMITS,
@@ -67,7 +68,7 @@ function blockOf(err: unknown): AiBlock | null {
 }
 
 function messageOf(err: unknown): string {
-  return err instanceof ApiError ? err.message : '無法連線到服務';
+  return serviceErrorText(err);
 }
 
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled']);

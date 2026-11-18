@@ -1,4 +1,5 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
+import { isRestoring, RESTORING_TEXT } from './restoring.js';
 import {
   AI_PRICE_TABLE,
   type AiProvider,
@@ -48,6 +49,7 @@ export interface AiSettingsState {
 }
 
 function messageOf(err: unknown): string {
+  if (isRestoring(err)) return RESTORING_TEXT;
   if (err instanceof ApiError) {
     if (err.status === 400) return '格式不正確';
     return err.message;

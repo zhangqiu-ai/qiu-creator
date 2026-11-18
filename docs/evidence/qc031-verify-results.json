@@ -1,0 +1,200 @@
+[
+  {
+    "phase": "a",
+    "name": "renderer is served from qc-app://",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "a",
+    "name": "version line shows source run",
+    "ok": true,
+    "detail": "本機服務127.0.0.1:7555執行中重新檢查 | 版本0.1.0 · 從原始碼執行 | 即時更新已連線 | 本機服務由系統常駐管理（launchd），關閉 App 不會停止服務。"
+  },
+  {
+    "phase": "a",
+    "name": "daily schedule, retention and folder shown",
+    "ok": true,
+    "detail": "最近備份今天 08:43 · 250 KB · 每日立即備份 | 每日自動備份上次 今天 08:43 · 下次 明天 08:43每種保留最新 14 份 · 只備份資料庫；原稿與媒體請用 Time Machine開啟 | 備份位置/private/tmp/claude-501/qc031-home.yu6b00sw/backups在 Finder 顯示 | 從備份還原1 份 | 今天 08:4325"
+  },
+  {
+    "phase": "a",
+    "name": "first daily backup listed",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "a",
+    "name": "manual backup appears with 已備份",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "a",
+    "name": "newest row is 手動 and 完整",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "a",
+    "name": "backup.created from another client updates the list live",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "a",
+    "name": "integrity failed row: chip and disabled 還原",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "a",
+    "name": "work created after the backup",
+    "ok": true,
+    "detail": "201"
+  },
+  {
+    "phase": "a",
+    "name": "confirm dialog says the current state is backed up first",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "a",
+    "name": "cancel has the initial focus",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "a",
+    "name": "還原中 shown while the service reloads",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "a",
+    "name": "restore finishes after the service reloads",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "a",
+    "name": "done notice names the safety backup",
+    "ok": true,
+    "detail": " 已還原到 今天 08:43 的備份還原前的狀態已備份為「今天 08:43 · 還原前」，需要時可以再還原回來。知道了"
+  },
+  {
+    "phase": "a",
+    "name": "sidebar back to 服務運行中",
+    "ok": true,
+    "detail": "服務運行中"
+  },
+  {
+    "phase": "a",
+    "name": "list refetched: newest is the pre_restore backup",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "a",
+    "name": "library refetched: the post-backup work is gone",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "a",
+    "name": "409 backup_not_restorable: data unchanged, reason shown",
+    "ok": true,
+    "detail": " 還原失敗 · 今天 08:43這份備份未通過完整性檢查，或來自較新的版本，不能還原；資料沒有變更this backup failed its integrity check and cannot be restored關閉"
+  },
+  {
+    "phase": "a",
+    "name": "409 backup_failed: definite, nothing restored, detail from details.detail",
+    "ok": true,
+    "detail": " 還原失敗 · 今天 08:43無法先備份目前的資料，所以沒有還原；資料沒有變更unable to open database file關閉"
+  },
+  {
+    "phase": "a",
+    "name": "500 backup_failed on 立即備份 with reason",
+    "ok": true,
+    "detail": "備份失敗，沒有產生副本unable to open database file"
+  },
+  {
+    "phase": "a",
+    "name": "a later successful backup clears the old failure",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "a",
+    "name": "mounted work with images is indexed",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "a",
+    "name": "Markdown image from http://127.0.0.1:7555 is shown",
+    "ok": true,
+    "detail": "[{\"src\":\"http://127.0.0.1:7555/media/v1/works/948189c2-5ad5-4dcb-bed9\",\"w\":640},{\"src\":\"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A\",\"w\":480}]"
+  },
+  {
+    "phase": "a",
+    "name": "external https image in the Markdown is not loaded",
+    "ok": true,
+    "detail": "[{\"src\":\"http://127.0.0.1:7555/media/v1/works/948189c2-5ad5-4dcb-bed9\",\"w\":640},{\"src\":\"data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A\",\"w\":480}]"
+  },
+  {
+    "phase": "a",
+    "name": "CSP blocks a third-party image",
+    "ok": true,
+    "detail": "{\"loaded\":false,\"violations\":[\"img-src https://example.com/qc031-csp-probe.png\",\"img-src https://example.com/qc031-csp-probe.png\"]}"
+  },
+  {
+    "phase": "a",
+    "name": "CSP blocks fetch to a third party",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "b",
+    "name": "daily backup failure shows last_error (backup.failed)",
+    "ok": true,
+    "detail": "上次自動備份失敗：unable to open database file"
+  },
+  {
+    "phase": "b",
+    "name": "overdue next daily reads 即將執行, not a past time",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "b",
+    "name": "restart_required notice",
+    "ok": true,
+    "detail": "需要重新啟動本機服務11/16 08:43 的備份已排定，會在本機服務下次啟動時套用；在那之前資料不會改變。目前的狀態已備份為「今天 08:43 · 還原前」。知道了"
+  },
+  {
+    "phase": "b",
+    "name": "editor save during a restore says the service is restoring",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "b",
+    "name": "sidebar shows 還原中 after a 503 restoring",
+    "ok": true,
+    "detail": "還原中"
+  },
+  {
+    "phase": "c",
+    "name": "app leaves 還原中 once the service is back",
+    "ok": true,
+    "detail": "服務運行中"
+  },
+  {
+    "phase": "c",
+    "name": "editor draft kept in the window",
+    "ok": true,
+    "detail": ""
+  }
+]

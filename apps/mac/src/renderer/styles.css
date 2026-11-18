@@ -271,6 +271,9 @@ kbd {
 .dot--off {
   background: var(--qc-bad);
 }
+.dot--warn {
+  background: var(--qc-warn);
+}
 /* Narrow windows: the navigation collapses to an icon column. */
 @media (max-width: 1180px) {
   .side {
@@ -3118,4 +3121,101 @@ kbd {
 }
 .aiw-confirm__notice .aiw-confirm__h {
   color: var(--qc-warn);
+}
+
+/* ---- QC-031: 設定 → 備份 ---- */
+.spin {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.backup__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.backup__row {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.backup__row .ln__main {
+  flex-basis: 160px;
+}
+.ln--head {
+  min-height: 40px;
+}
+.ln--more {
+  min-height: 40px;
+  justify-content: center;
+}
+.backup__empty {
+  align-items: flex-start;
+}
+.backup__empty .ln__v,
+.backup__wrap {
+  white-space: normal;
+}
+.backup__ok {
+  color: var(--qc-ok);
+}
+.backup__detail {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--qc-ink3);
+  overflow-wrap: anywhere;
+}
+.backup__notice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+}
+.backup__notice .ln__v {
+  white-space: normal;
+}
+.backup__notice .ln__k {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.backup__notice--ok {
+  border-color: var(--qc-ok);
+  background: var(--qc-ok-soft);
+}
+.backup__notice--ok .ln__k {
+  color: var(--qc-ok);
+}
+.backup__notice--warn {
+  border-color: var(--qc-warn);
+  background: var(--qc-warn-soft);
+}
+.backup__notice--warn .ln__k {
+  color: var(--qc-warn);
+}
+.backup__notice--bad {
+  border-color: var(--qc-bad);
+  background: var(--qc-bad-soft);
+}
+.backup__notice--bad .ln__k {
+  color: var(--qc-bad);
+}
+.backup__notice-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
 }
