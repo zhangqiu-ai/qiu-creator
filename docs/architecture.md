@@ -189,8 +189,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/ai/jobs`、`/api/v1/ai/jobs/:id` | AI 任務列表與詳情（結果、用量、估算成本、失敗原因） |
 | POST | `/api/v1/ai/jobs/:id/cancel`、`/retry` | 取消排隊或進行中的任務（中止供應商請求）；重跑失敗或已取消的任務 |
 | GET | `/api/v1/ai/usage?month=YYYY-MM` | 各供應商的 token 與估算費用、本月提醒狀態 |
-| POST | `/api/v1/works/:id/ai/suggestions` | 四平台標題／簡介／標籤候選（202，AI 任務）；不寫入任何東西 |
-| POST | `/api/v1/works/:id/ai/rewrite` | 改寫候選：潤色、縮寫、擴寫、語氣、自訂指令；全文或選取範圍（202，AI 任務） |
+| POST | `/api/v1/works/:id/ai/suggestions` | 四平台標題／簡介／標籤候選（202，AI 任務）；不寫入任何東西；相同請求進行中回原任務（`in_progress: true`），支援 `Idempotency-Key` |
+| POST | `/api/v1/works/:id/ai/rewrite` | 改寫候選：潤色、縮寫、擴寫、語氣、自訂指令；全文或選取範圍（202，AI 任務）；相同請求進行中回原任務（`in_progress: true`），支援 `Idempotency-Key` |
 | POST | `/api/v1/assets/:id/ai/video-understanding/estimate` | 視頻送出前的上限檢查與費用估算，並告知有無可沿用的舊結果；不送出 |
 | POST | `/api/v1/assets/:id/ai/video-understanding` | Gemini 視頻理解；命中快取回 200 `cached: true`（不送出、不計費），同樣分析進行中回 `in_progress: true`，否則 202 |
 | POST | `/api/v1/works/:id/ai/jobs/:jobId/accept` | 採用改寫：送出前端組好的全文，以 `base_revision = source_revision` 寫成 `ai_accepted` 版本；原稿已變回 409 |
@@ -358,7 +358,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | --- | --- |
 | 停止生成 | `POST /api/v1/ai/jobs/:id/cancel`（api-client 另有 `ai.stop`）：中止送往供應商的請求 |
 | 重試 | `POST /api/v1/ai/jobs/:id/retry`：重送同一份提示詞，所以仍以原本的 `source_revision` 為準 |
-| 重新產生（以目前原稿） | 再呼叫一次 `suggestions` 或 `rewrite`，得到新任務 |
+| 重新產生（以目前原稿） | 再呼叫一次 `suggestions` 或 `rewrite`，得到新任務（前一個相同任務還在跑時，回的是那個任務，`in_progress: true`） |
 | 這篇作品的 AI 紀錄 | `GET /api/v1/ai/jobs?work_id=` |
 | 讀結果 | `job.result.json`；api-client 的 `suggestionsOf(job)`、`rewriteOf(job)` 直接回型別化結果 |
 
@@ -376,6 +376,12 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 - 採用：前端送出最終全文（全部採用就送 `full_markdown`，部分採用或手動修改由前端組好），可同時改標題。服務端不合併，以 `base_revision = source_revision` 寫入；作品在這之後被改過就回 409 `revision_conflict`，什麼都不寫。成功時新版本 `source` 為 `ai_accepted`、`ai_job_id` 指向該任務，任務記下 `accepted_revision_id`，事件 `work.updated` 帶 `source: "ai_accepted"` 與 `ai_job_id`。和其他版本一樣可以恢復。
 - 只有同一作品、已成功的改寫任務能採用，否則回 409 `ai_job_not_acceptable`。
 
+**不重複送出（QC-029）：**
+
+- 兩個端點回 `WorkAiJobResponse`：`job`、`budget`，加上 `in_progress`。
+- 進行中去重：同一作品、相同參數（供應商、解析後的模型、模式與指令、選取範圍、平台與欄位等，也就是同一份提示詞與任務）、同一個 `source_revision`，已有排隊或進行中的任務時，直接回那個任務，`in_progress: true`，不再送出也不再計費；`budget` 是目前的本月狀態（不含新的估算）。已完成（成功、失敗、取消）的任務不算重複，使用者可以再生成一次。作品改過（新的 `source_revision`）或參數不同，就是新任務。判斷用 `ai_jobs.cache_key`（以上欄位的雜湊，前綴與視頻快取鍵不同），查核與建立在同一個同步區段內，同一行程內兩個並行請求不會都建立。
+- `Idempotency-Key`：規則同「冪等鍵」一節，作品 id 也算在請求內容裡；重送回原任務的**目前**狀態並帶 `Idempotent-Replayed: true`，即使原任務已完成也一樣（要再生成一次請換新鍵）。同鍵不同請求回 422 `idempotency_key_reused`。
+
 **提示詞與隱私：**
 
 - 原文一律放在 `<原文>` 標籤內，並明說它是素材不是指令，以降低原文中夾帶指令的影響。要求不杜撰原文沒有的事實、沿用原文的語言與繁簡。
@@ -392,7 +398,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | --- | --- | --- |
 | 單檔上限 | 2 GB | 超過回 413，訊息說明要先自行壓縮或剪短 |
 | 專案總容量 | 20 GB | 分析成功、失敗或取消後刪掉遠端檔案，不佔容量 |
-| 保留期 | 48 小時後自動刪除 | 結果存在本機；遠端檔案不重複使用 |
+| 保留期 | 48 小時後自動刪除（`File.expirationTime`） | 結果存在本機；同一任務的重試與服務重啟後，未過期的遠端檔案會沿用（見下），不同任務之間不共用 |
 | 檔案狀態 | `PROCESSING` → `ACTIVE`（可推論）或 `FAILED` | 每 3 秒查一次，最多等 10 分鐘（逾時視同可重試的逾時） |
 | 影片長度 | 1M context 模型：預設解析度約 1 小時，低解析度約 3 小時 | 已知時長（ffprobe）超過就回 400，預設解析度時提示可改用低解析度 |
 | token 計算 | 每秒取 1 格；預設約 300 token／秒，低解析度約 100 token／秒（含音訊 32 token／秒） | 送出前估算：時長 × 每秒 token；時長未知時以 5 Mbit/s 從檔案大小推估並標明 `size_guess` |
@@ -402,6 +408,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 - **為什麼不用 `ai.files.upload`：** SDK 的上傳沒有進度回報，連線中斷就丟錯，無法續傳。因此上傳照文件的可續傳協定自己送，其餘（查狀態、刪除、`generateContent`）用 SDK。路徑沿用 SDK 的預設 API 版本 `/upload/v1/files`、`/v1/files/…`（REST 文件範例是 `/v1beta`）。
 - **續傳：** 上傳網址存在任務的 `remote_state`。中斷後的重試先用協定的 `query` 命令問伺服器已收到多少，從那裡接著傳。`query` 出自 Google 通用的可續傳上傳協定（Photos、Street View 文件），Gemini 文件沒有列出；伺服器沒回答時就重新開始上傳，結果一樣正確，只是多傳一次。
 - **檔案已上傳但分析失敗（例如 429）：** 重試直接沿用遠端檔案，不重新上傳。
+- **服務重啟（QC-029）：** 關閉服務造成的中止不等於取消：不刪遠端檔案，也保留 `remote_state`（上傳網址或遠端檔名）。重啟後任務回到排隊，下一次執行先用 `files.get` 查留下的遠端檔：狀態是 `PROCESSING` 或 `ACTIVE`，而且離到期還有 1 小時以上（`expirationTime`；沒給時以上傳完成時間加 48 小時推算），就沿用，不重傳；查詢回不可重試的錯誤（視為檔案已不在，例如 404；403 也歸這類，金鑰真有問題時新的上傳會再報 `invalid_key`）、已是 `FAILED`、或即將或已經過期，就盡量刪掉舊檔後重新上傳。查詢遇到 429、5xx、逾時則保留狀態，照一般規則重試。還沒傳完的上傳同樣保留上傳網址，重啟後照上一點續傳。分析只送一次，費用只算一次。
 
 **結構化結果**（`VideoUnderstandingResult`，api-client 的 `videoUnderstandingOf(job)`）：摘要、重要時間點（秒數、標籤、說明，依時間排序）、標題建議、簡介建議、封面建議（以時間點表示，由前端自行擷取畫面）。每個時間點都標 `needs_verification: true`；已知片長時，超出片長的時間點標 `within_duration: false`。結果附「時間點與內容由 AI 產生，可能有誤，需核驗」的提示。
 
@@ -417,7 +424,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 **進度、取消與重試：**
 
 - `job.progress` 與 `ai_job.progress` 事件：`uploading`（每段一次，帶已上傳與總位元組）、`processing`（等 Gemini 處理）、`analyzing`（產生結果中）。
-- 取消（`POST /api/v1/ai/jobs/:id/cancel`）會中止進行中的上傳或請求，並盡量刪掉已上傳的遠端檔案；只傳了一部分的上傳無法刪除，由 Google 依保留期清掉。
+- 取消（`POST /api/v1/ai/jobs/:id/cancel`）會中止進行中的上傳或請求，並盡量刪掉已上傳的遠端檔案；只傳了一部分的上傳無法刪除，由 Google 依保留期清掉。關閉服務不算取消（見上方「服務重啟」）。
 - 429、逾時、連線中斷照 QC-021 規則自動重試（事件 `ai_job.queued`），上傳會續傳。Gemini 處理失敗記 `file_processing_failed`、素材檔不見記 `source_unavailable`，都不自動重試，且會刪掉遠端檔案。
 - 用量與費用照 QC-021 記錄（Gemini 回報的 token，依價格表估算）。
 

@@ -24,6 +24,12 @@ const PROMPT_VERSION = 1;
 /** Bytes per second assumed when a video's duration is unknown (≈ 5 Mbit/s). */
 const GUESS_BYTES_PER_SECOND = 625_000;
 const MAX_OUTPUT_TOKENS = 4096;
+/**
+ * A remote file kept from an earlier attempt is only reused when it has at
+ * least this long left before Google deletes it, enough to finish processing
+ * and generating.
+ */
+const REUSE_MARGIN_MS = 60 * 60 * 1000;
 
 export const VIDEO_DISCLAIMER =
   '時間點、轉寫與內容描述由 AI 產生，可能有誤，請對照影片核驗後再使用。';
@@ -112,6 +118,8 @@ const RemoteStateSchema = z.object({
   upload_url: z.string().optional(),
   file_name: z.string().optional(),
   file_uri: z.string().optional(),
+  /** When the upload finished (ISO), the fallback for expiry when Gemini does not say. */
+  uploaded_at: z.string().optional(),
 });
 type RemoteState = z.infer<typeof RemoteStateSchema>;
 
@@ -280,9 +288,14 @@ export class VideoAiService {
       ctx.saveRemoteState(next);
     };
     try {
-      if (state.file_name === undefined || state.file_uri === undefined) {
+      if (state.file_name !== undefined) await this.checkKept(state, ctx, save);
+      if (state.file_name === undefined) {
         const file = await this.upload(task, ctx, state, save);
-        save({ file_name: file.name, ...(file.uri === null ? {} : { file_uri: file.uri }) });
+        save({
+          file_name: file.name,
+          ...(file.uri === null ? {} : { file_uri: file.uri }),
+          uploaded_at: new Date().toISOString(),
+        });
       }
       const active = await this.waitActive(state.file_name ?? '', ctx, task);
       ctx.reportProgress({
@@ -308,8 +321,11 @@ export class VideoAiService {
       return result;
     } catch (err) {
       // Cancelled or a final failure: delete the remote file now (best effort).
-      // Retryable failures keep it so the next attempt can continue.
-      if (isAbort(err, ctx.signal) || !(err instanceof ProviderError && err.retryable)) {
+      // Retryable failures and a service shutdown keep it (or the upload
+      // session) so the next attempt can continue.
+      const aborted = isAbort(err, ctx.signal);
+      if (aborted && ctx.shuttingDown()) throw err;
+      if (aborted || !(err instanceof ProviderError && err.retryable)) {
         await this.cleanUp(state, ctx.apiKey, save);
       }
       throw err;
@@ -350,6 +366,46 @@ export class VideoAiService {
       if (res.status === 'final') return res.file;
       if (final) throw providerError('provider_unavailable', 'upload was not finalized');
     }
+  }
+
+  /**
+   * A file kept from an earlier attempt (a retry, or a run before a service
+   * restart): reuse it while Gemini still has it, it has not failed and it is
+   * not about to expire; otherwise drop it (deleting it, best effort) so the
+   * video is uploaded again. A transient error asking leaves the state alone
+   * and is retried like any other.
+   */
+  private async checkKept(
+    state: RemoteState,
+    ctx: Parameters<AiTaskExecutor>[0],
+    save: (s: RemoteState) => void,
+  ): Promise<void> {
+    const name = state.file_name;
+    if (name === undefined) return;
+    let file: GeminiRemoteFile;
+    try {
+      file = await this.client.getFile(name, ctx.apiKey, ctx.signal);
+    } catch (err) {
+      if (isAbort(err, ctx.signal) || (err instanceof ProviderError && err.retryable)) throw err;
+      // Treated as gone (404, 403, ...). A real key problem shows up again on the new upload.
+      save({});
+      return;
+    }
+    const expiresAt =
+      file.expiration_time !== null
+        ? Date.parse(file.expiration_time)
+        : state.uploaded_at !== undefined
+          ? Date.parse(state.uploaded_at) + GEMINI_VIDEO_LIMITS.retentionHours * 3600_000
+          : Number.POSITIVE_INFINITY;
+    // An unparsable time (NaN) is not treated as expiring.
+    const expiring = expiresAt - Date.now() < REUSE_MARGIN_MS;
+    const usable = (file.state === 'ACTIVE' || file.state === 'PROCESSING') && !expiring;
+    if (usable) {
+      if (file.uri !== null && file.uri !== state.file_uri) save({ ...state, file_uri: file.uri });
+      return;
+    }
+    await this.client.deleteFile(name, ctx.apiKey);
+    save({});
   }
 
   private async waitActive(

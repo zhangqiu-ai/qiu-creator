@@ -22,6 +22,10 @@ export interface GeminiRemoteFile {
   uri: string | null;
   state: 'PROCESSING' | 'ACTIVE' | 'FAILED' | 'STATE_UNSPECIFIED';
   error: string | null;
+  /** When Google deletes the file (ISO time), if it said; uploads expire after 48 hours. */
+  expiration_time: string | null;
+  /** When the file was created (ISO time), if it said. */
+  create_time: string | null;
 }
 
 export type UploadChunkResult = { status: 'active' } | { status: 'final'; file: GeminiRemoteFile };
@@ -224,6 +228,8 @@ function toRemoteFile(raw: unknown): GeminiRemoteFile {
     uri?: unknown;
     state?: unknown;
     error?: { message?: unknown } | null;
+    expirationTime?: unknown;
+    createTime?: unknown;
   };
   if (typeof f.name !== 'string') throw providerError('provider_unavailable', 'file has no name');
   const state =
@@ -235,5 +241,7 @@ function toRemoteFile(raw: unknown): GeminiRemoteFile {
     uri: typeof f.uri === 'string' ? f.uri : null,
     state,
     error: typeof f.error?.message === 'string' ? f.error.message : null,
+    expiration_time: typeof f.expirationTime === 'string' ? f.expirationTime : null,
+    create_time: typeof f.createTime === 'string' ? f.createTime : null,
   };
 }

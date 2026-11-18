@@ -1,5 +1,10 @@
 import { ApiError, rewriteOf, suggestionsOf } from '@qiu-creator/api-client';
-import { AI_NOTICE_VERSION, PLATFORM_LIMITS, type AiJobRecord } from '@qiu-creator/contracts';
+import {
+  AI_NOTICE_VERSION,
+  PLATFORM_LIMITS,
+  type AiJobRecord,
+  type PlatformSuggestionsRequest,
+} from '@qiu-creator/contracts';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fail, FakeAiServer, ok } from './fake-ai.js';
 import { authHeaders, startTestServer, type StartOptions, type TestServer } from './helpers.js';
@@ -395,5 +400,115 @@ describe('stop, retry, limits and access', () => {
       });
       expect(res.status, path).toBe(403);
     }
+  });
+});
+
+describe('no duplicate text jobs (QC-029)', () => {
+  const held = (text: string) => ({ delayMs: 400, body: ok('openai', text).body });
+
+  it('an identical rewrite already queued or running is that job, sent and charged once', async () => {
+    const { s, fake, work } = await start();
+    fake.script('openai', held('潤色結果'));
+    const req = { provider: 'openai', mode: 'polish' } as const;
+    const [a, b] = await Promise.all([
+      s.client.ai.rewrite(work.id, req),
+      s.client.ai.rewrite(work.id, req),
+    ]);
+    expect(b.job.id).toBe(a.job.id);
+    expect([a.in_progress, b.in_progress].sort()).toEqual([false, true]);
+    const done = await finished(s, a.job.id);
+    expect(done.status).toBe('succeeded');
+    expect(fake.for('openai')).toHaveLength(1);
+    expect((await s.client.ai.jobs({ work_id: work.id })).total).toBe(1);
+    expect((await s.client.ai.usage()).by_provider[0]?.jobs).toBe(1);
+
+    // A finished job is not a duplicate: asking again generates again.
+    const again = await s.client.ai.rewrite(work.id, req);
+    expect(again).toMatchObject({ in_progress: false });
+    expect(again.job.id).not.toBe(a.job.id);
+    await finished(s, again.job.id);
+    expect(fake.for('openai')).toHaveLength(2);
+  });
+
+  it('different parameters or a newer source revision are separate jobs', async () => {
+    const { s, fake, work } = await start();
+    fake.script('openai', held('一'), held('二'), held('三'), held('四'));
+    const polish = await s.client.ai.rewrite(work.id, { provider: 'openai', mode: 'polish' });
+    const shorten = await s.client.ai.rewrite(work.id, { provider: 'openai', mode: 'shorten' });
+    const part = await s.client.ai.rewrite(work.id, {
+      provider: 'openai',
+      mode: 'polish',
+      selection: { start: 0, end: 6 },
+    });
+    await s.client.works.patch(work.id, {
+      base_revision: work.current_revision_id,
+      markdown: `${MARKDOWN}\n補一句。\n`,
+    });
+    const newer = await s.client.ai.rewrite(work.id, { provider: 'openai', mode: 'polish' });
+    const ids = [polish, shorten, part, newer].map((r) => r.job.id);
+    expect(new Set(ids).size).toBe(4);
+    expect([polish, shorten, part, newer].every((r) => !r.in_progress)).toBe(true);
+    expect(newer.job.source_revision).not.toBe(polish.job.source_revision);
+    await s.ai.drain();
+    expect(fake.for('openai')).toHaveLength(4);
+  });
+
+  it('identical platform suggestions in flight are one job', async () => {
+    const { s, fake, work } = await start();
+    fake.script('openai', { delayMs: 400, body: json({}).body });
+    const req: PlatformSuggestionsRequest = { provider: 'openai', platforms: ['douyin'] };
+    const [a, b] = await Promise.all([
+      s.client.ai.suggest(work.id, req),
+      s.client.ai.suggest(work.id, req),
+    ]);
+    expect(b.job.id).toBe(a.job.id);
+    expect([a.in_progress, b.in_progress].sort()).toEqual([false, true]);
+    const other = await s.client.ai.suggest(work.id, { ...req, platforms: ['xiaohongshu'] });
+    expect(other.job.id).not.toBe(a.job.id);
+    await s.ai.drain();
+    expect(fake.for('openai')).toHaveLength(2);
+  });
+
+  it('Idempotency-Key: same key and request is the original job, a different request is 422', async () => {
+    const { s, fake, work } = await start();
+    fake.script('openai', ok('openai', '潤色結果'));
+    const post = (workId: string, body: unknown, key: string) =>
+      fetch(`${s.baseUrl}/api/v1/works/${workId}/ai/rewrite`, {
+        method: 'POST',
+        headers: authHeaders({ 'content-type': 'application/json', 'idempotency-key': key }),
+        body: JSON.stringify(body),
+      });
+    const first = await post(work.id, { provider: 'openai', mode: 'polish' }, 'rewrite-key-1');
+    expect(first.status).toBe(202);
+    const a = (await first.json()) as { job: AiJobRecord; in_progress: boolean };
+    expect(a.in_progress).toBe(false);
+    await finished(s, a.job.id);
+
+    // Even after it finished, the same key replays the original job as it is now.
+    const replay = await post(work.id, { provider: 'openai', mode: 'polish' }, 'rewrite-key-1');
+    expect(replay.status).toBe(202);
+    expect(replay.headers.get('idempotent-replayed')).toBe('true');
+    const b = (await replay.json()) as { job: AiJobRecord };
+    expect(b.job).toMatchObject({ id: a.job.id, status: 'succeeded' });
+    expect(fake.for('openai')).toHaveLength(1);
+
+    const changed = await post(work.id, { provider: 'openai', mode: 'shorten' }, 'rewrite-key-1');
+    expect(changed.status).toBe(422);
+    expect(((await changed.json()) as { error: { code: string } }).error.code).toBe(
+      'idempotency_key_reused',
+    );
+    const other = await s.client.works.create({ title: '另一篇', markdown: MARKDOWN });
+    const elsewhere = await post(other.id, { provider: 'openai', mode: 'polish' }, 'rewrite-key-1');
+    expect(elsewhere.status).toBe(422);
+    expect(fake.for('openai')).toHaveLength(1);
+
+    // Suggestions through the client, with its own key space per endpoint.
+    fake.script('openai', json({}));
+    const req: PlatformSuggestionsRequest = { provider: 'openai', platforms: ['douyin'] };
+    const s1 = await s.client.ai.suggest(work.id, req, { idempotencyKey: 'rewrite-key-1' });
+    await finished(s, s1.job.id);
+    const s2 = await s.client.ai.suggest(work.id, req, { idempotencyKey: 'rewrite-key-1' });
+    expect(s2.job.id).toBe(s1.job.id);
+    expect(fake.for('openai')).toHaveLength(2);
   });
 });

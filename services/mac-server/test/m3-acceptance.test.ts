@@ -568,6 +568,9 @@ describe('4. task status and failure reasons are visible', () => {
     ).toBe(1);
     expect(r.video.deletes).toHaveLength(r.video.files.size);
     expect(r.video.lastUpload()?.equals(r.videoBytes)).toBe(true);
+    // QC-029: the file Gemini already had is reused, so the video went up only once.
+    expect(r.video.starts).toHaveLength(1);
+    expect(r.video.files.size).toBe(1);
   });
 
   it('a text job interrupted by a restart runs again exactly once', async () => {

@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { AiProviderSchema, RewriteModeSchema, SuggestionFieldSchema } from './ai.js';
+import {
+  AiProviderSchema,
+  CreateAiJobResponseSchema,
+  RewriteModeSchema,
+  SuggestionFieldSchema,
+} from './ai.js';
 import { IdSchema, PlatformSchema, TagSchema } from './entities.js';
 import { MarkdownSchema } from './api.js';
 import { VariantWarningSchema } from './variants.js';
@@ -119,3 +124,18 @@ export const AcceptRewriteRequestSchema = z.object({
 export type AcceptRewriteRequest = z.input<typeof AcceptRewriteRequestSchema>;
 
 export const WorkAiJobParamsSchema = z.object({ id: IdSchema, jobId: IdSchema });
+
+/**
+ * Response of `POST /works/:id/ai/rewrite` and `/ai/suggestions` (QC-029):
+ * the queued job plus whether it is one that was already queued or running.
+ */
+export const WorkAiJobResponseSchema = CreateAiJobResponseSchema.extend({
+  /**
+   * True: an identical request (same work, same parameters, same
+   * `source_revision`) is already queued or running, and `job` is that one;
+   * nothing new was sent or charged. Finished jobs never count: asking again
+   * after one finishes generates again.
+   */
+  in_progress: z.boolean(),
+});
+export type WorkAiJobResponse = z.infer<typeof WorkAiJobResponseSchema>;

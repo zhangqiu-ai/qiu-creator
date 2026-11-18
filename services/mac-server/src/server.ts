@@ -453,7 +453,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerMediaRoutes(app, media, assets, signer, tokens);
   registerVariantRoutes(app, variants);
   registerAiRoutes(app, ai, idempotency);
-  registerAiTextRoutes(app, new TextAiService(ai, works, variants));
+  registerAiTextRoutes(app, new TextAiService(ai, works, variants), ai, idempotency);
   registerAiVideoRoutes(
     app,
     new VideoAiService(ai, assets, new GeminiVideoClient(adapter('gemini')), aiOptions.video),
