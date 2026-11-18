@@ -1,5 +1,19 @@
 # Backlog
 
+## QC-027: 編輯器衝突對話框的版本號顯示相同
+
+**Priority:** P2 | **Assignee:** qc-frontend | **Tags:** M3, frontend
+
+PT-20261117-002 對照 `docs/evidence/qc024-acceptance.md` 截圖 07 發現：AI 採用遇 409 開衝突對話框時，寫「你的修改基於 r6，伺服器已是 r6」，兩邊同一版本號。應顯示候選的 source_revision 與伺服器目前 revision。查明根因、補測試。
+
+## QC-028: 畫布同步已實作的 M3 狀態與既有差異
+
+**Priority:** P3 | **Assignee:** qc-prototype | **Tags:** M3, prototype
+
+- 把 QC-025 的 15 項補充與 3 項「與原型不同」照實作畫進 MacAI、MacSettings（來源 `docs/evidence/qc025-acceptance.md`）。
+- 標題上限改照 contracts（抖音 30、視頻號 16）；編輯頁的狀態／標籤列、格式工具列、頂欄按鈕順序照實作。
+- 側欄「發布中心（第二階段）」與「Agent API」列：實作沒有，先回報總監，不自行決定保留或刪除。
+
 ## QC-004: Mac 生產可用驗收
 
 **Priority:** P1 | **Assignee:** 未分配 | **Tags:** M3
