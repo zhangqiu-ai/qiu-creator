@@ -1,6 +1,13 @@
-# QC-031 進度（qc-frontend，2026-11-18）：實作完成，待 QC-030 合併後做實機驗收
+# QC-031 交付（qc-frontend，2026-11-18）：實作、實機驗收、全倉驗證完成
 
-> **更新（rebase 到 6c4e138 之後）**：分支是 `5a3d945`、`fe4f84f`、`c8081e9`。依 QC-030 的錯誤碼調整了錯誤處理，見下方「錯誤碼調整」。
+> **最終狀態**：
+>
+> - **分支**：`feat/qc031-backup-ui`，基底是 `796dae6`，也就是 origin/main（已含 QC-030）。未推送。
+> - **commit**：`4be96c0` 功能、`f83fe1a` 交付說明、`0b2ae1f` 錯誤碼調整、`ad3fe85` 交付說明、`290f2d6` 驗收修正與證據，以及本說明的最後一筆。
+> - **實機驗收**：33／33，見 `docs/evidence/qc031-acceptance.md`。
+> - **全倉測試**：617／0／617。
+>
+> 下面「做了什麼」以前的段落，寫於 QC-030 合併之前。
 
 - **分支與 commit**：`feat/qc031-backup-ui` 的 `d54342a`，基底是 `4432736`（QC-030 契約）。未推送。
 - **worktree**：`/Users/feature/code/qiu-creator-qc031`
@@ -115,11 +122,56 @@
 
 - 打包版 renderer 的來源從 `file://` 改成 `qc-app://renderer`，localStorage 換了一個 origin。目前唯一受影響的是作品庫的格狀／清單偏好，第一次啟動會回到預設。
 
-## NOT_VERIFIED（rebase 後補）
+## 最終驗證
 
-- 對真實 QC-030 服務的 Electron 實機驗收與截圖：淺色、深色、窄視窗、還原全流程、`restart_required`、失敗、SSE 即時更新。
-- 改埠後服務圖片能顯示、第三方圖片被擋的實機確認。
-- 全倉 typecheck 與依序全倉測試。
+在 `/Users/feature/code/qiu-creator-qc031` 執行：
+
+| 閘門 | 結果 |
+| --- | --- |
+| `pnpm -r --workspace-concurrency=1 typecheck` | 通過 |
+| `pnpm -r --workspace-concurrency=1 lint` 與根目錄 `pnpm lint` | 0 錯誤 |
+| `pnpm format:check`（prettier，全倉） | 通過 |
+| `pnpm -r --workspace-concurrency=1 --no-bail test` | **617 passed／0 failed／617 total** |
+
+全倉測試在 2026-11-18 08:54:01–08:54:48（PST）執行。開始時負載 11.79（1 分鐘平均），結束時 19.78。執行期間持有 `/private/tmp/claude-501/qc-fullsuite.lock`，跑完已釋放。
+
+| 套件 | passed／total |
+| --- | --- |
+| contracts | 16／16 |
+| design-tokens | 5／5 |
+| domain | 27／27 |
+| markdown-editor-web | 22／22 |
+| api-client | 16／16 |
+| platform-preview | 12／12 |
+| mac-server | 340／340 |
+| apps/mac | 173／173（本任務新增 31 個） |
+| agent-sdk | 6／6 |
+
+**實機驗收**：33／33。
+
+- 環境：真實的 QC-030 服務跑在 7555 埠，App 是建置後用 `qc-app://` 載入的 Electron。
+- 涵蓋：
+  - 淺色、深色、窄視窗。
+  - 立即備份、SSE 即時更新、完整性失敗。
+  - 還原全流程，含全 App 重新抓資料。
+  - 409 `backup_not_restorable`、409 `backup_failed`、500 `backup_failed`、每日備份失敗。
+  - `restart_required`；編輯器存檔收到 503 `restoring`，以及服務回來後自動離開「還原中」。
+  - 改埠後圖片正常顯示，第三方圖片與 fetch 被 CSP 擋下。
+- 驗收中修了三個小問題（舊的備份失敗訊息不會消失、到期的「下次」顯示過去時間、窄視窗被截斷），都補了單元測試。
+- 詳見 `qc031-acceptance.md`。
+
+## NOT_VERIFIED
+
+- **App 端 60 秒逾時的「再等一次」**：只有單元測試。
+- **其他視窗或工具發起的還原，收到 `backup.restore_started` 事件的路徑**：只有單元測試。實機驗的是 503 `restoring` 那條路徑，兩者共用同一套等待邏輯。
+- **「在 Finder 顯示」備份位置**：沒有實機點擊。
+- **打包成 .app（asar）後用 `qc-app://` 載入**：屬於發版會話的範圍，這次只驗了直接載入 `dist`。
+- **launchd 自動重啟服務時的 `restart_required` 流程**：這次用手動重啟服務模擬。
+- **VoiceOver 朗讀與完整的鍵盤 Tab 順序**：只確認了對話框的初始焦點落在「取消」。
+
+## 範圍外發現（未處理）
+
+- 驗收時看到 MDXEditor 的圖片工具列（刪除、設定圖示）蓋在圖片右上角，見截圖 10、17。這是既有的編輯器行為，與本任務無關。
 
 ## 設計參考
 
