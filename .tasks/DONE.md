@@ -1,5 +1,16 @@
 # Done
 
+## QC-026: M3 驗收記錄
+
+**Priority:** P1 | **Assignee:** qc-bugfix | **Tags:** M3
+
+### 完成摘要
+
+- 驗收四項全過：視頻原檔直接上傳、結果保存並跨重啟沿用；AI 不覆蓋原文（候選、409、可恢復、平台候選不寫入）；防重複（快取不計費、reanalyze 才計費、6 並行只 1 任務 1 上傳、冪等鍵）；任務狀態與失敗原因可見（429、金鑰無效、拒答、缺金鑰、未確認告知、處理失敗、取消重試、SIGKILL 重啟續跑）。
+- 另測：金鑰不出現在回應、SSE、資料庫、資料夾、畫面與 web storage；所有 /ai 路由對 Agent 權杖 403；撤回告知或刪金鑰後排隊任務不送出；月度提醒不阻擋。API 層持久測試 23 項，Electron 實機 62／62 連續 4 次。
+- 兩個觀察開為 QC-029。NOT_VERIFIED：真實 Gemini／Claude／GPT 呼叫與真實 Keychain（待使用者同意並自行存金鑰）、建置產物、本地模型。證據 `docs/evidence/qc026-acceptance.md`。
+- 總監合併後全部閘門通過，557／0／557（負載約 4）。合併 2026-11-17。**M3 完成。**
+
 ## QC-027: 編輯器衝突對話框的版本號顯示相同
 
 **Priority:** P2 | **Assignee:** qc-frontend | **Tags:** M3, frontend
