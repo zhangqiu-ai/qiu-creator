@@ -89,7 +89,34 @@
 
 ### 3.3 低負載（load < 15）
 
-LOWLOAD_PLACEHOLDER
+**單一測試 20 輪：20／20 通過**
+
+- 時間：08:16–08:17，不加壓。
+- 開跑時 1 分鐘 load 是 14.8。執行中底噪回升，各輪開始前在 14.2–17.8 之間，有幾輪略高於 15。照實記錄。
+
+**全倉測試（`pnpm -r --workspace-concurrency=1`）**
+
+開跑條件是 load < 15，加上取得 `/private/tmp/claude-501/qc-fullsuite.lock`；拿鎖、執行、核對 owner、釋放，都在同一個腳本裡。
+
+| 次序 | 開始（load） | 結果 |
+| --- | --- | --- |
+| 1 | 08:53（13.8） | 不算數：腳本環境找不到 `pnpm`（exit 127），沒有執行任何測試。之後補上 `pnpm` shim 重跑 |
+| 2 | 08:55（13.6） | `services/mac-server` 失敗 1／321：`ai-text.test.ts` › only accepts a succeeded rewrite of the same work。pnpm 遇到第一個失敗就停，後續套件沒有跑。這個失敗與本任務無關，見第 4 節 |
+| 3 | 08:58（10.1，結束 13.1），加 `--no-bail` | **566／566 通過，0 失敗** |
+
+第 3 次各套件結果：
+
+| 套件 | 通過／總數 |
+| --- | --- |
+| contracts | 16／16 |
+| design-tokens | 5／5 |
+| domain | 27／27 |
+| markdown-editor-web | 22／22 |
+| api-client | 15／15 |
+| platform-preview | 12／12 |
+| mac-server | 321／321 |
+| apps/mac | 142／142 |
+| agent-sdk | 6／6 |
 
 ### 3.4 型別與 lint（`services/mac-server` 範圍）
 
@@ -103,3 +130,13 @@ LOWLOAD_PLACEHOLDER
 - `mount-service.ts` 的 chokidar 選項用了已棄用的 `interval`，新名稱是 `pollingInterval`，chokidar 內部兩者等價。
 - `@typescript-eslint/no-deprecated` 只有在參數型別是必填的 `ChokidarOptions` 時才報。所以輔助函式的 `options` 照 chokidar 自己的 `watch()` 簽名宣告成選用，lint 結果和 main 一致。
 - 建議另開小票改成 `pollingInterval`。
+- 總監已決定：上一項記入 QC-017 的零碎後續。
+
+**`ai-text.test.ts` 偶發失敗**
+
+測試是「only accepts a succeeded rewrite of the same work」，與本任務無關，沒有修。
+
+- 低負載下（load 11–12）只跑該檔 10 次，失敗 1 次。
+- 診斷用的副本跑了 13 輪重現一次（副本未提交、已刪除）。被錯誤接受的是「預期失敗的那個改寫任務」：`accept` 成功，回傳作品內容 `markdown: "x"`。
+- 推論（未證實）：測試依序對假服務排了 `fail(400)` 和 `ok`，預期兩個改寫任務照建立順序取用。實際執行順序若不同，「預期失敗」的任務就會拿到成功回應。
+- 屬於測試的順序假設。由總監決定交給誰處理。
