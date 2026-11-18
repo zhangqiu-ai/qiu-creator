@@ -1,4 +1,5 @@
 import { ApiError, videoUnderstandingOf, type CreatorHubClient } from '@qiu-creator/api-client';
+import { serviceErrorText } from './restoring.js';
 import {
   GEMINI_VIDEO_LIMITS,
   type AiFailureCode,
@@ -43,7 +44,7 @@ export interface VideoState {
 }
 
 function messageOf(err: unknown): string {
-  return err instanceof ApiError ? err.message : '無法連線到服務';
+  return serviceErrorText(err);
 }
 
 /** Job is a video analysis of this asset. */

@@ -1,4 +1,5 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
+import { isRestoring, RESTORING_TEXT } from './restoring.js';
 import type { HealthResponse, Mount, MountStatus } from '@qiu-creator/contracts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AiSettingsSection } from './AiSettingsSection.js';
@@ -18,6 +19,7 @@ const MOUNT_STATUS: Readonly<Record<MountStatus, { label: string; tone: ChipTone
 
 /** The service's `mount_rejected` messages, in the user's words. */
 export function mountErrorText(err: unknown): string {
+  if (isRestoring(err)) return RESTORING_TEXT;
   if (!(err instanceof ApiError)) return '無法掛載，請確認本機服務是否運行';
   const message = err.message;
   if (err.code !== 'mount_rejected') {
@@ -140,9 +142,9 @@ export function SettingsPage({
         setBusyId(null);
         loadMounts();
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         setBusyId(null);
-        setRowError({ id: m.id, message: '重新掃描失敗' });
+        setRowError({ id: m.id, message: isRestoring(err) ? RESTORING_TEXT : '重新掃描失敗' });
       });
   };
 
@@ -367,8 +369,11 @@ export function SettingsPage({
                   client.mounts
                     .remove(target.id)
                     .then(loadMounts)
-                    .catch(() => {
-                      setRowError({ id: target.id, message: '卸載失敗' });
+                    .catch((err: unknown) => {
+                      setRowError({
+                        id: target.id,
+                        message: isRestoring(err) ? RESTORING_TEXT : '卸載失敗',
+                      });
                     });
                 }}
               >

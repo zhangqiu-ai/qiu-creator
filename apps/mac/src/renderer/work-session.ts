@@ -1,4 +1,5 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
+import { serviceErrorText } from './restoring.js';
 import type { WorkDetail, WorkStatus } from '@qiu-creator/contracts';
 
 export type SaveStatus = 'saved' | 'dirty' | 'saving' | 'error' | 'conflict';
@@ -303,10 +304,7 @@ export class WorkSession {
         });
         return;
       }
-      this.set({
-        status: 'error',
-        errorMessage: err instanceof ApiError ? err.message : '無法連線到服務',
-      });
+      this.set({ status: 'error', errorMessage: serviceErrorText(err) });
     }
   }
 

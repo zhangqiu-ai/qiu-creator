@@ -5,6 +5,7 @@ import {
   type FetchLike,
 } from '@qiu-creator/api-client';
 import type { CreatorHubBridge, ProxyRequest, ProxyResponse } from '../shared/bridge.js';
+import { noteServiceResponse } from './restoring.js';
 
 /** Turn a fetch call into a bridge request (headers flattened, body as text). */
 export function toProxyRequest(input: string, init: RequestInit = {}): ProxyRequest {
@@ -29,7 +30,12 @@ export function fromProxyResponse(res: ProxyResponse): Response {
 }
 
 export function bridgeFetch(request: (req: ProxyRequest) => Promise<ProxyResponse>): FetchLike {
-  return async (input, init) => fromProxyResponse(await request(toProxyRequest(input, init)));
+  return async (input, init) => {
+    const res = await request(toProxyRequest(input, init));
+    // Any page's write may meet 503 `restoring`: let the app show 「還原中」 (QC-031).
+    noteServiceResponse(res.status, res.body);
+    return fromProxyResponse(res);
+  };
 }
 
 export type ConnectResult =

@@ -59,13 +59,21 @@ function listing(backups: Backup[]): ListBackupsResponse {
   };
 }
 
-function apiError(status: number, code: string, message = code): ApiError {
+function apiError(
+  status: number,
+  code: string,
+  message = code,
+  details?: Record<string, unknown>,
+): ApiError {
   return new ApiError(
     status,
-    { error: { code, message } } as unknown as ConstructorParameters<typeof ApiError>[1],
+    { error: { code, message, details } } as unknown as ConstructorParameters<typeof ApiError>[1],
     message,
   );
 }
+
+const RESTORING = () =>
+  apiError(503, 'restoring', 'a restore is in progress; try again in a moment');
 
 function systemEvent(
   action: ChangeAction,
@@ -77,9 +85,9 @@ function systemEvent(
     entity: 'system',
     entity_id: 'database',
     action,
-    at: '2026-11-18T10:15:01.000Z',
+    created_at: '2026-11-18T10:15:01.000Z',
     data,
-  } as ChangeEvent;
+  };
 }
 
 /** A scriptable stand-in for the service's backup routes and /health. */
@@ -156,23 +164,28 @@ describe('backup helpers', () => {
     expect(versionLabel({ version: '0.1.0', commit: null, built_at: 'garbage' }, at)).toBe(
       '0.1.0 · 建置於 garbage',
     );
+    // A service from before QC-030 leaves both out.
+    expect(versionLabel({ version: '0.0.9' }, at)).toBe('0.0.9 · 從原始碼執行');
+    expect(versionLabel({ version: '0.1.0', commit: 'a1b2c3d' }, at)).toBe('0.1.0 · a1b2c3d');
   });
 
   it('explains why a restore was refused', () => {
     expect(restoreErrorText(apiError(409, 'backup_not_restorable'))).toEqual({
       stage: 'request',
-      message: '這份備份未通過完整性檢查，不能還原；資料沒有變更',
+      message: '這份備份未通過完整性檢查，或來自較新的版本，不能還原；資料沒有變更',
     });
-    expect(restoreErrorText(apiError(500, 'backup_failed')).message).toBe(
-      '無法先備份目前的資料，所以沒有還原',
-    );
+    // 409 backup_failed is definite: nothing was restored.
+    expect(restoreErrorText(apiError(409, 'backup_failed'))).toEqual({
+      stage: 'request',
+      message: '無法先備份目前的資料，所以沒有還原；資料沒有變更',
+    });
     expect(restoreErrorText(apiError(409, 'restore_in_progress')).message).toBe(
       '已經有一個還原正在進行',
     );
     expect(restoreErrorText(apiError(404, 'not_found')).stage).toBe('request');
     expect(restoreErrorText(apiError(500, 'internal_error')).stage).toBe('unknown');
     expect(restoreErrorText(new TypeError('fetch failed')).stage).toBe('unknown');
-    expect(createErrorText(apiError(409, 'restore_in_progress'))).toBe('正在還原，完成後再備份');
+    expect(createErrorText(apiError(500, 'backup_failed'))).toBe('備份失敗，沒有產生副本');
     expect(createErrorText(new TypeError('fetch failed'))).toBe('備份失敗：沒有收到服務的回應');
   });
 });
@@ -218,12 +231,14 @@ describe('BackupSession', () => {
     expect(session.snapshot.list?.backups[0]?.kind).toBe('manual');
   });
 
-  it('reports a failed manual backup and still refreshes the list', async () => {
-    svc.createResult = apiError(409, 'restore_in_progress', 'a restore is in progress');
+  it('reports a failed manual backup with the service reason and still refreshes the list', async () => {
+    svc.createResult = apiError(500, 'backup_failed', 'the backup could not be made', {
+      detail: 'ENOSPC: no space left on device',
+    });
     await session.create();
     expect(session.snapshot.createError).toEqual({
-      message: '正在還原，完成後再備份',
-      detail: 'a restore is in progress',
+      message: '備份失敗，沒有產生副本',
+      detail: 'ENOSPC: no space left on device',
     });
     expect(session.snapshot.created).toBeNull();
     expect(svc.listCalls).toBe(1);
@@ -317,13 +332,75 @@ describe('BackupSession', () => {
     expect(session.snapshot.restore).toMatchObject({
       phase: 'failed',
       stage: 'request',
-      message: '這份備份未通過完整性檢查，不能還原；資料沒有變更',
+      message: '這份備份未通過完整性檢查，或來自較新的版本，不能還原；資料沒有變更',
       detail: 'this backup failed its integrity check and cannot be restored',
       safety: null,
     });
     // A failure that is not a reload cannot be "waited for".
     session.recheck();
     expect(session.snapshot.restore.phase).toBe('failed');
+  });
+
+  it('says a 409 backup_failed restore changed nothing, with the reason from details', async () => {
+    svc.restoreResult = apiError(
+      409,
+      'backup_failed',
+      'could not make a sound backup of the current state; nothing was restored',
+      { detail: 'integrity_check: database disk image is malformed' },
+    );
+    await session.restore(DAILY);
+    expect(session.snapshot.restore).toMatchObject({
+      phase: 'failed',
+      stage: 'request',
+      message: '無法先備份目前的資料，所以沒有還原；資料沒有變更',
+      detail: 'integrity_check: database disk image is malformed',
+    });
+    expect(JSON.stringify(session.snapshot.restore)).not.toContain('無法確定');
+  });
+
+  it('waits instead of failing when the service is already restoring (503)', async () => {
+    svc.restoreResult = RESTORING();
+    await session.restore(DAILY);
+    expect(session.snapshot.restore.phase).toBe('idle');
+    expect(session.snapshot.externalRestore).toBe(true);
+    svc.healthQueue = ['down', 'up'];
+    await vi.advanceTimersByTimeAsync(250);
+    expect(session.snapshot.externalRestore).toBe(false);
+    expect(replaced).toBe(1);
+  });
+
+  it('treats 503 restoring on 立即備份 as a restore under way, not a failed backup', async () => {
+    svc.createResult = RESTORING();
+    await session.create();
+    expect(session.snapshot.createError).toBeNull();
+    expect(session.snapshot.creating).toBe(false);
+    expect(session.snapshot.externalRestore).toBe(true);
+  });
+
+  it('follows a restore it learned of from another page (noteRestoring)', async () => {
+    session.noteRestoring();
+    session.noteRestoring();
+    expect(session.snapshot.externalRestore).toBe(true);
+    // backup.restored ends it once; later polls do not refetch again.
+    session.onEvent(systemEvent('backup.restored', 9, { backup_id: DAILY.id }));
+    expect(session.snapshot.externalRestore).toBe(false);
+    svc.healthQueue = ['down', 'up'];
+    await vi.advanceTimersByTimeAsync(500);
+    expect(replaced).toBe(1);
+  });
+
+  it('stops showing an external restore after the timeout and refetches', async () => {
+    session.noteRestoring();
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(session.snapshot.externalRestore).toBe(false);
+    expect(replaced).toBe(1);
+  });
+
+  it('does not treat its own restore as external', async () => {
+    await session.restore(DAILY);
+    session.noteRestoring();
+    expect(session.snapshot.externalRestore).toBe(false);
+    expect(session.snapshot.restore.phase).toBe('reloading');
   });
 
   it('ignores a second restore while one is in progress', async () => {

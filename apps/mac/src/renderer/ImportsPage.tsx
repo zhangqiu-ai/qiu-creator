@@ -1,4 +1,5 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
+import { isRestoring, RESTORING_TEXT } from './restoring.js';
 import type { ImportJobRecord } from '@qiu-creator/contracts';
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Chip } from './Chip.js';
@@ -86,7 +87,9 @@ export function ImportsPage({
           message:
             err instanceof ApiError && err.code === 'job_not_retryable'
               ? '這個任務目前不能重試'
-              : '重試失敗，請稍後再試',
+              : isRestoring(err)
+                ? RESTORING_TEXT
+                : '重試失敗，請稍後再試',
         });
         load();
       });
@@ -388,6 +391,8 @@ function UrlImportDialog({
         } else if (err instanceof ApiError && err.code === 'idempotency_key_reused') {
           key.current = newKey();
           setError('內容已變更，請再按一次匯入');
+        } else if (isRestoring(err)) {
+          setError(RESTORING_TEXT);
         } else {
           setError('無法建立匯入任務，請確認本機服務是否運行');
         }

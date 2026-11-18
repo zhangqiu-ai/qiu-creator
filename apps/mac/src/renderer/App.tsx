@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { connect, type ConnectResult } from './api.js';
 import { AssetsPage } from './AssetsPage.js';
 import { BackupSession, type BackupState } from './backups.js';
+import { onRestoringSeen } from './restoring.js';
 import { EditorPage } from './EditorPage.js';
 import { useChangeEvents, useRefreshOn, useUploads } from './events.js';
 import { Icon, type IconName } from './Icon.js';
@@ -85,6 +86,13 @@ function useBackupSession(client: CreatorHubClient | null, onDataReplaced: () =>
   useChangeEvents((event) => {
     session?.onEvent(event);
   });
+  // Any page's write that met 503 `restoring` means a restore is being applied.
+  useEffect(() => {
+    if (session === null) return;
+    return onRestoringSeen(() => {
+      session.noteRestoring();
+    });
+  }, [session]);
   const state = useSyncExternalStore<BackupState | null>(
     session?.subscribe ?? NO_BACKUPS,
     () => session?.getSnapshot() ?? null,

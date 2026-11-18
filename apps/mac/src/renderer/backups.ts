@@ -7,6 +7,7 @@ import type {
   ListBackupsResponse,
 } from '@qiu-creator/contracts';
 import { formatBytes } from './format.js';
+import { isRestoring } from './restoring.js';
 
 /**
  * Settings → 備份 (QC-031). Framework-free so it can be tested without React;
@@ -53,13 +54,15 @@ export function versionLabel(
   health: Pick<HealthResponse, 'version' | 'commit' | 'built_at'>,
   formatTime: (iso: string) => string,
 ): string {
+  // Both are null when running from source, and absent from services before QC-030.
+  const commit = health.commit ?? '';
+  const builtAt = health.built_at ?? '';
   const parts = [health.version];
-  if (health.commit !== null && health.commit !== '') parts.push(health.commit.slice(0, 7));
-  if (health.built_at !== null && health.built_at !== '') {
-    const when = Date.parse(health.built_at);
-    parts.push(`建置於 ${Number.isNaN(when) ? health.built_at : formatTime(health.built_at)}`);
+  if (commit !== '') parts.push(commit.slice(0, 7));
+  if (builtAt !== '') {
+    parts.push(`建置於 ${Number.isNaN(Date.parse(builtAt)) ? builtAt : formatTime(builtAt)}`);
   }
-  if (health.commit === null && health.built_at === null) parts.push('從原始碼執行');
+  if (commit === '' && builtAt === '') parts.push('從原始碼執行');
   return parts.join(' · ');
 }
 
@@ -105,8 +108,13 @@ export interface BackupSessionOptions {
   reloadTimeoutMs?: number;
 }
 
+/** The service's own reason: `details.detail` when it gives one (QC-030), else its message. */
 function detailOf(err: unknown): string | null {
-  if (err instanceof ApiError) return err.message === '' ? null : err.message;
+  if (err instanceof ApiError) {
+    const detail = err.body?.error.details?.['detail'];
+    if (typeof detail === 'string' && detail !== '') return detail;
+    return err.message === '' ? null : err.message;
+  }
   return err instanceof Error && err.message !== '' ? err.message : null;
 }
 
@@ -117,9 +125,13 @@ export function restoreErrorText(err: unknown): { stage: 'request' | 'unknown'; 
   }
   switch (err.code) {
     case 'backup_not_restorable':
-      return { stage: 'request', message: '這份備份未通過完整性檢查，不能還原；資料沒有變更' };
+      return {
+        stage: 'request',
+        message: '這份備份未通過完整性檢查，或來自較新的版本，不能還原；資料沒有變更',
+      };
     case 'backup_failed':
-      return { stage: 'request', message: '無法先備份目前的資料，所以沒有還原' };
+      // 409 on restore: the safety backup failed, so the restore never started.
+      return { stage: 'request', message: '無法先備份目前的資料，所以沒有還原；資料沒有變更' };
     case 'restore_in_progress':
       return { stage: 'request', message: '已經有一個還原正在進行' };
     case 'not_found':
@@ -132,10 +144,13 @@ export function restoreErrorText(err: unknown): { stage: 'request' | 'unknown'; 
 }
 
 export function createErrorText(err: unknown): string {
-  if (err instanceof ApiError && err.code === 'restore_in_progress') {
-    return '正在還原，完成後再備份';
-  }
+  if (err instanceof ApiError && err.code === 'backup_failed') return '備份失敗，沒有產生副本';
   return err instanceof ApiError ? '備份失敗' : '備份失敗：沒有收到服務的回應';
+}
+
+/** The service is already switching to a restored database: wait, it is not a failure. */
+function restoreUnderWay(err: unknown): boolean {
+  return isRestoring(err) || (err instanceof ApiError && err.code === 'restore_in_progress');
 }
 
 export class BackupSession {
@@ -208,6 +223,11 @@ export class BackupSession {
       const backup = await this.options.client.backups.create();
       this.set({ creating: false, created: backup });
     } catch (err) {
+      if (restoreUnderWay(err)) {
+        this.set({ creating: false });
+        this.noteRestoring();
+        return;
+      }
       this.set({
         creating: false,
         createError: { message: createErrorText(err), detail: detailOf(err) },
@@ -225,6 +245,12 @@ export class BackupSession {
     try {
       res = await this.options.client.backups.restore(backup.id);
     } catch (err) {
+      if (restoreUnderWay(err)) {
+        // Someone else's restore is being applied: wait for it, nothing failed here.
+        this.set({ restore: { phase: 'idle' } });
+        this.noteRestoring();
+        return;
+      }
       const { stage, message } = restoreErrorText(err);
       this.set({
         restore: { phase: 'failed', backup, stage, message, detail: detailOf(err), safety: null },
@@ -266,7 +292,7 @@ export class BackupSession {
         void this.load();
         return;
       case 'backup.restore_started':
-        if (!this.busy) this.set({ externalRestore: true });
+        this.noteRestoring();
         return;
       case 'backup.restored': {
         const r = this.state.restore;
@@ -276,14 +302,69 @@ export class BackupSession {
           return;
         }
         // Restored by someone else: this window's data is stale too.
-        this.set({ externalRestore: false });
-        this.options.onDataReplaced();
-        void this.load();
+        this.finishExternal();
         return;
       }
       default:
         return;
     }
+  }
+
+  /**
+   * A restore this window did not start is being applied (event, or a 503
+   * `restoring` answer to any page). Show 「還原中」 and wait for the service
+   * the same way as for our own restore, then refetch everything.
+   */
+  noteRestoring(): void {
+    if (this.busy || this.state.externalRestore || this.disposed) return;
+    this.sawDown = false;
+    this.set({ externalRestore: true });
+    this.deadline = Date.now() + this.reloadTimeoutMs;
+    this.scheduleExternal();
+  }
+
+  private finishExternal(): void {
+    // Our own restore finishes through `poll`.
+    if (this.busy) return;
+    clearTimeout(this.timer);
+    this.set({ externalRestore: false });
+    this.options.onDataReplaced();
+    void this.load();
+  }
+
+  private scheduleExternal(): void {
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => {
+      void this.pollExternal();
+    }, this.pollMs);
+  }
+
+  private async pollExternal(): Promise<void> {
+    if (!this.state.externalRestore || this.disposed) return;
+    this.options.wakeEvents?.();
+    let up = false;
+    try {
+      await this.options.client.health();
+      up = true;
+    } catch {
+      this.sawDown = true;
+    }
+    // Re-read after the await: the restored event may have finished it meanwhile.
+    if (!this.watchingExternal() || this.isDisposed()) return;
+    if (up && this.sawDown) {
+      this.finishExternal();
+      return;
+    }
+    if (Date.now() >= this.deadline) {
+      // Never saw it go away or come back: stop showing 「還原中」, but refetch to be safe.
+      this.finishExternal();
+      return;
+    }
+    this.scheduleExternal();
+  }
+
+  private watchingExternal(): boolean {
+    return this.state.externalRestore;
   }
 
   private isDisposed(): boolean {
