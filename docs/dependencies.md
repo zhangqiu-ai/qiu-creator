@@ -106,6 +106,29 @@
 - **發版時**：「項目發版」打包時，要把 `LICENSE`（OFL）放進 App 的第三方授權說明。
 - **替代方案**：直接放官方 woff2（少一個依賴，但要自己維護 `@font-face` 與子集）；只用系統字型（不符合視覺基線）。
 
+### mac-server 建置產物：esbuild 打包 + 複製原生模組 + 附帶 Node（QC-030）
+
+- 需求：服務以建置產物安裝到 `~/Library/Application Support/qiu-creator/server`，不靠 tsx、不靠倉庫的 `node_modules`（使用者 2026-11-18 決定）。
+- 做法：`services/mac-server/scripts/build.ts` 用 esbuild（0.28.2，MIT，倉庫已有，Mac App 也在用）把 `src/main.ts` 打成單一 ESM `server.mjs`，`@qiu-creator/*` 與純 JS 依賴全部打包進去。
+  - 不能打包的套件連同依賴閉包一起複製到產物的 `node_modules/`，解開所有符號連結。名單見 `EXTERNAL_PACKAGES`：
+    - 原生模組：better-sqlite3、@napi-rs/keyring、sharp（含 `@img/sharp-*` 與 libvips）。
+    - @fastify/swagger-ui：會從自己套件目錄讀靜態檔。
+    - file-type：執行期才用非字面的 `import()` 載入 strtok3，打包器看不到。
+  - 把建置時的 Node 執行檔複製成 `bin/node`（Node.js 授權 MIT），確保原生模組的 ABI 一致。
+- 產物約 200 MB，其中 Node 約 110 MB、libvips 約 20 MB。
+- 驗證：`test/build-artifact.test.ts` 把產物複製到倉庫外的資料夾，在沒有倉庫 PATH 的環境啟動，驗證以下幾點：
+  - `/health` 的 commit 正確。
+  - SQLite 讀寫正常。
+  - sharp 能產生縮圖。
+  - keyring 原生模組能載入，但不讀 Keychain。
+  - `/docs` 可用。
+  - 產物裡沒有符號連結。
+- 替代方案：
+  - `pnpm deploy --prod`：工作區套件是 TypeScript 原始碼，Node 不會對 `node_modules` 內的 `.ts` 做型別剝除，仍需轉譯；pnpm 12 對工作區套件的 deploy 也要額外設定。
+  - `tsc` 輸出 JS 加完整 production `node_modules`：產物大、要處理工作區套件的路徑。
+  - Node SEA（單一執行檔）：原生模組仍要另外放，而且還是實驗性功能。
+  - 用系統 Node（Homebrew）執行：Node 大版本升級會讓原生模組的 ABI 不符，服務起不來。
+
 ## 執行期依賴：Mac App 與共用前端套件（QC-002）
 
 | 套件 | 版本 | 授權 | 用在 | 用途 | 替代方案 |
@@ -144,6 +167,7 @@ QC-010：mac-server 用同一組 mdast 套件與版本，從 Markdown 找出圖�
 | vitest | ^5.1.0 | MIT | 單元與整合測試 | node:test |
 | @types/node | ^24.19.2 | MIT | Node 24 型別 | — |
 | @types/better-sqlite3 | ^9.6.0 | MIT | better-sqlite3 型別 | — |
+| esbuild（mac-server 開發依賴） | 0.28.2 | MIT | mac-server 建置產物打包（QC-030，見上） | pnpm deploy、tsc |
 
 ## 未來候選（尚未加入）
 

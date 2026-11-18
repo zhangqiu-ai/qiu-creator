@@ -15,4 +15,5 @@ export {
 export { atomicWriteFileSync, nodeFsOps, type AtomicFsOps } from './fs/atomic.js';
 export { resolveRealPathInside } from './fs/safe-path.js';
 export { openDatabase, runMigrations } from './db/database.js';
+export { startHost, type ServerHost } from './host.js';
 export { migrations, type Migration } from './db/migrations.js';

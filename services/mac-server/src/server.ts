@@ -74,6 +74,15 @@ import { WorkMediaService } from './media/work-media.js';
 import { MountService, type MountServiceOptions } from './mounts/mount-service.js';
 import { ImportService, type DownloadSettings } from './imports/import-service.js';
 import { WorkService } from './works/work-service.js';
+import {
+  applyPendingRestore,
+  BackupService,
+  finishRestore,
+  type BackupOptions,
+} from './backups/backup-service.js';
+import { loadBuildInfo, type BuildInfo } from './build-info.js';
+import { registerBackupRoutes } from './routes/backups.js';
+import { SleepGuard, type SleepGuardOptions } from './power/sleep-guard.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -82,12 +91,14 @@ declare module 'fastify' {
   }
 }
 
-export const SERVER_VERSION = '0.0.0';
+export const SERVER_VERSION = loadBuildInfo().version;
 
 export interface BuildServerOptions {
   config: Pick<ServerConfig, 'home' | 'token'> & Partial<Pick<ServerConfig, 'logLevel'>>;
   /** Enable Fastify's request logger (off in tests). */
   logger?: boolean;
+  /** Where the logger writes (default stdout); main passes a size-capped file (QC-030). */
+  logStream?: { write(line: string): unknown };
   /** Per-kind upload size limits (bytes). */
   limits?: Partial<SizeLimits>;
   /**
@@ -121,6 +132,21 @@ export interface BuildServerOptions {
   };
   /** Lifetime of signed media URLs (default 1 hour); `now` is injectable for tests. */
   signedUrls?: { ttlMs?: number; now?: () => number };
+  /** Daily backup schedule and retention (QC-030). */
+  backups?: BackupOptions;
+  /**
+   * Reopen the whole service (close, then build again on the same home and
+   * port). Supplied by the host (`startHost`); a restore then applies at once.
+   * Without it a restore is applied on the next start.
+   */
+  reload?: (afterResponse: Promise<void>) => void;
+  /**
+   * Idle-sleep prevention while uploads, imports or AI jobs run (QC-030).
+   * Defaults to `caffeinate` on macOS; tests inject a fake provider.
+   */
+  sleep?: SleepGuardOptions;
+  /** What `/health` reports; defaults to `build-info.json` next to the server. */
+  buildInfo?: BuildInfo;
 }
 
 export interface CreatorHubServer {
@@ -138,6 +164,8 @@ export interface CreatorHubServer {
   signer: MediaUrlSigner;
   variants: VariantService;
   ai: AiService;
+  backups: BackupService;
+  sleep: SleepGuard;
 }
 
 function isHttpError(err: unknown): err is Error & { statusCode: number } {
@@ -154,8 +182,19 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   const { config } = options;
   const layout = new Layout(config.home);
   layout.ensureBase();
+  const pendingRestore = applyPendingRestore(layout, (msg) => {
+    process.stderr.write(`restore: ${msg}\n`);
+  });
   const db = openDatabase(layout.databaseFile);
   const feed = new ChangeFeed(db);
+  if (pendingRestore !== null) finishRestore(layout, db, feed, pendingRestore);
+  const backups = new BackupService(db, layout, feed, options.backups);
+  const buildInfo = options.buildInfo ?? loadBuildInfo();
+  const sleep = new SleepGuard(db, options.sleep);
+  // Job state changes may start or end a long task: re-check at once.
+  const unsubscribeSleep = feed.subscribe((event) => {
+    if (event.action.startsWith('job.') || event.action.startsWith('ai_job.')) sleep.check();
+  });
   const tokens = new TokenService(db, config.token);
   const idempotency = new IdempotencyService(db);
   const jobs = new JobQueue(db, feed, options.jobs);
@@ -196,6 +235,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
       options.logger === true
         ? {
             level: config.logLevel ?? 'info',
+            ...(options.logStream === undefined ? {} : { stream: options.logStream }),
             // Signed media URLs carry a signature in the query string; never log it.
             serializers: {
               req: (req: { method: string; url: string; ip?: string }) => ({
@@ -211,6 +251,9 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.addHook('onClose', async () => {
+    unsubscribeSleep();
+    sleep.stop();
+    await backups.stop();
     await ai.stop();
     await mounts.stop();
     await jobs.stop();
@@ -247,6 +290,16 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   // Every /api route requires a bearer token: the owner's main token or a
   // scoped agent token. /health and /docs stay public.
   app.decorateRequest('principal', null);
+  // Uploads being received hold the wake lock until the request ends.
+  app.addHook('onRequest', async (req, reply) => {
+    if (
+      (req.method === 'POST' || req.method === 'PATCH') &&
+      req.url.startsWith('/api/v1/assets/uploads')
+    ) {
+      reply.raw.once('close', sleep.uploadStarted());
+    }
+    return Promise.resolve();
+  });
   app.addHook('onRequest', async (req, reply) => {
     if (!req.url.startsWith('/api/')) return;
     const principal = tokens.authenticate(req.headers.authorization);
@@ -258,6 +311,14 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
       return;
     }
     req.principal = principal;
+    // After a restore is accepted, nothing may be written to the old database.
+    if (backups.isRestoring && req.method !== 'GET' && req.method !== 'HEAD') {
+      await reply
+        .code(503)
+        .header('retry-after', '2')
+        .send(errorBody('restoring', 'a restore is in progress; try again in a moment'));
+      return;
+    }
     const access = requiredAccess(req.method, req.routeOptions.url);
     const allowed =
       principal.kind === 'owner' ||
@@ -294,7 +355,9 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   app.get('/health', { schema: { security: [], response: { 200: HealthResponseSchema } } }, () => ({
     status: 'ok' as const,
     service: 'creatorhub-mac-server' as const,
-    version: SERVER_VERSION,
+    version: buildInfo.version,
+    commit: buildInfo.commit,
+    built_at: buildInfo.built_at,
   }));
 
   app.post(
@@ -459,7 +522,11 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     new VideoAiService(ai, assets, new GeminiVideoClient(adapter('gemini')), aiOptions.video),
   );
 
+  registerBackupRoutes(app, backups, options.reload);
+
   mounts.start();
+  backups.start();
+  sleep.start();
   if (options.jobs?.start !== false) jobs.start();
   if (aiOptions.start !== false) ai.start();
   return {
@@ -477,5 +544,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     signer,
     variants,
     ai,
+    backups,
+    sleep,
   };
 }

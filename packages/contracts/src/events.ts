@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { TimestampSchema } from './entities.js';
 
-export const ChangeEntitySchema = z.enum(['work', 'asset', 'job']);
+/** `system`: service-wide events (backups, QC-030); `entity_id` is `database`. */
+export const ChangeEntitySchema = z.enum(['work', 'asset', 'job', 'system']);
 export type ChangeEntity = z.infer<typeof ChangeEntitySchema>;
 
 /**
@@ -36,6 +37,21 @@ export const ChangeActionSchema = z.enum([
   'ai_job.cancelled',
   /** Progress of a multi-step AI job; `data.phase`, `data.uploaded_bytes`, `data.total_bytes` (QC-023). */
   'ai_job.progress',
+  /** A backup was made (entity `system`); `data.backup_id`, `data.kind`. */
+  'backup.created',
+  /** An automatic backup failed; `data.kind`, `data.error`. */
+  'backup.failed',
+  /**
+   * A restore is about to replace the database (`data.backup_id`,
+   * `data.safety_backup_id`). The service reloads next: expect the stream to drop.
+   */
+  'backup.restore_started',
+  /**
+   * The service now runs on the restored database. Same data as above. Every
+   * cached work, asset, job and setting may be different: refetch everything.
+   * Sequence numbers continue after the ones seen before the restore.
+   */
+  'backup.restored',
   'job.queued',
   'job.running',
   'job.succeeded',

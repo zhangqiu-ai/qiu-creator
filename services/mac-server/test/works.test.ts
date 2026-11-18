@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ApiError } from '@qiu-creator/api-client';
 import { sha256Hex } from '@qiu-creator/domain';
+import { SOURCE_VERSION } from '../src/build-info.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { authHeaders, startTestServer, type TestServer } from './helpers.js';
 
@@ -43,10 +44,13 @@ describe('auth', () => {
   });
 
   it('keeps /health public', async () => {
+    // Running from source: no build-info.json, so no commit or build time (QC-030).
     expect(await s.client.health()).toEqual({
       status: 'ok',
       service: 'creatorhub-mac-server',
-      version: '0.0.0',
+      version: SOURCE_VERSION,
+      commit: null,
+      built_at: null,
     });
   });
 });

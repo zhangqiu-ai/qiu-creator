@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createClient, type CreatorHubClient } from '@qiu-creator/api-client';
 import { MemorySecretStore } from '../src/ai/secret-store.js';
+import { noWakeLocks } from '../src/power/sleep-guard.js';
 import { buildServer, type BuildServerOptions, type CreatorHubServer } from '../src/index.js';
 
 export const TEST_TOKEN = 'test-token-0123456789abcdef';
@@ -33,6 +34,10 @@ export async function startTestServer(options: StartOptions = {}): Promise<TestS
   const home = reuse ?? makeTempHome();
   const server = await buildServer({
     ffprobe: null,
+    // No daily backup timer unless a test asks for one (QC-030).
+    backups: { schedule: false },
+    // Never the real caffeinate in tests.
+    sleep: { provider: noWakeLocks },
     ...rest,
     // Never the real Keychain. Provider adapters only reach the network when a test stores
     // a key, and those tests point them at local fake servers.

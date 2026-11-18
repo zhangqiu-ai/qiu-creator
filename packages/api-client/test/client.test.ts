@@ -97,6 +97,26 @@ describe('createClient', () => {
     expect((err as ApiError).currentRevision).toBeUndefined();
   });
 
+  it('keeps the backup error codes (QC-030)', async () => {
+    const cases = [
+      [409, 'restore_in_progress'],
+      [409, 'backup_not_restorable'],
+      [409, 'backup_failed'],
+      [500, 'backup_failed'],
+      [503, 'restoring'],
+    ] as const;
+    for (const [status, code] of cases) {
+      const f = fakeFetch(status, { error: { code, message: 'x' } });
+      const client = createClient({ baseUrl: 'http://mac', token: 't', fetch: f.fetch });
+      const err: unknown = await client.backups
+        .restore('20261118T030000000Z-manual')
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ApiError);
+      expect((err as ApiError).status).toBe(status);
+      expect((err as ApiError).body?.error.code).toBe(code);
+    }
+  });
+
   it('rejects responses that do not match the contract', async () => {
     const f = fakeFetch(200, { status: 'weird' });
     const client = createClient({ baseUrl: 'http://mac', token: 't', fetch: f.fetch });
