@@ -1,5 +1,14 @@
 # Done
 
+## QC-027: 編輯器衝突對話框的版本號顯示相同
+
+**Priority:** P2 | **Assignee:** qc-frontend | **Tags:** M3, frontend
+
+### 完成摘要
+
+- 根因：衝突對話框用 `baseRevision` 當「你的修改基於」，但收到遠端新版本或 409 後它已指向伺服器版本。改為記錄衝突開始時草稿的基準（`conflictBase`／`draftBase`），AI 採用帶候選的 `source_revision`。一般編輯的 409 同一根因，一併修。
+- 持久測試 `conflict-base.test.ts`，Electron 4／4 附截圖。總監合併後 534／0／534。合併 2026-11-17。
+
 ## QC-025: AI 工作台頁與設定頁 AI 金鑰
 
 **Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend
