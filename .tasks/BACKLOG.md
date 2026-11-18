@@ -17,7 +17,7 @@ QC-004 拆出。electron-builder 設定（未簽名 .app 裝 `/Applications`）�
 
 ## QC-033: Mac 生產可用實機驗收
 
-**Priority:** P1 | **Assignee:** qc-bugfix | **Tags:** M3
+**Priority:** P1 | **Assignee:** qc-test | **Tags:** M3
 
 QC-004 的驗收本體，依賴 QC-030–032。實機安裝後：重開機自啟、`kill -9` 自動恢復、備份還原演練、原稿保護抽查、MacBook 合蓋／接電源／電池下服務與長任務行為（使用者親自合蓋）、使用者在 App 設定頁親自輸入金鑰後 Gemini／Claude／GPT 各真實呼叫一次並記錄費用（子會話不碰金鑰）、日常使用一輪的問題清單。證據 `docs/evidence/qc033-*`。
 
@@ -50,6 +50,6 @@ QC-012 對照原型發現的 API 缺口：匯入任務取消（含取消後重�
 
 ## QC-020: mounts 「寫一半的檔案」測試依賴真實時間間隔
 
-**Priority:** P3 | **Assignee:** 未分配 | **Tags:** backend
+**Priority:** P3 | **Assignee:** qc-test | **Tags:** backend
 
 QC-018 量測：外部負載 40 下 `mounts.test.ts`「indexes a new file only after it stops changing」10 輪失敗 3 次，是斷言失敗（寫檔間隔超過穩定視窗而被提早索引），屬時序假設。改為可控時鐘或事件驅動；不得加長逾時。

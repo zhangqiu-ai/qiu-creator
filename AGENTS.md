@@ -18,7 +18,7 @@
 
 ## 團隊、任務與分支
 
-- 「qiu-creator 開發總監」會話負責規劃、分派、驗收、合併與推送；專責子會話（前端設計、後端設計、原型設計、修BUG、項目發版）負責實作。共用規則見 `/Users/feature/code/qiu-creator-notes/role-sessions.md`。
+- 「qiu-creator 開發總監」會話負責規劃、分派、驗收、合併與推送；專責子會話（前端設計、後端設計、原型設計、修BUG、測試專員、項目發版）負責實作。共用規則見 `/Users/feature/code/qiu-creator-notes/role-sessions.md`。
 - 任務看板在 `.tasks/`：`BACKLOG.md`、`NEXT.md`、`IN_PROGRESS.md`、`DONE.md`、`REJECTED.md`，加上 `WORK_LOG.md`；設定在 `.tasks/config.json`。
   - ID 前綴 `QC`，優先級 P0–P4。只有總監配號、改看板。
   - 動工前在任務裡寫簡短 `### Plan`；完成後把 Plan 濃縮成完成摘要，移到 Done，並在 `WORK_LOG.md` 頂端加一筆。
