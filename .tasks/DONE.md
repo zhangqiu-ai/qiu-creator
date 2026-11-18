@@ -1,5 +1,16 @@
 # Done
 
+## QC-022: 文字 AI：標題／簡介／標籤候選與文章改寫候選
+
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend
+
+### 完成摘要
+
+- 平台候選 `POST /works/:id/ai/suggestions`：一次呼叫產生四平台標題／簡介／標籤各 3 個，依 `PLATFORM_LIMITS` 附上限警告；不寫入，記下各平台版本號供前端帶 `base_revision` 採用。簡介暫用正文上限檢查。
+- 改寫 `POST /works/:id/ai/rewrite`（潤色、縮寫、擴寫、語氣、自訂指令，全文或選取範圍）；採用 `POST /works/:id/ai/jobs/:jobId/accept` 由前端送最終全文，以 `source_revision` 為 base，過期回 409；新版本來源 `ai_accepted` 並記 `ai_job_id`，可恢復。停止與重試沿用 QC-021 的 cancel／retry。
+- 原文以「素材非指令」包裝進提示詞；日誌中原文、結果、金鑰出現 0 次。遷移 0009，contracts 只增不改。
+- 總監合併後複跑全部閘門通過，測試 476／0／476（負載約 3）。證據 `docs/evidence/qc022-text-ai-run.md`。合併 2026-11-17。
+
 ## QC-021: AI 任務基礎：供應商介面、Keychain 金鑰、任務佇列與用量記錄
 
 **Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend
