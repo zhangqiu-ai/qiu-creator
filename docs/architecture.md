@@ -478,7 +478,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 - **掛載路徑檢查**：必須是絕對路徑、可讀的資料夾；以 `realpath` 解析（符號連結或 `..` 會先展開成真正位置再檢查）。拒絕：檔案系統根目錄、使用者家目錄本身、`CREATORHUB_HOME` 或其子資料夾、包含 `CREATORHUB_HOME` 的上層資料夾、與其他掛載重疊的資料夾；同一資料夾重複掛載回 409。卸載後再掛載同一路徑會沿用原掛載，作品與歷史自動接回。
 - **掃描**：背景任務 `mount.scan` 遞迴列出 `.md`／`.markdown`（不超過 5 MiB）。略過隱藏檔與隱藏資料夾（含 `.obsidian`、編輯器暫存檔與本服務的原子寫入暫存檔）、`node_modules`、**所有符號連結**（不跟隨，掛載無法經由連結讀到資料夾外）。服務啟動時與每 10 分鐘會重掃一次，補上監控漏掉的變化。
 - **外部作品**：`works.storage_mode = 'external'`、`mount_id`、`source_path`（相對於掛載根目錄）、`external_state`（`present`／`missing`／`unmounted`）。標題取第一個 Markdown 標題，沒有就用檔名。快照仍存在 `library/works/<id>/revisions/`，不寫進使用者的資料夾。
-- **監控**（chokidar）：`awaitWriteFinish` 讓檔案停止變化一段時間（預設 2 秒）後才處理，寫一半的檔案不會進入資料庫；新增或變更走同一個對帳流程（見下）。
+- **監控**（chokidar）：`awaitWriteFinish` 讓檔案停止變化一段時間（預設 2 秒）後才處理，寫一半的檔案不會進入資料庫；新增或變更走同一個對帳流程（見下）。chokidar 的 scheduler（時鐘與計時器）可經 `MountServiceOptions.scheduler` 注入，僅供測試用手動時鐘驗證穩定視窗（QC-020）；正式環境不傳，用 chokidar 預設的真實時鐘。
 - **抑制回授**：對帳時比較磁碟內容的 sha256 與目前 revision；相同就不做事。App 自己寫回檔案時會先建立 revision，所以隨後監控看到的變化與目前 revision 相同，不會再產生 `external` revision。
 - **刪除**：檔案消失只把 `external_state` 標成 `missing`，發 `work.source_missing` 事件；作品、revision 與快照全部保留，讀取時回傳最後一個快照的內容。外部作品在 `missing` 或 `unmounted` 狀態下 PATCH 回 409 `source_missing`，不會重建檔案。
 - **改名／搬移**：同一掛載內出現新檔案、而內容雜湊等於某個 `missing` 作品的目前 revision 時，視為同一作品搬到新路徑：更新路徑、恢復 `present`、發 `work.source_restored`（`reason: "moved"`，帶 `from`／`to`），不會產生重複作品。檔案回到原路徑也會恢復 `present`。
