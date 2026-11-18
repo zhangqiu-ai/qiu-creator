@@ -84,6 +84,7 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
   const [editing, setEditing] = useState(false);
   const [key, setKey] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmWithdraw, setConfirmWithdraw] = useState(false);
   const state = keyState(p);
   const busy = s.busy === p.provider;
   const error = s.error?.target === p.provider ? s.error.message : null;
@@ -197,7 +198,7 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
                 className="btn btn--ghost btn--small"
                 disabled={busy}
                 onClick={() => {
-                  void store.withdrawConsent(p.provider);
+                  setConfirmWithdraw(true);
                 }}
               >
                 撤回確認
@@ -241,6 +242,44 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
         <p className="ln ln__err" role="alert">
           {error}
         </p>
+      )}
+
+      {confirmWithdraw && (
+        <Dialog
+          title={`撤回 ${p.name} 的使用確認？`}
+          onClose={() => {
+            setConfirmWithdraw(false);
+          }}
+          footer={
+            <>
+              <button
+                type="button"
+                className="btn btn--ghost dialog__primary"
+                data-autofocus
+                onClick={() => {
+                  setConfirmWithdraw(false);
+                }}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => {
+                  setConfirmWithdraw(false);
+                  void store.withdrawConsent(p.provider);
+                }}
+              >
+                撤回
+              </button>
+            </>
+          }
+        >
+          <div className="form">
+            <p>撤回後就不能再把內容送到 {p.company}，直到再次確認告知。金鑰仍留在鑰匙圈。</p>
+            <p className="muted">已排隊、尚未送出的 {p.name} 任務會直接失敗，不會送出。</p>
+          </div>
+        </Dialog>
       )}
 
       {confirmDelete && (

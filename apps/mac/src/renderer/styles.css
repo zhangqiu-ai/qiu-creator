@@ -3048,12 +3048,8 @@ kbd {
   border-radius: 8px;
   background: var(--qc-warn-soft);
 }
-.aiw-confirm__notice-title {
-  font-weight: 600;
-  color: var(--qc-warn);
-}
 .aiw-confirm__notice p {
-  margin: 6px 0 0;
+  margin: 0;
   white-space: pre-wrap;
   font-size: 12px;
   line-height: 1.7;
@@ -3108,4 +3104,18 @@ kbd {
 }
 .ai-budget .ln__v {
   white-space: normal;
+}
+.aiw-confirm__sec {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.aiw-confirm__h {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--qc-ink2);
+}
+.aiw-confirm__notice .aiw-confirm__h {
+  color: var(--qc-warn);
 }

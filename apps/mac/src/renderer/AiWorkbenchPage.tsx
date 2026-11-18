@@ -829,64 +829,76 @@ function ConfirmDialog({ s, session }: { s: VideoState; session: VideoSession })
       <div className="form aiw-confirm">
         <p>影片會傳到 Google 處理，並產生費用{s.reanalyze && '（重新分析會再次計費）'}。</p>
         {needsConsent && s.gemini !== null && (
-          <div className="aiw-confirm__notice" role="group" aria-label="Gemini 使用告知">
-            <span className="aiw-confirm__notice-title">首次使用 Gemini，請確認：</span>
+          <section className="aiw-confirm__sec aiw-confirm__notice" aria-labelledby="aiw-notice">
+            <h3 id="aiw-notice" className="aiw-confirm__h">
+              1 · 使用告知（首次使用 Gemini）
+            </h3>
             <p>{s.gemini.notice.text}</p>
+          </section>
+        )}
+        <section className="aiw-confirm__sec" aria-labelledby="aiw-cost">
+          <h3 id="aiw-cost" className="aiw-confirm__h">
+            {needsConsent ? '2 · ' : ''}這次的費用（估算）
+          </h3>
+          <div className="aiw-confirm__file">
+            <VideoThumb asset={asset} />
+            <span className="mono aiw-confirm__name">{assetName(asset)}</span>
+            <span className="faint">{formatBytes(asset.bytes)}</span>
           </div>
-        )}
-        <div className="aiw-confirm__file">
-          <VideoThumb asset={asset} />
-          <span className="mono aiw-confirm__name">{assetName(asset)}</span>
-          <span className="faint">{formatBytes(asset.bytes)}</span>
-        </div>
-        {est === null ? (
+          {est === null ? (
+            <p className="aiw__err" role="alert">
+              {s.estimateError ?? '正在重新估算…'}
+            </p>
+          ) : (
+            <dl className="aiw-confirm__facts">
+              <dt>時長</dt>
+              <dd>
+                {formatDuration(est.duration_seconds)}
+                {est.duration_source === 'size_guess' && '（依大小推估）'}
+              </dd>
+              <dt>模型</dt>
+              <dd className="mono">{est.model}</dd>
+              <dt>輸入</dt>
+              <dd>約 {est.estimate.input_tokens.toLocaleString('en-US')} tokens（估算）</dd>
+              <dt>最多花費</dt>
+              <dd>
+                <strong>{formatUsd(est.estimate.max_cost_usd)}</strong>（估算）
+              </dd>
+              <dt>本月累計</dt>
+              <dd>
+                {formatUsd(est.budget.spent_usd)}
+                {est.budget.budget_usd !== null && ` / 提醒 ${formatUsd(est.budget.budget_usd)}`}
+                （估算）
+              </dd>
+            </dl>
+          )}
+          <label className="aiw-confirm__low">
+            <input
+              type="checkbox"
+              checked={s.resolution === 'low'}
+              onChange={(e) => {
+                void session.setResolution(e.target.checked ? 'low' : 'default');
+              }}
+            />
+            <span>
+              低解析度（較省、可分析到約 3 小時）
+              {s.autoLow && tooLongForDefault && (
+                <span className="aiw-confirm__why">
+                  已自動勾選：影片超過 1 小時，預設解析度無法分析
+                </span>
+              )}
+            </span>
+          </label>
+          {est?.budget.over_budget === true && est.budget.warning !== null && (
+            <p className="aiw__over" role="status">
+              <Icon name="alert" size={14} />
+              {est.budget.warning}
+            </p>
+          )}
+        </section>
+        {s.confirmError !== null && (
           <p className="aiw__err" role="alert">
-            {s.estimateError ?? '正在重新估算…'}
-          </p>
-        ) : (
-          <dl className="aiw-confirm__facts">
-            <dt>時長</dt>
-            <dd>
-              {formatDuration(est.duration_seconds)}
-              {est.duration_source === 'size_guess' && '（依大小推估）'}
-            </dd>
-            <dt>模型</dt>
-            <dd className="mono">{est.model}</dd>
-            <dt>輸入</dt>
-            <dd>約 {est.estimate.input_tokens.toLocaleString('en-US')} tokens（估算）</dd>
-            <dt>最多花費</dt>
-            <dd>
-              <strong>{formatUsd(est.estimate.max_cost_usd)}</strong>（估算）
-            </dd>
-            <dt>本月累計</dt>
-            <dd>
-              {formatUsd(est.budget.spent_usd)}
-              {est.budget.budget_usd !== null && ` / 提醒 ${formatUsd(est.budget.budget_usd)}`}
-              （估算）
-            </dd>
-          </dl>
-        )}
-        <label className="aiw-confirm__low">
-          <input
-            type="checkbox"
-            checked={s.resolution === 'low'}
-            onChange={(e) => {
-              void session.setResolution(e.target.checked ? 'low' : 'default');
-            }}
-          />
-          <span>
-            低解析度（較省、可分析到約 3 小時）
-            {s.autoLow && tooLongForDefault && (
-              <span className="aiw-confirm__why">
-                已自動勾選：影片超過 1 小時，預設解析度無法分析
-              </span>
-            )}
-          </span>
-        </label>
-        {est?.budget.over_budget === true && est.budget.warning !== null && (
-          <p className="aiw__over" role="status">
-            <Icon name="alert" size={14} />
-            {est.budget.warning}
+            {s.confirmError}
           </p>
         )}
       </div>

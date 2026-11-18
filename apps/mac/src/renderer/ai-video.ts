@@ -30,6 +30,8 @@ export interface VideoState {
   phase: VideoPhase;
   /** The confirm dialog came from 重新分析 (charges again). */
   reanalyze: boolean;
+  /** Why 同意 or 上傳 failed; the confirm dialog stays open and shows it. */
+  confirmError: string | null;
   /** The running job. */
   job: AiJobRecord | null;
   /** The job whose result is shown. */
@@ -86,6 +88,7 @@ export class VideoSession {
     estimateError: null,
     phase: 'idle',
     reanalyze: false,
+    confirmError: null,
     job: null,
     shown: null,
     result: null,
@@ -230,7 +233,7 @@ export class VideoSession {
   analyze(): void {
     if (this.state.asset === null || this.state.estimate === null) return;
     const cached = this.state.estimate.cached_job_id !== null;
-    this.set({ phase: cached ? 'reuse' : 'confirm', reanalyze: false });
+    this.set({ phase: cached ? 'reuse' : 'confirm', reanalyze: false, confirmError: null });
   }
 
   /** 沿用結果: free, nothing is sent. */
@@ -243,22 +246,40 @@ export class VideoSession {
 
   /** 重新分析 from the reuse dialog: confirm again, this time it is charged. */
   rerun(): void {
-    this.set({ phase: 'confirm', reanalyze: true });
+    this.set({ phase: 'confirm', reanalyze: true, confirmError: null });
   }
 
   closeDialog(): void {
-    this.set({ phase: this.state.result !== null ? 'done' : 'ready', reanalyze: false });
+    this.set({
+      phase: this.state.result !== null ? 'done' : 'ready',
+      reanalyze: false,
+      confirmError: null,
+    });
   }
 
-  /** 上傳並分析 (confirming the Gemini notice first when needed). */
+  /**
+   * 上傳並分析. When the Gemini notice is not confirmed yet, 同意 is sent
+   * first and nothing is analysed unless it succeeds; a failure keeps the
+   * dialog open with the reason.
+   */
   async confirm(): Promise<void> {
     const { asset, gemini } = this.state;
     if (asset === null) return;
-    try {
-      if (gemini !== null && gemini.consent === null) {
+    this.set({ confirmError: null });
+    if (gemini !== null && gemini.consent === null) {
+      try {
         const updated = await this.client.ai.consent('gemini', gemini.notice.version);
         this.set({ gemini: updated });
+      } catch (err) {
+        this.set({ phase: 'confirm', confirmError: `無法確認告知：${messageOf(err)}` });
+        return;
       }
+      if (this.now().gemini?.consent == null) {
+        this.set({ phase: 'confirm', confirmError: '無法確認告知，未送出任何內容' });
+        return;
+      }
+    }
+    try {
       const res = await this.client.ai.analyzeVideo(asset.id, {
         ...(this.state.model === null ? {} : { model: this.state.model }),
         resolution: this.state.resolution,
@@ -268,7 +289,13 @@ export class VideoSession {
         this.show(res.job);
         return;
       }
-      this.set({ phase: 'running', job: res.job, failure: null, reanalyze: false });
+      this.set({
+        phase: 'running',
+        job: res.job,
+        failure: null,
+        reanalyze: false,
+        confirmError: null,
+      });
       this.follow(res.job.id);
     } catch (err) {
       if (err instanceof ApiError && err.code === 'ai_key_missing') {

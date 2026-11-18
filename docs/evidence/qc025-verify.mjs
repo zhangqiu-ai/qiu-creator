@@ -128,7 +128,20 @@ check(
 await shot('02-settings-ai');
 
 // 2. Keys: password field, stored write-only, cleared, never shown again.
-await typeKey('gemini', FAKE_GEMINI_KEY);
+const SHORT_FAKE = 'AIza-fk';
+await typeKey('gemini', SHORT_FAKE);
+await click(`${row('gemini')} button[type=submit]`);
+check(
+  'a refused key: error shown, field emptied, key not repeated anywhere',
+  await until(
+    `document.querySelector('${row('gemini')} [role=alert]')?.textContent.includes('無法儲存金鑰') && document.querySelector('${row('gemini')} input[type=password]')?.value === ''`,
+  ),
+  await text(`${row('gemini')} [role=alert]`),
+);
+check('the refused key is nowhere on screen or in storage', await keyNowhere(SHORT_FAKE));
+await shot('17-key-error');
+await p.evaluate(`document.querySelector('${row('gemini')} input[type=password]').focus()`);
+await p.send('Input.insertText', { text: FAKE_GEMINI_KEY });
 check(
   'the key field is a password field',
   await p.evaluate(`document.querySelector('${row('gemini')} input').type === 'password'`),
@@ -136,7 +149,7 @@ check(
 await shot('03-key-entry');
 await click(`${row('gemini')} button[type=submit]`);
 check(
-  'saved: 待確認告知, field gone',
+  'saved: 待確認告知, field emptied and closed',
   await until(
     `document.querySelector('${row('gemini')} [role=status]')?.textContent.includes('待確認告知') && document.querySelector('${row('gemini')} input[type=password]') === null`,
   ),
@@ -185,6 +198,19 @@ check(
   await until(`document.querySelector('.ai-budget')?.textContent.includes('超過 $0.005 時提醒')`),
 );
 await shot('05-settings-ready');
+await click(`${row('anthropic')} .btn`, '撤回確認');
+check(
+  '撤回確認 asks first and says queued jobs will fail',
+  await until(`document.querySelector('.scrim')?.textContent.includes('已排隊、尚未送出')`),
+);
+await shot('18-withdraw-confirm');
+await click('.scrim .btn', '撤回');
+check(
+  'after withdrawing: 待確認告知 again',
+  await until(
+    `document.querySelector('${row('anthropic')} [role=status]')?.textContent.includes('待確認告知')`,
+  ),
+);
 await click(`${row('anthropic')} .btn`, '刪除金鑰');
 await until(`document.querySelector('.scrim') !== null`);
 await shot('06-delete-confirm');
@@ -220,6 +246,12 @@ check(
   'confirm dialog: Gemini notice, size, duration, model, max cost (估算)',
   await until(
     `(() => { const d = document.querySelector('.scrim'); return d && d.textContent.includes('首次使用 Gemini') && d.textContent.includes('0:56') && d.textContent.includes('最多花費') && d.textContent.includes('同意並上傳分析'); })()`,
+  ),
+);
+check(
+  'notice and cost are two separate sections',
+  await p.evaluate(
+    `[...document.querySelectorAll('.scrim .aiw-confirm__h')].map((h) => h.textContent).join('|') === '1 · 使用告知（首次使用 Gemini）|2 · 這次的費用（估算）'`,
   ),
 );
 check(

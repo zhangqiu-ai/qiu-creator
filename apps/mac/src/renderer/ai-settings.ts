@@ -122,16 +122,28 @@ export class AiSettingsStore {
     }
   }
 
-  /** 存到鑰匙圈. The caller clears its input whatever the outcome. */
-  saveKey(provider: AiProvider, apiKey: string): Promise<boolean> {
+  /**
+   * 存到鑰匙圈. The caller clears its input whatever the outcome; the key is
+   * only a local of this call, and an error message never repeats it.
+   */
+  async saveKey(provider: AiProvider, apiKey: string): Promise<boolean> {
     const key = apiKey.trim();
     if (key === '') {
       this.set({ error: { target: provider, message: '請輸入金鑰' } });
-      return Promise.resolve(false);
+      return false;
     }
-    return this.run(provider, async () => {
+    this.set({ busy: provider, error: null });
+    try {
       this.replace(await this.client.ai.setKey(provider, key));
-    });
+      this.set({ busy: null });
+      return true;
+    } catch (err) {
+      this.set({
+        busy: null,
+        error: { target: provider, message: `無法儲存金鑰：${redactKey(messageOf(err), key)}` },
+      });
+      return false;
+    }
   }
 
   deleteKey(provider: AiProvider): Promise<boolean> {
@@ -176,6 +188,20 @@ export class AiSettingsStore {
       this.set({ settings, usage });
     });
   }
+}
+
+/** Remove every occurrence of the key (and its longer fragments) from a message. */
+export function redactKey(message: string, key: string): string {
+  if (key.length < 4) return message;
+  let out = message.split(key).join('••••');
+  // Also hide partial echoes such as a truncated key in a server message.
+  for (let len = key.length - 1; len >= 8; len--) {
+    for (let i = 0; i + len <= key.length; i++) {
+      const part = key.slice(i, i + len);
+      if (out.includes(part)) out = out.split(part).join('••••');
+    }
+  }
+  return out;
 }
 
 function sortProviders(items: readonly AiProviderStatus[]): AiProviderStatus[] {

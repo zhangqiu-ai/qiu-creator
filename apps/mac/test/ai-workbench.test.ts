@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createClient, type CreatorHubClient } from '@qiu-creator/api-client';
+import { ApiError, createClient, type CreatorHubClient } from '@qiu-creator/api-client';
 import type { AiJobRecord, AiProvider, AssetRecord } from '@qiu-creator/contracts';
 import { buildServer, type CreatorHubServer } from '@qiu-creator/mac-server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -9,7 +9,13 @@ import {
   FakeGeminiVideo,
   videoResult,
 } from '../../../services/mac-server/test/fake-gemini-video.js';
-import { AiSettingsStore, formatUsd, keyState, modelOptions } from '../src/renderer/ai-settings.js';
+import {
+  AiSettingsStore,
+  formatUsd,
+  keyState,
+  modelOptions,
+  redactKey,
+} from '../src/renderer/ai-settings.js';
 import { AiActivity, runLabel, uploadPercent, VideoSession } from '../src/renderer/ai-video.js';
 
 /**
@@ -134,6 +140,32 @@ describe('AiSettingsStore', () => {
     expect(keyState(gemini() ?? fail())).toBe('needs_consent');
     expect(await store.deleteKey('gemini')).toBe(true);
     expect(keyState(gemini() ?? fail())).toBe('none');
+  });
+
+  it('never repeats the key in an error message', async () => {
+    const failing: CreatorHubClient = {
+      ...client,
+      ai: {
+        ...client.ai,
+        setKey: () =>
+          Promise.reject(
+            new ApiError(500, null, `rejected ${FAKE_KEY} (prefix ${FAKE_KEY.slice(0, 12)})`),
+          ),
+      },
+    };
+    const store = new AiSettingsStore(failing);
+    await store.load();
+    expect(await store.saveKey('gemini', FAKE_KEY)).toBe(false);
+    const message = store.snapshot.error?.message ?? '';
+    expect(message).toContain('無法儲存金鑰');
+    expect(message).not.toContain(FAKE_KEY);
+    expect(message).not.toContain(FAKE_KEY.slice(0, 12));
+    expect(JSON.stringify(store.snapshot)).not.toContain(FAKE_KEY.slice(0, 12));
+    // A malformed key is refused by the server without echoing it either.
+    const real = new AiSettingsStore(client);
+    expect(await real.saveKey('gemini', 'short')).toBe(false);
+    expect(real.snapshot.error?.message).not.toContain('short');
+    expect(redactKey('x abcdefghij y', 'abcdefghijkl')).toBe('x •••• y');
   });
 
   it('sets and clears the monthly reminder and rejects negative amounts', async () => {
@@ -280,6 +312,30 @@ describe('VideoSession', () => {
       job = await client.ai.job(id);
     }
     expect(job.status).toBe('cancelled');
+  });
+
+  it('sends nothing and stays in the dialog when confirming the notice fails', async () => {
+    await client.ai.setKey('gemini', FAKE_KEY);
+    const failing: CreatorHubClient = {
+      ...client,
+      ai: { ...client.ai, consent: () => Promise.reject(new Error('offline')) },
+    };
+    const v = new VideoSession(failing, 20);
+    disposers.push(() => {
+      v.dispose();
+    });
+    await v.loadProvider();
+    await v.select(asset);
+    v.analyze();
+    await v.confirm();
+    expect(v.snapshot).toMatchObject({
+      phase: 'confirm',
+      confirmError: '無法確認告知：無法連線到服務',
+    });
+    expect(await videoJobs()).toHaveLength(0);
+    expect(fake.starts).toHaveLength(0);
+    v.closeDialog();
+    expect(v.snapshot.confirmError).toBeNull();
   });
 
   it('picks low resolution for videos longer than the default limit', async () => {
