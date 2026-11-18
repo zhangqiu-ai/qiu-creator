@@ -9,22 +9,25 @@ import { Icon, type IconName } from './Icon.js';
 import { ImportsPage } from './ImportsPage.js';
 import { LibraryPage } from './LibraryPage.js';
 import { PreviewPage } from './PreviewPage.js';
+import { AiWorkbenchPage } from './AiWorkbenchPage.js';
 import { SettingsPage } from './SettingsPage.js';
 
 type Connection = { state: 'connecting' } | ConnectResult;
 type Route =
   | { page: 'library' }
   | { page: 'editor'; work: WorkDetail }
-  | { page: 'assets'; focusAssetId: string | null }
+  | { page: 'assets'; focusAssetId: string | null; startAt?: number }
+  | { page: 'ai' }
   | { page: 'imports' }
   | { page: 'preview'; workId: string | null; from: WorkDetail | null }
-  | { page: 'settings' };
-type NavPage = 'library' | 'assets' | 'imports' | 'preview' | 'settings';
+  | { page: 'settings'; section?: 'ai' };
+type NavPage = 'library' | 'assets' | 'imports' | 'ai' | 'preview' | 'settings';
 
 const NAV: readonly { page: NavPage; label: string; icon: IconName }[] = [
   { page: 'library', label: '作品庫', icon: 'library' },
   { page: 'assets', label: '素材庫', icon: 'assets' },
   { page: 'imports', label: '匯入任務', icon: 'imports' },
+  { page: 'ai', label: 'AI 工作台', icon: 'spark' },
   { page: 'preview', label: '平台預覽', icon: 'phone' },
   { page: 'settings', label: '設定', icon: 'settings' },
 ];
@@ -53,8 +56,7 @@ function useActiveTaskCount(client: CreatorHubClient | null): number {
 
 /**
  * App shell from the approved prototype (PT-20261116-001): a left navigation
- * column and one page at a time. AI 工作台, 平台預覽 and 發布中心 arrive
- * with their own tasks.
+ * column and one page at a time. 發布中心 is phase two.
  */
 export function App() {
   const [connection, setConnection] = useState<Connection>({ state: 'connecting' });
@@ -165,7 +167,7 @@ export function App() {
             setRoute({ page: 'preview', workId: route.work.id, from: route.work });
           }}
           onOpenSettings={() => {
-            setRoute({ page: 'settings' });
+            setRoute({ page: 'settings', section: 'ai' });
           }}
           onBack={() => {
             setRoute({ page: 'library' });
@@ -173,11 +175,12 @@ export function App() {
         />
       ) : route.page === 'assets' ? (
         <AssetsPage
-          key={route.focusAssetId ?? 'assets'}
+          key={`${route.focusAssetId ?? 'assets'}:${String(route.startAt ?? '')}`}
           client={connection.client}
           home={home}
           userHome={userHome}
           focusAssetId={route.focusAssetId}
+          startAt={route.startAt ?? null}
           onOpenWork={openWork}
           onOpenImports={() => {
             go('imports');
@@ -202,6 +205,19 @@ export function App() {
                 }
           }
         />
+      ) : route.page === 'ai' ? (
+        <AiWorkbenchPage
+          client={connection.client}
+          onOpenSettings={() => {
+            setRoute({ page: 'settings', section: 'ai' });
+          }}
+          onOpenAssets={() => {
+            go('assets');
+          }}
+          onOpenAsset={(id, at) => {
+            setRoute({ page: 'assets', focusAssetId: id, startAt: at });
+          }}
+        />
       ) : route.page === 'imports' ? (
         <ImportsPage
           client={connection.client}
@@ -210,7 +226,13 @@ export function App() {
           }}
         />
       ) : (
-        <SettingsPage client={connection.client} home={home} baseUrl={connection.baseUrl} />
+        <SettingsPage
+          key={route.section ?? 'settings'}
+          client={connection.client}
+          home={home}
+          baseUrl={connection.baseUrl}
+          focusSection={route.section}
+        />
       )}
     </div>
   );

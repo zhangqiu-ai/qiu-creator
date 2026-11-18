@@ -1,0 +1,227 @@
+[
+  {
+    "name": "navigation has AI 工作台 between 匯入任務 and 平台預覽",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "no Gemini key: 未設定 Gemini 金鑰 with 前往設定; 改用本地模型 disabled",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "models: Gemini selectable; Claude, GPT and 本地模型 disabled with reasons",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "前往設定 opens 設定 focused on AI 服務",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "a refused key: error shown, field emptied, key not repeated anywhere",
+    "ok": true,
+    "detail": "無法儲存金鑰：格式不正確"
+  },
+  {
+    "name": "the refused key is nowhere on screen or in storage",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "the key field is a password field",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "saved: 待確認告知, field emptied and closed",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "the key is nowhere in the window, inputs or web storage",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "the API never returns the key",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "the notice says the content goes to Google",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "我已了解，啟用 turns Claude ready, with its model",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "Claude key not exposed either",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "model switch is saved",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "monthly reminder saved",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "撤回確認 asks first and says queued jobs will fail",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "after withdrawing: 待確認告知 again",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "刪除金鑰 after confirmation: 未設定",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "empty: 選擇素材庫的視頻來分析",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "picker lists the library video",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "estimate shown with 估算 before anything is sent",
+    "ok": true,
+    "detail": "0:56 · 5.89 MB · 最多 $0.03（估算）"
+  },
+  {
+    "name": "confirm dialog: Gemini notice, size, duration, model, max cost (估算)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "notice and cost are two separate sections",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "over the monthly reminder: the dialog warns",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "upload and analysis progress",
+    "ok": true,
+    "detail": "Gemini 處理影片中"
+  },
+  {
+    "name": "同意 confirmed the Gemini notice",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "取消 cancels the job",
+    "ok": true,
+    "detail": "cancelled"
+  },
+  {
+    "name": "second time: no notice, 上傳並分析",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "result arrives",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "result marked 待核驗 with the disclaimer",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "time points, with 超出片長 on the one past the end",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "cover suggestions show the frame at their time",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "titles and descriptions with 複製",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "複製 → 已複製",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "usage card: month total, Gemini line, over-reminder warning, recent jobs",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "time point opens the asset viewer playing from that second",
+    "ok": true,
+    "detail": "21.02322"
+  },
+  {
+    "name": "an analysed video shows its result straight away",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "reuse dialog says re-analysing charges again",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "沿用結果 sends nothing",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "explicit 重新分析 asks to confirm the charge again",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "failure: 分析失敗 with 429 reason, 重試 and 查看上次結果",
+    "ok": true,
+    "detail": "分析失敗請求太頻繁（429）：供應商限流（429），稍後會自動重試 (HTTP 429)重試查看上次結果"
+  },
+  {
+    "name": "查看上次結果 shows the earlier result",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "history marks the failed job",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "narrow window: no horizontal overflow",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "Gemini key still not exposed at the end",
+    "ok": true,
+    "detail": ""
+  }
+]

@@ -93,6 +93,7 @@ export function AssetsPage({
   home,
   userHome,
   focusAssetId,
+  startAt,
   onOpenWork,
   onOpenImports,
   onOpenSettings,
@@ -103,6 +104,8 @@ export function AssetsPage({
   onOpenWork: (workId: string) => void;
   /** Select this asset on open (e.g. 開啟 from the task list), even if it is not on the first page. */
   focusAssetId?: string | null;
+  /** Start the focused video at this second (from an AI result's time point). */
+  startAt?: number | null;
   onOpenImports: () => void;
   onOpenSettings: () => void;
 }) {
@@ -387,6 +390,7 @@ export function AssetsPage({
           }
           userHome={userHome}
           onOpenWork={onOpenWork}
+          startAt={selected.id === focusAssetId ? (startAt ?? null) : null}
           onClose={() => {
             setSelectedId(null);
           }}
@@ -433,7 +437,7 @@ function Thumb({ asset, size }: { asset: AssetRecord; size: number }) {
  * without touching this component. Formats Chromium cannot decode (e.g. some
  * HEVC .mov files) fall back to an icon with a note instead of a broken player.
  */
-function MediaPreview({ asset }: { asset: AssetRecord }) {
+function MediaPreview({ asset, startAt }: { asset: AssetRecord; startAt: number | null }) {
   const [failed, setFailed] = useState(false);
   const onError = () => {
     setFailed(true);
@@ -464,6 +468,12 @@ function MediaPreview({ asset }: { asset: AssetRecord }) {
           preload="metadata"
           aria-label={name}
           onError={onError}
+          onLoadedMetadata={(e) => {
+            if (startAt === null) return;
+            const video = e.currentTarget;
+            video.currentTime = Math.min(startAt, video.duration || startAt);
+            void video.play().catch(() => undefined);
+          }}
         />
       ) : (
         <audio
@@ -585,9 +595,11 @@ function AssetViewer({
   userHome,
   onOpenWork,
   onClose,
+  startAt,
 }: {
   client: CreatorHubClient;
   asset: AssetRecord;
+  startAt: number | null;
   home: string | null;
   mount: Mount | null;
   userHome: string | null;
@@ -608,7 +620,7 @@ function AssetViewer({
 
   return (
     <aside className="viewer" aria-label="檢視器">
-      <MediaPreview key={asset.id} asset={asset} />
+      <MediaPreview key={`${asset.id}:${String(startAt)}`} asset={asset} startAt={startAt} />
       <div className="viewer__title">
         <h2 className="mono viewer__name">{name}</h2>
         <button

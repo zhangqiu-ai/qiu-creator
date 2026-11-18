@@ -1,6 +1,7 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
 import type { HealthResponse, Mount, MountStatus } from '@qiu-creator/contracts';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AiSettingsSection } from './AiSettingsSection.js';
 import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
 import { useEventStatus, useRefreshOn } from './events.js';
@@ -36,20 +37,29 @@ export function sortMounts(mounts: readonly Mount[]): Mount[] {
 }
 
 /**
- * 設定 (prototype board MacSettings), phase-one subset: service status and
- * folders (managed home, external mounts). Service start/stop, backups and
- * AI keys need APIs that do not exist yet (AI keys are M3); Tailscale and
- * device pairing are phase two. Those sections are left out, not faked.
+ * 設定 (prototype board MacSettings), phase-one subset: service status,
+ * AI keys and models (QC-025), and folders (managed home, external mounts).
+ * Service start/stop and backups need APIs that do not exist yet; Tailscale
+ * and device pairing are phase two. Those sections are left out, not faked.
  */
 export function SettingsPage({
   client,
   home,
   baseUrl,
+  focusSection,
 }: {
   client: CreatorHubClient;
   home: string | null;
   baseUrl: string;
+  /** Scroll to and focus a section, e.g. from 「前往設定」. */
+  focusSection?: 'ai';
 }) {
+  const aiHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (focusSection !== 'ai') return;
+    aiHeading.current?.scrollIntoView({ block: 'start' });
+    aiHeading.current?.focus();
+  }, [focusSection]);
   const [health, setHealth] = useState<HealthResponse | null | 'down'>(null);
   const [mounts, setMounts] = useState<Mount[] | null>(null);
   const [mountsFailed, setMountsFailed] = useState(false);
@@ -179,6 +189,8 @@ export function SettingsPage({
             </p>
           </div>
         </section>
+
+        <AiSettingsSection client={client} headingRef={aiHeading} />
 
         <section className="settings__sec" aria-labelledby="set-folders">
           <h2 id="set-folders" className="settings__h">

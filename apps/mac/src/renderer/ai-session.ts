@@ -73,7 +73,7 @@ function messageOf(err: unknown): string {
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled']);
 
 /** Follows one AI job: on SSE nudges (`check`) and a slow poll as a fallback. */
-class JobWatch {
+export class JobWatch {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
   private checking: Promise<void> | null = null;
