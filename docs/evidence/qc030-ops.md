@@ -37,7 +37,7 @@ commit `4432736`，只增不改：
 | 建置產物 | `scripts/build.ts`（`pnpm --filter @qiu-creator/mac-server build`） | `test/build-artifact.test.ts` |
 | `/health` 版本與 commit | `src/build-info.ts` | 同上，另有既有 health 測試 |
 | launchd 範本與日誌 | `deploy/launchd/*`、`src/log-file.ts`、`src/main.ts` | `test/log-file.test.ts`；`plutil -lint` 通過 |
-| 備份、還原、行程內重載 | `src/backups/backup-service.ts`、`src/routes/backups.ts`、`src/host.ts`、migration `0011` | `test/backups.test.ts`（8 項） |
+| 備份、還原、行程內重載 | `src/backups/backup-service.ts`、`src/routes/backups.ts`、`src/host.ts`、migration `0011` | `test/backups.test.ts`（9 項） |
 | 崩潰恢復 | 既有機制，加上本任務的 `startHost` | `test/crash-recovery.test.ts`（真子行程 SIGKILL） |
 | 防閒置睡眠 | `src/power/sleep-guard.ts` | `test/sleep-guard.test.ts`（5 項） |
 
@@ -93,9 +93,41 @@ commit `4432736`，只增不改：
 - `build-artifact` 設 120 秒：要打包、複製約 200 MB、再啟動行程。
 - 其他測試沿用預設的 5 秒。
 
+### 錯誤碼與相容性
+
+- `backup_failed` 的 HTTP 狀態依情境不同：
+  - **還原時回 409**：還原前要先做 `pre_restore` 安全備份，這份備份做不出來或沒通過完整性檢查時，還原會被拒絕，什麼都不改。這是「目前狀態不允許還原」，和 `backup_not_restorable`、`restore_in_progress` 同屬可預期的前置條件失敗，介面要顯示原因，而不是當成服務故障。
+  - **手動備份回 500**：使用者沒做錯任何事，是服務端寫檔或檢查失敗（例如磁碟滿、權限錯），屬於伺服器錯誤。
+  - 兩種情況的錯誤碼都是 `backup_failed`，介面靠錯誤碼處理即可，不用看狀態碼。
+- api-client 測試確認 409 `restore_in_progress`、409 `backup_not_restorable`、409／500 `backup_failed`、503 `restoring` 都原樣保留在錯誤物件上。
+- `HealthResponse` 的 `commit`、`built_at` 是可選且可為 null，所以新用戶端連舊服務也能解析。既有 health 測試的斷言因行為改變而改寫成新的正確值（`version: SOURCE_VERSION`、`commit: null`、`built_at: null`），沒有放寬。
+
 ## 4. 閘門
 
-（見下方，依實際執行結果填寫）
+在 worktree `/Users/feature/code/qiu-creator-qc030`、HEAD `6c4e138` 上執行：
+
+| 閘門 | 結果 |
+| --- | --- |
+| `pnpm -r typecheck` | 通過 |
+| `pnpm -r lint` | 通過 |
+| `prettier --check`（本任務改動的檔案） | 通過 |
+| `pnpm -r --workspace-concurrency=1 --no-bail test` | **586 passed／0 failed／586 total** |
+
+全倉測試在 2026-11-18 08:13:37–08:14:06（PST）執行。開始時負載 14.54（1 分鐘平均），結束時 20.23，其間持有全倉測試鎖 `/private/tmp/claude-501/qc-fullsuite.lock`，跑完已釋放。
+
+| 套件 | passed／total |
+| --- | --- |
+| contracts | 16／16 |
+| design-tokens | 5／5 |
+| domain | 27／27 |
+| markdown-editor-web | 22／22 |
+| api-client | 16／16 |
+| platform-preview | 12／12 |
+| mac-server | 340／340 |
+| apps/mac | 142／142 |
+| agent-sdk | 6／6 |
+
+先前在負載 30–134 時跑的幾輪有大量 5 秒逾時（其他專案佔用 CPU），依規則不算數，已作廢。
 
 ## 5. NOT_VERIFIED 與交給其他任務的事
 
