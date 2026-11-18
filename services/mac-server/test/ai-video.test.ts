@@ -3,18 +3,21 @@ import path from 'node:path';
 import { ApiError, videoUnderstandingOf } from '@qiu-creator/api-client';
 import { AI_NOTICE_VERSION, GEMINI_VIDEO_LIMITS, type AiJobRecord } from '@qiu-creator/contracts';
 import { afterEach, describe, expect, it } from 'vitest';
+import { MemorySecretStore } from '../src/ai/secret-store.js';
 import { FakeGeminiVideo } from './fake-gemini-video.js';
 import { mp4Bytes, pngBytes } from './fixtures.js';
-import { startTestServer, type StartOptions, type TestServer } from './helpers.js';
+import { makeTempHome, startTestServer, type StartOptions, type TestServer } from './helpers.js';
 
 const KEY = 'AIzaFakeVideoKey0123456789';
 const CHUNK = 256 * 1024;
 
 const servers: TestServer[] = [];
 const fakes: FakeGeminiVideo[] = [];
+const homes: string[] = [];
 afterEach(async () => {
   for (const s of servers.splice(0)) await s.close();
   for (const f of fakes.splice(0)) await f.stop();
+  for (const h of homes.splice(0)) fs.rmSync(h, { recursive: true, force: true });
 });
 
 async function start(extra: StartOptions['ai'] = {}) {
@@ -362,5 +365,133 @@ describe('Gemini video understanding', () => {
     const again = await s.client.assets.upload({ filename: 'copy.mp4', data: video });
     expect(again.deduplicated).toBe(true);
     expect((await s.client.ai.analyzeVideo(again.asset.id)).cached).toBe(true);
+  });
+});
+
+describe('Gemini video understanding across a service restart (QC-029)', () => {
+  /** A server on a home and key store that survive `restart()`. */
+  async function restartable() {
+    const fake = new FakeGeminiVideo();
+    await fake.start();
+    fakes.push(fake);
+    const home = makeTempHome();
+    homes.push(home);
+    const secrets = new MemorySecretStore();
+    const boot = async (): Promise<TestServer> => {
+      const s = await startTestServer({
+        home,
+        ai: {
+          secrets,
+          baseUrls: { gemini: fake.baseUrl() },
+          retryBaseMs: 10,
+          pollMs: 10,
+          timeoutMs: 2000,
+          video: { chunkBytes: CHUNK, pollMs: 10, processingTimeoutMs: 2000 },
+        },
+      });
+      servers.push(s);
+      return s;
+    };
+    const s = await boot();
+    await s.client.ai.setKey('gemini', KEY);
+    await s.client.ai.consent('gemini', AI_NOTICE_VERSION);
+    const video = mp4Bytes(700 * 1024);
+    const { asset } = await s.client.assets.upload({ filename: 'arashiyama.mp4', data: video });
+    s.db.prepare('UPDATE assets SET duration = 30 WHERE id = ?').run(asset.id);
+
+    // Upload fully, then hold the file in Gemini's PROCESSING state and stop the service.
+    fake.processingPolls = 10_000;
+    const { job } = await s.client.ai.analyzeVideo(asset.id);
+    for (let i = 0; i < 300; i++) {
+      if ((await s.client.ai.job(job.id)).progress?.phase === 'processing') break;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    expect((await s.client.ai.job(job.id)).progress?.phase).toBe('processing');
+    servers.splice(servers.indexOf(s), 1);
+    await s.close();
+    const [first] = [...fake.files.keys()];
+    if (first === undefined) throw new Error('nothing was uploaded');
+    // Stopping the service is not a cancel: the uploaded file is kept for the next run.
+    expect(fake.deletes).toEqual([]);
+    expect(fake.files.size).toBe(1);
+    const chunksBefore = fake.chunks.length;
+    fake.processingPolls = 0;
+    return { fake, video, jobId: job.id, firstFile: first, chunksBefore, boot };
+  }
+
+  it('reuses the file Gemini already has: no second upload, one analysis, one charge', async () => {
+    const r = await restartable();
+    const s2 = await r.boot();
+    const done = await finished(s2, r.jobId);
+    expect(done).toMatchObject({ status: 'succeeded', attempts: 2 });
+    expect(videoUnderstandingOf(done)).not.toBeNull();
+    expect(r.fake.starts).toHaveLength(1);
+    expect(r.fake.chunks).toHaveLength(r.chunksBefore);
+    expect(r.fake.files.size).toBe(1);
+    expect(r.fake.generates).toHaveLength(1);
+    expect(JSON.stringify(r.fake.generates[0])).toContain(r.firstFile.replace('files/', ''));
+    expect(r.fake.deletes).toEqual([r.firstFile]);
+    const gemini = (await s2.client.ai.usage()).by_provider.find((p) => p.provider === 'gemini');
+    expect(gemini?.jobs).toBe(1);
+  });
+
+  it('uploads again when Gemini no longer has the file', async () => {
+    const r = await restartable();
+    r.fake.vanish(r.firstFile);
+    const s2 = await r.boot();
+    const done = await finished(s2, r.jobId);
+    expect(done).toMatchObject({ status: 'succeeded', attempts: 2 });
+    expect(r.fake.starts).toHaveLength(2);
+    expect(r.fake.files.size).toBe(2);
+    expect(r.fake.lastUpload()?.equals(r.video)).toBe(true);
+    expect(r.fake.generates).toHaveLength(1);
+    // The new copy is cleaned up; the vanished one needs nothing.
+    const [, second] = [...r.fake.files.keys()];
+    expect(r.fake.deletes).toEqual([second]);
+    const gemini = (await s2.client.ai.usage()).by_provider.find((p) => p.provider === 'gemini');
+    expect(gemini?.jobs).toBe(1);
+  });
+
+  it('uploads again when the kept file has FAILED, deleting the failed one', async () => {
+    const r = await restartable();
+    r.fake.fail(r.firstFile);
+    const s2 = await r.boot();
+    const done = await finished(s2, r.jobId);
+    expect(done).toMatchObject({ status: 'succeeded', attempts: 2 });
+    expect(r.fake.starts).toHaveLength(2);
+    expect(r.fake.generates).toHaveLength(1);
+    const [, second] = [...r.fake.files.keys()];
+    expect(JSON.stringify(r.fake.generates[0])).toContain(String(second).replace('files/', ''));
+    expect(r.fake.deletes).toEqual([r.firstFile, second]);
+  });
+
+  it('uploads again when the kept file is about to expire', async () => {
+    const r = await restartable();
+    r.fake.expire(r.firstFile, new Date(Date.now() + 10 * 60_000));
+    const s2 = await r.boot();
+    const done = await finished(s2, r.jobId);
+    expect(done).toMatchObject({ status: 'succeeded', attempts: 2 });
+    expect(r.fake.starts).toHaveLength(2);
+    const [, second] = [...r.fake.files.keys()];
+    expect(r.fake.deletes).toEqual([r.firstFile, second]);
+    expect(r.fake.generates).toHaveLength(1);
+  });
+
+  it('a user cancel still deletes the remote file at once', async () => {
+    const r = await restartable();
+    // Hold it in processing again, then cancel instead of letting it finish.
+    r.fake.processingPolls = 10_000;
+    const s2 = await r.boot();
+    for (let i = 0; i < 300; i++) {
+      if ((await s2.client.ai.job(r.jobId)).status === 'running') break;
+      await new Promise((res) => setTimeout(res, 10));
+    }
+    expect((await s2.client.ai.stop(r.jobId)).status).toBe('cancelled');
+    await s2.ai.drain();
+    for (let i = 0; i < 100 && r.fake.deletes.length === 0; i++) {
+      await new Promise((res) => setTimeout(res, 10));
+    }
+    expect(r.fake.deletes).toEqual([r.firstFile]);
+    expect(r.fake.generates).toHaveLength(0);
   });
 });

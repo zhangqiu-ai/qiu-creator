@@ -201,7 +201,7 @@ export class TextAiService {
   suggest(
     workId: string,
     request: PlatformSuggestionsRequest,
-  ): { job: AiJobRecord; budget: AiBudgetStatus } {
+  ): { job: AiJobRecord; budget: AiBudgetStatus; in_progress: boolean } {
     const req = PlatformSuggestionsRequestSchema.parse(request);
     const platforms = PlatformSchema.options.filter((p) => req.platforms.includes(p));
     const fields = (['title', 'summary', 'tags'] as const).filter((f) => req.fields.includes(f));
@@ -226,7 +226,7 @@ export class TextAiService {
       count: req.count,
       variant_revisions: Object.fromEntries(platforms.map((p) => [p, existing.get(p) ?? null])),
     };
-    return this.ai.submit(
+    return this.ai.submitOnce(
       {
         provider: req.provider,
         ...(req.model === undefined ? {} : { model: req.model }),
@@ -248,7 +248,10 @@ export class TextAiService {
     );
   }
 
-  rewrite(workId: string, request: RewriteRequest): { job: AiJobRecord; budget: AiBudgetStatus } {
+  rewrite(
+    workId: string,
+    request: RewriteRequest,
+  ): { job: AiJobRecord; budget: AiBudgetStatus; in_progress: boolean } {
     const req = RewriteRequestSchema.parse(request);
     const work = this.works.get(workId);
     const source = work.markdown;
@@ -289,7 +292,7 @@ export class TextAiService {
       instruction: req.instruction ?? null,
       range,
     };
-    return this.ai.submit(
+    return this.ai.submitOnce(
       {
         provider: req.provider,
         ...(req.model === undefined ? {} : { model: req.model }),

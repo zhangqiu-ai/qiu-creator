@@ -34,9 +34,11 @@ import {
   type PatchAiProviderRequest,
   type PatchAiSettingsRequest,
 } from '@qiu-creator/contracts';
+import { sha256Hex } from '@qiu-creator/domain';
 import type { Db } from '../db/database.js';
 import { notFound, ServiceError } from '../errors.js';
 import type { ChangeFeed } from '../events/change-feed.js';
+import { canonicalJson } from '../idempotency/idempotency-service.js';
 import {
   isAbort,
   ProviderError,
@@ -120,6 +122,11 @@ export type AiTaskExecutor = (ctx: {
   signal: AbortSignal;
   reportProgress: (progress: AiJobProgress) => void;
   saveRemoteState: (state: unknown) => void;
+  /**
+   * True once the service is stopping. An abort then means "the service is
+   * going down", not "the user cancelled": keep remote state for the next run.
+   */
+  shuttingDown: () => boolean;
 }) => Promise<AiTextResult>;
 
 /**
@@ -455,6 +462,37 @@ export class AiService {
     return { job: this.get(id), budget: this.budget(undefined, estimate.max_cost_usd ?? 0) };
   }
 
+  /**
+   * Queue a job unless an identical one is already queued or running (QC-029):
+   * same provider, resolved model, action, work, `source_revision`, input and
+   * task. Then that job is returned with `in_progress: true` and nothing is
+   * sent or charged again. Finished jobs never count, so asking again after
+   * one finishes generates again. Check and insert run synchronously, so two
+   * requests in this process cannot both queue.
+   */
+  submitOnce(
+    request: CreateAiJobRequest,
+    options: { task?: AiTask } = {},
+  ): { job: AiJobRecord; budget: AiBudgetStatus; in_progress: boolean } {
+    const req = CreateAiJobRequestSchema.parse(request);
+    const estimate = this.estimate(req);
+    const cacheKey = sha256Hex(
+      canonicalJson([
+        'in_flight',
+        req.provider,
+        estimate.model,
+        req.action,
+        req.work_id ?? null,
+        req.source_revision ?? null,
+        req.input,
+        options.task ?? null,
+      ]),
+    );
+    const inflight = this.findByCacheKey(cacheKey, ['queued', 'running']);
+    if (inflight !== undefined) return { job: inflight, budget: this.budget(), in_progress: true };
+    return { ...this.submit(req, { ...options, cacheKey, estimate }), in_progress: false };
+  }
+
   get(id: string): AiJobRecord {
     const row = this.db.prepare<[string], JobRow>('SELECT * FROM ai_jobs WHERE id = ?').get(id);
     if (!row || row.provider === null) throw notFound('AI job');
@@ -673,6 +711,7 @@ export class AiService {
                     row.id,
                   );
               },
+              shuttingDown: () => this.stopped,
             })
           : await this.providers[provider].generateText(
               {

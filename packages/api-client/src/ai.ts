@@ -20,12 +20,14 @@ import {
   PlatformSuggestionsResultSchema,
   RewriteRequestSchema,
   RewriteResultSchema,
+  WorkAiJobResponseSchema,
   WorkDetailSchema,
   type AcceptRewriteRequest,
   type PlatformSuggestionsRequest,
   type PlatformSuggestionsResult,
   type RewriteRequest,
   type RewriteResult,
+  type WorkAiJobResponse,
   type WorkDetail,
   type AiEstimateResponse,
   type AiJobRecord,
@@ -67,9 +69,20 @@ export interface CreatorHubAiApi {
 
   // ---- Text AI on a work (QC-022) ----
   /** Queue per-platform title / summary / tag candidates. Apply one via `variants.patch`. */
-  suggest(workId: string, input: PlatformSuggestionsRequest): Promise<CreateAiJobResponse>;
-  /** Queue a rewrite candidate of the whole text or a selection. */
-  rewrite(workId: string, input: RewriteRequest): Promise<CreateAiJobResponse>;
+  suggest(
+    workId: string,
+    input: PlatformSuggestionsRequest,
+    options?: IdempotencyOptions,
+  ): Promise<WorkAiJobResponse>;
+  /**
+   * Queue a rewrite candidate of the whole text or a selection. An identical
+   * request already queued or running is returned instead (`in_progress: true`).
+   */
+  rewrite(
+    workId: string,
+    input: RewriteRequest,
+    options?: IdempotencyOptions,
+  ): Promise<WorkAiJobResponse>;
   /** Write the composed full text as an `ai_accepted` revision; 409 if the work changed since. */
   accept(workId: string, jobId: string, input: AcceptRewriteRequest): Promise<WorkDetail>;
   /** "停止生成": same as `cancel`. */
@@ -153,21 +166,23 @@ export function createAiApi(ctx: Ctx): CreatorHubAiApi {
     job: (id) => call(ctx, AiJobRecordSchema, 'GET', j(id)),
     cancel: (id) => call(ctx, AiJobRecordSchema, 'POST', `${j(id)}/cancel`),
     retry: (id) => call(ctx, AiJobRecordSchema, 'POST', `${j(id)}/retry`),
-    suggest: (workId, input) =>
+    suggest: (workId, input, options) =>
       call(
         ctx,
-        CreateAiJobResponseSchema,
+        WorkAiJobResponseSchema,
         'POST',
         `/api/v1/works/${encodeURIComponent(workId)}/ai/suggestions`,
         PlatformSuggestionsRequestSchema.parse(input),
+        idempotencyHeaders(options),
       ),
-    rewrite: (workId, input) =>
+    rewrite: (workId, input, options) =>
       call(
         ctx,
-        CreateAiJobResponseSchema,
+        WorkAiJobResponseSchema,
         'POST',
         `/api/v1/works/${encodeURIComponent(workId)}/ai/rewrite`,
         RewriteRequestSchema.parse(input),
+        idempotencyHeaders(options),
       ),
     accept: (workId, jobId, input) =>
       call(

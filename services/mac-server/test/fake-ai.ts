@@ -158,7 +158,9 @@ export class FakeAiServer {
         this.seen.push(seen);
         const reply = this.queues[provider].shift() ?? ok(provider, 'default reply');
         const send = (): void => {
-          if (res.destroyed || req.destroyed) return;
+          // Only the response side tells whether the client is still there: Node
+          // marks a fully read request `destroyed` (autoDestroy) right away.
+          if (res.destroyed) return;
           res.writeHead(reply.status ?? 200, { 'content-type': 'application/json' });
           res.end(JSON.stringify(reply.body ?? {}));
         };

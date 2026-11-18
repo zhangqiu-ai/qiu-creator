@@ -17,6 +17,10 @@ interface RemoteFile {
   bytes: Buffer;
   polls: number;
   deleted: boolean;
+  /** ISO time Google would delete the file; 48 hours after upload by default. */
+  expirationTime: string;
+  /** Answer FAILED from now on, whatever the polls say. */
+  failed: boolean;
 }
 
 export interface GenerateReply {
@@ -31,7 +35,8 @@ export interface GenerateReply {
  *   keeping half of the bytes, as if the network dropped mid-upload;
  * - `supportsQuery`: whether the resumable `query` command is answered;
  * - `processingPolls` / `failProcessing`: how a file leaves PROCESSING;
- * - `generateReplies`: scripted `generateContent` replies (FIFO).
+ * - `generateReplies`: scripted `generateContent` replies (FIFO);
+ * - `expire` / `fail` / `vanish`: change a stored file as Google might between runs.
  */
 export class FakeGeminiVideo {
   readonly starts: { headers: http.IncomingHttpHeaders; body: string }[] = [];
@@ -53,6 +58,27 @@ export class FakeGeminiVideo {
 
   baseUrl(): string {
     return `http://127.0.0.1:${String(this.port)}`;
+  }
+
+  private file(name: string): RemoteFile {
+    const file = this.files.get(name);
+    if (file === undefined) throw new Error(`no fake file ${name}`);
+    return file;
+  }
+
+  /** Make Google say the file is deleted at `at`. */
+  expire(name: string, at: Date): void {
+    this.file(name).expirationTime = at.toISOString();
+  }
+
+  /** Make the file's processing fail from now on. */
+  fail(name: string): void {
+    this.file(name).failed = true;
+  }
+
+  /** Remove the file on Google's side (as after 48 hours), not through our DELETE. */
+  vanish(name: string): void {
+    this.file(name).deleted = true;
   }
 
   /** Bytes of the last finalized upload. */
@@ -162,13 +188,21 @@ export class FakeGeminiVideo {
           bytes: Buffer.concat(s.bytes),
           polls: 0,
           deleted: false,
+          expirationTime: new Date(Date.now() + 48 * 3600_000).toISOString(),
+          failed: false,
         };
         this.files.set(file.name, file);
         this.json(
           res,
           200,
           {
-            file: { name: file.name, uri: file.uri, mimeType: file.mimeType, state: 'PROCESSING' },
+            file: {
+              name: file.name,
+              uri: file.uri,
+              mimeType: file.mimeType,
+              state: 'PROCESSING',
+              expirationTime: file.expirationTime,
+            },
           },
           { 'x-goog-upload-status': 'final' },
         );
@@ -191,8 +225,9 @@ export class FakeGeminiVideo {
         return;
       }
       file.polls++;
-      const state =
-        file.polls <= this.processingPolls
+      const state = file.failed
+        ? 'FAILED'
+        : file.polls <= this.processingPolls
           ? 'PROCESSING'
           : this.failProcessing
             ? 'FAILED'
@@ -202,6 +237,7 @@ export class FakeGeminiVideo {
         uri: file.uri,
         mimeType: file.mimeType,
         state,
+        expirationTime: file.expirationTime,
         ...(state === 'FAILED' ? { error: { code: 3, message: 'Video codec not supported' } } : {}),
       });
       return;
