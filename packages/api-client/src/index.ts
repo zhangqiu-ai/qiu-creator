@@ -46,6 +46,8 @@ import {
 import { createMountsApi, type CreatorHubMountsApi } from './mounts.js';
 import { createVariantsApi, type CreatorHubVariantsApi } from './variants.js';
 import { createAiApi, type CreatorHubAiApi } from './ai.js';
+import { createBackupsApi, type CreatorHubBackupsApi } from './backups.js';
+export type { CreatorHubBackupsApi } from './backups.js';
 export { rewriteOf, suggestionsOf, videoUnderstandingOf, type CreatorHubAiApi } from './ai.js';
 export type { CreatorHubVariantsApi, VariantWriteOptions } from './variants.js';
 export type { CreatorHubMountsApi } from './mounts.js';
@@ -161,6 +163,8 @@ export interface CreatorHubClient {
   variants: CreatorHubVariantsApi;
   /** AI providers, Keychain keys, consent, jobs and usage (QC-021). Owner token only. */
   ai: CreatorHubAiApi;
+  /** SQLite backups: list, back up now, restore (QC-030). Owner token only. */
+  backups: CreatorHubBackupsApi;
 }
 
 export function createClient(options: CreatorHubClientOptions): CreatorHubClient {
@@ -206,6 +210,7 @@ export function createClient(options: CreatorHubClientOptions): CreatorHubClient
     mounts: createMountsApi(ctx),
     variants: createVariantsApi(ctx),
     ai: createAiApi(ctx),
+    backups: createBackupsApi(ctx),
     health: () => request(HealthResponseSchema, 'GET', '/health'),
     works: {
       create: (input, createOptions) =>

@@ -63,6 +63,10 @@ export const HealthResponseSchema = z.object({
   status: z.literal('ok'),
   service: z.literal('creatorhub-mac-server'),
   version: z.string(),
+  /** Git commit the build was made from; null when running from source without git info (QC-030). */
+  commit: z.string().nullable(),
+  /** When the build artifact was made; null when running from source (QC-030). */
+  built_at: z.string().nullable(),
 });
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
 
