@@ -102,6 +102,7 @@ describe('remote revisions', () => {
     expect(mine.snapshot.remote).toEqual({
       revisionId: theirs.current_revision_id,
       source: 'external',
+      draftBase: work.current_revision_id,
     });
     await new Promise((r) => setTimeout(r, 120));
     // Nothing was written over the other change.

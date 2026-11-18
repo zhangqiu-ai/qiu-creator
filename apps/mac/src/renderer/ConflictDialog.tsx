@@ -41,7 +41,10 @@ export function ConflictDialog({
   const [busy, setBusy] = useState(false);
   const [actionFailed, setActionFailed] = useState(false);
   const [outcomes, setOutcomes] = useState<Outcome[]>([]);
-  const [baseOfDraft] = useState(() => session.snapshot.baseRevision);
+  // What the draft was based on: not `baseRevision`, which may already be the server's (QC-027).
+  const [baseOfDraft] = useState(
+    () => session.snapshot.conflictBase ?? session.snapshot.baseRevision,
+  );
   const dialogRef = useRef<HTMLElement>(null);
   const conflictRevision = session.snapshot.conflictRevision;
 
