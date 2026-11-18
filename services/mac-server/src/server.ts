@@ -51,6 +51,9 @@ import { registerMountRoutes } from './routes/mounts.js';
 import { registerAiRoutes } from './routes/ai.js';
 import { registerAiTextRoutes } from './routes/ai-text.js';
 import { TextAiService } from './ai/text-tasks.js';
+import { VideoAiService, type VideoOptions } from './ai/video-tasks.js';
+import { GeminiVideoClient } from './ai/providers/gemini-video.js';
+import { registerAiVideoRoutes } from './routes/ai-video.js';
 import { AiService, type AiRunnerOptions } from './ai/ai-service.js';
 import type { AIProvider } from './ai/provider.js';
 import { AnthropicProvider } from './ai/providers/anthropic.js';
@@ -113,6 +116,8 @@ export interface BuildServerOptions {
     providers?: Partial<Record<AiProvider, AIProvider>>;
     timeoutMs?: number;
     start?: boolean;
+    /** Gemini video upload chunk size and processing poll (QC-023). */
+    video?: VideoOptions;
   };
   /** Lifetime of signed media URLs (default 1 hour); `now` is injectable for tests. */
   signedUrls?: { ttlMs?: number; now?: () => number };
@@ -449,6 +454,10 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerVariantRoutes(app, variants);
   registerAiRoutes(app, ai, idempotency);
   registerAiTextRoutes(app, new TextAiService(ai, works, variants));
+  registerAiVideoRoutes(
+    app,
+    new VideoAiService(ai, assets, new GeminiVideoClient(adapter('gemini')), aiOptions.video),
+  );
 
   mounts.start();
   if (options.jobs?.start !== false) jobs.start();

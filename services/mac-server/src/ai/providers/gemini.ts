@@ -54,33 +54,42 @@ export class GeminiProvider implements AIProvider {
       throw classify(err, req.signal);
     }
 
-    const blockReason = response.promptFeedback?.blockReason;
-    if (blockReason !== undefined) {
-      throw providerError('content_blocked', `prompt ${blockReason}`);
-    }
-    const candidate = response.candidates?.[0];
-    const finish: string | undefined = candidate?.finishReason;
-    if (finish !== undefined && BLOCKED_FINISH.has(finish)) {
-      throw providerError('content_blocked', finish);
-    }
-    const text = (candidate?.content?.parts ?? [])
-      .flatMap((part) => (part.thought === true || part.text === undefined ? [] : [part.text]))
-      .join('');
-    const usage = response.usageMetadata;
-    return {
-      text,
-      model: response.modelVersion ?? req.model,
-      usage: {
-        input_tokens: usage?.promptTokenCount ?? 0,
-        // Thinking tokens are billed as output.
-        output_tokens: (usage?.candidatesTokenCount ?? 0) + (usage?.thoughtsTokenCount ?? 0),
-      },
-      finish: finish === 'MAX_TOKENS' ? 'max_tokens' : 'stop',
-    };
+    return toTextResult(response, req.model);
   }
 }
 
-function classify(err: unknown, signal: AbortSignal): Error {
+/** Provider-neutral result from a `generateContent` response (blocked content throws). */
+export function toTextResult(
+  response: GenerateContentResponse,
+  requestedModel: string,
+): AiTextResult {
+  const blockReason = response.promptFeedback?.blockReason;
+  if (blockReason !== undefined) {
+    throw providerError('content_blocked', `prompt ${blockReason}`);
+  }
+  const candidate = response.candidates?.[0];
+  const finish: string | undefined = candidate?.finishReason;
+  if (finish !== undefined && BLOCKED_FINISH.has(finish)) {
+    throw providerError('content_blocked', finish);
+  }
+  const text = (candidate?.content?.parts ?? [])
+    .flatMap((part) => (part.thought === true || part.text === undefined ? [] : [part.text]))
+    .join('');
+  const usage = response.usageMetadata;
+  return {
+    text,
+    model: response.modelVersion ?? requestedModel,
+    usage: {
+      input_tokens: usage?.promptTokenCount ?? 0,
+      // Thinking tokens are billed as output.
+      output_tokens: (usage?.candidatesTokenCount ?? 0) + (usage?.thoughtsTokenCount ?? 0),
+    },
+    finish: finish === 'MAX_TOKENS' ? 'max_tokens' : 'stop',
+  };
+}
+
+/** Map an SDK error to a classified `ProviderError` (aborts pass through). */
+export function classify(err: unknown, signal: AbortSignal): Error {
   if (isAbort(err, signal)) return err instanceof Error ? err : new Error('aborted');
   // The SDK enforces `httpOptions.timeout` with its own AbortController: an
   // AbortError while our signal is not aborted is a timeout.

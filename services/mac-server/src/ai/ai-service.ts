@@ -37,7 +37,13 @@ import {
 import type { Db } from '../db/database.js';
 import { notFound, ServiceError } from '../errors.js';
 import type { ChangeFeed } from '../events/change-feed.js';
-import { isAbort, ProviderError, providerError, type AIProvider } from './provider.js';
+import {
+  isAbort,
+  ProviderError,
+  providerError,
+  type AIProvider,
+  type AiTextResult,
+} from './provider.js';
 import type { SecretStore } from './secret-store.js';
 
 export interface AiRunnerOptions {
@@ -88,7 +94,33 @@ interface JobRow {
   task: string | null;
   accepted_revision_id: string | null;
   accepted_at: string | null;
+  cache_key: string | null;
+  progress: string | null;
+  remote_state: string | null;
 }
+
+export type AiJobProgress = NonNullable<AiJobRecord['progress']>;
+
+/**
+ * Runs a task type instead of a plain `generateText` call (QC-023: upload a
+ * video, wait for the provider, then generate). Must honour `signal` and may
+ * persist resume state so a retry continues where the last attempt stopped.
+ */
+export type AiTaskExecutor = (ctx: {
+  job: {
+    id: string;
+    model: string;
+    work_id: string | null;
+    task: AiTask;
+    /** What the previous attempt saved with `saveRemoteState`, if anything. */
+    remoteState: unknown;
+  };
+  input: AiTextInput;
+  apiKey: string;
+  signal: AbortSignal;
+  reportProgress: (progress: AiJobProgress) => void;
+  saveRemoteState: (state: unknown) => void;
+}) => Promise<AiTextResult>;
 
 /**
  * Shapes a task's raw provider output into its stored `result` (QC-022).
@@ -130,6 +162,7 @@ export class AiService {
   private active = 0;
   private readonly inflight = new Set<Promise<void>>();
   private readonly finalizers = new Map<AiTask['type'], AiTaskFinalizer>();
+  private readonly executors = new Map<AiTask['type'], AiTaskExecutor>();
 
   constructor(
     private readonly db: Db,
@@ -340,6 +373,26 @@ export class AiService {
 
   // ---- Jobs ------------------------------------------------------------------------------
 
+  /** Register a custom executor for a task type (replaces the plain text call). */
+  registerExecutor(type: AiTask['type'], execute: AiTaskExecutor): void {
+    this.executors.set(type, execute);
+  }
+
+  /** The newest job with this cache key in one of `statuses`, if any. */
+  findByCacheKey(
+    cacheKey: string,
+    statuses: readonly AiJobRecord['status'][],
+  ): AiJobRecord | undefined {
+    const row = this.db
+      .prepare<[string], JobRow>(
+        `SELECT * FROM ai_jobs WHERE cache_key = ? AND provider IS NOT NULL
+         ORDER BY coalesce(finished_at, created_at) DESC, rowid DESC`,
+      )
+      .all(cacheKey)
+      .find((r) => statuses.includes(r.status as AiJobRecord['status']));
+    return row === undefined ? undefined : toRecord(row);
+  }
+
   /** Register how a task type's output becomes its stored result. */
   registerFinalizer(type: AiTask['type'], finalize: AiTaskFinalizer): void {
     this.finalizers.set(type, finalize);
@@ -351,7 +404,7 @@ export class AiService {
    */
   submit(
     request: CreateAiJobRequest,
-    options: { task?: AiTask } = {},
+    options: { task?: AiTask; cacheKey?: string; estimate?: AiCostEstimate } = {},
   ): { job: AiJobRecord; budget: AiBudgetStatus } {
     const req = CreateAiJobRequestSchema.parse(request);
     this.assertReady(req.provider);
@@ -371,15 +424,15 @@ export class AiService {
         throw notFound('revision');
       }
     }
-    const estimate = this.estimate(req);
+    const estimate = options.estimate ?? this.estimate(req);
     const id = randomUUID();
     const now = this.now().toISOString();
     this.db.transaction(() => {
       this.db
         .prepare(
           `INSERT INTO ai_jobs (id, work_id, model, action, source_revision, status, created_at,
-             updated_at, provider, input, attempts, max_attempts, run_after, estimate, task)
-           VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, 0, 3, ?, ?, ?)`,
+             updated_at, provider, input, attempts, max_attempts, run_after, estimate, task, cache_key)
+           VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, 0, 3, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -394,6 +447,7 @@ export class AiService {
           now,
           JSON.stringify(estimate),
           options.task === undefined ? null : JSON.stringify(options.task),
+          options.cacheKey ?? null,
         );
       this.event(id, 'ai_job.queued', req.provider);
     })();
@@ -430,6 +484,19 @@ export class AiService {
       )
       .all(...params, q.limit, q.offset);
     return { items: rows.map(toRecord), total, limit: q.limit, offset: q.offset };
+  }
+
+  /** Store and publish progress of a running job (QC-023). Silently ignored once it finished. */
+  private setProgress(id: string, provider: AiProvider, progress: AiJobProgress): void {
+    if (!this.db.open) return;
+    const updated = this.db
+      .prepare(
+        "UPDATE ai_jobs SET progress = ?, updated_at = ? WHERE id = ? AND status = 'running'",
+      )
+      .run(JSON.stringify(progress), this.now().toISOString(), id);
+    if (updated.changes === 1) {
+      this.feed?.record('job', id, 'ai_job.progress', { status: 'running', provider, ...progress });
+    }
   }
 
   /** Record that a job's candidate became `revisionId` (QC-022). */
@@ -580,17 +647,44 @@ export class AiService {
       if (status.consent === null) throw providerError('consent_required');
       apiKey = await this.secrets.get(provider);
       if (apiKey === null) throw providerError('missing_key');
-      const result = await this.providers[provider].generateText(
-        {
-          model: row.model,
-          system: input.system,
-          prompt: input.prompt,
-          jsonSchema: input.json_schema,
-          maxOutputTokens: input.max_output_tokens,
-          signal: controller.signal,
-        },
-        apiKey,
-      );
+      const task = row.task === null ? null : AiTaskSchema.parse(JSON.parse(row.task));
+      const execute = task === null ? undefined : this.executors.get(task.type);
+      const result =
+        task !== null && execute !== undefined
+          ? await execute({
+              job: {
+                id: row.id,
+                model: row.model,
+                work_id: row.work_id,
+                task,
+                remoteState: parseJson(row.remote_state),
+              },
+              input,
+              apiKey,
+              signal: controller.signal,
+              reportProgress: (progress) => {
+                this.setProgress(row.id, provider, progress);
+              },
+              saveRemoteState: (state) => {
+                this.db
+                  .prepare('UPDATE ai_jobs SET remote_state = ? WHERE id = ?')
+                  .run(
+                    state === null || state === undefined ? null : JSON.stringify(state),
+                    row.id,
+                  );
+              },
+            })
+          : await this.providers[provider].generateText(
+              {
+                model: row.model,
+                system: input.system,
+                prompt: input.prompt,
+                jsonSchema: input.json_schema,
+                maxOutputTokens: input.max_output_tokens,
+                signal: controller.signal,
+              },
+              apiKey,
+            );
       if (this.isCancelled(row.id)) return;
       let json: unknown;
       if (input.json_schema !== undefined) {
@@ -605,7 +699,6 @@ export class AiService {
         }
       }
       this.recordUsage(row.id, result.model, result.usage);
-      const task = row.task === null ? null : AiTaskSchema.parse(JSON.parse(row.task));
       const finalize = task === null ? undefined : this.finalizers.get(task.type);
       const shaped =
         task === null || finalize === undefined
@@ -766,5 +859,6 @@ function toRecord(row: JobRow): AiJobRecord {
     finished_at: row.finished_at,
     task: parseJson(row.task),
     accepted_revision_id: row.accepted_revision_id,
+    progress: parseJson(row.progress),
   });
 }

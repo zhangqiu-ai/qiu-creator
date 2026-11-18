@@ -341,4 +341,16 @@ export const migrations: readonly Migration[] = [
       ALTER TABLE revisions ADD COLUMN ai_job_id TEXT;
     `,
   },
+  {
+    id: '0010',
+    name: 'ai_video_jobs',
+    sql: /* sql */ `
+      -- Public progress of multi-step AI jobs (phase, bytes uploaded), and
+      -- private resume state (resumable upload URL and offset, remote file
+      -- name) so a retry continues instead of starting over. The cache_key
+      -- column from 0001 holds the video analysis cache key.
+      ALTER TABLE ai_jobs ADD COLUMN progress TEXT;
+      ALTER TABLE ai_jobs ADD COLUMN remote_state TEXT;
+    `,
+  },
 ];

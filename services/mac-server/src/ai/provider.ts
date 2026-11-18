@@ -86,6 +86,8 @@ const READABLE: Readonly<Record<AiFailureCode, string>> = {
   provider_unavailable: '供應商暫時無法使用',
   bad_request: '供應商拒絕了請求（模型名稱或參數有誤）',
   invalid_output: '供應商回傳的結構化結果無法解析',
+  file_processing_failed: '供應商無法處理上傳的視頻檔',
+  source_unavailable: '素材檔案不存在或無法讀取',
   unknown: '未知錯誤',
 };
 

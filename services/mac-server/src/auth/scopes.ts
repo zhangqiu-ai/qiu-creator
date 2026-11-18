@@ -42,6 +42,8 @@ export function requiredAccess(method: string, routeUrl: string | undefined): Re
   if (routeUrl === '/api/v1/ai' || routeUrl.startsWith('/api/v1/ai/')) return 'owner';
   // Text AI on a work (QC-022) spends money and sends content to a third party.
   if (routeUrl.startsWith('/api/v1/works/:id/ai/')) return 'owner';
+  // Video understanding (QC-023) uploads the user's video to Google and is billed.
+  if (routeUrl.startsWith('/api/v1/assets/:id/ai/')) return 'owner';
   if (routeUrl === TUS_UPLOAD_PATH || routeUrl.startsWith(`${TUS_UPLOAD_PATH}/`)) return 'import';
   const key = `${method} ${routeUrl}`;
   if (key === 'GET /api/v1/jobs/:id' || key === 'HEAD /api/v1/jobs/:id')

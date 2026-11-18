@@ -8,3 +8,4 @@ export * from './works-media.js';
 export * from './variants.js';
 export * from './ai.js';
 export * from './ai-text.js';
+export * from './ai-video.js';
