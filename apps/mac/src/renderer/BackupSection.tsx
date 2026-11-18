@@ -4,6 +4,7 @@ import {
   backupSummary,
   formatStamp,
   KIND_LABEL,
+  nextDailyLabel,
   type BackupSession,
   type BackupState,
   type RestorePhase,
@@ -111,10 +112,10 @@ export function BackupSection({
             <span className="ln__v">
               {list === null
                 ? '—'
-                : `上次 ${list.last_daily_at === null ? '尚未執行' : formatStamp(list.last_daily_at)} · 下次 ${formatStamp(list.next_daily_at)}`}
+                : `上次 ${list.last_daily_at === null ? '尚未執行' : formatStamp(list.last_daily_at)} · 下次 ${nextDailyLabel(list.next_daily_at)}`}
             </span>
             {list !== null && (
-              <span className="ln__v faint">
+              <span className="ln__v faint backup__wrap">
                 每種保留最新 {list.retention_per_kind} 份 · 只備份資料庫；原稿與媒體請用 Time
                 Machine
               </span>
@@ -184,7 +185,7 @@ export function BackupSection({
             <span className="ln__main">
               <span>還沒有可以還原的備份</span>
               <span className="ln__v faint">
-                第一份每日備份會在 {formatStamp(list.next_daily_at)}{' '}
+                第一份每日備份會在 {nextDailyLabel(list.next_daily_at)}{' '}
                 之後自動建立，也可以按「立即備份」。
               </span>
             </span>

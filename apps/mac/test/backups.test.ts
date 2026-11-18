@@ -13,6 +13,7 @@ import {
   backupSummary,
   createErrorText,
   formatStamp,
+  nextDailyLabel,
   restoreErrorText,
   versionLabel,
   type BackupSessionOptions,
@@ -144,6 +145,13 @@ describe('backup helpers', () => {
     expect(formatStamp('not a date', now)).toBe('not a date');
   });
 
+  it('says an overdue daily backup runs soon instead of naming a past time', () => {
+    const now = new Date(2026, 10, 18, 12, 0);
+    expect(nextDailyLabel(new Date(2026, 10, 17, 8, 41).toISOString(), now)).toBe('即將執行');
+    expect(nextDailyLabel(now.toISOString(), now)).toBe('即將執行');
+    expect(nextDailyLabel(new Date(2026, 10, 19, 3, 0).toISOString(), now)).toBe('明天 03:00');
+  });
+
   it('summarises size and kind', () => {
     expect(backupSummary(DAILY)).toBe('48 MB · 每日');
     expect(backupSummary(SAFETY)).toBe('48 MB · 還原前');
@@ -242,6 +250,16 @@ describe('BackupSession', () => {
     });
     expect(session.snapshot.created).toBeNull();
     expect(svc.listCalls).toBe(1);
+  });
+
+  it('clears an old 立即備份 failure once a newer backup is made', async () => {
+    svc.createResult = apiError(500, 'backup_failed', 'the backup could not be made');
+    await session.create();
+    expect(session.snapshot.createError).not.toBeNull();
+    session.onEvent(systemEvent('backup.failed', 7, { kind: 'daily', error: 'x' }));
+    expect(session.snapshot.createError).not.toBeNull();
+    session.onEvent(systemEvent('backup.created', 8, { backup_id: 'y', kind: 'daily' }));
+    expect(session.snapshot.createError).toBeNull();
   });
 
   it('never restores a backup that failed its integrity check', async () => {

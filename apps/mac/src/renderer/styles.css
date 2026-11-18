@@ -3160,7 +3160,8 @@ kbd {
 .backup__empty {
   align-items: flex-start;
 }
-.backup__empty .ln__v {
+.backup__empty .ln__v,
+.backup__wrap {
   white-space: normal;
 }
 .backup__ok {

@@ -44,6 +44,17 @@ export function formatStamp(iso: string, now: Date = new Date()): string {
     : `${String(d.getFullYear())}/${md} ${hm}`;
 }
 
+/**
+ * When the next daily backup runs. It runs at the first check after
+ * `next_daily_at`, so a time already past (after sleep, or a failed run)
+ * reads 「即將執行」 rather than 「昨天 03:00」.
+ */
+export function nextDailyLabel(nextIso: string, now: Date = new Date()): string {
+  const next = Date.parse(nextIso);
+  if (!Number.isNaN(next) && next <= now.getTime()) return '即將執行';
+  return formatStamp(nextIso, now);
+}
+
 /** 「48 MB · 每日」 */
 export function backupSummary(backup: Pick<Backup, 'size_bytes' | 'kind'>): string {
   return `${formatBytes(backup.size_bytes)} · ${KIND_LABEL[backup.kind]}`;
@@ -288,6 +299,10 @@ export class BackupSession {
     if (event.entity !== 'system') return;
     switch (event.action) {
       case 'backup.created':
+        // A newer backup exists: an earlier 「備份失敗」 is no longer the news.
+        if (this.state.createError !== null) this.set({ createError: null });
+        void this.load();
+        return;
       case 'backup.failed':
         void this.load();
         return;
