@@ -34,7 +34,11 @@ export type IconName =
   | 'api'
   | 'refresh'
   | 'fileMissing'
-  | 'phone';
+  | 'phone'
+  | 'spark'
+  | 'undo'
+  | 'send'
+  | 'lines';
 
 const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   library: ['M4 7.5 12 3l8 4.5-8 4.5Z', 'M4 12.5l8 4.5 8-4.5', 'M4 17l8 4 8-4'],
@@ -89,6 +93,10 @@ const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   ],
   fileMissing: ['M14 3H6v18h12V7Z', 'M14 3v4h4', 'm10 12 4 4', 'm14 12-4 4'],
   phone: ['M7 2h10v20H7Z', 'M11 18h2'],
+  spark: ['M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z'],
+  undo: ['M9 14 4 9l5-5', 'M4 9h11a5 5 0 0 1 0 10h-3'],
+  send: ['M5 12h14', 'M13 6l6 6-6 6'],
+  lines: ['M4 7h16', 'M4 12h16', 'M4 17h10'],
   offline: [
     'M3 3l18 18',
     'M8.5 16.5a5 5 0 0 1 7 0',
