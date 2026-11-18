@@ -388,6 +388,135 @@
       "notes": [
         "In the external-mount states the editor's history list still shows the managed work's revisions (prototype simplification)."
       ]
+    },
+    {
+      "id": "PT-20261117-002",
+      "title": "QC-024 編輯器 AI 面板補充狀態（依已實作補畫）",
+      "date": "2026-11-17",
+      "status": "approved",
+      "model": "claude-opus-5-5",
+      "session": "qc-prototype",
+      "requestedBy": "開發總監",
+      "approvedBy": "開發總監（小型狀態補充授權）",
+      "approvedAt": "2026-11-17",
+      "source": "origin/main 98ca8dd docs/evidence/qc024-acceptance.md「原型未畫、依總監核可實作」",
+      "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "baseCanvasVersion": "version id 1794960531-6249",
+      "canvasVersion": "33 (version id 1794963039-364c)",
+      "changes": [
+        {
+          "item": "未設定金鑰或未確認告知",
+          "boards": [
+            {
+              "file": "MacEditor.dc.html",
+              "title": "Mac · 編輯與 AI 改寫",
+              "tweak": "狀態 = 未設定金鑰／未確認告知",
+              "states": [
+                "面板頂端警告列「尚未設定 AI 金鑰」或「尚未確認雲端 AI 使用告知」＋前往設定",
+                "供應商標籤隱藏",
+                "送出、改寫全文、標題生成與寫入都停用"
+              ]
+            }
+          ]
+        },
+        {
+          "item": "供應商自動選擇",
+          "boards": [
+            {
+              "file": "MacEditor.dc.html",
+              "title": "Mac · 編輯與 AI 改寫",
+              "tweak": "供應商 Tweak = Claude／Gemini／GPT",
+              "states": ["標籤「{名稱} · 雲端」，hover 說明依 Claude → Gemini → GPT 取第一個可用"]
+            }
+          ]
+        },
+        {
+          "item": "語氣需要指定語氣",
+          "boards": [
+            {
+              "file": "MacEditor.dc.html",
+              "title": "Mac · 編輯與 AI 改寫",
+              "tweak": "選「語氣」預設",
+              "states": [
+                "補充指令提示字改為「語氣，例如：輕鬆口語」",
+                "空白時送出與改寫停用",
+                "再點一次已選預設可取消，只填指令即自訂改寫"
+              ]
+            }
+          ]
+        },
+        {
+          "item": "標題分頁的無候選、生成中、失敗",
+          "boards": [
+            {
+              "file": "MacEditor.dc.html",
+              "title": "Mac · 編輯與 AI 改寫",
+              "tweak": "狀態 = 標題無候選／標題失敗",
+              "states": [
+                "無候選＋生成標題候選",
+                "骨架＋停止",
+                "生成失敗＋重試／關閉",
+                "候選列表下方加重試"
+              ]
+            }
+          ]
+        },
+        {
+          "item": "寫入還沒有版本的平台",
+          "boards": [
+            {
+              "file": "MacEditor.dc.html",
+              "title": "Mac · 編輯與 AI 改寫",
+              "tweak": "標題分頁按寫入平台版本",
+              "states": ["結果訊息「已寫入 4 個版本（新建：小紅書、公眾號、抖音、視頻號）」"]
+            }
+          ]
+        },
+        {
+          "item": "復原之後",
+          "boards": [
+            {
+              "file": "MacEditor.dc.html",
+              "title": "Mac · 編輯與 AI 改寫",
+              "tweak": "採用後按復原",
+              "states": ["回到無候選，提示「原稿已變更，請重新生成」，不再顯示舊候選與復原列"]
+            }
+          ]
+        },
+        {
+          "item": "採用時遇到 409",
+          "boards": [
+            {
+              "file": "MacEditor.dc.html",
+              "title": "Mac · 編輯與 AI 改寫",
+              "tweak": "狀態 = 採用時衝突，再按採用",
+              "states": [
+                "儲存狀態變「衝突」",
+                "衝突對話框：你的修改（此視窗）對伺服器上的版本，你的修改已保留",
+                "查看差異／手動合併連到版本衝突畫板；保留雙方後提示「AI 結果已另存為副本」"
+              ]
+            }
+          ]
+        },
+        {
+          "item": "選取範圍擴展成段落",
+          "boards": [
+            {
+              "file": "MacEditor.dc.html",
+              "title": "Mac · 編輯與 AI 改寫",
+              "tweak": "狀態 = 無選取",
+              "states": ["標籤「選取：全文 · N 字」，按鈕「改寫全文」；有選取時為「第 N 段」"]
+            }
+          ]
+        }
+      ],
+      "notVerified": [
+        "NOT_VERIFIED: rendering and interactions in the live canvas — the built-in browser cannot load claude.ai artifacts. Static checks (tags, script syntax, data-props) pass."
+      ],
+      "knownDifferencesReported": [
+        "Implementation does not tint the selected paragraph in the body; the prototype still does (documented deviation in QC-024).",
+        "Title limits: implementation uses contracts (抖音 30, 視頻號 16); prototype MacEditor title tab and MacPreview still show 55 / 64."
+      ]
     }
   ]
 }
