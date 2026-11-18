@@ -48,8 +48,3 @@ QC-012 對照原型發現的 API 缺口：匯入任務取消（含取消後重�
 - 根目錄 `test` 腳本呼叫裸 `pnpm`，只有 corepack 的 shell 會失敗（QC-021 回報）。
 - 建置版 CSP 寫死 `127.0.0.1:7420`，服務改埠時圖片被擋（移到 QC-031）。
 
-## QC-020: mounts 「寫一半的檔案」測試依賴真實時間間隔
-
-**Priority:** P3 | **Assignee:** qc-test | **Tags:** backend
-
-QC-018 量測：外部負載 40 下 `mounts.test.ts`「indexes a new file only after it stops changing」10 輪失敗 3 次，是斷言失敗（寫檔間隔超過穩定視窗而被提早索引），屬時序假設。改為可控時鐘或事件驅動；不得加長逾時。
