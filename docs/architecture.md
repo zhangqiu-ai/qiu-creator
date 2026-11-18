@@ -97,6 +97,8 @@ $CREATORHUB_HOME（預設 ~/CreatorHub；開發與測試一律用臨時目錄）
     media-signing.key          # 簽名媒體網址的 HMAC 金鑰（0600，自動產生）；刪除後重啟即作廢所有已發出的網址
     uploads/                   # 進行中的 tus 上傳（<id> 與 <id>.json）；不是快取，刪除會失去未完成的上傳
     incoming/                  # 直傳的暫存檔，校驗後移入素材庫或刪除
+    restore-pending.json       # 還原已接受、等服務重新開啟資料庫時才有（QC-030）
+  backups/                     # SQLite 備份（QC-030）：<id>.sqlite 與 <id>.json（類型、時間、大小、完整性、schema 版本）
 ```
 
 素材獨立於作品存放：同一個檔案可以同時是 A 作品的封面、B 作品的正文圖，關聯記在 `work_assets`。
@@ -129,6 +131,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 `0009_text_ai_tasks`：`ai_jobs` 增加 `task`（文字 AI 任務的種類與參數，JSON）、`accepted_revision_id`、`accepted_at`；`revisions` 增加 `ai_job_id`（`ai_accepted` 版本對應的 AI 任務）。
 
+`0011_change_log_system_entity`：`change_log.entity` 允許 `system`（備份事件，QC-030）。SQLite 無法修改 CHECK，所以重建資料表，保留 `seq` 與 AUTOINCREMENT 的最高值，SSE 的 id 不會倒退。
+
 `0010_ai_video_jobs`：`ai_jobs` 增加 `progress`（多步驟任務的公開進度）與 `remote_state`（可續傳上傳網址、遠端檔名，供重試續傳；不公開）。視頻分析的快取鍵存在 0001 就有的 `ai_jobs.cache_key`。
 
 `works` 比方案多了 `storage_mode`（managed／external）、`source_path`、`current_revision_id`，以便區分托管與外部掛載並快速核對版本。
@@ -139,7 +143,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 | 方法 | 路徑 | 說明 |
 | --- | --- | --- |
-| GET | `/health` | 不需權杖 |
+| GET | `/health` | 不需權杖；回 `version`、`commit`、`built_at`（從原始碼執行時後兩者為 null，QC-030） |
 | POST | `/api/v1/works` | 建立托管作品，回 201 與 `ETag` |
 | GET | `/api/v1/works` | 列表；`q`、`type`、`status`、`tag`、`limit`、`offset` |
 | GET | `/api/v1/works/:id` | 讀取（含 Markdown），回 `ETag: "<revision>"` |
@@ -171,6 +175,9 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | DELETE | `/api/v1/works/:id/variants/:platform` | 刪除該平台版本（留墓碑、保留歷史，版本號不回頭）；需要 `If-Match` |
 | GET | `/api/v1/works/:id/variants/:platform/revisions[/:revision]` | 平台版本歷史（含完整內容） |
 | GET | `/api/v1/events` | SSE 變更事件 |
+| GET | `/api/v1/backups` | 備份列表（新的在前）、保留份數、資料夾、每日排程；只限主權杖 |
+| POST | `/api/v1/backups` | 立即手動備份（201），含完整性檢查結果；只限主權杖 |
+| POST | `/api/v1/backups/:id/restore` | 從備份還原（`confirm: true`，202）；先自動備份當前狀態，接著服務在行程內重新開啟；只限主權杖 |
 | POST | `/api/v1/imports/urls` | URL 匯入，回 202 與匯入任務；支援 `Idempotency-Key` |
 | GET | `/api/v1/jobs` | 匯入任務列表；`status`、`method`、`limit`、`offset` |
 | GET | `/api/v1/jobs/:id` | 匯入任務狀態、錯誤碼、結果素材 |
@@ -532,9 +539,56 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 - `asset.thumbnail`：sharp 產生 WebP 縮圖並記錄寬高。
 - `asset.probe`：ffprobe 取時長、寬高、編碼。找不到 ffprobe 時任務照常成功，素材記為 `unavailable`，不報錯。
 
+## 建置產物、日誌與睡眠（QC-030）
+
+- **建置產物**：`corepack pnpm --filter @qiu-creator/mac-server build` 產出 `services/mac-server/dist/`，內容是 `server.mjs`、`node_modules/`（原生模組等）、`bin/node`、`build-info.json`。整個資料夾複製到任何位置都能用 `bin/node server.mjs` 啟動，安裝位置是 `~/Library/Application Support/qiu-creator/server`。做法與理由見 `docs/dependencies.md`，安裝見 `deploy/launchd/README.md`。
+- **主程式與行程內重載**：`src/main.ts` 用 `startHost`（`src/host.ts`）啟動服務。還原時，服務在同一個行程裡關閉並重建，`/health` 與 API 只會中斷片刻。重建失敗就結束行程，交給 launchd 重啟；重啟時會再套用一次待還原的備份。
+- **日誌**：設了 `CREATORHUB_LOG_FILE`（launchd 範本有設）時，服務自己寫日誌檔：每檔 10 MB，保留 5 份舊檔（`src/log-file.ts`）。沒設時寫到 stdout。launchd 的 stderr 檔只收日誌系統以外的輸出，啟動時超過上限就清空。
+- **防閒置睡眠**（`src/power/sleep-guard.ts`）：
+  - 以下任一情況成立時，持有一個 `caffeinate -i -w <pid>`：
+    - 有上傳請求正在接收位元組（直傳或 tus PATCH）。
+    - `import_jobs` 或 `background_jobs` 有排隊或執行中的任務。
+    - `ai_jobs` 有排隊或執行中的任務。
+  - 狀態在任務事件與上傳開始、結束時立即重新判斷，另外每 5 秒檢查一次。全部結束 60 秒後釋放，涵蓋 tus 分段之間的空檔。
+  - `-w` 讓服務被 SIGKILL 時斷言也跟著消失。
+  - 只防閒置睡眠。合蓋時是否睡眠由系統決定（電池下仍會睡），留給 QC-033 實機驗證。
+  - 喚醒後的續跑：中斷的請求會以逾時或連線錯誤失敗，由各自的任務佇列重試；tus 上傳由用戶端以 `HEAD` 取得 offset 續傳。
+  - 斷言的提供者可以注入，測試一律用假實作（`noWakeLocks` 或記錄型）。
+- **崩潰恢復**（SIGKILL）：`test/crash-recovery.test.ts` 用真的子行程驗證以下情況都能恢復：
+  - 已回 201 的寫入都在（WAL）。
+  - tus 上傳以 `HEAD` 拿到的 offset 續傳完成。
+  - 下載到一半的 URL 匯入重新排隊並成功。
+  - 等待供應商回應的 AI 任務重新送出一次並成功。
+  - 結束後資料庫 `integrity_check` 為 `ok`。
+
+## SQLite 備份與還原（QC-030）
+
+實作在 `src/backups/backup-service.ts`，路由在 `src/routes/backups.ts`，契約在 `packages/contracts/src/backups.ts`。只限主權杖，Agent 權杖連 GET 都是 403。
+
+- **備份**：
+  - 用 better-sqlite3 的線上備份 API（`db.backup`）複製到 `<home>/backups/<id>.sqlite.partial`。服務不必停，寫入也不會被擋。
+  - 複製完把副本改成單檔模式（`journal_mode = DELETE`），再用唯讀方式跑 `PRAGMA integrity_check`，然後原子改名，並寫旁註 `<id>.json`。目錄權限 0700，檔案權限 0600。
+  - 備份一次只做一份，依序排隊。
+  - `id` 的格式是 `<UTC 時間到毫秒>Z-<kind>`。
+- **種類與保留**：`daily`、`manual`、`pre_restore` 三種，各保留最新 14 份。每次新增備份後，刪掉同種類較舊的。分開保留，是為了避免多次手動備份把每日備份擠掉。
+- **每日**：
+  - 服務啟動 1 分鐘後檢查一次，之後每小時檢查。最新的每日備份超過 24 小時就再做一份；MacBook 睡醒後的第一次檢查會補上。
+  - 失敗時記下 `last_error`，並發 `backup.failed` 事件。
+- **還原**（`POST /api/v1/backups/:id/restore`）：
+  1. 重新檢查目標備份：要能通過完整性檢查，而且不能含有這個版本不認識的 migration（也就是較新版本的備份），否則回 409 `backup_not_restorable`。
+  2. 備份當前狀態（`pre_restore`）。這份必須通過檢查，否則不還原。
+  3. 在同一個交易裡記下 `backup.restore_started` 事件，並寫入 `data/restore-pending.json`。之後非 GET 請求一律回 503 `restoring`，避免寫進即將被替換的資料庫。
+  4. 回 202 後，主程式關閉服務（任務佇列、AI、掛載、資料庫）再重建。重建開資料庫之前，先用備份替換資料庫：複製到暫存檔、fsync、刪掉舊的 `-wal`／`-shm`、改名覆蓋。舊 WAL 的內容已經在 `pre_restore` 備份裡。
+  5. 開啟後跑 migration（較舊的備份會升級），把 `change_log` 的序號推到還原前的最大值之後，記下 `backup.restored`，刪除標記。用戶端帶 `Last-Event-ID` 重連時不會漏事件。收到 `backup.restored` 就應該重新取得所有資料。
+  - 沒有能重載的主程式時（例如嵌入測試），回 `reload: restart_required`，標記在下次啟動時套用。
+  - 標記指向的備份在啟動時已損壞，就取消還原，照原資料庫啟動。
+- **範圍**：只備份 SQLite（索引、版本記錄、任務、設定、權杖雜湊）。`.md` 原稿、版本快照與媒體是磁碟檔案，不在備份裡，要靠 Time Machine。
+  - 還原到較早的備份後，之後才建立的作品資料夾仍留在磁碟上，但資料庫不再引用它們。這些資料夾不會被刪除。
+  - 版本快照是不可變檔案，所以舊資料庫引用的快照都還在。
+
 ## 變更事件（SSE）
 
-`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `ai_job.queued`／`running`／`progress`／`succeeded`／`failed`／`cancelled`（AI 任務）、`work.variant_created`／`work.variant_updated`／`work.variant_deleted`（平台版本）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`、`asset.created`、`asset.updated`、`job.queued`、`job.running`、`job.succeeded`、`job.failed`。
+`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `ai_job.queued`／`running`／`progress`／`succeeded`／`failed`／`cancelled`（AI 任務）、`work.variant_created`／`work.variant_updated`／`work.variant_deleted`（平台版本）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`、`asset.created`、`asset.updated`、`job.queued`、`job.running`、`job.succeeded`、`job.failed`，以及實體 `system`（`entity_id` 為 `database`）的 `backup.created`／`backup.failed`／`backup.restore_started`／`backup.restored`（QC-030）。
 
 - 和其他 `/api` 路由一樣要 Bearer 權杖。瀏覽器的 `EventSource` 不能帶 header，所以 api-client 用 fetch 讀串流（`client.events.subscribe`）；權杖不接受放在 URL。
 - 事件先寫進 `change_log` 再推送：在寫入方的交易提交後才發出，交易回滾的變更不會被推送。
@@ -579,6 +633,11 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | （程式選項）`ai.concurrency` | 2 | AI 任務同時執行數 |
 | （程式選項）`ai.timeoutMs` | 120000 | 單次供應商請求逾時 |
 | （程式選項）`ai.retryBaseMs` | 5000 | AI 任務自動重試的退避基數 |
+| `CREATORHUB_LOG_FILE` | （無，寫 stdout） | 日誌檔；設定後依大小輪替（QC-030） |
+| `CREATORHUB_LOG_MAX_BYTES` | 10485760 | 每個日誌檔上限；保留 5 份舊檔 |
+| `CREATORHUB_STDERR_FILE` | （無） | launchd 的 stderr 檔；啟動時超過上限就清空 |
+| （程式選項）`backups.checkMs` / `initialDelayMs` / `retention` | 1 小時 / 1 分鐘 / 14 | 每日備份的檢查間隔、首次檢查延遲、每種保留份數 |
+| （程式選項）`sleep.provider` / `checkMs` / `lingerMs` | caffeinate / 5000 / 60000 | 防閒置睡眠的提供者（測試注入假實作）、檢查間隔、任務結束後延遲釋放 |
 
 ## 尚未實作（依里程碑）
 

@@ -38,6 +38,8 @@ const IMPORT_ROUTES = new Set([
 export function requiredAccess(method: string, routeUrl: string | undefined): RequiredAccess {
   if (routeUrl === undefined) return 'read'; // unmatched: authenticated 404
   if (routeUrl.startsWith('/api/v1/tokens')) return 'owner';
+  // Backups and restore (QC-030) replace the whole database: the owner's alone, reads included.
+  if (routeUrl === '/api/v1/backups' || routeUrl.startsWith('/api/v1/backups/')) return 'owner';
   // AI: keys, consent and anything that spends money are the owner's alone, reads included.
   if (routeUrl === '/api/v1/ai' || routeUrl.startsWith('/api/v1/ai/')) return 'owner';
   // Text AI on a work (QC-022) spends money and sends content to a third party.

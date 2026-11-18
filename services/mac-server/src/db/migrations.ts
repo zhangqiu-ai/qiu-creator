@@ -353,4 +353,32 @@ export const migrations: readonly Migration[] = [
       ALTER TABLE ai_jobs ADD COLUMN remote_state TEXT;
     `,
   },
+  {
+    id: '0011',
+    name: 'change_log_system_entity',
+    sql: /* sql */ `
+      -- Service-wide events (backups, QC-030) use entity 'system'. SQLite cannot
+      -- change a CHECK constraint, so the table is rebuilt; seq values and the
+      -- AUTOINCREMENT high-water mark are kept so SSE ids keep increasing.
+      CREATE TABLE change_log_new (
+        seq        INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity     TEXT NOT NULL CHECK (entity IN ('work','asset','job','system')),
+        entity_id  TEXT NOT NULL,
+        action     TEXT NOT NULL,
+        data       TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO change_log_new (seq, entity, entity_id, action, data, created_at)
+        SELECT seq, entity, entity_id, action, data, created_at FROM change_log;
+      UPDATE sqlite_sequence
+        SET seq = max(seq, coalesce((SELECT seq FROM sqlite_sequence WHERE name = 'change_log'), 0))
+        WHERE name = 'change_log_new';
+      INSERT INTO sqlite_sequence (name, seq)
+        SELECT 'change_log_new', seq FROM sqlite_sequence
+        WHERE name = 'change_log'
+          AND NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = 'change_log_new');
+      DROP TABLE change_log;
+      ALTER TABLE change_log_new RENAME TO change_log;
+    `,
+  },
 ];

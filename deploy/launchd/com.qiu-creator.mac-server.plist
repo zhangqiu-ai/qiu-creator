@@ -3,6 +3,7 @@
 <!--
   Template only. Replace every __PLACEHOLDER__ before installing; see
   deploy/launchd/README.md. Do not load this file as-is.
+  Runs the installed build artifact (QC-030), not the repository.
 -->
 <plist version="1.0">
 <dict>
@@ -11,15 +12,13 @@
 
   <key>ProgramArguments</key>
   <array>
-    <!-- Absolute path to Node 24, e.g. /opt/homebrew/bin/node (launchd has no shell PATH). -->
-    <string>__NODE_BIN__</string>
-    <string>--import</string>
-    <string>tsx</string>
-    <string>src/main.ts</string>
+    <!-- The Node binary shipped inside the artifact, matching its native modules. -->
+    <string>__USER_HOME__/Library/Application Support/qiu-creator/server/bin/node</string>
+    <string>__USER_HOME__/Library/Application Support/qiu-creator/server/server.mjs</string>
   </array>
 
   <key>WorkingDirectory</key>
-  <string>__REPO_DIR__/services/mac-server</string>
+  <string>__USER_HOME__/Library/Application Support/qiu-creator/server</string>
 
   <key>EnvironmentVariables</key>
   <dict>
@@ -29,6 +28,14 @@
     <string>127.0.0.1</string>
     <key>CREATORHUB_PORT</key>
     <string>7420</string>
+    <!-- Logs: the service rotates this file at 10 MB and keeps 5 old ones (≈ 60 MB at most). -->
+    <key>CREATORHUB_LOG_FILE</key>
+    <string>__USER_HOME__/Library/Logs/qiu-creator/mac-server.log</string>
+    <key>CREATORHUB_LOG_MAX_BYTES</key>
+    <string>10485760</string>
+    <!-- Only what escapes the logger lands here; emptied at start once it passes the cap. -->
+    <key>CREATORHUB_STDERR_FILE</key>
+    <string>__USER_HOME__/Library/Logs/qiu-creator/mac-server.err.log</string>
     <key>NODE_ENV</key>
     <string>production</string>
   </dict>
@@ -44,7 +51,7 @@
   <string>Standard</string>
 
   <key>StandardOutPath</key>
-  <string>__USER_HOME__/Library/Logs/qiu-creator/mac-server.log</string>
+  <string>__USER_HOME__/Library/Logs/qiu-creator/mac-server.err.log</string>
   <key>StandardErrorPath</key>
   <string>__USER_HOME__/Library/Logs/qiu-creator/mac-server.err.log</string>
 </dict>

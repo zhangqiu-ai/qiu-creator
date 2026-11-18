@@ -34,6 +34,18 @@ export const ErrorCodeSchema = z.enum([
   'job_not_cancellable',
   /** The AI job is not a succeeded rewrite of this work, so there is nothing to accept. */
   'ai_job_not_acceptable',
+  /** The backup failed its integrity check or comes from a newer version (QC-030). */
+  'backup_not_restorable',
+  /** A restore was already accepted; the service is about to reload (QC-030). */
+  'restore_in_progress',
+  /** Writes are refused while the service switches to a restored database; retry shortly (503). */
+  'restoring',
+  /**
+   * A backup could not be made (QC-030). On restore (409): the safety backup of
+   * the current state failed, so nothing was restored and nothing changed.
+   * On a manual backup (500): no copy was made.
+   */
+  'backup_failed',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 
@@ -63,10 +75,13 @@ export const HealthResponseSchema = z.object({
   status: z.literal('ok'),
   service: z.literal('creatorhub-mac-server'),
   version: z.string(),
-  /** Git commit the build was made from; null when running from source without git info (QC-030). */
-  commit: z.string().nullable(),
-  /** When the build artifact was made; null when running from source (QC-030). */
-  built_at: z.string().nullable(),
+  /**
+   * Git commit the build was made from; null when running from source (QC-030).
+   * Absent from servers before QC-030, so clients still accept their answer.
+   */
+  commit: z.string().nullable().optional(),
+  /** When the build artifact was made; null when running from source, absent before QC-030. */
+  built_at: z.string().nullable().optional(),
 });
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
 
