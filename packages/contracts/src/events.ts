@@ -34,6 +34,8 @@ export const ChangeActionSchema = z.enum([
   'ai_job.succeeded',
   'ai_job.failed',
   'ai_job.cancelled',
+  /** Progress of a multi-step AI job; `data.phase`, `data.uploaded_bytes`, `data.total_bytes` (QC-023). */
+  'ai_job.progress',
   'job.queued',
   'job.running',
   'job.succeeded',

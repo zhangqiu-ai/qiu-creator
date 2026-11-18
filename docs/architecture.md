@@ -129,6 +129,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 `0009_text_ai_tasks`：`ai_jobs` 增加 `task`（文字 AI 任務的種類與參數，JSON）、`accepted_revision_id`、`accepted_at`；`revisions` 增加 `ai_job_id`（`ai_accepted` 版本對應的 AI 任務）。
 
+`0010_ai_video_jobs`：`ai_jobs` 增加 `progress`（多步驟任務的公開進度）與 `remote_state`（可續傳上傳網址、遠端檔名，供重試續傳；不公開）。視頻分析的快取鍵存在 0001 就有的 `ai_jobs.cache_key`。
+
 `works` 比方案多了 `storage_mode`（managed／external）、`source_path`、`current_revision_id`，以便區分托管與外部掛載並快速核對版本。
 
 ## API
@@ -189,6 +191,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/ai/usage?month=YYYY-MM` | 各供應商的 token 與估算費用、本月提醒狀態 |
 | POST | `/api/v1/works/:id/ai/suggestions` | 四平台標題／簡介／標籤候選（202，AI 任務）；不寫入任何東西 |
 | POST | `/api/v1/works/:id/ai/rewrite` | 改寫候選：潤色、縮寫、擴寫、語氣、自訂指令；全文或選取範圍（202，AI 任務） |
+| POST | `/api/v1/assets/:id/ai/video-understanding/estimate` | 視頻送出前的上限檢查與費用估算，並告知有無可沿用的舊結果；不送出 |
+| POST | `/api/v1/assets/:id/ai/video-understanding` | Gemini 視頻理解；命中快取回 200 `cached: true`（不送出、不計費），同樣分析進行中回 `in_progress: true`，否則 202 |
 | POST | `/api/v1/works/:id/ai/jobs/:jobId/accept` | 採用改寫：送出前端組好的全文，以 `base_revision = source_revision` 寫成 `ai_accepted` 版本；原稿已變回 409 |
 | POST／GET | `/api/v1/tokens` | 建立／列出 Agent 權杖（只限主權杖） |
 | DELETE | `/api/v1/tokens/:id` | 撤銷 Agent 權杖，立即失效 |
@@ -378,6 +382,47 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 - 提示詞只含作品內容與使用者的指令，不含金鑰。服務端不記錄提示詞或原文；Fastify 日誌只有方法與路徑。
 - 提示詞超過 50 萬字回 413，不送出。
 
+## Gemini 視頻理解（QC-023）
+
+選定素材庫裡的視頻（托管或外部掛載；只接受素材 id，不接受路徑），原檔直接經 Gemini Files API 上傳，不在本機轉檔、拆片或抽字幕。實作在 `src/ai/video-tasks.ts`（流程）與 `src/ai/providers/gemini-video.ts`（Files API 與 `generateContent`）。
+
+**官方文件查證（2026-11-17，Gemini API 文件「Files API」「Video understanding」「Files API reference」，以及 `@google/genai` 3.4.0 原始碼）：**
+
+| 項目 | 文件內容 | 本服務的做法 |
+| --- | --- | --- |
+| 單檔上限 | 2 GB | 超過回 413，訊息說明要先自行壓縮或剪短 |
+| 專案總容量 | 20 GB | 分析成功、失敗或取消後刪掉遠端檔案，不佔容量 |
+| 保留期 | 48 小時後自動刪除 | 結果存在本機；遠端檔案不重複使用 |
+| 檔案狀態 | `PROCESSING` → `ACTIVE`（可推論）或 `FAILED` | 每 3 秒查一次，最多等 10 分鐘（逾時視同可重試的逾時） |
+| 影片長度 | 1M context 模型：預設解析度約 1 小時，低解析度約 3 小時 | 已知時長（ffprobe）超過就回 400，預設解析度時提示可改用低解析度 |
+| token 計算 | 每秒取 1 格；預設約 300 token／秒，低解析度約 100 token／秒（含音訊 32 token／秒） | 送出前估算：時長 × 每秒 token；時長未知時以 5 Mbit/s 從檔案大小推估並標明 `size_guess` |
+| 支援格式 | mp4、mpeg、mov、avi、x-flv、mpg、webm、wmv、3gpp | 素材的 `video/quicktime` 送成 `video/mov`、`video/x-m4v` 送成 `video/mp4`；其他回 415 |
+| 上傳 | 可續傳協定：`start` 取得上傳網址，再以 `X-Goog-Upload-Offset` 分段上傳，最後一段 `upload, finalize` | 自行實作（理由見下），每段 8 MiB |
+
+- **為什麼不用 `ai.files.upload`：** SDK 的上傳沒有進度回報，連線中斷就丟錯，無法續傳。因此上傳照文件的可續傳協定自己送，其餘（查狀態、刪除、`generateContent`）用 SDK。路徑沿用 SDK 的預設 API 版本 `/upload/v1/files`、`/v1/files/…`（REST 文件範例是 `/v1beta`）。
+- **續傳：** 上傳網址存在任務的 `remote_state`。中斷後的重試先用協定的 `query` 命令問伺服器已收到多少，從那裡接著傳。`query` 出自 Google 通用的可續傳上傳協定（Photos、Street View 文件），Gemini 文件沒有列出；伺服器沒回答時就重新開始上傳，結果一樣正確，只是多傳一次。
+- **檔案已上傳但分析失敗（例如 429）：** 重試直接沿用遠端檔案，不重新上傳。
+
+**結構化結果**（`VideoUnderstandingResult`，api-client 的 `videoUnderstandingOf(job)`）：摘要、重要時間點（秒數、標籤、說明，依時間排序）、標題建議、簡介建議、封面建議（以時間點表示，由前端自行擷取畫面）。每個時間點都標 `needs_verification: true`；已知片長時，超出片長的時間點標 `within_duration: false`。結果附「時間點與內容由 AI 產生，可能有誤，需核驗」的提示。
+
+**快取與防重複：**
+
+- 快取鍵 = 檔案 sha256 + 任務類型 + 提示詞版本 + 模型 + 解析度。
+- 有成功結果時回 200 `cached: true` 與舊任務，什麼都不送、不計費；使用者明確帶 `reanalyze: true` 才重新上傳分析並計費。
+- 同一個快取鍵已有排隊或進行中的任務時，回該任務（`in_progress: true`），即使帶了 `reanalyze` 也不重複送出。
+- 相同內容的檔案在素材庫會去重成同一個素材，所以也會命中快取。
+
+**送出前確認：** `…/video-understanding/estimate` 回檔案大小、時長（來源）、模型、解析度、輸入 token 估算、最多花費、本月提醒狀態，以及可沿用的舊任務 id。
+
+**進度、取消與重試：**
+
+- `job.progress` 與 `ai_job.progress` 事件：`uploading`（每段一次，帶已上傳與總位元組）、`processing`（等 Gemini 處理）、`analyzing`（產生結果中）。
+- 取消（`POST /api/v1/ai/jobs/:id/cancel`）會中止進行中的上傳或請求，並盡量刪掉已上傳的遠端檔案；只傳了一部分的上傳無法刪除，由 Google 依保留期清掉。
+- 429、逾時、連線中斷照 QC-021 規則自動重試（事件 `ai_job.queued`），上傳會續傳。Gemini 處理失敗記 `file_processing_failed`、素材檔不見記 `source_unavailable`，都不自動重試，且會刪掉遠端檔案。
+- 用量與費用照 QC-021 記錄（Gemini 回報的 token，依價格表估算）。
+
+**權限與隱私：** 路由只限主權杖，需要 Gemini 金鑰與告知確認。金鑰只放在請求標頭，不進任何請求內容或日誌。
+
 ## 外部資料夾掛載
 
 已有的 Markdown 資料夾用**掛載**的方式加入：就地索引，**不搬移、不改名、不刪除**任何檔案。實作在 `src/mounts/mount-service.ts` 與 `WorkService` 的外部作品部分。
@@ -441,7 +486,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 ## 變更事件（SSE）
 
-`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `work.variant_created`／`work.variant_updated`／`work.variant_deleted`（平台版本）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`、`asset.created`、`asset.updated`、`job.queued`、`job.running`、`job.succeeded`、`job.failed`。
+`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `ai_job.queued`／`running`／`progress`／`succeeded`／`failed`／`cancelled`（AI 任務）、`work.variant_created`／`work.variant_updated`／`work.variant_deleted`（平台版本）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`、`asset.created`、`asset.updated`、`job.queued`、`job.running`、`job.succeeded`、`job.failed`。
 
 - 和其他 `/api` 路由一樣要 Bearer 權杖。瀏覽器的 `EventSource` 不能帶 header，所以 api-client 用 fetch 讀串流（`client.events.subscribe`）；權杖不接受放在 URL。
 - 事件先寫進 `change_log` 再推送：在寫入方的交易提交後才發出，交易回滾的變更不會被推送。
@@ -493,5 +538,5 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 - 素材庫還缺的服務端 API：匯入任務取消、素材刪除或移出索引、監控資料夾自動匯入（QC-015）。
 - 平台版本尚無「恢復某一版」的 API（歷史已存好，可直接加）；草稿是固定規則，AI 產生平台版本屬 M3。
 - M2：Electron／外部編輯器／Agent 三方衝突的完整驗收（QC-014）。
-- M3：AI 基礎（QC-021）與文字候選、改寫（QC-022）已完成。Gemini 視頻理解與檔案上傳（QC-023）尚未做；本地模型延後。
+- M3：AI 基礎（QC-021）、文字候選與改寫（QC-022）、Gemini 視頻理解（QC-023）已完成；本地模型延後。
 - 生產可用：launchd 實機安裝、崩潰恢復、SQLite 備份與還原（QC-004）。

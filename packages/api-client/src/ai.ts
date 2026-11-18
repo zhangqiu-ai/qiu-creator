@@ -9,6 +9,14 @@ import {
   CreateAiJobResponseSchema,
   ListAiJobsResponseSchema,
   PlatformSuggestionsRequestSchema,
+  VideoEstimateSchema,
+  VideoUnderstandingRequestSchema,
+  VideoUnderstandingResponseSchema,
+  VideoUnderstandingResultSchema,
+  type VideoEstimate,
+  type VideoUnderstandingRequest,
+  type VideoUnderstandingResponse,
+  type VideoUnderstandingResult,
   PlatformSuggestionsResultSchema,
   RewriteRequestSchema,
   RewriteResultSchema,
@@ -66,6 +74,24 @@ export interface CreatorHubAiApi {
   accept(workId: string, jobId: string, input: AcceptRewriteRequest): Promise<WorkDetail>;
   /** "停止生成": same as `cancel`. */
   stop(jobId: string): Promise<AiJobRecord>;
+
+  // ---- Gemini video understanding (QC-023) ----
+  /** Limits check and cost estimate before sending; also reports a reusable earlier result. */
+  estimateVideo(assetId: string, input?: VideoUnderstandingRequest): Promise<VideoEstimate>;
+  /**
+   * Analyse a library video. `cached: true` returns an earlier result (free);
+   * pass `reanalyze: true` to analyse and pay again.
+   */
+  analyzeVideo(
+    assetId: string,
+    input?: VideoUnderstandingRequest,
+  ): Promise<VideoUnderstandingResponse>;
+}
+
+/** Typed result of a succeeded video-understanding job, or null. */
+export function videoUnderstandingOf(job: AiJobRecord): VideoUnderstandingResult | null {
+  const parsed = VideoUnderstandingResultSchema.safeParse(job.result?.json);
+  return parsed.success ? parsed.data : null;
 }
 
 /** Typed suggestions of a succeeded `platform_suggestions` job, or null. */
@@ -150,6 +176,22 @@ export function createAiApi(ctx: Ctx): CreatorHubAiApi {
         'POST',
         `/api/v1/works/${encodeURIComponent(workId)}/ai/jobs/${encodeURIComponent(jobId)}/accept`,
         input,
+      ),
+    estimateVideo: (assetId, input = {}) =>
+      call(
+        ctx,
+        VideoEstimateSchema,
+        'POST',
+        `/api/v1/assets/${encodeURIComponent(assetId)}/ai/video-understanding/estimate`,
+        VideoUnderstandingRequestSchema.parse(input),
+      ),
+    analyzeVideo: (assetId, input = {}) =>
+      call(
+        ctx,
+        VideoUnderstandingResponseSchema,
+        'POST',
+        `/api/v1/assets/${encodeURIComponent(assetId)}/ai/video-understanding`,
+        VideoUnderstandingRequestSchema.parse(input),
       ),
     stop: (jobId) => call(ctx, AiJobRecordSchema, 'POST', `${j(jobId)}/cancel`),
     usage: (month) =>

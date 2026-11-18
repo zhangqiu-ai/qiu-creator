@@ -204,6 +204,10 @@ export const AiFailureCodeSchema = z.enum([
   'bad_request',
   /** Structured output did not parse as JSON (e.g. cut off at max tokens). */
   'invalid_output',
+  /** Gemini could not process the uploaded file (file state FAILED, QC-023). */
+  'file_processing_failed',
+  /** The source asset is gone or unreadable when the job runs (QC-023). */
+  'source_unavailable',
   'unknown',
 ]);
 export type AiFailureCode = z.infer<typeof AiFailureCodeSchema>;
@@ -264,6 +268,17 @@ export const AiTaskSchema = z.discriminatedUnion('type', [
     variant_revisions: z.record(z.string(), z.number().int().positive().nullable()),
   }),
   z.object({
+    type: z.literal('video_understanding'),
+    asset_id: IdSchema,
+    /** Content hash of the video at submission; part of the cache key. */
+    sha256: z.string(),
+    /** MIME type sent to Gemini (e.g. `video/mov` for QuickTime). */
+    mime_type: z.string(),
+    size_bytes: z.number().int().nonnegative(),
+    duration_seconds: z.number().nonnegative().nullable(),
+    resolution: z.enum(['default', 'low']),
+  }),
+  z.object({
     type: z.literal('rewrite'),
     mode: RewriteModeSchema,
     tone: z.string().nullable(),
@@ -299,6 +314,15 @@ export const AiJobRecordSchema = z.object({
   task: AiTaskSchema.nullable().optional(),
   /** Revision created when the user accepted this job's rewrite (QC-022). */
   accepted_revision_id: IdSchema.nullable().optional(),
+  /** Live progress of multi-step jobs such as video understanding (QC-023). */
+  progress: z
+    .object({
+      phase: z.enum(['uploading', 'processing', 'analyzing']),
+      uploaded_bytes: z.number().int().nonnegative(),
+      total_bytes: z.number().int().nonnegative(),
+    })
+    .nullable()
+    .optional(),
 });
 export type AiJobRecord = z.infer<typeof AiJobRecordSchema>;
 
