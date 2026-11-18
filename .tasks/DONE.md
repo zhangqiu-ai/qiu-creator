@@ -1,5 +1,25 @@
 # Done
 
+## QC-031: 設定頁備份還原與建置版連線修正
+
+**Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend
+
+### 完成摘要
+
+- 設定頁「備份」區：清單（種類、大小、完整性）、上次與下次每日備份、最近錯誤、目錄與「在 Finder 顯示」、立即備份、還原二次確認（預設焦點在取消）。App 層 BackupSession 追蹤還原：等服務重載後全 App 重新取資料；處理 409 `backup_failed`（明確「未還原」）、503 `restoring`、`restart_required`、逾時「再等一次」。顯示服務版本。
+- 建置版 renderer 改由 `qc-app://renderer` 提供，CSP 依實際服務位址產生（QC-017 該條）；副作用：作品庫格狀／清單偏好首次回預設。
+- 使用者 2026-11-18 核准原型缺口提案 15 項。Electron 實機對真實服務 33／33。NOT_VERIFIED：60 秒「再等一次」與外部還原事件只有單元測試、Finder 點擊、asar 打包後載入、launchd 自動重啟、VoiceOver。證據 `docs/evidence/qc031-*`。
+
+## QC-020: mounts 「寫一半的檔案」測試依賴真實時間間隔
+
+**Priority:** P3 | **Assignee:** qc-test | **Tags:** backend
+
+### 完成摘要
+
+- 根因：chokidar 寫入穩定判斷用真實時鐘，事件迴圈在負載下停頓超過穩定視窗就提早索引。MountService 加可注入 `Scheduler`（僅供測試，預設不變，+16／−4），測試改手動時鐘、事件驅動。突變檢查有效；壓力 30／30、低負載 20／20。證據 `docs/evidence/qc020-mounts-clock.md`。
+
+QC-020、QC-031 一起合併後全部閘門通過，617／0／617（負載 13.7）。第一次合併驗證 tus「went silent」測試在負載升到 37 時失敗 1 次，單獨重跑 8／8 通過，不算數；再出現就開單。合併 2026-11-18。
+
 ## QC-030: 服務建置產物、SQLite 備份還原與睡眠保護
 
 **Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend
