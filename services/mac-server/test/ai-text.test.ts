@@ -324,15 +324,19 @@ describe('rewrite candidates and accepting them', () => {
   it('only accepts a succeeded rewrite of the same work', async () => {
     const { s, fake, work } = await start();
     const other = await s.client.works.create({ title: '別篇', markdown: '內容' });
+    // Scripted replies are handed out in arrival order and jobs run two at a time, so
+    // each job finishes before the next is queued: every reply belongs to exactly one job.
     fake.script('openai', json({ douyin: { titles: ['x'], summaries: ['y'], tags: [['z']] } }));
     const sug = (await s.client.ai.suggest(work.id, { provider: 'openai', platforms: ['douyin'] }))
       .job;
+    expect((await finished(s, sug.id)).status).toBe('succeeded');
     fake.script('openai', fail('openai', 400));
     const failed = (await s.client.ai.rewrite(work.id, { provider: 'openai', mode: 'polish' })).job;
+    expect((await finished(s, failed.id)).status).toBe('failed');
     fake.script('openai', ok('openai', '別篇改寫'));
     const otherJob = (await s.client.ai.rewrite(other.id, { provider: 'openai', mode: 'polish' }))
       .job;
-    await s.ai.drain();
+    expect((await finished(s, otherJob.id)).status).toBe('succeeded');
     for (const id of [sug.id, failed.id, otherJob.id]) {
       const err = await apiError(s.client.ai.accept(work.id, id, { markdown: 'x' }));
       expect(err.code, id).toBe('ai_job_not_acceptable');
