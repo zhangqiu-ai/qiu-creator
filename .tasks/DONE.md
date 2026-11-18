@@ -1,5 +1,17 @@
 # Done
 
+## QC-030: 服務建置產物、SQLite 備份還原與睡眠保護
+
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend
+
+### 完成摘要
+
+- 建置：esbuild 打包加原生模組，產物內附 Node（約 110 MB），可複製到任意目錄獨立執行；`/health` 回 commit 與 built_at（可選）。launchd 範本改指向安裝目錄；日誌由服務輪替（10 MB × 5）。
+- 備份：每日線上備份與手動備份，三種（daily／manual／pre_restore）各留 14 份，完整性檢查；還原先做 pre_restore 安全備份（失敗回 409 `backup_failed`、不改任何東西），寫標記後在同一行程重建服務，開庫前替換資料庫，事件序號接續；無法重載時回 `restart_required`。還原期間寫入回 503 `restoring`。全部 owner-only。
+- 崩潰恢復：SIGKILL 後重啟持久測試；防閒置睡眠用 `caffeinate -i -w`，有長任務才持有。
+- NOT_VERIFIED（留 QC-033）：launchd 實機載入、合蓋與電源、真實睡眠喚醒。證據 `docs/evidence/qc030-ops.md`。
+- 總監合併後全部閘門通過，586／0／586（負載 14.8）。合併 2026-11-18。
+
 ## QC-029: AI 任務的重啟沿用遠端檔與文字任務去重
 
 **Priority:** P2 | **Assignee:** qc-backend | **Tags:** M3, backend
