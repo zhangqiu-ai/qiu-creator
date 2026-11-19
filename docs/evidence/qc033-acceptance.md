@@ -50,7 +50,21 @@
 | `mac-server.err.log` | 前後都是 0 位元組 |
 | App 自動重連 | 0.26 秒後出現 App 的 `GET /api/v1/events`，接著 `/health` 和作品讀取都回 200 |
 
-## 1a. U0 手動備份（bf3aaf8）：尚未取得
+## 1a. U0 手動備份（bf3aaf8）：**通過**（06:29，第二次）
+
+使用者 ⌘Q 結束 App 後，從「應用程式」資料夾重新開啟，按「立即備份」。
+
+| 項目 | 結果 |
+| --- | --- |
+| App 行程 | pid 109，06:29:29 啟動，路徑 `/Applications/qiu-creator.app/Contents/MacOS/qiu-creator`（新版） |
+| 服務日誌 | 06:29:39 有 `POST /api/v1/backups`，前後是清單讀取 |
+| 備份 | `20261119T142939218Z-manual`；`.sqlite` 與 `.json` 都是 0600，大小 253952 |
+| 旁註 | `kind: manual`、`integrity: ok`、`schema_version: 0012`（遷移 0012 已套用） |
+| 獨立檢查 | 複本用 `sqlite3 -readonly` 跑 `PRAGMA integrity_check`，結果 `ok`，`journal_mode` 為 `delete`。複本已刪除 |
+
+結論：`kill -9`（06:17:51）之後，資料庫可以完整備份並通過完整性檢查。
+
+### 第一次 U0（06:26）沒有成功
 
 - 06:26:03 檢查時，`~/CreatorHub/backups/` 只有 4 份備份：
   - 05:16 的每日備份。
