@@ -113,3 +113,48 @@ exit 1。依總監指示，失敗並自動回滾後**沒有再試一次**。
 `launchctl bootout` 在送出 SIGTERM 後就回傳；服務要等行程結束（約 20 ms 後，這次 `exit(0)`）才真正從 launchd 移除。`ops.ts` 在 `bootout` 後立刻 `bootstrap`，落在這段空窗，所以回 EIO。第二次嘗試是同一個競態。回滾路徑成功，是因為它在 `bootstrap` 失敗之後才執行，此時服務已移除。
 
 建議修法（交總監決定，屬 `packages/installer`）：`bootout` 後輪詢 `launchctl print gui/<uid>/<label>` 直到回非 0（有上限），再 `bootstrap`；`bootstrap` 遇到 5 時短暫重試。QC-032 的測試用假 launchctl 沒有這段延遲，要補一個「bootout 後 N 次 print 仍存在」的假 launchctl 測試。
+
+## 升級到 bf3aaf8（2026-11-19）：成功
+
+總監轉述使用者「Upgrade now」；QC-036 修好 `bootout` 後的競態（等 launchd 真的移除服務才 `bootstrap`）後重跑同一個升級。
+
+- 建置：乾淨 worktree，bf3aaf8，`git status` 為空；服務 commit `bf3aaf8503a349acb518a5b60bdd769b4c8af942`（不帶 `-dirty`），built_at `2026-11-19T14:15:51.053Z`；.app ad-hoc 簽名驗證通過。安裝器用的是這個 worktree 裡含修正的版本。
+- 升級前檢查（2026-11-19 06:16:34）：`lsof -nP -iTCP:7431 -sTCP:LISTEN` 0 筆；安裝資料夾下只有 launchd 的服務（pid 18346）。
+- 乾跑：備份 → 暫存 → 停服務換位 → `bootstrap`，`nothing was changed`。
+- `upgrade --yes`（06:16:39 → 06:16:43，約 4 秒）輸出：
+
+```
+backup 20261119T141639416Z-manual ok
+stage new service and app
+stop service and swap in the new build
+launchctl bootstrap
+upgraded 0.1.0 -> 0.1.0; previous build kept as server.prev; backup 20261119T141639416Z-manual
+```
+
+exit 0。升級前備份 id：**`20261119T141639416Z-manual`**（`~/CreatorHub/backups/` 有 `.json` 與 `.sqlite`）。
+
+### 驗證
+
+| 項目 | 結果 |
+| --- | --- |
+| `/health` | commit `bf3aaf8503a349acb518a5b60bdd769b4c8af942`，built_at `2026-11-19T14:15:51.053Z` |
+| launchd | `state = running`，pid 58322 |
+| 遷移 0012 | 已套用：`schema_migrations` 最新一列 `0012｜new_api_provider｜…｜2026-11-19T14:16:43.452Z`（以唯讀 `sqlite3 -readonly` 只查這張遷移表；沒讀權杖、沒讀使用者內容） |
+| `server.prev` | 在，build-info commit `733350c`（舊版） |
+| `app.prev/qiu-creator.app` | 在 |
+| 日誌 | 沒有錯誤；服務正常處理請求 |
+| /Applications 的 .app | `codesign` Identifier `com.qiu-creator.app`；使用者的 App 行程（1 個）沒有被我關閉或重開 |
+
+### bootout 後有等待服務移除再 bootstrap（launchd 日誌）
+
+```
+06:16:39.669 bootout initiated by: launchctl…
+06:16:39.684 exited due to exit(0) → job state = removed   (服務在 15 ms 後才真的移除)
+06:16:39.783 launching: speculative                          (bootstrap 在移除之後約 100 ms，即輪詢間隔)
+```
+
+與第一次失敗（`bootstrap` 落在移除之前，EIO）對照：這次 `bootstrap` 發生在 `removed` 之後。
+
+### 提醒
+
+使用者的 App 是舊版的行程（升級換掉了 /Applications 裡的 .app，服務重啟過，連線會暫時中斷）。請使用者**自行關閉並重新開啟** qiu-creator 以載入新版；重新開啟後介面應顯示與 New API 中轉站相關的新設定。（後半句是依發版內容的預期，沒有開 App 驗證。）
