@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- qiu-creator App icon, option B 「q 字標」 (PT-20261119-001, QC-041).
+       The prototype's 64-unit mark on the macOS icon grid: an 824 px body
+       centred in 1024 with the system-style soft drop shadow. -->
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="14"/>
+      <feOffset dy="12" result="blur"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.32"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+  <g transform="translate(100 100) scale(13.290322)">
+    <!-- The faint light edge keeps the dark body visible on a dark Dock (prototype's dark variant). -->
+    <rect x="0.4" y="0.4" width="61.2" height="61.2" rx="13.6" fill="#1C1B19" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="0.8"/>
+    <circle cx="28" cy="28" r="11.5" fill="none" stroke="#F6F5F1" stroke-width="7"/>
+    <path d="M39.5 20v21" stroke="#F6F5F1" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="39.5" cy="50" r="5" fill="#8EA2FF"/>
+  </g>
+  </g>
+</svg>

@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -352,6 +353,11 @@ function createWindow(): void {
 }
 
 void app.whenReady().then(() => {
+  // The packaged app gets its icon from the bundle; a dev run shows the same one in the Dock.
+  if (!app.isPackaged) {
+    const icon = path.join(__dirname, '..', 'build', 'icon.png');
+    if (existsSync(icon)) app.dock?.setIcon(icon);
+  }
   hardenSession();
   registerAssetProtocol();
   registerIpc();
