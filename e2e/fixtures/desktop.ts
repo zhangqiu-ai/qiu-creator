@@ -1,4 +1,4 @@
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, rename, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,10 +14,18 @@ import {
 const requireMacDependency = createRequire(new URL('../../apps/mac/package.json', import.meta.url));
 const entry = fileURLToPath(new URL('./electron-entry.mjs', import.meta.url));
 
+/** Stands in for macOS's /usr/bin/trash: e2e never touches the user's real Trash (QC-037). */
+export interface FakeSystemTrash {
+  /** Absolute paths "moved to the Trash", in order. */
+  moved: string[];
+  moveToTrash(absPath: string): Promise<void>;
+}
+
 interface Desktop {
   page: Page;
   backend: TestServer;
   upstream: FakeAiServer;
+  systemTrash: FakeSystemTrash;
 }
 
 export const test = base.extend<{ desktop: Desktop }>({
@@ -30,8 +38,24 @@ export const test = base.extend<{ desktop: Desktop }>({
       const upstream = new FakeAiServer();
       resources.defer(() => upstream.stop());
       await upstream.start();
+      const trashDir = path.join(home, 'fake-system-trash');
+      await mkdir(trashDir);
+      const systemTrash: FakeSystemTrash = {
+        moved: [],
+        async moveToTrash(absPath) {
+          await rename(
+            absPath,
+            path.join(trashDir, `${String(this.moved.length)}-${path.basename(absPath)}`),
+          );
+          this.moved.push(absPath);
+        },
+      };
       // Reuse the service test harness for MemorySecretStore and loopback ports.
-      const backend = await startTestServer({ home, ai: { baseUrls: upstream.baseUrls() } });
+      const backend = await startTestServer({
+        home,
+        ai: { baseUrls: upstream.baseUrls() },
+        assetLibrary: { trash: systemTrash },
+      });
       resources.defer(() => backend.close());
 
       const executablePath: unknown = requireMacDependency('electron');
@@ -65,7 +89,7 @@ export const test = base.extend<{ desktop: Desktop }>({
         await tracing.stop({ path: trace });
         await testInfo.attach('Electron trace', { path: trace, contentType: 'application/zip' });
       });
-      await use({ page: await app.firstWindow(), backend, upstream });
+      await use({ page: await app.firstWindow(), backend, upstream, systemTrash });
     } finally {
       await resources.disposeAsync();
     }
