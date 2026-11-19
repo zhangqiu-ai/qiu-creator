@@ -9,12 +9,6 @@
 - 側欄「發布中心（第二階段）」與「Agent API」列：實作沒有，先回報總監，不自行決定保留或刪除。
 - 另補 QC-031 備份區 15 項已核准狀態（自動備份唯讀、清單加確認還原、三段後果說明等）。
 
-## QC-032: 打包與安裝腳本
-
-**Priority:** P1 | **Assignee:** qc-release | **Tags:** M3
-
-QC-004 拆出。electron-builder 設定（未簽名 .app 裝 `/Applications`）；安裝／升級／解除安裝腳本：服務建置產物複製到 `~/Library/Application Support/qiu-creator/server`、渲染並載入 launchd plist、升級前自動備份、失敗可回到上一版。依賴記入 `docs/dependencies.md`。**試打包與真實安裝都要使用者明確要求後才做。**
-
 ## QC-033: Mac 生產可用實機驗收
 
 **Priority:** P1 | **Assignee:** qc-test | **Tags:** M3
