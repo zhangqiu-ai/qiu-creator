@@ -50,6 +50,25 @@
 | `mac-server.err.log` | 前後都是 0 位元組 |
 | App 自動重連 | 0.26 秒後出現 App 的 `GET /api/v1/events`，接著 `/health` 和作品讀取都回 200 |
 
+## 1a. U0 手動備份（bf3aaf8）：尚未取得
+
+- 06:26:03 檢查時，`~/CreatorHub/backups/` 只有 4 份備份：
+  - 05:16 的每日備份。
+  - 06:05、06:07、06:16 三份手動備份，都是 qc-release 的升級前備份，可在 `qc033-install.md` 對上。
+- `kill -9`（06:17:51）之後的服務日誌：
+  - **沒有任何 `POST /backups`**。
+  - 06:26 之後只有兩次 `GET /api/v1/backups`（06:26:26、06:26:39），也就是只打開了備份清單。
+- 使用者回報「U0 備份完成，完整性正常」，推測看到的是清單上既有的備份。U0 待使用者重做。
+
+### 觀察：升級後重新開啟的 App 跑的是 `app.prev` 裡的舊版
+
+- 06:18 時，App 的行程是 pid 3009（升級前就開著）。06:26:03 檢查時已經沒有 App 行程。
+- 06:26:22 啟動了新的 App 行程 pid 89495，執行路徑是 `~/Library/Application Support/qiu-creator/app.prev/qiu-creator.app`，即升級時被搬走的**舊版 .app**。
+- 推論：Dock 或「最近使用」指向的是被搬走的原 bundle，重新開啟就會跑舊版。沒有實際驗證使用者是從哪裡開啟的。
+- `/Applications/qiu-creator.app` 和 `app.prev` 的 `CFBundleShortVersionString` **都是 `0.0.0`**，所以無法從版本號分辨新舊 App。
+- 是否修改產品，由總監判斷。
+- 更正：我先前對總監說「App 目前沒有在執行」。這在 06:26:03 是正確的，但 19 秒後 App 就以舊版重新啟動了。偵測方式是 `pgrep -f "qiu-creator.app/Contents/MacOS"`，可以比對到 `app.prev` 的路徑，所以不是偵測方式漏掉。
+
 ## 2. 備份檔（733350c）
 
 | 項目 | 結果 |
