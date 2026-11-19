@@ -1,5 +1,9 @@
 # Work Log
 
+## 2026-11-19 · QC-033 開工
+
+- 使用者同意在本機真實安裝。qc-release 從乾淨 origin/main 建置並安裝（服務、launchd、/Applications），qc-test 接著做實機驗收。
+
 ## 2026-11-18 · QC-032
 
 - 打包與安裝腳本合併（發版全倉 649／0／649；合併後 typecheck、lint、prettier、installer 32／32）。QC-004 只剩 QC-033 實機驗收，需使用者同意真實安裝。
