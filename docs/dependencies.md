@@ -169,10 +169,6 @@ QC-010：mac-server 用同一組 mdast 套件與版本，從 Markdown 找出圖�
 | @types/better-sqlite3 | ^9.6.0 | MIT | better-sqlite3 型別 | — |
 | esbuild（mac-server 開發依賴） | 0.28.2 | MIT | mac-server 建置產物打包（QC-030，見上） | pnpm deploy、tsc |
 
-## 未來候選（尚未加入）
-
-目前沒有。Sharp、tus、ffprobe 已於 QC-005 加入，chokidar 於 QC-007 加入，AI SDK 與 keyring 於 QC-021 加入（見上）。
-
 ### 打包：electron-builder 26.18.0（QC-032）
 
 - 授權 MIT；只放在 `apps/mac` 的 devDependencies，不進 App 本體。用途：把已經由 vite／esbuild 打包好的渲染層與主程序包成 `qiu-creator.app`（`--mac dir --arm64`，不做 dmg、不公證、不自動更新）。
@@ -181,3 +177,7 @@ QC-010：mac-server 用同一組 mdast 套件與版本，從 Markdown 找出圖�
 - 簽章：`identity: '-'`（ad-hoc）。未簽名的 Electron 在 Apple Silicon 改過 Info.plist 後 `codesign --verify` 失敗、無法啟動。
 - 替代方案：@electron/packager（更輕，沒有 builder 的設定檔與 asar 整合，需自己處理簽章）；Electron Forge（較重，含 makers 與 publisher，用不到）。
 - 安裝腳本（`packages/installer`）只用 Node 內建模組與 `tsx`（已有），沒有新增執行期依賴。
+
+## 未來候選（尚未加入）
+
+目前沒有。Sharp、tus、ffprobe 已於 QC-005 加入，chokidar 於 QC-007 加入，AI SDK 與 keyring 於 QC-021 加入，electron-builder 於 QC-032 加入（見上）。
