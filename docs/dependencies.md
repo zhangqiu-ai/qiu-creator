@@ -172,3 +172,12 @@ QC-010：mac-server 用同一組 mdast 套件與版本，從 Markdown 找出圖�
 ## 未來候選（尚未加入）
 
 目前沒有。Sharp、tus、ffprobe 已於 QC-005 加入，chokidar 於 QC-007 加入，AI SDK 與 keyring 於 QC-021 加入（見上）。
+
+### 打包：electron-builder 26.18.0（QC-032）
+
+- 授權 MIT；只放在 `apps/mac` 的 devDependencies，不進 App 本體。用途：把已經由 vite／esbuild 打包好的渲染層與主程序包成 `qiu-creator.app`（`--mac dir --arm64`，不做 dmg、不公證、不自動更新）。
+- 它會從 GitHub Releases 下載 Electron 執行檔並以 `@electron/get` 驗證；該檔已在 pnpm 的 electron 依賴下載過，沿用快取。
+- `electron-winstaller`（Windows 安裝檔用）的 install script 在 `pnpm-workspace.yaml` 的 `allowBuilds` 設為 `false`：我們只做 macOS。
+- 簽章：`identity: '-'`（ad-hoc）。未簽名的 Electron 在 Apple Silicon 改過 Info.plist 後 `codesign --verify` 失敗、無法啟動。
+- 替代方案：@electron/packager（更輕，沒有 builder 的設定檔與 asar 整合，需自己處理簽章）；Electron Forge（較重，含 makers 與 publisher，用不到）。
+- 安裝腳本（`packages/installer`）只用 Node 內建模組與 `tsx`（已有），沒有新增執行期依賴。

@@ -11,3 +11,5 @@ allowBuilds:
   electron: true
   # Dependency of @google/genai; its postinstall only prints version-scheme warnings. Not needed.
   protobufjs: false
+  # Pulled in by electron-builder for Windows installers only; we build a macOS .app. Not needed.
+  electron-winstaller: false

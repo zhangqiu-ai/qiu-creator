@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Template only. Replace every __PLACEHOLDER__ before installing; see
-  deploy/launchd/README.md. Do not load this file as-is.
+  Template only. deploy/qc.sh fills in __USER_HOME__ and __PORT__ and writes the
+  result to ~/Library/LaunchAgents; see deploy/launchd/README.md. Do not load
+  this file as-is.
   Runs the installed build artifact (QC-030), not the repository.
 -->
 <plist version="1.0">
@@ -27,7 +28,7 @@
     <key>CREATORHUB_HOST</key>
     <string>127.0.0.1</string>
     <key>CREATORHUB_PORT</key>
-    <string>7420</string>
+    <string>__PORT__</string>
     <!-- Logs: the service rotates this file at 10 MB and keeps 5 old ones (≈ 60 MB at most). -->
     <key>CREATORHUB_LOG_FILE</key>
     <string>__USER_HOME__/Library/Logs/qiu-creator/mac-server.log</string>
