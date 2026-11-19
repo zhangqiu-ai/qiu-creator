@@ -8,14 +8,16 @@
   },
   "scripts": {
     "dev": "pnpm --filter @qiu-creator/mac-server dev",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm -r typecheck && tsc -p e2e/tsconfig.json",
     "lint": "eslint .",
     "test": "pnpm -r --workspace-concurrency=1 test",
+    "test:e2e": "pnpm --filter @qiu-creator/mac build && playwright test --config=e2e/playwright.config.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.65.1",
     "@types/node": "^24.19.2",
     "eslint": "^10.15.0",
     "eslint-config-prettier": "^10.1.8",

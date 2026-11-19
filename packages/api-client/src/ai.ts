@@ -23,6 +23,7 @@ import {
   WorkAiJobResponseSchema,
   WorkDetailSchema,
   type AcceptRewriteRequest,
+  type AiConsentRequest,
   type PlatformSuggestionsRequest,
   type PlatformSuggestionsResult,
   type RewriteRequest,
@@ -42,20 +43,25 @@ import {
   type ListAiJobsResponse,
   type PatchAiProviderRequest,
   type PatchAiSettingsRequest,
+  type SetAiKeyRequest,
 } from '@qiu-creator/contracts';
 import { call, idempotencyHeaders, type Ctx, type IdempotencyOptions } from './imports.js';
 
 /**
  * AI providers, keys, consent, jobs and usage (QC-021). Owner token only.
- * Keys are write-only: `setKey` stores one in the Mac's Keychain and nothing returns it.
+ * Keys and the New API base URL are write-only credentials.
  */
 export interface CreatorHubAiApi {
   providers(): Promise<AiProviderListResponse>;
   patchProvider(provider: AiProvider, input: PatchAiProviderRequest): Promise<AiProviderStatus>;
-  setKey(provider: AiProvider, apiKey: string): Promise<AiProviderStatus>;
+  setKey(provider: AiProvider, apiKey: string, baseUrl?: string): Promise<AiProviderStatus>;
   deleteKey(provider: AiProvider): Promise<AiProviderStatus>;
-  /** Confirm the first-use notice; pass the `notice.version` that was shown. */
-  consent(provider: AiProvider, noticeVersion: number): Promise<AiProviderStatus>;
+  /** Confirm the displayed notice version and, for New API, its credential ID. */
+  consent(
+    provider: AiProvider,
+    noticeVersion: number,
+    credentialId?: string,
+  ): Promise<AiProviderStatus>;
   withdrawConsent(provider: AiProvider): Promise<AiProviderStatus>;
   settings(): Promise<AiSettings>;
   patchSettings(input: PatchAiSettingsRequest): Promise<AiSettings>;
@@ -127,13 +133,17 @@ export function createAiApi(ctx: Ctx): CreatorHubAiApi {
     providers: () => call(ctx, AiProviderListResponseSchema, 'GET', '/api/v1/ai/providers'),
     patchProvider: (provider, input) =>
       call(ctx, AiProviderStatusSchema, 'PATCH', p(provider), input),
-    setKey: (provider, apiKey) =>
-      call(ctx, AiProviderStatusSchema, 'PUT', `${p(provider)}/key`, { api_key: apiKey }),
+    setKey: (provider, apiKey, baseUrl) =>
+      call(ctx, AiProviderStatusSchema, 'PUT', `${p(provider)}/key`, {
+        api_key: apiKey,
+        base_url: baseUrl,
+      } satisfies SetAiKeyRequest),
     deleteKey: (provider) => call(ctx, AiProviderStatusSchema, 'DELETE', `${p(provider)}/key`),
-    consent: (provider, noticeVersion) =>
+    consent: (provider, noticeVersion, credentialId) =>
       call(ctx, AiProviderStatusSchema, 'POST', `${p(provider)}/consent`, {
         notice_version: noticeVersion,
-      }),
+        credential_id: credentialId,
+      } satisfies AiConsentRequest),
     withdrawConsent: (provider) =>
       call(ctx, AiProviderStatusSchema, 'DELETE', `${p(provider)}/consent`),
     settings: () => call(ctx, AiSettingsSchema, 'GET', '/api/v1/ai/settings'),

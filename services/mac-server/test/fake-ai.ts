@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 
 /** What the fake provider saw: never forwarded anywhere. */
 export interface SeenRequest {
-  provider: 'anthropic' | 'openai' | 'gemini';
+  provider: 'anthropic' | 'openai' | 'gemini' | 'new-api';
   method: string;
   path: string;
   headers: http.IncomingHttpHeaders;
@@ -56,6 +56,19 @@ export function ok(provider: Provider, text: string, model = 'served-model'): Fa
           usage: { input_tokens: 1200, output_tokens: 300, total_tokens: 1500 },
         },
       };
+    case 'new-api':
+      return {
+        body: {
+          id: 'chatcmpl_fake',
+          object: 'chat.completion',
+          created: 1,
+          model,
+          choices: [
+            { index: 0, message: { role: 'assistant', content: text }, finish_reason: 'stop' },
+          ],
+          usage: { prompt_tokens: 1200, completion_tokens: 300, total_tokens: 1500 },
+        },
+      };
     case 'gemini':
       return {
         body: {
@@ -94,6 +107,7 @@ export function fail(provider: Provider, status: number, message = 'nope'): Fake
         },
       };
     case 'openai':
+    case 'new-api':
       return { status, body: { error: { message, type: 'invalid_request_error', code: null } } };
     case 'gemini':
       return { status, body: { error: { code: status, message, status: 'INVALID_ARGUMENT' } } };
@@ -113,6 +127,7 @@ export class FakeAiServer {
     anthropic: [],
     openai: [],
     gemini: [],
+    'new-api': [],
   };
   private server: http.Server | undefined;
   private port = 0;
@@ -125,9 +140,9 @@ export class FakeAiServer {
     return this.seen.filter((r) => r.provider === provider);
   }
 
-  baseUrls(): { anthropic: string; openai: string; gemini: string } {
+  baseUrls(): Record<Provider, string> {
     const origin = `http://127.0.0.1:${String(this.port)}`;
-    return { anthropic: origin, openai: `${origin}/v1`, gemini: origin };
+    return { anthropic: origin, openai: `${origin}/v1`, gemini: origin, 'new-api': `${origin}/v1` };
   }
 
   async start(): Promise<void> {
@@ -140,9 +155,11 @@ export class FakeAiServer {
           ? 'anthropic'
           : path.startsWith('/v1/responses')
             ? 'openai'
-            : /^\/v1(beta)?\/models\/[^/]+:generateContent/.test(path)
-              ? 'gemini'
-              : undefined;
+            : path === '/v1/chat/completions'
+              ? 'new-api'
+              : /^\/v1(beta)?\/models\/[^/]+:generateContent/.test(path)
+                ? 'gemini'
+                : undefined;
         if (provider === undefined) {
           res.writeHead(404).end();
           return;

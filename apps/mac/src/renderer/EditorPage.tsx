@@ -103,12 +103,16 @@ function SessionEditor({
   const numbers = useMemo(() => revisionNumbers(revisions), [revisions]);
 
   // AI panel (QC-024): sessions live as long as this editor.
-  const [ai, setAi] = useState<{ rewrite: RewriteSession; titles: TitleSession } | null>(null);
+  const [ai, setAi] = useState<{
+    providers: AiProviders;
+    rewrite: RewriteSession;
+    titles: TitleSession;
+  } | null>(null);
   useEffect(() => {
     const providers = new AiProviders(client);
     const rewrite = new RewriteSession(client, session, providers);
     const titles = new TitleSession(client, work.id, providers);
-    setAi({ rewrite, titles });
+    setAi({ providers, rewrite, titles });
     void rewrite.loadProvider();
     return () => {
       rewrite.dispose();
@@ -481,6 +485,7 @@ function SessionEditor({
 
           {!historyOpen && ai !== null && (
             <AiPanel
+              providers={ai.providers}
               rewrite={ai.rewrite}
               titles={ai.titles}
               selection={aiSelection}

@@ -116,6 +116,7 @@ describe('AiSettingsStore', () => {
       'gemini',
       'anthropic',
       'openai',
+      'new-api',
     ]);
     expect(keyState(gemini() ?? fail())).toBe('none');
 

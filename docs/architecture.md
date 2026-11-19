@@ -186,10 +186,10 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/mounts`、`/api/v1/mounts/:id` | 掛載列表與狀態、作品數 |
 | POST | `/api/v1/mounts/:id/rescan` | 重新掃描（新增、變更、遺失） |
 | DELETE | `/api/v1/mounts/:id` | 卸載；檔案不動，作品與歷史保留並標成 `unmounted` |
-| GET | `/api/v1/ai/providers` | 三家供應商：是否已存金鑰（不回傳金鑰）、模型、首次使用告知與確認狀態、`ready` |
+| GET | `/api/v1/ai/providers` | 供應商的金鑰狀態、模型、首次使用告知、確認狀態與 `ready` |
 | PATCH | `/api/v1/ai/providers/:provider` | 設定文字模型（Gemini 另可設視頻模型） |
-| PUT／DELETE | `/api/v1/ai/providers/:provider/key` | 存入／刪除 Keychain 中的金鑰；只寫不讀 |
-| POST／DELETE | `/api/v1/ai/providers/:provider/consent` | 確認／撤回首次使用告知；`notice_version` 須為目前版本 |
+| PUT／DELETE | `/api/v1/ai/providers/:provider/key` | 存入／刪除 Keychain 憑證；New API 的 PUT 同時接收 `base_url` 與 `api_key`，兩欄都是唯寫 |
+| POST／DELETE | `/api/v1/ai/providers/:provider/consent` | 確認／撤回使用告知；POST 須傳目前的 `notice_version`，New API 另須傳 `notice.credential_id` |
 | GET／PATCH | `/api/v1/ai/settings` | 月度提醒金額、價格覆寫 |
 | POST | `/api/v1/ai/estimate` | 送出前的費用估算與本月累計，不送出任何內容 |
 | POST | `/api/v1/ai/jobs` | 建立 AI 任務（202），回估算與預算提醒；缺金鑰或未確認告知回 409；支援 `Idempotency-Key` |
@@ -307,12 +307,13 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 使用者決策（2026-11-17）：文字 AI 接 Gemini、Claude、GPT 三家可切換，視頻用 Gemini；本地模型延後。實作在 `src/ai/`，契約在 contracts 的 `ai.ts`。這張只做基礎，具體 AI 動作在 QC-022（文字候選與改寫）、QC-023（Gemini 視頻理解）。
 
-**供應商介面：** `AIProvider` 有 `generateText`（純文字或依 JSON Schema 的結構化輸出）與選用的 `uploadFile`（給 QC-023 的 Gemini 視頻）。三個 adapter 都用官方 SDK，所有對外 HTTP 只在 adapter 內；base URL 可注入。本地模型日後只要實作同一個介面。
+**供應商介面：** `AIProvider` 有 `generateText`（純文字或依 JSON Schema 的結構化輸出）與選用的 `uploadFile`（給 QC-023 的 Gemini 視頻）。各 adapter 都用官方 SDK，所有對外 HTTP 只在 adapter 內；base URL 可注入。本地模型日後只要實作同一個介面。
 
 | 供應商 | SDK | 端點 | 結構化輸出 | 拒答／攔截 |
 | --- | --- | --- | --- | --- |
 | Claude | `@anthropic-ai/sdk` | `POST /v1/messages` | `output_config.format`（`json_schema`） | `stop_reason: "refusal"` |
 | GPT | `openai` | `POST /v1/responses`（`store: false`） | `text.format`（`json_schema`, `strict`） | 內容項 `refusal`、`incomplete_details.reason: content_filter` |
+| New API | `openai` | `POST /v1/chat/completions` | `response_format`（`json_schema`, `strict`） | `message.refusal`、`finish_reason: content_filter` |
 | Gemini | `@google/genai` | `POST /v1/models/<m>:generateContent` | `responseMimeType` + `responseJsonSchema` | `promptFeedback.blockReason`、`finishReason` 為 SAFETY 等 |
 
 - Claude 在支援的模型（Opus 5.5 等）啟用伺服器端拒答備援（`fallbacks: "default"`，beta `server-side-fallback-2026-07-01`）：被拒時由 API 在同一次呼叫改用備援模型，費用以回應中實際服務的模型計價。不要時可在 adapter 移除。
@@ -353,7 +354,13 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 - 月度提醒：設定 `monthly_budget_usd` 後，本地月份的累計（含這次任務的最多估算）超過時，回應的 `budget.over_budget` 為 true，並帶中文提醒；任務照常送出。
 - 沒有價格的模型照常執行，估算與成本為 `null`。
 
-**預設模型**（可在設定中改）：Gemini `gemini-3.8-flash`（文字與視頻）、Claude `claude-opus-5-5`、GPT `gpt-5.5`。
+**預設模型**（可在設定中改）：Gemini `gemini-3.8-flash`（文字與視頻）、Claude `claude-opus-5-5`、GPT `gpt-5.5`、New API `gpt-4o-mini`。
+
+### New API 中轉站
+
+New API 是可選的文字供應商。mac-server 使用 [New API 的 Chat Completions 端點](https://github.com/QuantumNous/new-api-docs-v1/blob/main/content/docs/en/guide/feature-guide/user/api.mdx)，要求目前選定的上游模型支援嚴格結構化輸出。向使用者設定的 HTTPS Base URL（結尾為 `/v1`）送出請求，禁止重新導向。送出前可在 App 選擇供應商與模型。
+
+Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_api_provider` 保留現有供應商設定，並讓 SQLite 記錄當前憑證與任務的識別碼。更換憑證須重新確認使用告知，仍在排隊的舊任務需要主動重試才能送往新設定。用量採中轉站回報的 token，只有該模型已設定價格覆寫時才顯示估算。
 
 ## 文字 AI：平台候選與改寫（QC-022）
 
@@ -441,7 +448,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 編輯頁右側預設是 AI 面板，打開「歷史」時由版本歷史取代。邏輯在 `apps/mac/src/renderer/ai-session.ts`（不依賴 React，可直接對真實 mac-server 測試），畫面在 `AiPanel.tsx`。
 
-- **供應商**：依 Claude → Gemini → GPT 取第一個 `ready` 的供應商，標籤寫成「名稱 · 雲端」。沒有可用的供應商時，面板頂端顯示「尚未設定 AI 金鑰」或「尚未確認雲端 AI 使用告知」，加「前往設定」，不送出任何請求；送出時收到 409 `ai_key_missing`／`ai_consent_required` 也一樣處理。供應商的選擇介面與告知確認在 QC-025。
+- **供應商**：依 Claude → Gemini → GPT → New API 取第一個 `ready` 的供應商。多家已啟用時，可在編輯器 AI 面板為目前開啟的作品選擇文字供應商。沒有可用的供應商時，面板頂端顯示「尚未設定 AI 金鑰」或「尚未確認雲端 AI 使用告知」，加「前往設定」，不送出任何請求；送出時收到 409 `ai_key_missing`／`ai_consent_required` 也一樣處理。供應商的選擇介面與告知確認在 QC-025。
 - **選取範圍**：`@qiu-creator/markdown-editor-web` 提供 `getSelectionRange()` 和 `onSelectionChange`。原始碼模式直接用 textarea 的位移；視覺模式以頂層區塊的文字對應 Markdown 區塊（`selection.ts`），並擴展成整段。沒有選取時改寫全文。
 - **改寫**：生成前會先儲存這個視窗的修改，讓候選以最新版本為基準。結果依句子做 diff（`rewrite-diff.ts`，切分不遺漏字元）：一段連續修改中，句數相同就一句一處，否則合成一處。採用時由勾選的各處組成全文，經 `WorkSession.acceptAi` 送到 accept API；插入則是把候選全文加在選取段落之後。
 - **衝突**：採用時回 409 `revision_conflict`（或這個視窗已收到遠端新版本），組好的全文會成為這個視窗的草稿，開啟既有的衝突對話框。伺服器上的內容不會被覆蓋。

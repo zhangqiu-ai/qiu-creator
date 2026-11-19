@@ -30,6 +30,8 @@ export const ErrorCodeSchema = z.enum([
   'ai_consent_required',
   /** No API key stored in the Keychain for this provider. */
   'ai_key_missing',
+  /** Another update to the New API credential pair is still being saved. */
+  'ai_credentials_busy',
   /** The job already finished, failed or was cancelled. */
   'job_not_cancellable',
   /** The AI job is not a succeeded rewrite of this work, so there is nothing to accept. */

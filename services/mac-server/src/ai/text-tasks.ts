@@ -109,7 +109,7 @@ function limitLine(platform: Platform, fields: readonly SuggestionField[]): stri
   return `- ${PLATFORM_NAMES[platform]}（${platform}）：${parts.join('；')}。風格：${PLATFORM_STYLE[platform]}。`;
 }
 
-/** JSON Schema for the suggestions, valid for all three providers' strict modes. */
+/** JSON Schema for the suggestions, valid for the providers' strict modes. */
 function suggestionsSchema(
   platforms: readonly Platform[],
   fields: readonly SuggestionField[],

@@ -1,6 +1,7 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
 import { isRestoring, RESTORING_TEXT } from './restoring.js';
 import {
+  AI_DEFAULT_MODELS,
   AI_PRICE_TABLE,
   type AiProvider,
   type AiProviderStatus,
@@ -8,24 +9,27 @@ import {
   type AiUsageResponse,
 } from '@qiu-creator/contracts';
 
-/** Settings order follows the prototype board: Gemini, Claude, GPT. */
-export const SETTINGS_ORDER: readonly AiProvider[] = ['gemini', 'anthropic', 'openai'];
+export const SETTINGS_ORDER: readonly AiProvider[] = ['gemini', 'anthropic', 'openai', 'new-api'];
 
 export const PROVIDER_USE: Readonly<Record<AiProvider, string>> = {
   gemini: '視頻理解 · 改寫 · 標題',
   anthropic: '改寫 · 標題',
   openai: '改寫 · 標題',
+  'new-api': '改寫 · 標題',
 };
 
-const MODEL_PREFIX: Readonly<Record<AiProvider, string>> = {
+const MODEL_PREFIX: Readonly<Record<Exclude<AiProvider, 'new-api'>, string>> = {
   gemini: 'gemini-',
   anthropic: 'claude-',
   openai: 'gpt-',
 };
 
-/** Models offered for a provider: those in the reference price table, plus the current one. */
+/** Built-in model suggestions, plus the current model if it is custom. */
 export function modelOptions(provider: AiProvider, current: string | null): string[] {
-  const known = Object.keys(AI_PRICE_TABLE).filter((m) => m.startsWith(MODEL_PREFIX[provider]));
+  const known =
+    provider === 'new-api'
+      ? [AI_DEFAULT_MODELS[provider].text]
+      : Object.keys(AI_PRICE_TABLE).filter((m) => m.startsWith(MODEL_PREFIX[provider]));
   if (current !== null && current !== '' && !known.includes(current)) known.unshift(current);
   return known;
 }
@@ -52,6 +56,7 @@ function messageOf(err: unknown): string {
   if (isRestoring(err)) return RESTORING_TEXT;
   if (err instanceof ApiError) {
     if (err.status === 400) return '格式不正確';
+    if (err.code === 'ai_consent_required') return '使用告知已變更，請重新確認';
     return err.message;
   }
   return '無法連線到服務';
@@ -125,10 +130,10 @@ export class AiSettingsStore {
   }
 
   /**
-   * 存到鑰匙圈. The caller clears its input whatever the outcome; the key is
-   * only a local of this call, and an error message never repeats it.
+   * The caller clears credential inputs when submitting. Credentials are never
+   * stored in the settings state or repeated in save errors.
    */
-  async saveKey(provider: AiProvider, apiKey: string): Promise<boolean> {
+  async saveKey(provider: AiProvider, apiKey: string, baseUrl?: string): Promise<boolean> {
     const key = apiKey.trim();
     if (key === '') {
       this.set({ error: { target: provider, message: '請輸入金鑰' } });
@@ -136,14 +141,15 @@ export class AiSettingsStore {
     }
     this.set({ busy: provider, error: null });
     try {
-      this.replace(await this.client.ai.setKey(provider, key));
+      this.replace(await this.client.ai.setKey(provider, key, baseUrl));
       this.set({ busy: null });
       return true;
     } catch (err) {
-      this.set({
-        busy: null,
-        error: { target: provider, message: `無法儲存金鑰：${redactKey(messageOf(err), key)}` },
-      });
+      const message =
+        provider === 'new-api'
+          ? newApiSaveError(err)
+          : `無法儲存金鑰：${redactKey(messageOf(err), key)}`;
+      this.set({ busy: null, error: { target: provider, message } });
       return false;
     }
   }
@@ -155,9 +161,22 @@ export class AiSettingsStore {
   }
 
   /** 我已了解，啟用: confirm the notice version that was shown. */
-  consent(provider: AiProvider, noticeVersion: number): Promise<boolean> {
+  consent(provider: AiProvider, noticeVersion: number, credentialId?: string): Promise<boolean> {
     return this.run(provider, async () => {
-      this.replace(await this.client.ai.consent(provider, noticeVersion));
+      try {
+        this.replace(await this.client.ai.consent(provider, noticeVersion, credentialId));
+      } catch (err) {
+        if (
+          provider === 'new-api' &&
+          err instanceof ApiError &&
+          err.code === 'ai_consent_required'
+        ) {
+          const latest = await this.client.ai.providers().catch(() => null);
+          const status = latest?.items.find((item) => item.provider === provider);
+          if (status !== undefined) this.replace(status);
+        }
+        throw err;
+      }
     });
   }
 
@@ -190,6 +209,12 @@ export class AiSettingsStore {
       this.set({ settings, usage });
     });
   }
+}
+
+function newApiSaveError(err: unknown): string {
+  if (isRestoring(err)) return RESTORING_TEXT;
+  if (err instanceof ApiError && err.status === 400) return '請檢查 Base URL 與 API 金鑰格式';
+  return '無法儲存 New API 的 Base URL 與金鑰';
 }
 
 /** Remove every occurrence of the key (and its longer fragments) from a message. */

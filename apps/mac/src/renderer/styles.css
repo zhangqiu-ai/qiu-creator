@@ -2203,6 +2203,10 @@ kbd {
   padding: 0 16px;
   border-bottom: 1px solid var(--qc-line);
 }
+.ai__tab-list {
+  display: flex;
+  gap: 16px;
+}
 .ai__tab {
   height: 40px;
   padding: 0;
@@ -2220,6 +2224,10 @@ kbd {
 }
 .ai__provider {
   margin-left: auto;
+}
+.ai__provider-select {
+  min-width: 0;
+  width: auto;
 }
 .ai__body {
   display: flex;
@@ -2539,10 +2547,25 @@ kbd {
   flex: 1 1 220px;
   min-width: 0;
 }
+.ai-set__base-url {
+  flex: 1 0 100%;
+}
+.ai-set__form:has(.ai-set__base-url) {
+  align-items: flex-end;
+}
+.ai-set__hint {
+  font-size: 12px;
+}
 .ai-set__detail {
   align-items: flex-start;
   min-height: 0;
   padding-top: 0;
+}
+.ai-set__detail--new-api {
+  flex-wrap: wrap;
+}
+.ai-set__detail--new-api > .ln__main {
+  flex: 1 1 240px;
 }
 .ai-set__models {
   display: flex;
@@ -2555,6 +2578,18 @@ kbd {
   align-items: center;
   gap: 6px;
   font-size: 12px;
+}
+.ai-set__model-form {
+  width: 100%;
+}
+.ai-set__model-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ai-set__model-controls .input {
+  flex: 1 1 140px;
 }
 .ai-set__notice {
   display: flex;

@@ -45,7 +45,7 @@ export function registerAiRoutes(app: App, ai: AiService, idempotency: Idempoten
     {
       schema: {
         description:
-          'Gemini, Claude and GPT: whether a key is stored (never the key), models, the first-use notice and its confirmation.',
+          'AI providers, configured models, key status and first-use consent. Credentials are write-only.',
         response: { 200: AiProviderListResponseSchema, ...errorResponses },
       },
     },
@@ -73,10 +73,10 @@ export function registerAiRoutes(app: App, ai: AiService, idempotency: Idempoten
           "Store the provider's API key in the macOS Keychain. Write-only: no endpoint returns it, and it is never logged.",
         params: AiProviderParamsSchema,
         body: SetAiKeyRequestSchema,
-        response: { 200: AiProviderStatusSchema, ...errorResponses },
+        response: { 200: AiProviderStatusSchema, ...conflict },
       },
     },
-    (req) => ai.setKey(req.params.provider, req.body.api_key),
+    (req) => ai.setKey(req.params.provider, req.body.api_key, req.body.base_url),
   );
 
   app.delete(
@@ -85,7 +85,7 @@ export function registerAiRoutes(app: App, ai: AiService, idempotency: Idempoten
       schema: {
         description: "Remove the provider's key from the Keychain.",
         params: AiProviderParamsSchema,
-        response: { 200: AiProviderStatusSchema, ...errorResponses },
+        response: { 200: AiProviderStatusSchema, ...conflict },
       },
     },
     (req) => ai.deleteKey(req.params.provider),
@@ -102,7 +102,7 @@ export function registerAiRoutes(app: App, ai: AiService, idempotency: Idempoten
         response: { 200: AiProviderStatusSchema, ...conflict },
       },
     },
-    (req) => ai.consent(req.params.provider, req.body.notice_version),
+    (req) => ai.consent(req.params.provider, req.body.notice_version, req.body.credential_id),
   );
 
   app.delete(

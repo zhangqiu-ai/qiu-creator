@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import {
+  codeForStatus,
   isAbort,
   providerError,
   ProviderError,
@@ -70,6 +71,72 @@ export class OpenAIProvider implements AIProvider {
         output_tokens: response.usage?.output_tokens ?? 0,
       },
       finish: reason === 'max_output_tokens' ? 'max_tokens' : 'stop',
+    };
+  }
+}
+
+/** New API via its OpenAI-compatible Chat Completions endpoint. */
+export class NewApiProvider implements AIProvider {
+  readonly id = 'new-api' as const;
+
+  constructor(private readonly options: AdapterOptions) {}
+
+  async generateText(req: AiTextRequest, apiKey: string, baseUrl?: string): Promise<AiTextResult> {
+    const baseURL = this.options.baseUrl ?? baseUrl;
+    if (baseURL === undefined) throw providerError('missing_key');
+    const client = new OpenAI({
+      apiKey,
+      baseURL,
+      organization: null,
+      project: null,
+      maxRetries: 0,
+      timeout: this.options.timeoutMs,
+      fetchOptions: { redirect: 'error' },
+    });
+    let response: OpenAI.Chat.Completions.ChatCompletion;
+    try {
+      response = await client.chat.completions.create(
+        {
+          model: req.model,
+          max_completion_tokens: req.maxOutputTokens,
+          messages: [
+            ...(req.system === undefined ? [] : [{ role: 'system' as const, content: req.system }]),
+            { role: 'user', content: req.prompt },
+          ],
+          ...(req.jsonSchema === undefined
+            ? {}
+            : {
+                response_format: {
+                  type: 'json_schema',
+                  json_schema: { name: 'result', schema: req.jsonSchema, strict: true },
+                },
+              }),
+        },
+        { signal: req.signal },
+      );
+    } catch (err) {
+      if (err instanceof OpenAI.APIError && typeof err.status === 'number') {
+        // The relay's error may echo the configured URL or request content.
+        throw providerError(codeForStatus(err.status), undefined, err.status);
+      }
+      throw classify(err, req.signal);
+    }
+
+    const choice = response.choices[0];
+    if (choice?.finish_reason === 'content_filter' || choice?.message.refusal) {
+      throw providerError('content_blocked');
+    }
+    if (typeof choice?.message.content !== 'string' || choice.message.content.length === 0) {
+      throw providerError('invalid_output');
+    }
+    return {
+      text: choice.message.content,
+      model: response.model || req.model,
+      usage: {
+        input_tokens: response.usage?.prompt_tokens ?? 0,
+        output_tokens: response.usage?.completion_tokens ?? 0,
+      },
+      finish: choice.finish_reason === 'length' ? 'max_tokens' : 'stop',
     };
   }
 }

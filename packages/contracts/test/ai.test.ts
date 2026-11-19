@@ -11,12 +11,13 @@ import {
 } from '../src/index.js';
 
 describe('AI contracts', () => {
-  it('covers the three providers decided on 2026-11-17, video on Gemini only', () => {
-    expect(AiProviderSchema.options).toEqual(['gemini', 'anthropic', 'openai']);
+  it('covers each supported provider, with video on Gemini only', () => {
+    expect(AiProviderSchema.options).toEqual(['gemini', 'anthropic', 'openai', 'new-api']);
     expect(AI_DEFAULT_MODELS.gemini.video).not.toBeNull();
     expect(AI_DEFAULT_MODELS.anthropic.video).toBeNull();
     expect(AI_DEFAULT_MODELS.openai.video).toBeNull();
-    for (const p of AiProviderSchema.options) {
+    expect(AI_DEFAULT_MODELS['new-api']).toEqual({ text: 'gpt-4o-mini', video: null });
+    for (const p of ['gemini', 'anthropic', 'openai'] as const) {
       expect(AI_PRICE_TABLE[AI_DEFAULT_MODELS[p].text], p).toBeDefined();
     }
   });
@@ -25,6 +26,7 @@ describe('AI contracts', () => {
     expect(aiConsentNotice('gemini')).toContain('Google');
     expect(aiConsentNotice('anthropic')).toContain('Anthropic');
     expect(aiConsentNotice('openai')).toContain('OpenAI');
+    expect(aiConsentNotice('new-api')).toContain('中轉站');
   });
 
   it('estimates CJK at ~1 token per character and other text at ~4 characters per token', () => {

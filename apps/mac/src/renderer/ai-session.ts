@@ -23,8 +23,8 @@ import {
 } from './rewrite-diff.js';
 import type { WorkSession } from './work-session.js';
 
-/** Order used to pick a provider until the settings page lets the user choose (QC-025). */
-export const PROVIDER_ORDER: readonly AiProvider[] = ['anthropic', 'gemini', 'openai'];
+/** Default order when the user has not chosen a provider in this editor. */
+export const PROVIDER_ORDER: readonly AiProvider[] = ['anthropic', 'gemini', 'openai', 'new-api'];
 
 /** Why AI cannot be used right now; the panel shows a 「前往設定」 notice. */
 export type AiBlock = 'key' | 'consent';
@@ -126,6 +126,7 @@ export class JobWatch {
 /** Shared provider lookup for the panel's two tabs. */
 export class AiProviders {
   private cached: Promise<AiProviderStatus[]> | null = null;
+  private selected: AiProvider | null = null;
 
   constructor(private readonly client: CreatorHubClient) {}
 
@@ -134,14 +135,25 @@ export class AiProviders {
     this.cached = null;
   }
 
-  async pick(): Promise<ReturnType<typeof pickProvider>> {
+  select(provider: AiProvider): void {
+    this.selected = provider;
+  }
+
+  async list(): Promise<AiProviderStatus[]> {
     this.cached ??= this.client.ai.providers().then((r) => r.items);
     try {
-      return pickProvider(await this.cached);
+      return await this.cached;
     } catch (err) {
       this.cached = null;
       throw err;
     }
+  }
+
+  async pick(): Promise<ReturnType<typeof pickProvider>> {
+    const items = await this.list();
+    return pickProvider(
+      this.selected === null ? items : items.filter((item) => item.provider === this.selected),
+    );
   }
 }
 
@@ -529,6 +541,15 @@ export class TitleSession {
     if (this.disposed) return;
     this.state = { ...this.state, ...patch };
     for (const l of this.listeners) l(this.state);
+  }
+
+  async loadProvider(): Promise<void> {
+    try {
+      const picked = await this.providers.pick();
+      this.set({ provider: picked.provider, block: picked.block });
+    } catch {
+      // Offline: generating reports it.
+    }
   }
 
   async generate(): Promise<void> {
