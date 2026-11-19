@@ -39,3 +39,4 @@ QC-012 對照原型發現的 API 缺口：匯入任務取消（含取消後重�
 - 服務建置產物 220 MB（`bin/node` 128 MB），可評估較小的 Node 版本（QC-032 回報）。
 - `corepack pnpm -r test` 在 PATH 沒有 pnpm 時子行程 exit 127（QC-032 回報）。
 - electron-builder 首次在新 worktree 打包曾卡 6 分鐘無輸出，重跑約 20 秒完成，原因未查（QC-033 安裝回報）。
+- 安裝器 bootout 超時訊息只說「舊版仍在原位」，但舊服務已收到 SIGTERM、可能已停；訊息應提示服務可能未運行（QC-036 審查）。

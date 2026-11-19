@@ -1,5 +1,9 @@
 # Work Log
 
+## 2026-11-19 · QC-036
+
+- launchd 競態修正合併（全倉 660／0／660；合併後 installer 39／39），同時合併升級失敗證據。交 qc-release 重新升級到新 main。
+
 ## 2026-11-19 · 升級失敗、開 QC-036
 
 - 使用者要求升級到 e8aefb1；兩次 bootstrap EIO 後自動回滾，舊版 733350c 正常、遷移 0012 未套用。根因是 bootout 後未等移除即 bootstrap，開 QC-036 交 qc-bugfix。

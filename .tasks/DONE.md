@@ -1,5 +1,13 @@
 # Done
 
+## QC-036: 安裝器升級時 launchd bootout／bootstrap 競態
+
+**Priority:** P1 | **Assignee:** qc-bugfix | **Tags:** M3, bug | **Done:** 2026-11-19
+
+- `Run.bootout()` 送出後輪詢 `launchctl print` 直到服務移除（100 ms、最多 10 秒），一次套用到 upgrade、自動回滾、rollback、install 清理、uninstall；超時丟中文錯誤，不換版本。不加 bootstrap 重試。
+- 假 launchctl 模擬延遲移除與虛擬時鐘，新增 7 項；修正前 7 failed，修正後 installer 39／39；全倉 660／0／660（負載 3.0，取鎖）。
+- 範圍外：超時時舊服務已收到 SIGTERM，可能已停，訊息只說檔案在原位（記 QC-017）；`waitHealthy` 用真實時鐘。
+
 ## QC-035: 接入 New API 中轉站（文字 AI）
 
 **Priority:** P2 | **Assignee:** Codex（使用者直接指派） | **Tags:** M2 | **Done:** 2026-11-19
