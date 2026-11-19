@@ -2,6 +2,7 @@
 
 - 驗收者：qc-test。日期：2026-11-19。
 - 對象：真實安裝（launchd `com.qiu-creator.mac-server`，埠 7420）與真實 `~/CreatorHub`。
+- 目前安裝的版本：bf3aaf8（2026-11-19 升級）。
 - 安裝紀錄見 `qc033-install.md`。
 - **版本注意**：
   - 下面標「733350c」的結果，是在初次安裝版（commit 733350c）上取得的。
@@ -30,7 +31,24 @@
 | App 自動重連 | 重啟後 0.25 秒內日誌出現 App 的 `GET /api/v1/events`（SSE），接著 `/health`、`/jobs` 都回 200 |
 | 資料庫完整性 | 待使用者按「手動備份」後檢查新備份（使用者項目 U0） |
 
-新版（e8aefb1）上要再做一次：**待補**。
+### 升級後重做（bf3aaf8）
+
+- 背景：
+  - 升級到 e8aefb1 兩次都失敗並自動回滾，原因是安裝器的 launchd 競態（QC-036）。
+  - 修正後由 qc-release 升級到 bf3aaf8，遷移 0012 已套用。
+  - 升級前的備份是 `20261119T141639416Z-manual`。
+- 動手前（06:17:44）的確認：
+  - `/health` 的 commit 是 `bf3aaf8…`，launchd pid 58322，`runs = 1`。
+  - 服務**沒有 `caffeinate` 子行程**。
+  - 最近 5 分鐘只有一個非 GET 請求：`POST /backups`，即 qc-release 的升級前備份。其餘都是 GET。
+
+| 項目 | 結果 |
+| --- | --- |
+| `kill -9 58322` | 06:17:51 |
+| launchd 重啟、`/health` 恢復 | **0.6 秒**，新 pid 62355，commit 仍是 bf3aaf8 |
+| `launchctl print` | `state = running`，`runs = 2`，`last terminating signal = Killed: 9` |
+| `mac-server.err.log` | 前後都是 0 位元組 |
+| App 自動重連 | 0.26 秒後出現 App 的 `GET /api/v1/events`，接著 `/health` 和作品讀取都回 200 |
 
 ## 2. 備份檔（733350c）
 
@@ -88,7 +106,12 @@
 
 ## 6. 截圖
 
-`NOT_VERIFIED`：待升級完成後嘗試申請 computer-use 授權。
+**`NOT_VERIFIED`。**
+
+- 06:18 申請 computer-use 授權，範圍只有 `com.qiu-creator.app`，只截圖、不點擊。結果是 `user_denied`，沒有再申請。
+- `screencapture` 沒有螢幕錄製權限（見 `qc033-install.md`）。
+- App 的狀態改以服務日誌證明：重連請求、各讀取請求都回 200。
+- 介面行為由使用者在 U 項目中觀察回報。
 
 ## 7. 需要使用者執行的項目
 
