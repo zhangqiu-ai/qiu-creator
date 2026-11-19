@@ -9,6 +9,7 @@ import {
   clipboard,
   dialog,
   ipcMain,
+  nativeTheme,
   protocol,
   session,
   shell,
@@ -31,6 +32,7 @@ import {
 import { abbreviateHome, assetServicePath, forwardableRange, resolveInsideHome } from './assets.js';
 import { readConnection, resolveConfig } from './config.js';
 import { contentSecurityPolicy } from './csp.js';
+import { isThemeSource, readPreferences, writePreferences } from './preferences.js';
 import { EventRelay } from './event-relay.js';
 import { performProxyRequest } from './proxy.js';
 import { readEventStream } from './sse.js';
@@ -234,6 +236,13 @@ function registerIpc(): void {
     if (!isRevealTarget(target)) throw new Error('invalid target');
     return reveal(target);
   });
+  handle(IPC.getTheme, () => readPreferences(preferencesFile()).theme);
+  handle(IPC.setTheme, (theme) => {
+    if (!isThemeSource(theme)) throw new Error('invalid theme');
+    writePreferences(preferencesFile(), { ...readPreferences(preferencesFile()), theme });
+    // Drives prefers-color-scheme in every window and the native controls.
+    nativeTheme.themeSource = theme;
+  });
   handle(IPC.copyText, async (text) => {
     if (typeof text !== 'string' || text.length > 10_000) throw new Error('invalid text');
     await clipboard.writeText(text);
@@ -352,12 +361,18 @@ function createWindow(): void {
   }
 }
 
+function preferencesFile(): string {
+  return path.join(app.getPath('userData'), 'preferences.json');
+}
+
 void app.whenReady().then(() => {
   // The packaged app gets its icon from the bundle; a dev run shows the same one in the Dock.
   if (!app.isPackaged) {
     const icon = path.join(__dirname, '..', 'build', 'icon.png');
     if (existsSync(icon)) app.dock?.setIcon(icon);
   }
+  // The saved 外觀 applies before the first window paints (QC-038).
+  nativeTheme.themeSource = readPreferences(preferencesFile()).theme;
   hardenSession();
   registerAssetProtocol();
   registerIpc();

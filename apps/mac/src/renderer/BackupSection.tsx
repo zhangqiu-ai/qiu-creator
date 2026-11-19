@@ -14,8 +14,8 @@ import { Dialog } from './Dialog.js';
 import { tildePath } from './format.js';
 import { Icon } from './Icon.js';
 
-/** Rows shown before 「顯示全部」. */
-const VISIBLE_ROWS = 5;
+/** Rows shown before 「全部 N 份」 (PT-20261119-001 「v2 · 設定」: 3). */
+export const VISIBLE_ROWS = 3;
 
 function useBackups(session: BackupSession): BackupState {
   return useSyncExternalStore(
@@ -46,9 +46,10 @@ export function BackupSection({
 
   return (
     <section className="settings__sec" aria-labelledby="set-backup">
-      <h2 id="set-backup" className="settings__h">
-        備份
+      <h2 id="set-backup" className="settings__h" tabIndex={-1}>
+        備份與還原
       </h2>
+      <p className="settings__sub">只備份資料庫；原稿與媒體請用 Time Machine。</p>
 
       <RestoreNotice
         restore={s.restore}
@@ -116,8 +117,7 @@ export function BackupSection({
             </span>
             {list !== null && (
               <span className="ln__v faint backup__wrap">
-                每種保留最新 {list.retention_per_kind} 份 · 只備份資料庫；原稿與媒體請用 Time
-                Machine
+                每種保留最新 {list.retention_per_kind} 份
               </span>
             )}
             {list?.last_error != null && (
@@ -241,7 +241,8 @@ export function BackupSection({
                 setShowAll(!showAll);
               }}
             >
-              {showAll ? '只顯示最近 5 份' : `顯示全部 ${String(list.backups.length)} 份`}
+              <Icon name={showAll ? 'chevronUp' : 'chevronDown'} size={14} />
+              {showAll ? '收起' : `全部 ${String(list.backups.length)} 份`}
             </button>
           </div>
         )}

@@ -38,6 +38,7 @@ export function AiSettingsSection({
       <h2 id="set-ai" className="settings__h" ref={headingRef} tabIndex={-1}>
         AI 服務
       </h2>
+      <p className="settings__sub">金鑰只存在這台 Mac 的鑰匙圈。</p>
       <div className="card">
         <div className="ln ln--dim">
           <div className="ln__main">

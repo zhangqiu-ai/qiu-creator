@@ -66,6 +66,10 @@ describe('design tokens', () => {
         [p.bad, p.badSoft],
         [p.onAccent, p.accent],
       );
+      // Accent and status colours are also used as plain text (links, tabs, error lines) (QC-038).
+      for (const bg of [p.bg, p.surface, p.sunken]) {
+        for (const fg of [p.accent, p.ok, p.warn, p.bad]) pairs.push([fg, bg]);
+      }
       for (const [fg, bg] of pairs) {
         expect(contrast(fg, bg), `${scheme} ${fg} on ${bg}`).toBeGreaterThanOrEqual(4.74);
       }

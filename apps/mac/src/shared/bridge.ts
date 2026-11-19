@@ -62,6 +62,9 @@ export type RevealTarget =
   | { kind: 'asset'; id: string }
   | { kind: 'mount'; id: string };
 
+/** 外觀: follow macOS, or pin light or dark (QC-038). */
+export type ThemeSource = 'system' | 'light' | 'dark';
+
 export interface CreatorHubBridge {
   /** Re-reads the token each call, so a service started after the app is picked up. */
   getConnection: () => Promise<ConnectionInfo>;
@@ -88,6 +91,10 @@ export interface CreatorHubBridge {
   pickFolder: () => Promise<string | null>;
   reveal: (target: RevealTarget) => Promise<boolean>;
   copyText: (text: string) => Promise<void>;
+  /** The saved theme choice (applied by the main process before the window paints). */
+  getTheme: () => Promise<ThemeSource>;
+  /** Save and apply a theme choice to every window. */
+  setTheme: (theme: ThemeSource) => Promise<void>;
 }
 
 export const IPC = {
@@ -107,6 +114,8 @@ export const IPC = {
   pickFolder: 'creatorhub:pick-folder',
   reveal: 'creatorhub:reveal',
   copyText: 'creatorhub:copy-text',
+  getTheme: 'creatorhub:get-theme',
+  setTheme: 'creatorhub:set-theme',
 } as const;
 
 /**
