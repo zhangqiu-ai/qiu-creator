@@ -117,6 +117,90 @@ describe('createClient', () => {
     }
   });
 
+  it('sends asset edits, deletes and trash calls to the right routes (QC-037)', async () => {
+    const asset = {
+      id: '11111111-1111-4111-8111-111111111111',
+      kind: 'image',
+      path: 'library/assets/x/a.png',
+      sha256: 'a'.repeat(64),
+      mime_type: 'image/png',
+      bytes: 1,
+      duration: null,
+      width: null,
+      height: null,
+      origin: 'upload',
+      created_at: '2026-11-19T00:00:00.000Z',
+      original_name: 'a.png',
+      codec: null,
+      metadata_status: 'none',
+      thumbnail_status: 'none',
+      updated_at: '2026-11-19T00:00:00.000Z',
+      revision: 2,
+      tags: ['旅行'],
+    };
+    const f = fakeFetch(200, asset);
+    const client = createClient({ baseUrl: 'http://mac', token: 't', fetch: f.fetch });
+    expect(
+      await client.assets.update(asset.id, { base_revision: 1, tags: ['旅行'] }),
+    ).toMatchObject({
+      revision: 2,
+      tags: ['旅行'],
+    });
+    await client.assets.restore(asset.id);
+    const del = fakeFetch(200, { asset, references: { works: [], variants: [] } });
+    await createClient({ baseUrl: 'http://mac', token: 't', fetch: del.fetch }).assets.trash(
+      asset.id,
+      { confirm: true, move_original_to_trash: true },
+    );
+    const empty = fakeFetch(200, { purged: [] });
+    await createClient({ baseUrl: 'http://mac', token: 't', fetch: empty.fetch }).trash.empty();
+    expect(
+      [...f.calls, ...del.calls, ...empty.calls].map((c) => [
+        c.init?.method,
+        c.url,
+        JSON.parse(typeof c.init?.body === 'string' ? c.init.body : 'null') as unknown,
+      ]),
+    ).toEqual([
+      ['PATCH', `http://mac/api/v1/assets/${asset.id}`, { base_revision: 1, tags: ['旅行'] }],
+      ['POST', `http://mac/api/v1/assets/${asset.id}/restore`, {}],
+      [
+        'DELETE',
+        `http://mac/api/v1/assets/${asset.id}`,
+        { confirm: true, move_original_to_trash: true },
+      ],
+      ['DELETE', 'http://mac/api/v1/trash', { confirm: true }],
+    ]);
+  });
+
+  it('keeps the asset error codes and their details (QC-037)', async () => {
+    const references = {
+      works: [{ work_id: 'w', title: '京都', role: 'cover', position: 0 }],
+      variants: [],
+    };
+    const cases = [
+      [409, 'asset_in_use', { references }],
+      [409, 'asset_in_trash', undefined],
+      [409, 'asset_file_missing', { path: 'a.png' }],
+      [500, 'trash_failed', { detail: 'x' }],
+    ] as const;
+    for (const [status, code, details] of cases) {
+      const f = fakeFetch(status, {
+        error: { code, message: '無法移到系統垃圾桶，原檔未變動', details },
+      });
+      const client = createClient({ baseUrl: 'http://mac', token: 't', fetch: f.fetch });
+      const err: unknown = await client.assets
+        .trash('11111111-1111-4111-8111-111111111111')
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ApiError);
+      expect((err as ApiError).status).toBe(status);
+      expect((err as ApiError).body?.error).toEqual({
+        code,
+        message: '無法移到系統垃圾桶，原檔未變動',
+        ...(details === undefined ? {} : { details }),
+      });
+    }
+  });
+
   it('rejects responses that do not match the contract', async () => {
     const f = fakeFetch(200, { status: 'weird' });
     const client = createClient({ baseUrl: 'http://mac', token: 't', fetch: f.fetch });

@@ -1,6 +1,15 @@
 import {
   AssetRecordSchema,
+  AssetReferencesSchema,
   AssetWorkListResponseSchema,
+  BatchAssetsRequestSchema,
+  BatchAssetsResponseSchema,
+  DeleteAssetRequestSchema,
+  DeleteAssetResponseSchema,
+  EmptyTrashRequestSchema,
+  EmptyTrashResponseSchema,
+  PurgeAssetResponseSchema,
+  UpdateAssetRequestSchema,
   ChangeEventSchema,
   DIRECT_UPLOAD_MAX_BYTES,
   ErrorResponseSchema,
@@ -10,7 +19,15 @@ import {
   UploadAssetResponseSchema,
   WorkAssetListResponseSchema,
   type AssetRecord,
+  type AssetReferences,
   type AssetWorkListResponse,
+  type BatchAssetsRequest,
+  type BatchAssetsResponse,
+  type DeleteAssetRequest,
+  type DeleteAssetResponse,
+  type EmptyTrashResponse,
+  type PurgeAssetResponse,
+  type UpdateAssetRequest,
   type ChangeEvent,
   type LinkWorkAssetRequest,
   type ListAssetsQuery,
@@ -64,6 +81,46 @@ export interface CreatorHubAssetsApi {
   works(id: string): Promise<AssetWorkListResponse>;
   /** WebP thumbnail bytes (images only). */
   thumbnail(id: string): Promise<Uint8Array>;
+  /**
+   * Edit display name, tags, alt text or note (QC-037). Pass `base_revision`
+   * (the asset's `revision`); a stale one is 409 `revision_conflict`.
+   */
+  update(id: string, input: UpdateAssetRequest): Promise<AssetRecord>;
+  /**
+   * Move to 最近刪除 (QC-037). Referenced assets need `confirm: true` (else 409
+   * `asset_in_use` with `details.references`). External files stay untouched
+   * unless `move_original_to_trash` (macOS Trash).
+   */
+  trash(id: string, input?: DeleteAssetRequest): Promise<DeleteAssetResponse>;
+  /** Back from 最近刪除 with its references; 409 `asset_file_missing` if the file is gone. */
+  restore(id: string): Promise<AssetRecord>;
+  /** Works and platform variants that use the asset. */
+  references(id: string): Promise<AssetReferences>;
+  /** Batch add/remove tags or move to 最近刪除; all or nothing. */
+  batch(input: BatchAssetsRequest): Promise<BatchAssetsResponse>;
+}
+
+/** 最近刪除 (QC-037). List it with `assets.list({ scope: 'trash' })`. Owner token only. */
+export interface CreatorHubTrashApi {
+  /** Delete one trashed asset permanently; `markdown_referrers` lists works whose Markdown links to it. */
+  purge(id: string): Promise<PurgeAssetResponse>;
+  /** Delete everything in 最近刪除 permanently. */
+  empty(): Promise<EmptyTrashResponse>;
+}
+
+export function createTrashApi(ctx: Ctx): CreatorHubTrashApi {
+  return {
+    purge: (id) =>
+      call(ctx, PurgeAssetResponseSchema, 'DELETE', `/api/v1/trash/${encodeURIComponent(id)}`),
+    empty: () =>
+      call(
+        ctx,
+        EmptyTrashResponseSchema,
+        'DELETE',
+        '/api/v1/trash',
+        EmptyTrashRequestSchema.parse({ confirm: true }),
+      ),
+  };
 }
 
 export interface CreatorHubWorkAssetsApi {
@@ -282,6 +339,39 @@ export function createAssetsApi(ctx: Ctx): CreatorHubAssetsApi {
     uploadResumable,
     list: (q = {}) => call(ctx, ListAssetsResponseSchema, 'GET', `/api/v1/assets${query(q)}`),
     get: (id) => call(ctx, AssetRecordSchema, 'GET', `/api/v1/assets/${encodeURIComponent(id)}`),
+    update: (id, input) =>
+      call(
+        ctx,
+        AssetRecordSchema,
+        'PATCH',
+        `/api/v1/assets/${encodeURIComponent(id)}`,
+        UpdateAssetRequestSchema.parse(input),
+      ),
+    trash: (id, input = {}) =>
+      call(
+        ctx,
+        DeleteAssetResponseSchema,
+        'DELETE',
+        `/api/v1/assets/${encodeURIComponent(id)}`,
+        DeleteAssetRequestSchema.parse(input),
+      ),
+    restore: (id) =>
+      call(ctx, AssetRecordSchema, 'POST', `/api/v1/assets/${encodeURIComponent(id)}/restore`, {}),
+    references: (id) =>
+      call(
+        ctx,
+        AssetReferencesSchema,
+        'GET',
+        `/api/v1/assets/${encodeURIComponent(id)}/references`,
+      ),
+    batch: (input) =>
+      call(
+        ctx,
+        BatchAssetsResponseSchema,
+        'POST',
+        '/api/v1/assets/batch',
+        BatchAssetsRequestSchema.parse(input),
+      ),
     works: (id) =>
       call(
         ctx,

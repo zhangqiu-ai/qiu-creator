@@ -48,6 +48,14 @@ export const ErrorCodeSchema = z.enum([
    * On a manual backup (500): no copy was made.
    */
   'backup_failed',
+  /** The asset is used by works or platform variants; resend with `confirm: true` (409, QC-037). `details.references`. */
+  'asset_in_use',
+  /** The asset is in 最近刪除; restore it first (409, QC-037). */
+  'asset_in_trash',
+  /** The external file is not at its path any more (e.g. still in the macOS Trash); put it back first (409, QC-037). */
+  'asset_file_missing',
+  /** The original could not be moved to the macOS Trash; nothing changed (500, QC-037). */
+  'trash_failed',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 

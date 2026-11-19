@@ -27,9 +27,11 @@ import type { z } from 'zod';
 import {
   createAssetsApi,
   createEventsApi,
+  createTrashApi,
   createWorkAssetsApi,
   type CreatorHubAssetsApi,
   type CreatorHubEventsApi,
+  type CreatorHubTrashApi,
   type CreatorHubWorkAssetsApi,
 } from './assets.js';
 import {
@@ -66,6 +68,7 @@ export {
   ResumableUploadError,
   type CreatorHubAssetsApi,
   type CreatorHubEventsApi,
+  type CreatorHubTrashApi,
   type CreatorHubWorkAssetsApi,
   type ResumableUploadInput,
   type SubscribeOptions,
@@ -165,6 +168,8 @@ export interface CreatorHubClient {
   ai: CreatorHubAiApi;
   /** SQLite backups: list, back up now, restore (QC-030). Owner token only. */
   backups: CreatorHubBackupsApi;
+  /** 最近刪除: permanent delete and empty (QC-037). Owner token only. */
+  trash: CreatorHubTrashApi;
 }
 
 export function createClient(options: CreatorHubClientOptions): CreatorHubClient {
@@ -211,6 +216,7 @@ export function createClient(options: CreatorHubClientOptions): CreatorHubClient
     variants: createVariantsApi(ctx),
     ai: createAiApi(ctx),
     backups: createBackupsApi(ctx),
+    trash: createTrashApi(ctx),
     health: () => request(HealthResponseSchema, 'GET', '/health'),
     works: {
       create: (input, createOptions) =>

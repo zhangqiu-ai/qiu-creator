@@ -28,7 +28,14 @@ export const ChangeActionSchema = z.enum([
   /** A platform variant (and its history) was deleted; `data.platform`. */
   'work.variant_deleted',
   'asset.created',
+  /** Metadata or file details changed; `data.fields` for edits (QC-037). */
   'asset.updated',
+  /** Moved to 最近刪除 or removed from the library (QC-037); `data.removal`. */
+  'asset.trashed',
+  /** Back from 最近刪除 with its references (QC-037). */
+  'asset.restored',
+  /** Deleted permanently, by hand or after 30 days (QC-037); `data.removal`, `data.reason` (`manual`/`empty`/`expired`). */
+  'asset.deleted',
   /** AI jobs (entity `job`); `data.status`, `data.provider`. No content or keys. */
   'ai_job.queued',
   'ai_job.running',
