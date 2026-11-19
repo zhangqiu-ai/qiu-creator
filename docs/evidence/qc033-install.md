@@ -91,3 +91,25 @@ exit 1。依總監指示，失敗並自動回滾後**沒有再試一次**。
 
 - 使用者的 App 沒有被我關閉或重開；升級已回滾，/Applications 裡是舊版 .app。
 - 升級前備份 `20261119T140521518Z-manual` 已存在，不影響任何資料。
+
+### 第二次嘗試（同日，總監確認 7431 的測試實例已結束後）：同樣失敗
+
+- 升級前確認：7431 沒有人在監聽；安裝資料夾下只有 launchd 的 7420 服務（pid 3419）。
+- `upgrade --yes`：備份 `20261119T140716697Z-manual` 成功 → `launchctl bootstrap` 再次 `5: Input/output error` → 自動回滾到 0.1.0，exit 1。結果與第一次完全相同，所以**第一次失敗與 7431 的測試實例無關**。依「失敗並回滾就停下」沒有第三次。
+- 回滾後：`/health` 回舊版 733350c，launchd running（pid 18346），`server.prev` 不在、`app.prev/` 為空；遷移 0012 沒套用。
+
+### 原因：已由 launchd 日誌證實（第一次嘗試，06:05:21）
+
+`log show` 的 launchd 記錄：
+
+```
+06:05:21.784 [gui/501/com.qiu-creator.mac-server [54518]] bootout initiated by: launchctl…
+06:05:21.784 signaled service: Terminated: 15 / scheduling cleanup in 5 sec
+06:05:21.795 bootout initiated by: launchctl…   ← 失敗後回滾流程的 bootout
+06:05:21.795 service already stopped
+06:05:21.807 exited due to exit(0), ran for 2051155ms → job state = removed
+```
+
+`launchctl bootout` 在送出 SIGTERM 後就回傳；服務要等行程結束（約 20 ms 後，這次 `exit(0)`）才真正從 launchd 移除。`ops.ts` 在 `bootout` 後立刻 `bootstrap`，落在這段空窗，所以回 EIO。第二次嘗試是同一個競態。回滾路徑成功，是因為它在 `bootstrap` 失敗之後才執行，此時服務已移除。
+
+建議修法（交總監決定，屬 `packages/installer`）：`bootout` 後輪詢 `launchctl print gui/<uid>/<label>` 直到回非 0（有上限），再 `bootstrap`；`bootstrap` 遇到 5 時短暫重試。QC-032 的測試用假 launchctl 沒有這段延遲，要補一個「bootout 後 N 次 print 仍存在」的假 launchctl 測試。
