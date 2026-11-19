@@ -52,10 +52,30 @@ function makeApp(name: string, marker: string): string {
   return dir;
 }
 
+interface FakeState {
+  loaded: boolean;
+  portBusy: boolean;
+  backupStatus: number;
+  backupIntegrity: string;
+  /**
+   * Real launchd: `bootout` returns as soon as SIGTERM is sent, and the service is only
+   * removed a moment later. Number of `print` calls that still find the service after each
+   * `bootout` (Infinity: never removed). Consumed per bootout from `bootoutDelays`, then
+   * `defaultDelay`.
+   */
+  defaultDelay: number;
+  bootoutDelays: number[];
+  /** Remaining `print`s that still succeed; null when no removal is in progress. */
+  removing: number | null;
+  /** Virtual clock (ms); `sleep` advances it, nothing really waits. */
+  clock: number;
+  sleeps: number[];
+}
+
 interface Fake {
   deps: Deps;
   calls: string[];
-  state: { loaded: boolean; portBusy: boolean; backupStatus: number; backupIntegrity: string };
+  state: FakeState;
   logs: string[];
 }
 
@@ -63,17 +83,46 @@ interface Fake {
 function fake(o: Options): Fake {
   const calls: string[] = [];
   const logs: string[] = [];
-  const state = { loaded: false, portBusy: false, backupStatus: 201, backupIntegrity: 'ok' };
+  const state: FakeState = {
+    loaded: false,
+    portBusy: false,
+    backupStatus: 201,
+    backupIntegrity: 'ok',
+    defaultDelay: 0,
+    bootoutDelays: [],
+    removing: null,
+    clock: 0,
+    sleeps: [],
+  };
   const p = computePaths(o.home, o.applicationsDir);
   const deps: Deps = {
     launchctl: (args) => {
       calls.push(args.join(' '));
-      if (args[0] === 'print') return Promise.resolve({ code: state.loaded ? 0 : 113, out: '' });
+      if (args[0] === 'print') {
+        if (state.removing !== null) {
+          if (state.removing > 0) {
+            state.removing -= 1;
+            return Promise.resolve({ code: 0, out: '' });
+          }
+          state.removing = null;
+          state.loaded = false;
+          return Promise.resolve({ code: 113, out: '' });
+        }
+        return Promise.resolve({ code: state.loaded ? 0 : 113, out: '' });
+      }
       if (args[0] === 'bootstrap') {
+        // Still being removed: launchd answers EIO, exactly what the real upgrade got.
+        if (state.removing !== null) {
+          return Promise.resolve({ code: 5, out: 'Bootstrap failed: 5: Input/output error' });
+        }
         if (state.loaded) return Promise.resolve({ code: 5, out: 'already loaded' });
         state.loaded = true;
       }
-      if (args[0] === 'bootout') state.loaded = false;
+      if (args[0] === 'bootout') {
+        const delay = state.bootoutDelays.shift() ?? state.defaultDelay;
+        if (delay > 0) state.removing = delay;
+        else state.loaded = false;
+      }
       return Promise.resolve({ code: 0, out: '' });
     },
     copyTree: (from, to) => {
@@ -104,7 +153,12 @@ function fake(o: Options): Fake {
       return Promise.resolve({ status: 404, body: null });
     },
     portBusy: () => Promise.resolve(state.portBusy),
-    sleep: () => Promise.resolve(),
+    now: () => state.clock,
+    sleep: (ms) => {
+      state.clock += ms;
+      state.sleeps.push(ms);
+      return Promise.resolve();
+    },
     log: (m) => logs.push(m),
   };
   return { deps, calls, state, logs };
@@ -291,6 +345,121 @@ describe('upgrade', () => {
   it('needs an existing install', async () => {
     const o = options({ serverBuild: makeBuild('b2', '2.0.0'), appBundle: makeApp('a2', 'app2') });
     await expect(upgrade(o, fake(o).deps)).rejects.toThrow(/install/);
+  });
+});
+
+/** launchd keeps the service for a moment after `bootout` returns (QC-036). */
+describe('slow removal after bootout', () => {
+  const printsBetween = (calls: string[], from: string, to: string): string[] => {
+    const a = calls.findIndex((c) => c.startsWith(from));
+    const b = calls.findIndex((c, i) => i > a && c.startsWith(to));
+    return calls.slice(a + 1, b);
+  };
+
+  it('upgrade waits until launchd has removed the service before it bootstraps', async () => {
+    const { f } = await installed();
+    f.state.defaultDelay = 3;
+    f.state.sleeps.length = 0;
+    f.calls.length = 0;
+    const next = options({
+      serverBuild: makeBuild('b2', '2.0.0'),
+      appBundle: makeApp('a2', 'app2'),
+    });
+    await upgrade(next, f.deps);
+
+    const p = computePaths(home, apps);
+    expect(read(path.join(p.server, 'build-info.json'))).toContain('2.0.0');
+    expect(f.state.loaded).toBe(true);
+    // Three prints still found it, the fourth did not; one 100 ms pause per print that did.
+    const between = printsBetween(f.calls, 'bootout', 'bootstrap');
+    expect(between.filter((c) => c.startsWith('print'))).toHaveLength(4);
+    expect(f.state.sleeps.slice(0, 3)).toEqual([100, 100, 100]);
+  });
+
+  it('the automatic rollback after a failed upgrade waits too', async () => {
+    const { f } = await installed();
+    // The first stop is instant; the second one, before the previous build is restored, is slow.
+    f.state.bootoutDelays = [0, 3];
+    const next = options({
+      serverBuild: makeBuild('b2', '2.0.0', { broken: true }),
+      appBundle: makeApp('a2', 'app2'),
+    });
+    await expect(upgrade(next, f.deps)).rejects.toThrow(/已回到 1\.0\.0[\s\S]*bk-1/);
+    const p = computePaths(home, apps);
+    expect(read(path.join(p.server, 'build-info.json'))).toContain('1.0.0');
+    expect(read(path.join(p.app, 'Contents/MacOS/qiu-creator'))).toBe('app1');
+    expect(f.state.loaded).toBe(true);
+  });
+
+  it('manual rollback waits before it bootstraps the other build', async () => {
+    const { f } = await installed();
+    const next = options({
+      serverBuild: makeBuild('b2', '2.0.0'),
+      appBundle: makeApp('a2', 'app2'),
+    });
+    await upgrade(next, f.deps);
+    f.state.defaultDelay = 3;
+    await rollback(next, f.deps);
+    const p = computePaths(home, apps);
+    expect(read(path.join(p.server, 'build-info.json'))).toContain('1.0.0');
+    expect(f.state.loaded).toBe(true);
+  });
+
+  it('uninstall does not remove files while the service is still being removed', async () => {
+    const { f, o } = await installed();
+    f.state.defaultDelay = 3;
+    await uninstall(o, f.deps);
+    expect(f.state.removing).toBeNull(); // the removal had finished when uninstall went on
+    expect(f.state.loaded).toBe(false);
+    expect(fs.existsSync(computePaths(home, apps).server)).toBe(false);
+  });
+
+  it('gives up after 10 seconds and leaves the installed build exactly as it was (upgrade)', async () => {
+    const { f } = await installed();
+    f.state.defaultDelay = Number.POSITIVE_INFINITY;
+    f.state.sleeps.length = 0;
+    f.calls.length = 0;
+    const next = options({
+      serverBuild: makeBuild('b2', '2.0.0'),
+      appBundle: makeApp('a2', 'app2'),
+    });
+    await expect(upgrade(next, f.deps)).rejects.toThrow(/10 秒[\s\S]*舊版仍在原位[\s\S]*重跑/);
+
+    const p = computePaths(home, apps);
+    expect(read(path.join(p.server, 'build-info.json'))).toContain('1.0.0');
+    expect(read(path.join(p.app, 'Contents/MacOS/qiu-creator'))).toBe('app1');
+    expect(fs.existsSync(p.serverPrev)).toBe(false);
+    // 100 ms polls for 10 s on the injected clock; no bootstrap was attempted.
+    expect(f.state.sleeps.reduce((a, b) => a + b, 0)).toBe(10_000);
+    expect(f.calls.some((c) => c.startsWith('bootstrap'))).toBe(false);
+  });
+
+  it('gives up after 10 seconds without touching either build (rollback)', async () => {
+    const { f } = await installed();
+    const next = options({
+      serverBuild: makeBuild('b2', '2.0.0'),
+      appBundle: makeApp('a2', 'app2'),
+    });
+    await upgrade(next, f.deps);
+    f.state.defaultDelay = Number.POSITIVE_INFINITY;
+    await expect(rollback(next, f.deps)).rejects.toThrow(/舊版仍在原位/);
+    const p = computePaths(home, apps);
+    expect(read(path.join(p.server, 'build-info.json'))).toContain('2.0.0');
+    expect(read(path.join(p.serverPrev, 'build-info.json'))).toContain('1.0.0');
+  });
+
+  it('the limits can be set through the options', async () => {
+    const { f } = await installed();
+    f.state.defaultDelay = Number.POSITIVE_INFINITY;
+    f.state.sleeps.length = 0;
+    const next = options({
+      serverBuild: makeBuild('b2', '2.0.0'),
+      appBundle: makeApp('a2', 'app2'),
+      launchdSettleTimeoutMs: 1000,
+      launchdSettlePollMs: 250,
+    });
+    await expect(upgrade(next, f.deps)).rejects.toThrow(/1 秒/);
+    expect(f.state.sleeps).toEqual([250, 250, 250, 250]);
   });
 });
 
