@@ -1,9 +1,7 @@
 
 
-## QC-033: Mac 生產可用實機驗收
+## QC-036: 安裝器升級時 launchd bootout／bootstrap 競態
 
-**Priority:** P1 | **Assignee:** qc-test | **Tags:** M3
+**Priority:** P1 | **Assignee:** qc-bugfix | **Tags:** M3, bug | **Started:** 2026-11-19
 
-QC-004 的驗收本體，依賴 QC-030–032。實機安裝後：重開機自啟、`kill -9` 自動恢復、備份還原演練、原稿保護抽查、MacBook 合蓋／接電源／電池下服務與長任務行為（使用者親自合蓋）、使用者在 App 設定頁親自輸入金鑰後 Gemini／Claude／GPT 各真實呼叫一次並記錄費用（子會話不碰金鑰）、日常使用一輪的問題清單。證據 `docs/evidence/qc033-*`。
-
-**Started:** 2026-11-19（使用者「Approve install」同意真實安裝；qc-release 安裝，qc-test 驗收。安裝時 `~/CreatorHub` 尚不存在，為全新安裝）
+使用者要求升級到 e8aefb1，兩次都在 `launchctl bootstrap` 回 `5: Input/output error`，自動回滾成功，資料未動（證據分支 `release/qc033-upgrade2`）。launchd 日誌顯示 `bootout` 送出 SIGTERM 就回傳，服務約 20 ms 後才 removed；`packages/installer/src/ops.ts` 在 bootout 後立刻 bootstrap。修法：bootout 後等服務確實移除（有上限）再 bootstrap，並補假 launchctl 延遲移除的測試。
