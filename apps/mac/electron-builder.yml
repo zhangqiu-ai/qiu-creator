@@ -1,0 +1,24 @@
+# Ad-hoc signed (not notarized) arm64 .app for personal installs (QC-032). No dmg, no notarization, no auto-update.
+# The renderer and the main process are already bundled by vite/esbuild, so no node_modules
+# go into the app; the Mac service is installed separately by deploy/qc.sh.
+appId: com.qiu-creator.app
+productName: qiu-creator
+executableName: qiu-creator
+directories:
+  output: release
+  buildResources: build
+files:
+  - package.json
+  - dist/**
+  - dist-electron/**
+  - '!**/*.map'
+  - '!node_modules'
+asar: true
+mac:
+  target:
+    - target: dir
+      arch: arm64
+  category: public.app-category.productivity
+  identity: '-'
+  hardenedRuntime: false
+  gatekeeperAssess: false

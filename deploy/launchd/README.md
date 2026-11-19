@@ -2,7 +2,7 @@
 
 `com.qiu-creator.mac-server.plist` 讓 Mac 服務獨立於 Electron 常駐：登入即啟動、崩潰自動重啟，關掉 Electron 視窗不影響 API。
 
-> 這裡只有範本與說明。正式建置、安裝與 `launchctl` 由「項目發版」會話在使用者明確要求時執行（見 AGENTS.md「發版邊界」）。開發與測試不要載入它。
+> 範本由 `deploy/qc.sh` 渲染與載入。正式建置、安裝與 `launchctl` 由「項目發版」會話在使用者明確要求時執行（見 AGENTS.md「發版邊界」）。開發與測試不要載入它。
 
 ## 安裝形式（2026-11-18 使用者決定，QC-030）
 
@@ -27,7 +27,8 @@
 
 | 佔位符 | 例子 | 說明 |
 | --- | --- | --- |
-| `__USER_HOME__` | `/Users/me` | 使用者家目錄；替換時用 `g`（出現多次） |
+| `__USER_HOME__` | `/Users/me` | 使用者家目錄；XML 跳脫後替換所有出現處 |
+| `__PORT__` | `7420` | 服務埠（`--port`） |
 
 ## 日誌
 
@@ -42,27 +43,50 @@ launchd 不會輪替日誌，所以輪替由服務自己做，不用 newsyslog�
 
 沒有設定 `CREATORHUB_TOKEN` 時，服務第一次啟動會在 `CreatorHub/data/api-token` 建立隨機權杖（權限 0600），之後沿用。Electron 與 Agent 從這個檔案讀權杖；不要把權杖寫進 plist 或提交進倉庫。
 
-## 建置與安裝步驟（發版時）
+## 安裝、升級、回滾（QC-032）
+
+一個入口：`deploy/qc.sh <install|upgrade|rollback|uninstall> [選項]`。**不加 `--yes` 只印出會做什麼（乾跑）**，加了才真的執行。
 
 ```sh
 # 1. 建置（在倉庫）
-corepack pnpm --filter @qiu-creator/mac-server build      # 產出 services/mac-server/dist/
+corepack pnpm --filter @qiu-creator/mac-server build    # services/mac-server/dist/
+corepack pnpm --filter @qiu-creator/mac package          # apps/mac/release/mac-arm64/qiu-creator.app（ad-hoc 簽名，未公證）
 
-# 2. 安裝或升級：先停服務，再整個替換資料夾
-launchctl bootout gui/$(id -u)/com.qiu-creator.mac-server 2>/dev/null || true
-mkdir -p ~/Library/Application\ Support/qiu-creator ~/Library/Logs/qiu-creator
-rm -rf ~/Library/Application\ Support/qiu-creator/server
-cp -R services/mac-server/dist ~/Library/Application\ Support/qiu-creator/server
+# 2. 第一次安裝（先乾跑看計畫，再加 --yes）
+deploy/qc.sh install
+deploy/qc.sh install --yes
 
-# 3. launchd
-sed -e "s#__USER_HOME__#$HOME#g" deploy/launchd/com.qiu-creator.mac-server.plist \
-    > ~/Library/LaunchAgents/com.qiu-creator.mac-server.plist
-plutil -lint ~/Library/LaunchAgents/com.qiu-creator.mac-server.plist
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.qiu-creator.mac-server.plist
-curl -s http://127.0.0.1:7420/health
+# 3. 之後升級：重新建置後
+deploy/qc.sh upgrade --yes
+
+# 4. 回到上一版（再跑一次就換回新版）
+deploy/qc.sh rollback --yes
 ```
 
-升級前，服務每天會自動備份資料庫（見下）；需要時也可以先在設定頁手動備份。
+選項：`--server-build <dir>`、`--app <path>`（預設是上面兩個建置位置）、`--applications <dir>`（預設 `/Applications`）、`--port <n>`（預設 7420）、`--home <dir>`（預設真實 HOME）。**只有 `--home` 是真實 HOME 時才會碰 launchd**；指定其他 HOME 只是複製檔案，用來乾跑和測試。
+
+### install 做什麼
+
+先檢查，任何一項不過就停下、什麼都不改，並說明原因：埠已被佔用（例如開發中的服務）、launchd 已載入同名服務、plist／server 資料夾／.app 已存在（不覆蓋，請改用 upgrade 或先 uninstall）、建置產物不完整。通過後：服務複製到 `~/Library/Application Support/qiu-creator/server`，.app 放到 Applications 目錄，渲染 plist（`__USER_HOME__`、`__PORT__`）寫入 `~/Library/LaunchAgents`，`launchctl bootstrap`，最後等 `/health` 回報剛安裝的版本、commit 與建置時間（30 秒）。
+
+### upgrade 做什麼
+
+1. 讀 `~/CreatorHub/data/api-token`，呼叫 `POST /api/v1/backups`，要 201 且 `integrity: ok`。**備份失敗就中止，什麼都不改**（服務沒在跑、沒有權杖、備份失敗都算）。
+2. 新版服務與新 .app 先複製到暫存位置（`server.next`、`.qiu-creator.app.next`）。
+3. 停服務，把舊版改名為 `server.prev`（舊 .app 放在 `app.prev/`），新版換上，重寫 plist，`bootstrap`。
+4. 等 `/health` 回報新版。**沒有回報就自動回滾**：換回舊版、重新載入、確認舊版健康，然後報錯並印出升級前備份的 id。
+
+### rollback
+
+`server`／`.app` 與 `.prev` 互換並重啟，再跑一次就換回新版。注意：如果新版已經遷移過資料庫而舊版讀不了，先從升級前的備份還原（設定頁，或 `POST /api/v1/backups/:id/restore`），備份 id 在 upgrade 的輸出裡。
+
+### uninstall
+
+`launchctl bootout`，刪除 plist、`server*`、`app.prev`、Applications 裡的 .app，以及空的 `Application Support/qiu-creator`。**不刪 `~/CreatorHub`（原稿、媒體、資料庫、備份）與 `~/Library/Logs/qiu-creator`。**
+
+### .app 沒有簽章身分
+
+`electron-builder.yml` 用 ad-hoc 簽名（`identity: '-'`）：Apple Silicon 要求可執行檔至少有簽章，未簽名的 Electron 一旦改過 Info.plist 就無法啟動。沒有 Developer ID、沒有公證，所以**從網路下載的複本會被 Gatekeeper 擋**；本機建置後用 `qc.sh`（`ditto`）複製不帶 quarantine 屬性，可以直接開。要傳給另一台 Mac 需另外處理（右鍵開啟，或 `xattr -dr com.apple.quarantine`）。
 
 ## 備份與還原（QC-030）
 
@@ -74,19 +98,12 @@ curl -s http://127.0.0.1:7420/health
 
 上傳、匯入或 AI 任務進行時，服務會執行 `caffeinate -i -w <服務 pid>`，避免 Mac 閒置睡眠；任務結束 60 秒後釋放。這只防閒置睡眠，不防合蓋睡眠（由系統決定），合蓋與電池下的行為留給 QC-033 實機驗證。
 
-## 解除安裝
-
-```sh
-launchctl bootout gui/$(id -u)/com.qiu-creator.mac-server
-rm ~/Library/LaunchAgents/com.qiu-creator.mac-server.plist
-rm -rf ~/Library/Application\ Support/qiu-creator/server
-```
-
-解除安裝不會刪除 `~/CreatorHub` 的內容（包括備份）。
+解除安裝見上面的 `uninstall`。
 
 ## 尚未驗證
 
 以下 `NOT_VERIFIED`，留到 QC-033 實機驗證：
 
-- launchd 開機自啟與崩潰重啟。
+- 真實 launchd 載入（`launchctl bootstrap`／`bootout`）、開機自啟與崩潰重啟：QC-032 只用假的 launchctl 與臨時 HOME 驗證，沒有對真實使用者網域執行。
+- 安裝到真實 `/Applications` 與真實 `~/Library/Application Support/qiu-creator`。
 - MacBook 合蓋、接電源與電池下的服務與長任務行為。
