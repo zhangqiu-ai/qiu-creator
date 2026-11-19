@@ -77,6 +77,7 @@ function realDeps(): Deps {
           resolve(false);
         });
       }),
+    now: () => Date.now(),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     log: (m) => {
       process.stdout.write(`${m}\n`);

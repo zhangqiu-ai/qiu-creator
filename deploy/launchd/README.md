@@ -73,12 +73,12 @@ deploy/qc.sh rollback --yes
 
 1. 讀 `~/CreatorHub/data/api-token`，呼叫 `POST /api/v1/backups`，要 201 且 `integrity: ok`。**備份失敗就中止，什麼都不改**（服務沒在跑、沒有權杖、備份失敗都算）。
 2. 新版服務與新 .app 先複製到暫存位置（`server.next`、`.qiu-creator.app.next`）。
-3. 停服務，把舊版改名為 `server.prev`（舊 .app 放在 `app.prev/`），新版換上，重寫 plist，`bootstrap`。
+3. 停服務（`launchctl bootout` 送出訊號就回傳，服務要等行程結束才從 launchd 移除，所以會輪詢 `launchctl print` 到服務消失，最多 10 秒；10 秒後還在就中止並說明「舊版仍在原位、可以重跑」，此時什麼都還沒換），把舊版改名為 `server.prev`（舊 .app 放在 `app.prev/`），新版換上，重寫 plist，`bootstrap`。
 4. 等 `/health` 回報新版。**沒有回報就自動回滾**：換回舊版、重新載入、確認舊版健康，然後報錯並印出升級前備份的 id。
 
 ### rollback
 
-`server`／`.app` 與 `.prev` 互換並重啟，再跑一次就換回新版。注意：如果新版已經遷移過資料庫而舊版讀不了，先從升級前的備份還原（設定頁，或 `POST /api/v1/backups/:id/restore`），備份 id 在 upgrade 的輸出裡。
+`server`／`.app` 與 `.prev` 互換並重啟，再跑一次就換回新版。注意：如果新版已經遷移過資料庫而舊版讀不了，先從升級前的備份還原（設定頁，或 `POST /api/v1/backups/:id/restore`），備份 id 在 upgrade 的輸出裡。停服務後同樣會等 launchd 確實移除才重新載入。
 
 ### uninstall
 

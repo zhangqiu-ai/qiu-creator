@@ -32,6 +32,8 @@ export interface Deps {
     headers?: Record<string, string>,
   ): Promise<{ status: number; body: unknown }>;
   portBusy(port: number): Promise<boolean>;
+  /** Monotonic-enough clock in ms; injected so tests never really wait. */
+  now(): number;
   sleep(ms: number): Promise<void>;
   log(message: string): void;
 }
@@ -46,6 +48,10 @@ export interface Options {
   /** Only print what would happen (read-only checks still run). */
   dryRun: boolean;
   healthTimeoutMs: number;
+  /** How long to wait for launchd to remove the service after `bootout` (default 10 s). */
+  launchdSettleTimeoutMs?: number;
+  /** Pause between `launchctl print` checks while waiting for that (default 100 ms). */
+  launchdSettlePollMs?: number;
   /** Built service folder (`services/mac-server/dist`). */
   serverBuild?: string;
   /** Built `.app` bundle. */
@@ -55,6 +61,9 @@ export interface Options {
 }
 
 export class InstallError extends Error {}
+
+/** Appended to a failed stop: the installed build has not been swapped or changed. */
+const STAYS_PUT = '舊版仍在原位，沒有被換掉，可以重跑。';
 
 class Run {
   readonly paths: InstallPaths;
@@ -88,7 +97,13 @@ class Run {
     return (await this.d.launchctl(['print', `${this.domain}/${LABEL}`])).code === 0;
   }
 
-  async bootout(): Promise<void> {
+  /**
+   * Stop the service and wait until launchd has really removed it. `launchctl bootout` returns
+   * as soon as SIGTERM is sent; the job is only removed once the process has exited, and a
+   * `bootstrap` in that gap fails with `5: Input/output error` (QC-036). `note` is appended to
+   * the error when the wait runs out, so the user is told what state the machine is in.
+   */
+  async bootout(note = ''): Promise<void> {
     if (!this.o.launchd) {
       this.d.log('launchd skipped (HOME is not the real one)');
       return;
@@ -96,6 +111,22 @@ class Run {
     if (await this.agentLoaded()) {
       const r = await this.d.launchctl(['bootout', `${this.domain}/${LABEL}`]);
       if (r.code !== 0) throw new InstallError(`launchctl bootout failed: ${r.out.trim()}`);
+      await this.waitUnloaded(note);
+    }
+  }
+
+  /** Poll `launchctl print` until the service is gone (non-zero), up to the settle timeout. */
+  private async waitUnloaded(note: string): Promise<void> {
+    const timeoutMs = this.o.launchdSettleTimeoutMs ?? 10_000;
+    const pollMs = this.o.launchdSettlePollMs ?? 100;
+    const deadline = this.d.now() + timeoutMs;
+    while (await this.agentLoaded()) {
+      if (this.d.now() >= deadline) {
+        throw new InstallError(
+          `launchctl bootout 送出後 ${timeoutMs / 1000} 秒，服務仍留在 launchd 裡，沒有移除。${note}`.trim(),
+        );
+      }
+      await this.d.sleep(pollMs);
     }
   }
 
@@ -290,7 +321,7 @@ export async function upgrade(o: Options, d: Deps): Promise<void> {
 
   // 3. Swap, keeping the old ones as .prev.
   await run.act('stop service and swap in the new build', async () => {
-    await run.bootout();
+    await run.bootout(STAYS_PUT);
     swapDirs(p.server, p.serverNext, p.serverPrev);
     fs.mkdirSync(p.appPrevDir, { recursive: true });
     if (run.exists(p.app)) swapDirs(p.app, p.appNext, p.appPrev);
@@ -329,7 +360,13 @@ function swapDirs(current: string, next: string, prev: string): void {
 /** After a failed start: put prev back as current and start it. */
 async function restorePrevious(run: Run, expected: BuildInfo): Promise<void> {
   const p = run.paths;
-  await run.bootout().catch(() => undefined);
+  // Best effort: if the stop fails the previous build is still started below, and a failure
+  // there is reported by bootstrap. Log the reason so it is visible.
+  await run.bootout().catch((err: unknown) => {
+    run.d.log(
+      `stopping the failed build did not finish: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  });
   // current is the failed new build, prev the old one: exchange them, then drop the failed build.
   for (const step of exchangePlan({ current: p.server, prev: p.serverPrev })) {
     mv(step.from, step.to);
@@ -360,7 +397,7 @@ export async function rollback(o: Options, d: Deps): Promise<void> {
   const from = run.buildInfoOf(p.server);
 
   await run.act(`stop service; exchange ${from.version} <-> ${target.version}`, async () => {
-    await run.bootout();
+    await run.bootout(STAYS_PUT);
     for (const step of exchangePlan({ current: p.server, prev: p.serverPrev })) {
       mv(step.from, step.to);
     }
@@ -382,7 +419,7 @@ export async function rollback(o: Options, d: Deps): Promise<void> {
 export async function uninstall(o: Options, d: Deps): Promise<void> {
   const run = new Run(o, d);
   const p = run.paths;
-  await run.act('launchctl bootout', () => run.bootout());
+  await run.act('launchctl bootout', () => run.bootout(STAYS_PUT));
   for (const target of [
     p.plist,
     p.server,
