@@ -1,0 +1,25 @@
+PASS second instance starts (installed build)
+PASS create work A — status 201
+PASS PATCH with current base writes — status 200
+PASS write-back leaves no temp files — leftovers 0
+PASS every revision has an immutable snapshot — snapshots 2
+PASS stale base_revision -> 409, file untouched — status 409 code revision_conflict
+PASS outside edit + stale save -> 409, outside text kept and recorded — status 409; sources external,edit,create
+PASS restoring history appends a new revision, keeps old ones — status 200; 3 -> 4; top restore
+PASS manual backup — status 201 {"id":"20261119T133446693Z-manual","kind":"manual","created_at":"2026-11-19T13:34:46.693Z","size_bytes":249856,"integrity":"ok","schema_version":"0011"}
+13:34:47.074 restore 202 {"restored_from":{"id":"20261119T133446693Z-manual","kind":"manual","created_at":"2026-11-19T13:34:46.693Z","size_bytes":249856,"integrity":"ok","schema_version":"0011"},"safety_backup":{"id":"20261119T133447046Z-pre_restore","kind":"pre_restore","created_at":"2026-11-19T13:34:47.046Z","size_bytes":249856,"integrity":"ok","schema_version":"0011"},"reload":"in_process"}
+PASS restore accepted (202) with pre_restore safety backup, in-process reload — status 202
+write during restore -> 201  (may be 201 if it won the race)
+write right after 202 -> 0 network:ECONNRESET
+api back after 96 ms
+PASS service back after in-process reload — 96 ms
+FAIL A back to its state at backup — "# A\n\nafter backup\n"
+PASS C gone from the database — titles 演練 A
+PASS C folder kept on disk (not deleted)
+PASS pre_restore backup listed — pre_restore,manual
+events seen on first stream [{"id":5,"event":"backup.created"},{"id":6,"event":"work.updated"},{"id":7,"event":"work.created"},{"id":8,"event":"work.created"},{"id":9,"event":"backup.created"},{"id":10,"event":"backup.restore_started"}]
+PASS reconnect with Last-Event-ID replays restore events, seq continues — first-stream started=10 restored=undefined; replay [[11,"backup.restored"],[12,"work.external_revision"]]; maxBefore 7
+PASS restoring the pre_restore backup brings back post-backup state — status 202
+marker seen true; marker present after kill true; killed 66209
+FAIL kill -9 during restore: restart applies or completes it, marker cleared — marker at kill true; A="# A\n\nafter b2\n"
+PASS tus upload created — status 201
