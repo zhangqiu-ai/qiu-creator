@@ -517,6 +517,206 @@
         "Implementation does not tint the selected paragraph in the body; the prototype still does (documented deviation in QC-024).",
         "Title limits: implementation uses contracts (抖音 30, 視頻號 16); prototype MacEditor title tab and MacPreview still show 55 / 64."
       ]
+    },
+    {
+      "id": "PT-20261119-001",
+      "title": "側欄 v2、App 圖示、素材刪除與編輯、編輯器插入素材、設定重排與主題",
+      "date": "2026-11-19",
+      "status": "pending",
+      "model": "claude-opus-5-5",
+      "session": "qc-prototype",
+      "requestedBy": "使用者 via 開發總監",
+      "userRequest": "UI、UX 設計要符合優秀作品的，而不是隨便寫寫（2026-11-19）",
+      "tasks": ["QC-037", "QC-038", "QC-039", "QC-041"],
+      "approvedBy": null,
+      "approvedAt": null,
+      "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "baseCanvasVersion": "version id 1795010851-b1f2",
+      "canvasVersion": "39 (version id 1795101256-eec3)",
+      "sharedStylesheet": "/_blob/ce383cde01b175413fc4b99a21feb132 (qc-v2.css, tokens from DESIGN.md 視覺基線)",
+      "boards": [
+        {
+          "file": "SidebarV2.dc.html",
+          "title": "v2 · 側欄狀態",
+          "states": [
+            "展開 232",
+            "收起 56 圖示列＋tooltip",
+            "最小 200",
+            "最大 320",
+            "服務異常紅點＋浮層"
+          ]
+        },
+        {
+          "file": "AppIcon.dc.html",
+          "title": "v2 · App 圖示",
+          "states": [
+            "A 疊稿",
+            "B q 字標（推薦）",
+            "C 取景框",
+            "各方案 96/48/32/16px，淺色與深色背景"
+          ]
+        },
+        {
+          "file": "AssetsV2.dc.html",
+          "title": "v2 · 素材庫：刪除與編輯",
+          "tweaks": {
+            "state": ["正常", "刪除未引用", "刪除已引用", "刪除外部", "多選", "最近刪除"],
+            "side": ["展開", "收起", "最小寬度", "最大寬度", "服務異常"]
+          },
+          "states": [
+            "範圍：全部／未引用／最近刪除",
+            "未引用：直接移到最近刪除＋復原 toast",
+            "已引用：確認框列出引用作品",
+            "外部掛載：只移出素材庫（預設）或原檔移到系統垃圾桶",
+            "最近刪除：30 天、恢復、永久刪除、清空",
+            "編輯：顯示名稱、標籤、替代文字、備註，自動儲存",
+            "多選：⌘ 點選、批次加標籤／移除、esc 取消",
+            "檔案資訊收進可展開區"
+          ]
+        },
+        {
+          "file": "EditorInsert.dc.html",
+          "title": "v2 · 編輯器：插入素材",
+          "tweaks": {
+            "state": [
+              "正常",
+              "插入選單",
+              "斜線指令",
+              "貼上上傳中",
+              "貼上失敗",
+              "Finder 拖入",
+              "從抽屜拖入"
+            ]
+          },
+          "states": [
+            "工具列「插入」選單",
+            "空行 / 指令（↑↓ ↩ esc）",
+            "右側素材抽屜：搜尋、全部／本作品／圖片、點選插入游標處、拖到文中插入線、方向鍵＋↩",
+            "⌘V 貼上：上傳進度 → 完成並加入素材庫；失敗保留在視窗＋重試／移除",
+            "Finder 拖入：虛線框＋插入線＋「放開以插入 N 個檔案」",
+            "標頭與工具列固定，正文與側面板各自捲動（QC-040 正確層級）"
+          ]
+        },
+        {
+          "file": "SettingsV2.dc.html",
+          "title": "v2 · 設定",
+          "tweaks": {
+            "state": ["正常", "服務停止", "還原確認"]
+          },
+          "states": [
+            "左側分類：外觀、本機服務、備份與還原、AI 服務、資料夾、關於",
+            "外觀：淺色／深色／跟隨系統卡片，點選即時套用整頁",
+            "服務狀態、即時更新、開機啟動、防止睡眠",
+            "備份：最近備份、每日自動、位置、還原列表預設 3 份可展開、還原確認",
+            "AI 服務：只用本地模型、供應商狀態"
+          ]
+        },
+        {
+          "file": "SettingsV2Dark.dc.html",
+          "title": "v2 · 設定（深色）",
+          "states": ["dc-import SettingsV2，dark"]
+        },
+        {
+          "file": "AssetsV2Dark.dc.html",
+          "title": "v2 · 素材庫（深色）",
+          "states": ["dc-import AssetsV2，dark，多選"]
+        },
+        {
+          "file": "EditorInsertDark.dc.html",
+          "title": "v2 · 插入素材（深色）",
+          "states": ["dc-import EditorInsert，dark，從抽屜拖入"]
+        }
+      ],
+      "decisions": [
+        "Sidebar: 232 default, 200 min, 320 max, 56 collapsed rail; drag the right edge, double-click resets, ←/→ on the focused handle adjust by 16px; ⌃⌘S toggles. Groups 創作／素材／AI; 設定 pinned bottom-left; 發布中心 not shown.",
+        "Service dot next to the app name: green when service, realtime updates and Agent API are all healthy; red if any fails. Details on hover or keyboard focus.",
+        "Asset delete: managed files go to 最近刪除 for 30 days (restore re-links references); external files default to remove-from-library only, moving the original to the system Trash is an explicit opt-in.",
+        "Unreferenced managed assets delete without a dialog and offer undo; referenced ones confirm with the work list.",
+        "Asset edit fields: display name (disk file name unchanged), tags, alt text, note.",
+        "Batch: recommend multi-select with batch tag and batch remove now; batch rename deferred.",
+        "Editor insert: toolbar menu, slash command, right-side asset drawer (tab beside AI), drag from drawer or Finder, ⌘V paste uploads to the library then inserts.",
+        "Settings: left category nav with in-page anchors; grouped inset lists; theme cards apply instantly."
+      ],
+      "backendNeeds": [
+        "PATCH /api/v1/assets/:id — display_name, tags, alt, note (new fields).",
+        "DELETE /api/v1/assets/:id — managed: move to trash with deleted_at; external: unindex, optional move_original_to_system_trash flag.",
+        "GET /api/v1/assets?scope=trash, POST /api/v1/assets/:id/restore, DELETE /api/v1/trash/:id and DELETE /api/v1/trash (permanent, 30-day purge job).",
+        "GET /api/v1/assets/:id/references (exists as inspector data? confirm).",
+        "Batch: POST /api/v1/assets/batch {ids, action: tag|trash}.",
+        "Paste and Finder drop reuse the existing upload API; insert returns an asset reference for the Markdown link."
+      ],
+      "references": [
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/splash-icon-rail-hover/case.md",
+          "kind": "concept",
+          "borrowed": "Icon rail with hover labels for a collapsed desktop sidebar.",
+          "adaptation": "56px rail, tooltips also on keyboard focus, accessible names kept; no liquid decoration."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-016-toast-vs-notification/case.md",
+          "kind": "concept",
+          "borrowed": "Action toast with Undo instead of a confirm dialog for reversible operations.",
+          "adaptation": "Unreferenced asset delete and drawer insert use an undo toast; referenced and external deletes still confirm."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/agent-risk-confirmation-button-semantics/case.md",
+          "kind": "concept",
+          "borrowed": "Specific verbs and stable button semantics in risky confirmations; cancel focused by default.",
+          "adaptation": "「移到最近刪除」「移到垃圾桶」「永久刪除」; Cancel autofocused."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/screenkite-drop-assets-into-timeline/case.md",
+          "kind": "product",
+          "borrowed": "Drag files from the file manager into the editor with a visible drop point.",
+          "adaptation": "Insertion line between blocks plus a badge stating how many files and that they join the library; keyboard and button alternatives provided."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-005-drag-sort/case.md",
+          "kind": "concept",
+          "borrowed": "Insertion line to show the drop position.",
+          "adaptation": "Accent line with a dot at the block boundary."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-017-waiting-states/case.md",
+          "kind": "concept",
+          "borrowed": "Progress for uploads, retry in place on failure.",
+          "adaptation": "Pasted image shows an inline progress card that becomes the image; failure keeps the image in the window with retry/remove."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/vercel-ui-sdk-composable-interaction-behaviors/case.md",
+          "kind": "product",
+          "borrowed": "Define open, arrow navigation, confirm, Escape and focus return for menus.",
+          "adaptation": "Slash menu and asset drawer: ↑↓/←→ select, ↩ insert, esc close; IME composition ignored."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-008-responsive-wiki/case.md",
+          "kind": "concept",
+          "borrowed": "Section index beside independently scrolling content.",
+          "adaptation": "Settings left category nav with anchors; content column scrolls on its own."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-tutti-logo/case.md",
+          "kind": "product",
+          "borrowed": "Test the mark at real small sizes and on light/dark backgrounds.",
+          "adaptation": "Each icon option drawn at 96/48/32/16px on both backgrounds."
+        }
+      ],
+      "verified": [
+        "Static checks on all new artboards: tag balance, script syntax (node --check), data-props JSON — pass.",
+        "Contrast: all text uses approved tokens (≥ 4.5:1 per DESIGN.md); new pairs are inverted ink tooltips/toasts and on-accent badges, both above 7:1."
+      ],
+      "notVerified": [
+        "NOT_VERIFIED: rendering and interactions in the live canvas (built-in browser cannot load claude.ai artifacts).",
+        "NOT_VERIFIED: dark wrapper boards rely on dc-import passing dark/state props and on the shared stylesheet loading in the importer.",
+        "NOT_VERIFIED: HTML5 drag-and-drop and pointer-capture resizing inside the canvas sandbox."
+      ],
+      "openQuestions": [
+        "App icon: approve B (q 字標)?",
+        "External asset delete: default to remove-from-library only — OK?",
+        "Trash retention 30 days — OK?",
+        "Batch operations: tag + remove now, rename later — OK?",
+        "發布中心 hidden from the sidebar until M4 — 總監 to decide; Agent API status moved into the service dot popover."
+      ]
     }
   ]
 }
