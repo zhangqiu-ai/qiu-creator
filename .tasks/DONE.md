@@ -1,5 +1,13 @@
 # Done
 
+## QC-037: 素材庫刪除與編輯
+
+**Priority:** P1 | **Assignee:** qc-backend + qc-frontend | **Tags:** M3, ui, api | **Done:** 2026-11-19
+
+- 後端：遷移 0013，PATCH／DELETE／restore／trash／references／batch API，30 天清除，外部原檔只在選擇時移到系統垃圾桶。
+- 前端：全部／未引用／最近刪除三段；素材資訊可編輯（名稱、標籤、替代文字、備註），600 ms 自動儲存，409 逐欄重套、同欄衝突讓使用者選；刪除依引用與託管／外部分流，預設焦點在取消，附復原（⌘Z）；多選批次加標籤與移除；最近刪除可恢復、永久刪除、清空並提示缺圖作品。
+- 全倉 713／0／713、e2e 5／5。證據 `docs/evidence/qc037-asset-api.md`、`qc037-assets-ui.md`。NOT_VERIFIED：介面觸發真實 `/usr/bin/trash`、`markdown_referrers` 提示與 `asset_file_missing` 只有單元測試、200 個以上素材、VoiceOver。
+
 ## QC-038: 設定頁重排與主題切換
 
 **Priority:** P2 | **Assignee:** qc-frontend | **Tags:** M3, ui | **Done:** 2026-11-19
