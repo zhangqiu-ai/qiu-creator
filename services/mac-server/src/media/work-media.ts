@@ -2,7 +2,12 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import type { MediaRef, WorkMediaResponse } from '@qiu-creator/contracts';
+import type {
+  AssetRecord,
+  MarkdownReferrer,
+  MediaRef,
+  WorkMediaResponse,
+} from '@qiu-creator/contracts';
 import { SIGNED_MEDIA_PREFIX } from '@qiu-creator/contracts';
 import { fileTypeFromBuffer } from 'file-type';
 import { fdStreamTarget, type AssetService, type StreamTarget } from '../assets/asset-service.js';
@@ -71,6 +76,32 @@ export class WorkMediaService {
       items,
       expires_at: expiresAt.toISOString(),
     };
+  }
+
+  /**
+   * Works whose current Markdown links to a managed asset's file (QC-037).
+   * Managed Markdown can only reach its own work folder, so only the work
+   * that holds the file is checked. External files are never deleted.
+   */
+  markdownReferrers(asset: AssetRecord): MarkdownReferrer[] {
+    if (asset.mount_id !== null && asset.mount_id !== undefined) return [];
+    const parts = asset.path.split(path.sep);
+    if (parts.length < 4 || parts[0] !== 'library' || parts[1] !== 'works') return [];
+    const workId = parts[2] ?? '';
+    let ctx;
+    try {
+      ctx = this.works.mediaContext(workId);
+    } catch {
+      return [];
+    }
+    const prefix = this.layout.workDirRel(workId);
+    const linked = extractMediaRefs(ctx.markdown).some((src) => {
+      const cls = classifyRef(src);
+      if (cls.type !== 'local') return false;
+      const rel = normalizeContainedPath(ctx.baseDir, cls.path);
+      return rel !== null && path.join(prefix, ...rel.split('/')) === asset.path;
+    });
+    return linked ? [{ work_id: workId, title: this.works.get(workId).title }] : [];
   }
 
   /** Open a root-relative media file of a work for streaming (bearer and signed routes). */

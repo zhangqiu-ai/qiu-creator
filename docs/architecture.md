@@ -133,6 +133,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 `0011_change_log_system_entity`：`change_log.entity` 允許 `system`（備份事件，QC-030）。SQLite 無法修改 CHECK，所以重建資料表，保留 `seq` 與 AUTOINCREMENT 的最高值，SSE 的 id 不會倒退。
 
+`0013_asset_metadata_trash`（QC-037）：`assets` 增加 `display_name`、`tags`（JSON 陣列）、`alt_text`、`note`、`revision`（預設 1）、`deleted_at` 與 `removal`（`trashed`／`unindexed`／`original_trashed`），並為 `deleted_at` 建部分索引。只加欄位，不重建資料表。
+
 `0010_ai_video_jobs`：`ai_jobs` 增加 `progress`（多步驟任務的公開進度）與 `remote_state`（可續傳上傳網址、遠端檔名，供重試續傳；不公開）。視頻分析的快取鍵存在 0001 就有的 `ai_jobs.cache_key`。
 
 `works` 比方案多了 `storage_mode`（managed／external）、`source_path`、`current_revision_id`，以便區分托管與外部掛載並快速核對版本。
@@ -159,8 +161,15 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/assets/:id/stream` | 素材串流，支援 Range |
 | POST | `/api/v1/assets/uploads?filename=` | 直傳（`application/octet-stream`，≤ 32 MiB）；新素材 201、重複內容 200 並帶 `deduplicated: true` |
 | POST／HEAD／PATCH | `/api/v1/assets/uploads/tus[/:id]` | tus 1.0.0 可續傳上傳；最後一塊 PATCH 回 200 與素材 JSON |
-| GET | `/api/v1/assets` | 素材庫列表；`kind`、`q`（原檔名）、`limit`、`offset` |
-| GET | `/api/v1/assets/:id` | 素材詳情（含縮圖、元資料狀態） |
+| GET | `/api/v1/assets` | 素材庫列表；`scope`（`active` 預設／`unreferenced`／`trash`）、`kind`、`q`（顯示名稱或原檔名）、`tag`、`limit`、`offset` |
+| GET | `/api/v1/assets/:id` | 素材詳情（含縮圖、元資料狀態）；`ETag` 為素材 revision |
+| PATCH | `/api/v1/assets/:id` | 改顯示名稱、標籤、替代文字、備註（QC-037）；必須帶 `base_revision` 或 `If-Match`，沒帶回 428，過期回 409；磁碟檔名不變 |
+| DELETE | `/api/v1/assets/:id` | 移到最近刪除（QC-037）；被引用時要 `confirm: true`，否則 409 `asset_in_use`；外部素材加 `move_original_to_trash: true` 才把原檔移到系統垃圾桶 |
+| GET | `/api/v1/assets/:id/references` | 使用此素材的作品連結與平台版本（封面、圖片）（QC-037） |
+| POST | `/api/v1/assets/:id/restore` | 從最近刪除恢復，引用一併回來；檔案不在原路徑回 409 `asset_file_missing`（QC-037） |
+| POST | `/api/v1/assets/batch` | 最多 200 個素材批次加標籤、移除標籤或移到最近刪除；全部成功或全部不做（QC-037） |
+| DELETE | `/api/v1/trash/:id` | 永久刪除最近刪除中的一個素材；回應附 Markdown 仍連到該檔的作品（QC-037） |
+| DELETE | `/api/v1/trash` | 清空最近刪除，須帶 `confirm: true`（QC-037） |
 | GET | `/api/v1/assets/:id/thumbnail` | WebP 縮圖；`cache/` 被刪時即時重建 |
 | GET | `/api/v1/assets/:id/works` | 反查使用此素材的作品：作品 id、標題、用途、位置，依作品更新時間新到舊 |
 | GET | `/api/v1/works/:id/assets` | 作品的素材，依用途與順序 |
@@ -215,6 +224,18 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 2. **校驗**（`src/media/detect.ts`）：以 magic bytes 判斷類型並對白名單；副檔名不作數（例如名為 `.mp4` 的 PNG 會被存成 `.png`；改名成 `.jpg` 的 ZIP 回 415）。再依類型檢查大小上限：圖片 50 MiB、音訊 1 GiB、視頻 20 GiB、Markdown 5 MiB。
 3. **去重**：算 sha256；已有相同內容就刪掉暫存檔，回原素材與 `deduplicated: true`。
 4. **入庫**：暫存檔 `rename` 到 `library/assets/<id>/`，同一個 SQLite 交易寫 `assets`、`change_log`，並為圖片排縮圖任務、為視頻／音訊排 ffprobe 任務。
+
+## 素材編輯、刪除與最近刪除（QC-037）
+
+- **編輯**：顯示名稱、標籤、替代文字、備註只存在 SQLite，磁碟上的檔名不變。每次編輯 `revision` 加一，衝突規則與作品、平台版本相同。
+- **刪除**：只在 `assets` 標記 `deleted_at` 與 `removal`，作品連結與平台版本的 id 都保留，所以恢復時引用自然回來（恢復的素材排在各用途的最後）。刪除期間：
+  - 列表、作品素材清單、`unreferenced` 範圍都不含它，也不能連結到作品（409 `asset_in_trash`）。
+  - 仍可讀取內容與縮圖，給最近刪除的預覽用。
+  - 外部掛載重新掃描或解析 Markdown 時不會把它加回來。
+  - 上傳內容完全相同的檔案會直接恢復它。
+- **託管與外部**：託管檔在 30 天內都留在原位。外部素材預設只解除索引；`move_original_to_trash` 用 macOS 內建的 `/usr/bin/trash`（與 Finder「移到垃圾桶」相同，可「放回原處」），失敗或找不到指令時回 500 `trash_failed`，資料庫不改。伺服器不會從垃圾桶取回檔案：使用者在 Finder 放回原處後再按恢復。測試注入假的 `SystemTrash`，測試執行器下預設的實作一律失敗，不會碰真實垃圾桶。
+- **永久刪除**：手動、清空，或刪除 30 天後由每小時一次的檢查自動執行。刪資料列後，作品連結由外鍵刪除、平台版本封面變 NULL，平台版本的 `image_asset_ids` 移除該 id（不產生新的版本，歷史保留原值）。託管檔與縮圖快取一併刪除；外部原檔永遠不動。刪除前若作品目前的 Markdown 還連到該檔，回應的 `markdown_referrers` 會列出（只提示，不阻擋）。
+- **權限**：讀取（列表、詳情、`references`）需要 `read`；所有變更只限 owner 權杖。
 
 ## 版本恢復（QC-010）
 
@@ -595,7 +616,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 
 ## 變更事件（SSE）
 
-`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `ai_job.queued`／`running`／`progress`／`succeeded`／`failed`／`cancelled`（AI 任務）、`work.variant_created`／`work.variant_updated`／`work.variant_deleted`（平台版本）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`、`asset.created`、`asset.updated`、`job.queued`、`job.running`、`job.succeeded`、`job.failed`，以及實體 `system`（`entity_id` 為 `database`）的 `backup.created`／`backup.failed`／`backup.restore_started`／`backup.restored`（QC-030）。
+`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `ai_job.queued`／`running`／`progress`／`succeeded`／`failed`／`cancelled`（AI 任務）、`work.variant_created`／`work.variant_updated`／`work.variant_deleted`（平台版本）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`（素材進出最近刪除時 `data.change` 為 `trashed`／`restored`／`deleted`）、`asset.created`、`asset.updated`（編輯時 `data.fields`、`data.revision`）、`asset.trashed`（`data.removal`）、`asset.restored`、`asset.deleted`（`data.removal`、`data.reason`：`manual`／`empty`／`expired`）（QC-037）、`job.queued`、`job.running`、`job.succeeded`、`job.failed`，以及實體 `system`（`entity_id` 為 `database`）的 `backup.created`／`backup.failed`／`backup.restore_started`／`backup.restored`（QC-030）。
 
 - 和其他 `/api` 路由一樣要 Bearer 權杖。瀏覽器的 `EventSource` 不能帶 header，所以 api-client 用 fetch 讀串流（`client.events.subscribe`）；權杖不接受放在 URL。
 - 事件先寫進 `change_log` 再推送：在寫入方的交易提交後才發出，交易回滾的變更不會被推送。

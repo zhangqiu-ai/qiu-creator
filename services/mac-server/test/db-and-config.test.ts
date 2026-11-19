@@ -45,6 +45,37 @@ describe('database', () => {
     }
   });
 
+  it('adds asset metadata and trash columns without touching existing assets (0013)', () => {
+    const file = path.join(home(), 'db.sqlite');
+    const db = openDatabase(
+      file,
+      migrations.filter((migration) => migration.id <= '0012'),
+    );
+    try {
+      db.prepare(
+        `INSERT INTO assets (id, kind, path, sha256, mime_type, bytes, origin, created_at, original_name, updated_at)
+         VALUES ('a1', 'image', 'library/assets/a1/x.png', ?, 'image/png', 3, 'upload', 't', 'x.png', 't')`,
+      ).run('b'.repeat(64));
+      const before = db.prepare("SELECT * FROM assets WHERE id = 'a1'").get();
+      expect(runMigrations(db, migrations)).toEqual(['0013']);
+      expect(db.prepare("SELECT * FROM assets WHERE id = 'a1'").get()).toEqual({
+        ...(before as Record<string, unknown>),
+        display_name: null,
+        tags: '[]',
+        alt_text: null,
+        note: null,
+        revision: 1,
+        deleted_at: null,
+        removal: null,
+      });
+      expect(() => db.prepare("UPDATE assets SET removal = 'gone' WHERE id = 'a1'").run()).toThrow(
+        /CHECK/,
+      );
+    } finally {
+      db.close();
+    }
+  });
+
   it('keeps saved provider settings when adding New API', () => {
     const file = path.join(home(), 'db.sqlite');
     const db = openDatabase(
@@ -63,7 +94,12 @@ describe('database', () => {
         timestamp,
       );
       const before = db.prepare('SELECT * FROM ai_providers').get();
-      expect(runMigrations(db, migrations)).toEqual(['0012']);
+      expect(
+        runMigrations(
+          db,
+          migrations.filter((m) => m.id <= '0012'),
+        ),
+      ).toEqual(['0012']);
       expect(db.prepare('SELECT * FROM ai_providers').get()).toMatchObject({
         ...(before as Record<string, unknown>),
         credential_id: null,

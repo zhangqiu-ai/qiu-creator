@@ -30,6 +30,7 @@ import {
   validatorCompiler,
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
+import { AssetLibrary, type AssetLibraryOptions } from './assets/asset-library.js';
 import { AssetService } from './assets/asset-service.js';
 import type { ServerConfig } from './config.js';
 import { openDatabase, type Db } from './db/database.js';
@@ -43,6 +44,7 @@ import { JobQueue, type JobQueueOptions } from './jobs/job-queue.js';
 import { Layout } from './layout.js';
 import { DEFAULT_SIZE_LIMITS, type SizeLimits } from './media/detect.js';
 import { resolveFfprobe } from './media/ffprobe.js';
+import { registerAssetLibraryRoutes } from './routes/asset-library.js';
 import { registerAssetRoutes } from './routes/assets.js';
 import { registerEventRoutes } from './routes/events.js';
 import { registerImportRoutes, registerTokenRoutes } from './routes/imports.js';
@@ -147,6 +149,11 @@ export interface BuildServerOptions {
   sleep?: SleepGuardOptions;
   /** What `/health` reports; defaults to `build-info.json` next to the server. */
   buildInfo?: BuildInfo;
+  /**
+   * Asset delete and 最近刪除 (QC-037): the macOS Trash (tests inject a fake),
+   * the clock and the purge interval.
+   */
+  assetLibrary?: Omit<AssetLibraryOptions, 'markdownReferrers'>;
 }
 
 export interface CreatorHubServer {
@@ -155,6 +162,7 @@ export interface CreatorHubServer {
   layout: Layout;
   works: WorkService;
   assets: AssetService;
+  assetLibrary: AssetLibrary;
   feed: ChangeFeed;
   jobs: JobQueue;
   imports: ImportService;
@@ -215,6 +223,10 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   );
   const media = new WorkMediaService(works, assets, layout, signer, assets.limits);
   const variants = new VariantService(db, works, assets, media, feed);
+  const assetLibrary = new AssetLibrary(db, layout, assets, feed, {
+    ...options.assetLibrary,
+    markdownReferrers: (asset) => media.markdownReferrers(asset),
+  });
   const aiOptions = options.ai ?? {};
   const timeoutMs = aiOptions.timeoutMs ?? 120_000;
   const adapter = (p: AiProvider) => ({ baseUrl: aiOptions.baseUrls?.[p], timeoutMs });
@@ -254,6 +266,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   app.addHook('onClose', async () => {
     unsubscribeSleep();
     sleep.stop();
+    assetLibrary.stop();
     await backups.stop();
     await ai.stop();
     await mounts.stop();
@@ -510,6 +523,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   );
 
   registerAssetRoutes(app, assets, layout, { tusIdleTimeoutMs: options.tusIdleTimeoutMs });
+  registerAssetLibraryRoutes(app, assetLibrary);
   registerEventRoutes(app, feed, options.heartbeatMs);
   registerImportRoutes(app, imports, idempotency);
   registerTokenRoutes(app, tokens);
@@ -527,6 +541,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
 
   mounts.start();
   backups.start();
+  assetLibrary.start();
   sleep.start();
   if (options.jobs?.start !== false) jobs.start();
   if (aiOptions.start !== false) ai.start();
@@ -536,6 +551,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     layout,
     works,
     assets,
+    assetLibrary,
     feed,
     jobs,
     imports,

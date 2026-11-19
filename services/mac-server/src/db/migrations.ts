@@ -405,4 +405,20 @@ export const migrations: readonly Migration[] = [
       ALTER TABLE ai_jobs ADD COLUMN credential_id TEXT;
     `,
   },
+  {
+    id: '0013',
+    name: 'asset_metadata_trash',
+    sql: /* sql */ `
+      -- QC-037: editable asset metadata and 最近刪除. Columns only; no rebuild.
+      ALTER TABLE assets ADD COLUMN display_name TEXT;
+      ALTER TABLE assets ADD COLUMN tags TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE assets ADD COLUMN alt_text TEXT;
+      ALTER TABLE assets ADD COLUMN note TEXT;
+      ALTER TABLE assets ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE assets ADD COLUMN deleted_at TEXT;
+      ALTER TABLE assets ADD COLUMN removal TEXT
+        CHECK (removal IS NULL OR removal IN ('trashed','unindexed','original_trashed'));
+      CREATE INDEX assets_deleted_at ON assets (deleted_at) WHERE deleted_at IS NOT NULL;
+    `,
+  },
 ];

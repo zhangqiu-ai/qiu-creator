@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import {
+  ASSET_TRASH_RETENTION_DAYS,
   AssetRecordSchema,
   ListAssetsQuerySchema,
   type AssetKind,
@@ -99,7 +100,7 @@ export interface ExternalFileInfo {
   sha256: () => Promise<string>;
 }
 
-interface AssetRow {
+export interface AssetRow {
   id: string;
   kind: string;
   path: string;
@@ -118,11 +119,48 @@ interface AssetRow {
   updated_at: string | null;
   mount_id: string | null;
   file_mtime_ms: number | null;
+  display_name: string | null;
+  tags: string;
+  alt_text: string | null;
+  note: string | null;
+  revision: number;
+  deleted_at: string | null;
+  removal: string | null;
 }
 
-function toRecord(row: AssetRow): AssetRecord {
-  return AssetRecordSchema.parse({ ...row, updated_at: row.updated_at ?? row.created_at });
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** When a trashed asset is purged automatically. */
+export function purgeAt(deletedAt: string): string {
+  return new Date(Date.parse(deletedAt) + ASSET_TRASH_RETENTION_DAYS * DAY_MS).toISOString();
 }
+
+function parseTags(raw: string): string[] {
+  try {
+    const value: unknown = JSON.parse(raw);
+    return Array.isArray(value) ? value.filter((t): t is string => typeof t === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export function toRecord(row: AssetRow): AssetRecord {
+  return AssetRecordSchema.parse({
+    ...row,
+    updated_at: row.updated_at ?? row.created_at,
+    tags: parseTags(row.tags),
+    purge_at: row.deleted_at === null ? null : purgeAt(row.deleted_at),
+  });
+}
+
+/** Active (not in 最近刪除) assets that some work or platform variant uses. */
+export const REFERENCED_SQL = `(
+  EXISTS (SELECT 1 FROM work_assets wa WHERE wa.asset_id = assets.id)
+  OR EXISTS (SELECT 1 FROM platform_variants pv
+             WHERE pv.deleted_at IS NULL
+               AND (pv.cover_asset_id = assets.id
+                    OR EXISTS (SELECT 1 FROM json_each(pv.image_asset_ids) j WHERE j.value = assets.id)))
+)`;
 
 /** Make an uploaded name safe for Finder while keeping it recognizable; the extension comes from the content. */
 export function storedFileName(originalName: string, ext: string): string {
@@ -209,6 +247,18 @@ export class AssetService {
       .get(sha);
     if (existing) {
       fs.rmSync(tempFile, { force: true });
+      if (existing.deleted_at !== null) {
+        // Uploading the same content again brings it back from 最近刪除 (QC-037).
+        this.db.transaction(() => {
+          this.db
+            .prepare(
+              'UPDATE assets SET deleted_at = NULL, removal = NULL, updated_at = ? WHERE id = ?',
+            )
+            .run(new Date().toISOString(), existing.id);
+          this.feed?.record('asset', existing.id, 'asset.restored', { reason: 'reuploaded' });
+        })();
+        return { asset: this.get(existing.id), deduplicated: true };
+      }
       return { asset: toRecord(existing), deduplicated: true };
     }
 
@@ -264,13 +314,21 @@ export class AssetService {
     const q = ListAssetsQuerySchema.parse(query);
     const where: string[] = [];
     const params: (string | number)[] = [];
+    if (q.scope === 'trash') where.push('deleted_at IS NOT NULL');
+    else where.push('deleted_at IS NULL');
+    if (q.scope === 'unreferenced') where.push(`NOT ${REFERENCED_SQL}`);
+    if (q.tag !== undefined) {
+      where.push('EXISTS (SELECT 1 FROM json_each(assets.tags) t WHERE t.value = ?)');
+      params.push(q.tag);
+    }
     if (q.kind) {
       where.push('kind = ?');
       params.push(q.kind);
     }
     if (q.q) {
-      where.push("original_name LIKE ? ESCAPE '\\'");
-      params.push(`%${q.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+      where.push("(original_name LIKE ? ESCAPE '\\' OR display_name LIKE ? ESCAPE '\\')");
+      const like = `%${q.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+      params.push(like, like);
     }
     const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
     const total = this.db
@@ -278,7 +336,8 @@ export class AssetService {
       .get(...params);
     const rows = this.db
       .prepare<(string | number)[], AssetRow>(
-        `SELECT * FROM assets ${whereSql} ORDER BY created_at DESC, id LIMIT ? OFFSET ?`,
+        `SELECT * FROM assets ${whereSql}
+         ORDER BY ${q.scope === 'trash' ? 'deleted_at DESC,' : ''} created_at DESC, id LIMIT ? OFFSET ?`,
       )
       .all(...params, q.limit, q.offset);
     return { items: rows.map(toRecord), total: total?.n ?? 0, limit: q.limit, offset: q.offset };
@@ -304,7 +363,7 @@ export class AssetService {
       .prepare<[string], AssetRow & { link_role: string; link_position: number }>(
         `SELECT a.*, wa.role AS link_role, wa.position AS link_position
          FROM work_assets wa JOIN assets a ON a.id = wa.asset_id
-         WHERE wa.work_id = ? ORDER BY wa.role, wa.position`,
+         WHERE wa.work_id = ? AND a.deleted_at IS NULL ORDER BY wa.role, wa.position`,
       )
       .all(workId);
     return rows.map(({ link_role, link_position, ...row }) => ({
@@ -317,7 +376,9 @@ export class AssetService {
   /** Link an asset to a work under a role. Re-linking an existing pair moves it to `position`. */
   link(workId: string, assetId: string, role: WorkAssetRole, position?: number): WorkAssetItem[] {
     this.requireWork(workId);
-    this.get(assetId);
+    if (this.get(assetId).deleted_at != null) {
+      throw new ServiceError(409, 'asset_in_trash', 'the asset is in 最近刪除; restore it first');
+    }
     this.db.transaction(() => {
       const order = this.roleOrder(workId, role).filter((id) => id !== assetId);
       const at = position === undefined ? order.length : Math.min(position, order.length);
@@ -382,7 +443,10 @@ export class AssetService {
   private roleOrder(workId: string, role: WorkAssetRole): string[] {
     return this.db
       .prepare<[string, string], { asset_id: string }>(
-        'SELECT asset_id FROM work_assets WHERE work_id = ? AND role = ? ORDER BY position, asset_id',
+        // Links to assets in 最近刪除 keep their row (restore brings them back) but are not ordered here.
+        `SELECT wa.asset_id FROM work_assets wa JOIN assets a ON a.id = wa.asset_id
+         WHERE wa.work_id = ? AND wa.role = ? AND a.deleted_at IS NULL
+         ORDER BY wa.position, wa.asset_id`,
       )
       .all(workId, role)
       .map((r) => r.asset_id);
@@ -510,6 +574,11 @@ export class AssetService {
         .get(file.mountId, file.rel);
       const wantsThumb = file.kind === 'image';
       const wantsProbe = file.kind === 'video' || file.kind === 'audio';
+      if (row !== undefined && row.deleted_at !== null) {
+        // Removed from the library by the user (QC-037): a rescan must not bring it back.
+        assetId = row.id;
+        return;
+      }
       if (row === undefined) {
         assetId = randomUUID();
         this.db
@@ -611,6 +680,11 @@ export class AssetService {
       }
       throw err;
     }
+  }
+
+  /** Real path of an asset's file, checked to stay inside its root; 404 when it is missing. */
+  filePath(asset: AssetRecord): string {
+    return this.assetSourcePath(asset);
   }
 
   /** Real path of an asset's file for tools that take a path (sharp, ffprobe). */

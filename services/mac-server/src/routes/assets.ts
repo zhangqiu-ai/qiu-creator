@@ -235,7 +235,12 @@ export function registerAssetRoutes(
         response: { 200: AssetRecordSchema, ...errorResponses },
       },
     },
-    (req) => assets.get(req.params.id),
+    (req, reply) => {
+      const asset = assets.get(req.params.id);
+      // QC-037: send it back as If-Match when editing.
+      reply.header('etag', `"${String(asset.revision ?? 1)}"`);
+      return asset;
+    },
   );
 
   app.get(
