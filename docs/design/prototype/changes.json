@@ -522,14 +522,14 @@
       "id": "PT-20261119-001",
       "title": "側欄 v2、App 圖示、素材刪除與編輯、編輯器插入素材、設定重排與主題",
       "date": "2026-11-19",
-      "status": "pending",
+      "status": "approved",
       "model": "claude-opus-5-5",
       "session": "qc-prototype",
       "requestedBy": "使用者 via 開發總監",
       "userRequest": "UI、UX 設計要符合優秀作品的，而不是隨便寫寫（2026-11-19）",
       "tasks": ["QC-037", "QC-038", "QC-039", "QC-041"],
-      "approvedBy": null,
-      "approvedAt": null,
+      "approvedBy": "qiu-creator 開發總監（使用者授權，見 docs/decisions.md 2026-11-19「UI 改進批次」）",
+      "approvedAt": "2026-11-19",
       "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
       "baseCanvasVersion": "version id 1795010851-b1f2",
       "canvasVersion": "39 (version id 1795101256-eec3)",
@@ -711,11 +711,12 @@
         "NOT_VERIFIED: HTML5 drag-and-drop and pointer-capture resizing inside the canvas sandbox."
       ],
       "openQuestions": [
-        "App icon: approve B (q 字標)?",
-        "External asset delete: default to remove-from-library only — OK?",
-        "Trash retention 30 days — OK?",
-        "Batch operations: tag + remove now, rename later — OK?",
-        "發布中心 hidden from the sidebar until M4 — 總監 to decide; Agent API status moved into the service dot popover."
+        "Resolved by director: App icon B (q 字標).",
+        "Resolved by director: external asset delete defaults to remove-from-library only; moving the original file to the system Trash is an explicit opt-in checkbox.",
+        "Resolved by director: Recently Deleted keeps items 30 days.",
+        "Resolved by director: batch tag and remove now; batch rename later.",
+        "Resolved by director: 發布中心 hidden until M4; Agent API status lives in the service-dot popover.",
+        "Resolved by director: theme defaults to follow system."
       ]
     }
   ]

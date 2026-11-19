@@ -1,5 +1,12 @@
 # Done
 
+## QC-040: 編輯頁捲動時內容被遮擋
+
+**Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, bug, ui | **Done:** 2026-11-19
+
+- `.editor__body` 不再整體捲動；正文與側面板各自捲動，面板分頁列 sticky；窄於 820px 改上下排列、面板限高 45%。
+- 新 e2e `editor-scroll.spec.ts`（修正前紅、修正後綠）；全倉 660／0／660；前後截圖在 `docs/evidence/qc040-*`。
+
 ## QC-036: 安裝器升級時 launchd bootout／bootstrap 競態
 
 **Priority:** P1 | **Assignee:** qc-bugfix | **Tags:** M3, bug | **Done:** 2026-11-19
