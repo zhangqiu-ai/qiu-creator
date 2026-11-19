@@ -1,5 +1,13 @@
 # Done
 
+## QC-041: 側邊欄重設計與 App 圖示
+
+**Priority:** P2 | **Assignee:** qc-frontend | **Tags:** M3, ui | **Done:** 2026-11-19
+
+- 側欄分組（創作、素材、AI），設定固定左下；預設 232px，可拖曳／方向鍵調整 200–320，雙擊恢復；⌃⌘S 收成 56px 圖示列附 tooltip；寬度與收起狀態記住；窄於 900px 自動用圖示列。服務狀態點綠／紅（還原中琥珀），hover／聚焦顯示詳情浮層。
+- App 圖示方案 B（q 字標），SVG 產出 icns／png，接入 electron-builder。
+- 全倉 672／0／672、e2e 3／3（分支上）；合併後 apps/mac 185／185。證據 `docs/evidence/qc041-*`。
+
 ## QC-040: 編輯頁捲動時內容被遮擋
 
 **Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, bug, ui | **Done:** 2026-11-19
