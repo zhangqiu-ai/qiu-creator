@@ -51,3 +51,65 @@ exit 0。安裝前檢查（埠 7420 空、無 plist、無 /Applications/qiu-crea
 
 - 臨時 worktree 與建置產物已刪；服務保持由 launchd 執行，沒有卸載。
 - App 視窗：**沒有關閉**。開啟後有人在使用它（見上），關閉可能丟失未存的編輯；請總監或使用者決定。
+
+## 升級到 e8aefb1（2026-11-19）：失敗，已自動回滾
+
+使用者要求升級（總監轉述原話「Upgrade now」）。新版含 QC-035 與資料庫遷移 0012。
+
+- 建置：乾淨 worktree，e8aefb1，`git status` 為空；服務 commit `e8aefb182bbcd1cb814a48070ebe4b5fc1d2e202`（不帶 `-dirty`），built_at `2026-11-19T14:04:28.724Z`；.app ad-hoc 簽名驗證通過。
+- 乾跑 `deploy/qc.sh upgrade`：備份 → 暫存 → 停服務換位 → `bootstrap`，`nothing was changed`。
+- `deploy/qc.sh upgrade --yes` 輸出：
+
+```
+backup 20261119T140521518Z-manual ok
+stage new service and app
+stop service and swap in the new build
+launchctl bootstrap
+upgrade failed: launchctl bootstrap failed: Bootstrap failed: 5: Input/output error
+…; rolling back
+升級失敗，已回到 0.1.0。升級前備份：20261119T140521518Z-manual。
+```
+
+exit 1。依總監指示，失敗並自動回滾後**沒有再試一次**。
+
+### 回滾後狀態（唯讀檢查）
+
+| 項目 | 結果 |
+| --- | --- |
+| `/health` | 舊版：commit `733350cc28d680d1549e648629c8ae109aa9db19`，built_at `2026-11-19T13:08:04.938Z`，服務可用 |
+| launchd | `state = running`（pid 3419），keepalive |
+| 安裝資料夾 | `server/` 與（空的）`app.prev/`；`server.prev` 已按設計清掉 |
+| 升級前備份 | `20261119T140521518Z-manual`（`~/CreatorHub/backups/` 有 `.json` 與 `.sqlite`），`integrity: ok`（升級才會繼續） |
+| 遷移 0012 | **沒有套用**：新版從未啟動；日誌沒有遷移記錄；資料庫仍由舊版使用 |
+| 權杖、`~/CreatorHub` 內容 | 沒有讀出、沒有改動 |
+
+### 觀察（未驗證的推測）
+
+`launchctl bootstrap` 回 `5: Input/output error`，發生在 `bootout` 之後立刻 `bootstrap`。macOS 上這常見於服務還在被卸載時搶著重新載入。安裝器 `ops.ts` 的 `bootout` 之後沒有等服務確實消失就 `bootstrap`，也沒有重試；QC-032 的測試用假 launchctl，不會出現這個競態。**這是推測，沒有重現、沒有抓到更多錯誤訊息**（launchctl 提示「用 root 才有更多錯誤資訊」）。若要修，屬於 `packages/installer` 的缺陷，交回總監。
+
+### 提醒
+
+- 使用者的 App 沒有被我關閉或重開；升級已回滾，/Applications 裡是舊版 .app。
+- 升級前備份 `20261119T140521518Z-manual` 已存在，不影響任何資料。
+
+### 第二次嘗試（同日，總監確認 7431 的測試實例已結束後）：同樣失敗
+
+- 升級前確認：7431 沒有人在監聽；安裝資料夾下只有 launchd 的 7420 服務（pid 3419）。
+- `upgrade --yes`：備份 `20261119T140716697Z-manual` 成功 → `launchctl bootstrap` 再次 `5: Input/output error` → 自動回滾到 0.1.0，exit 1。結果與第一次完全相同，所以**第一次失敗與 7431 的測試實例無關**。依「失敗並回滾就停下」沒有第三次。
+- 回滾後：`/health` 回舊版 733350c，launchd running（pid 18346），`server.prev` 不在、`app.prev/` 為空；遷移 0012 沒套用。
+
+### 原因：已由 launchd 日誌證實（第一次嘗試，06:05:21）
+
+`log show` 的 launchd 記錄：
+
+```
+06:05:21.784 [gui/501/com.qiu-creator.mac-server [54518]] bootout initiated by: launchctl…
+06:05:21.784 signaled service: Terminated: 15 / scheduling cleanup in 5 sec
+06:05:21.795 bootout initiated by: launchctl…   ← 失敗後回滾流程的 bootout
+06:05:21.795 service already stopped
+06:05:21.807 exited due to exit(0), ran for 2051155ms → job state = removed
+```
+
+`launchctl bootout` 在送出 SIGTERM 後就回傳；服務要等行程結束（約 20 ms 後，這次 `exit(0)`）才真正從 launchd 移除。`ops.ts` 在 `bootout` 後立刻 `bootstrap`，落在這段空窗，所以回 EIO。第二次嘗試是同一個競態。回滾路徑成功，是因為它在 `bootstrap` 失敗之後才執行，此時服務已移除。
+
+建議修法（交總監決定，屬 `packages/installer`）：`bootout` 後輪詢 `launchctl print gui/<uid>/<label>` 直到回非 0（有上限），再 `bootstrap`；`bootstrap` 遇到 5 時短暫重試。QC-032 的測試用假 launchctl 沒有這段延遲，要補一個「bootout 後 N 次 print 仍存在」的假 launchctl 測試。
