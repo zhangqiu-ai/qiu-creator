@@ -1,5 +1,9 @@
 # Work Log
 
+## 2026-11-19 · QC-035
+
+- 使用者讓 Codex 接入 New API 中轉站，總監驗收後合併（全倉 653／0／653，e2e 1／1）。
+
 ## 2026-11-19 · QC-033 開工
 
 - 使用者同意在本機真實安裝。qc-release 從乾淨 origin/main 建置並安裝（服務、launchd、/Applications），qc-test 接著做實機驗收。

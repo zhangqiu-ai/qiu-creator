@@ -1,5 +1,14 @@
 # Done
 
+## QC-035: 接入 New API 中轉站（文字 AI）
+
+**Priority:** P2 | **Assignee:** Codex（使用者直接指派） | **Tags:** M2 | **Done:** 2026-11-19
+
+- 新供應商 `new-api`：OpenAI 相容 Chat Completions，HTTPS、結尾 `/v1`、禁止重新導向；Base URL 與金鑰一起存 Keychain，唯寫。換憑證須重新確認告知，排隊中的舊任務不會送往新設定。遷移 0012（`ai_providers.credential_id`、`ai_jobs.credential_id`）。
+- 設定頁新增 New API 列，編輯器 AI 面板可選文字供應商。新開發依賴 `@playwright/test` 與 e2e 測試。
+- 總監驗收：typecheck、lint、prettier 通過；全倉 653／0／653（負載 9，取鎖）；e2e 1／1。結果仍為候選加 diff，不覆蓋原文。
+- 未走原型核准（使用者直接指派）；未驗證：真實中轉站呼叫、遷移 0012 後回滾舊版。
+
 ## QC-032: 打包與安裝腳本
 
 **Priority:** P1 | **Assignee:** qc-release | **Tags:** M3 | **Done:** 2026-11-18
