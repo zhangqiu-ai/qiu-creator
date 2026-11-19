@@ -1,4 +1,5 @@
 import { Icon, type IconName } from './Icon.js';
+import type { ServiceTone } from './sidebar-prefs.js';
 
 export type SettingsCategory = 'appearance' | 'service' | 'backup' | 'ai' | 'folders' | 'about';
 
@@ -59,12 +60,12 @@ export function currentCategory(body: HTMLElement): SettingsCategory {
 /** Left category list of 設定 (in-page anchors; the content scrolls on its own). */
 export function SettingsNav({
   current,
-  serviceUp,
+  tone,
   onPick,
 }: {
   current: SettingsCategory;
-  /** null while the first check runs. */
-  serviceUp: boolean | null;
+  /** The sidebar dot's tone (one source); null while the first check runs. */
+  tone: ServiceTone | null;
   onPick: (cat: SettingsCategory) => void;
 }) {
   return (
@@ -81,11 +82,11 @@ export function SettingsNav({
         >
           <Icon name={c.icon} size={16} />
           <span className="set-nav__label">{c.label}</span>
-          {c.key === 'service' && serviceUp !== null && (
+          {c.key === 'service' && tone !== null && (
             <span
-              className={serviceUp ? 'set-nav__dot' : 'set-nav__dot set-nav__dot--bad'}
+              className={`set-nav__dot set-nav__dot--${tone}`}
               role="img"
-              aria-label={serviceUp ? '服務正常' : '服務異常'}
+              aria-label={tone === 'ok' ? '服務正常' : tone === 'bad' ? '服務異常' : '還原中'}
             />
           )}
         </button>

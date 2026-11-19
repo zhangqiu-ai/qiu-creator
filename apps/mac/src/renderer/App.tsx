@@ -306,6 +306,10 @@ export function App() {
           focusSection={route.section}
           backups={backups.session}
           dataEpoch={dataEpoch}
+          health={health}
+          eventStatus={events}
+          service={service}
+          checkHealth={checkHealth}
         />
       )}
     </div>

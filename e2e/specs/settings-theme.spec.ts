@@ -56,6 +56,9 @@ test('設定：分類導覽、主題即時套用並記住、備份預設 3 份',
       'true',
     );
     await expect(cats.getByRole('img', { name: '服務正常' })).toBeVisible();
+    await expect(
+      page.getByRole('navigation', { name: '主導航' }).getByRole('button', { name: '一切正常' }),
+    ).toBeVisible();
     await expect(themes.getByRole('radio', { name: /跟隨系統/ })).toHaveAttribute(
       'aria-checked',
       'true',
@@ -130,7 +133,7 @@ test('設定：分類導覽、主題即時套用並記住、備份預設 3 份',
     await page.getByRole('button', { name: '全部 5 份' }).click();
     await expect(list.getByRole('listitem')).toHaveCount(5);
     await shot(page, '03-backups-expanded-light');
-    await page.getByRole('button', { name: '收起' }).click();
+    await page.getByRole('button', { name: '收起', exact: true }).click();
     await expect(list.getByRole('listitem')).toHaveCount(3);
   });
 
@@ -153,6 +156,12 @@ test('設定：分類導覽、主題即時套用並記住、備份預設 3 份',
     await cats.getByRole('button', { name: '本機服務' }).click();
     await page.getByRole('button', { name: '重新檢查' }).click();
     await expect(cats.getByRole('img', { name: '服務異常' })).toBeVisible();
+    // One source: the sidebar dot says the same thing at the same time.
+    await expect(
+      page
+        .getByRole('navigation', { name: '主導航' })
+        .getByRole('button', { name: '本機服務未回應' }),
+    ).toBeVisible();
     await expect(page.getByRole('status').filter({ hasText: '未回應' })).toBeVisible();
     await shot(page, '08-service-down-light');
   });

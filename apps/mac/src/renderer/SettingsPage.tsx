@@ -14,7 +14,9 @@ import { BackupSection } from './BackupSection.js';
 import { versionLabel, formatStamp, type BackupSession } from './backups.js';
 import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
-import { useEventStatus, useRefreshOn } from './events.js';
+import { useRefreshOn } from './events.js';
+import type { EventStreamStatus } from '../shared/bridge.js';
+import type { ServiceSummary } from './sidebar-prefs.js';
 import { formatWhen, type ChipTone } from './format.js';
 import { Icon } from './Icon.js';
 
@@ -63,7 +65,19 @@ export function SettingsPage({
   focusSection,
   backups = null,
   dataEpoch = 0,
+  health,
+  eventStatus,
+  service,
+  checkHealth,
 }: {
+  /**
+   * The app's one service check (QC-041 sidebar dot): this page shows the
+   * same health, live-update status and summary, never a second copy.
+   */
+  health: HealthResponse | 'down' | null;
+  eventStatus: EventStreamStatus | null;
+  service: ServiceSummary;
+  checkHealth: () => void;
   client: CreatorHubClient;
   home: string | null;
   userHome?: string | null;
@@ -82,7 +96,6 @@ export function SettingsPage({
     aiHeading.current?.focus();
     setCurrentCat('ai');
   }, [focusSection]);
-  const [health, setHealth] = useState<HealthResponse | null | 'down'>(null);
   const [mounts, setMounts] = useState<Mount[] | null>(null);
   const [mountsFailed, setMountsFailed] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -90,7 +103,6 @@ export function SettingsPage({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
   const [removing, setRemoving] = useState<Mount | null>(null);
-  const eventStatus = useEventStatus();
   const bodyRef = useRef<HTMLDivElement>(null);
   const [currentCat, setCurrentCat] = useState<SettingsCategory>('appearance');
   const goTo = useCallback((cat: SettingsCategory) => {
@@ -107,15 +119,6 @@ export function SettingsPage({
     setCurrentCat(currentCategory(body));
   }, []);
 
-  const checkHealth = useCallback(() => {
-    client
-      .health()
-      .then(setHealth)
-      .catch(() => {
-        setHealth('down');
-      });
-  }, [client]);
-
   const loadMounts = useCallback(() => {
     client.mounts
       .list()
@@ -128,7 +131,10 @@ export function SettingsPage({
       });
   }, [client]);
 
-  useEffect(checkHealth, [checkHealth, dataEpoch]);
+  // After a restore replaced the database, ask the service again (one shared check).
+  useEffect(() => {
+    if (dataEpoch > 0) checkHealth();
+  }, [checkHealth, dataEpoch]);
   useEffect(loadMounts, [loadMounts, dataEpoch]);
   useEffect(() => {
     void backups?.load();
@@ -182,7 +188,11 @@ export function SettingsPage({
         <h1 className="page__title">設定</h1>
       </header>
       <div className="settings-layout">
-        <SettingsNav current={currentCat} serviceUp={health === null ? null : up} onPick={goTo} />
+        <SettingsNav
+          current={currentCat}
+          tone={health === null ? null : service.tone}
+          onPick={goTo}
+        />
         <div className="set-body" ref={bodyRef} onScroll={trackScroll}>
           <div className="settings">
             <AppearanceSection />

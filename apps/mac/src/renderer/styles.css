@@ -1866,6 +1866,9 @@ kbd {
 .set-nav__dot--bad {
   background: var(--qc-bad);
 }
+.set-nav__dot--restoring {
+  background: var(--qc-warn);
+}
 /* The content column scrolls on its own; the category list stays put. */
 .set-body {
   flex: 1;

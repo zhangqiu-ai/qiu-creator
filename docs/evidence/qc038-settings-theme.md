@@ -1,6 +1,6 @@
 # QC-038 驗收記錄：設定頁重排與主題切換
 
-日期：2026-11-19　分支：`feat/qc038-settings-theme`（從 origin/main `cdc880f` 開；QC-041 尚未合併，合併後再 rebase）
+日期：2026-11-19　分支：`feat/qc038-settings-theme`（已 rebase 到 origin/main `450341c`，含 QC-041）
 原型：PT-20261119-001，畫板「v2 · 設定」與「v2 · 設定（深色）」，畫布第 39 版。
 
 ## 做了什麼
@@ -28,6 +28,12 @@
 - 淺色與深色都至少 5.18:1，深色至少 6.89:1，全部達到 AA，不需要改 token。
 
 **本機服務**：狀態加重新檢查、即時更新、開機自動啟動、防止睡眠。
+
+**服務狀態只有一個來源**（rebase 到 QC-041 後補上）：
+
+- 側欄狀態點、設定頁「本機服務」分類旁的點、設定頁的狀態與即時更新兩列，都讀 App 層同一份資料：`useServiceHealth` 加上 `useEventStatus`，經 `serviceSummary` 算出結果。
+- 設定頁不再自己檢查一次。「重新檢查」呼叫的是同一個 `checkHealth`，所以按下後兩處同時更新。
+- 分類旁的點與側欄點顏色一致：綠是正常，紅是服務或即時更新異常，黃是還原中。e2e 斷言兩者在正常與服務停止時都一致。
 
 **備份與還原**：
 
@@ -82,10 +88,11 @@
 
 - `pnpm -r typecheck`、`tsc -p e2e/tsconfig.json`：通過。
 - `pnpm -r lint` 與根目錄 `pnpm lint`：0 錯誤。`pnpm format:check`：通過。
-- `pnpm test:e2e`：3 passed／0 failed／3 total（`editor-scroll`、`new-api`、`settings-theme`），期間持有 e2e 鎖。這個分支還不含 QC-041 的 `sidebar` spec。
-- 全倉 `pnpm -r --workspace-concurrency=1 --no-bail test`：**685 passed／0 failed／685 total**。
-  - 執行時間 2026-11-19 07:51:52–07:52:31。負載開始 13.55、結束 12.81，期間持有全倉測試鎖。
-  - 各套件：contracts 16、design-tokens 5、domain 27、installer 39、markdown-editor-web 22、api-client 18、platform-preview 12、mac-server 361、apps/mac 179（本任務新增 6 個）、agent-sdk 6。
+- `pnpm test:e2e`：4 passed／0 failed／4 total（`editor-scroll`、`new-api`、`settings-theme`、`sidebar`），期間持有 e2e 鎖。
+- 全倉 `pnpm -r --workspace-concurrency=1 --no-bail test`（rebase 後）：**697 passed／0 failed／697 total**。
+  - 執行時間 2026-11-19 08:01:59–08:02:35。負載開始 13.29、結束 17.42，期間持有全倉測試鎖。
+  - 各套件：contracts 16、design-tokens 5、domain 27、installer 39、markdown-editor-web 22、api-client 18、platform-preview 12、mac-server 361、apps/mac 191（本任務新增 6 個）、agent-sdk 6。
+- 截圖是 rebase 後重拍的，含 QC-041 的新側欄。
 
 ## NOT_VERIFIED
 
