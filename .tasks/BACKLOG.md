@@ -42,3 +42,5 @@ QC-012 對照原型發現的 API 缺口：匯入任務取消（含取消後重�
 - 根目錄 `test` 腳本呼叫裸 `pnpm`，只有 corepack 的 shell 會失敗（QC-021 回報）。
 - 建置版 CSP 寫死 `127.0.0.1:7420`，服務改埠時圖片被擋（移到 QC-031）。
 - mounts 的 chokidar 選項用了已棄用的 `interval`，改為 `pollingInterval`（QC-020 回報）。
+- 服務建置產物 220 MB（`bin/node` 128 MB），可評估較小的 Node 版本（QC-032 回報）。
+- `corepack pnpm -r test` 在 PATH 沒有 pnpm 時子行程 exit 127（QC-032 回報）。

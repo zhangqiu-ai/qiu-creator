@@ -1,5 +1,14 @@
 # Done
 
+## QC-032: 打包與安裝腳本
+
+**Priority:** P1 | **Assignee:** qc-release | **Tags:** M3 | **Done:** 2026-11-18
+
+- electron-builder 產出 ad-hoc 簽名 arm64 `qiu-creator.app`（262 MB；未簽名在 Apple Silicon 無法啟動，故用 `identity: '-'`）。
+- 新套件 `packages/installer`，入口 `deploy/qc.sh <install|upgrade|rollback|uninstall>`：預設乾跑、`--yes` 才執行；只有真實 HOME 才碰 launchd；安裝前檢查埠、已載入服務、既有檔案；升級先備份（失敗中止），`/health` 驗新版，失敗自動回滾，保留 `server.prev`／`app.prev`；解除安裝不刪 `~/CreatorHub` 與日誌。
+- 全倉 649／0／649（負載 4.57，取鎖）；試打包與臨時 HOME 冒煙全過。證據 `docs/evidence/qc032-packaging.md`。
+- NOT_VERIFIED：真實 launchd、真實 /Applications 安裝、安裝後整合畫面、Gatekeeper，留給 QC-033。
+
 ## QC-034: ai-text 改寫接受測試的順序假設
 
 **Priority:** P2 | **Assignee:** qc-test | **Tags:** backend

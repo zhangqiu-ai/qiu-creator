@@ -1,5 +1,9 @@
 # Work Log
 
+## 2026-11-18 · QC-032
+
+- 打包與安裝腳本合併（發版全倉 649／0／649；合併後 typecheck、lint、prettier、installer 32／32）。QC-004 只剩 QC-033 實機驗收，需使用者同意真實安裝。
+
 ## 2026-11-18 · QC-032 開工
 
 - 使用者要求開始打包，QC-032 移到進行中，派 qc-release。授權範圍：設定、腳本與試打包（臨時目錄）；裝到 /Applications、載入 launchd、碰真實 ~/CreatorHub 仍需使用者另行同意。
