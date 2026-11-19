@@ -46,3 +46,4 @@ QC-012 對照原型發現的 API 缺口：匯入任務取消（含取消後重�
 - `mac-server.err.log` 權限 0644，應與主日誌一致為 0600（QC-033 觀察）。
 - 升級時執行中的 App 被搬進 `app.prev` 繼續跑舊版，使用者不易察覺；安裝器應在換 .app 前要求或提示結束 App（QC-033 U0 發現）。
 - .app 的 `CFBundleShortVersionString` 為 `0.0.0`，新舊版無法分辨；打包時應帶入版本與 commit（QC-033 U0 發現）。
+- 可重試的 AI 供應商錯誤沒有記錄；成功後 `error_code` 清空，無法追查重試原因。應以 warn 記錄錯誤分類與 HTTP 狀態，不記內容（QC-033 U4，New API 任務 attempts=3）。
