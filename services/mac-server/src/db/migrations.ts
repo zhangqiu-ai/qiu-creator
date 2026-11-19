@@ -381,4 +381,28 @@ export const migrations: readonly Migration[] = [
       ALTER TABLE change_log_new RENAME TO change_log;
     `,
   },
+  {
+    id: '0012',
+    name: 'new_api_provider',
+    sql: /* sql */ `
+      CREATE TABLE ai_providers_new (
+        provider        TEXT PRIMARY KEY CHECK (provider IN ('gemini','anthropic','openai','new-api')),
+        key_set_at      TEXT,
+        text_model      TEXT,
+        video_model     TEXT,
+        consent_version INTEGER,
+        consent_at      TEXT,
+        updated_at      TEXT NOT NULL,
+        credential_id   TEXT
+      );
+      INSERT INTO ai_providers_new
+        (provider, key_set_at, text_model, video_model, consent_version, consent_at, updated_at)
+        SELECT provider, key_set_at, text_model, video_model, consent_version, consent_at, updated_at
+        FROM ai_providers;
+      DROP TABLE ai_providers;
+      ALTER TABLE ai_providers_new RENAME TO ai_providers;
+      -- Prevent already queued jobs from being silently sent to a replacement gateway.
+      ALTER TABLE ai_jobs ADD COLUMN credential_id TEXT;
+    `,
+  },
 ];

@@ -58,7 +58,7 @@ import { AiService, type AiRunnerOptions } from './ai/ai-service.js';
 import type { AIProvider } from './ai/provider.js';
 import { AnthropicProvider } from './ai/providers/anthropic.js';
 import { GeminiProvider } from './ai/providers/gemini.js';
-import { OpenAIProvider } from './ai/providers/openai.js';
+import { NewApiProvider, OpenAIProvider } from './ai/providers/openai.js';
 import { KeychainSecretStore, type SecretStore } from './ai/secret-store.js';
 import type { AiProvider } from '@qiu-creator/contracts';
 import { registerVariantRoutes } from './routes/variants.js';
@@ -225,6 +225,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
       gemini: aiOptions.providers?.gemini ?? new GeminiProvider(adapter('gemini')),
       anthropic: aiOptions.providers?.anthropic ?? new AnthropicProvider(adapter('anthropic')),
       openai: aiOptions.providers?.openai ?? new OpenAIProvider(adapter('openai')),
+      'new-api': aiOptions.providers?.['new-api'] ?? new NewApiProvider(adapter('new-api')),
     },
     feed,
     aiOptions,

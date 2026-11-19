@@ -4,17 +4,18 @@ import { AIActionSchema, IdSchema, PlatformSchema, TimestampSchema } from './ent
 // ---- Providers ------------------------------------------------------------------
 
 /**
- * Cloud AI providers (decision 2026-11-17): text via all three, video via
+ * Cloud AI providers: text via every provider, video via
  * Gemini. Local models are deferred; the server keeps the provider interface
  * open for them but they are not part of this enum yet.
  */
-export const AiProviderSchema = z.enum(['gemini', 'anthropic', 'openai']);
+export const AiProviderSchema = z.enum(['gemini', 'anthropic', 'openai', 'new-api']);
 export type AiProvider = z.infer<typeof AiProviderSchema>;
 
 export const AI_PROVIDER_NAMES: Readonly<Record<AiProvider, { name: string; company: string }>> = {
   gemini: { name: 'Gemini', company: 'Google' },
   anthropic: { name: 'Claude', company: 'Anthropic' },
   openai: { name: 'GPT', company: 'OpenAI' },
+  'new-api': { name: 'New API', company: '你設定的 New API 中轉站' },
 };
 
 /** Default models; the user can change them per provider. */
@@ -24,6 +25,7 @@ export const AI_DEFAULT_MODELS: Readonly<
   gemini: { text: 'gemini-3.8-flash', video: 'gemini-3.8-flash' },
   anthropic: { text: 'claude-opus-5-5', video: null },
   openai: { text: 'gpt-5.5', video: null },
+  'new-api': { text: 'gpt-4o-mini', video: null },
 };
 
 /**
@@ -34,6 +36,12 @@ export const AI_NOTICE_VERSION = 1;
 
 /** First-use notice: what is sent where. Shown before the user can enable a provider. */
 export function aiConsentNotice(provider: AiProvider): string {
+  if (provider === 'new-api') {
+    return [
+      '你主動送出的作品文字會傳到你設定的 New API 中轉站，由中轉站轉送給模型供應商。',
+      '中轉站和模型供應商可能依各自的設定及條款保留內容。費用依中轉站的計價為準。',
+    ].join('\n');
+  }
   const { name, company } = AI_PROVIDER_NAMES[provider];
   return [
     `使用 ${name} 時，你主動送出的內容（作品標題、正文、標籤，以及你選擇的圖片或視頻）會經網路傳送到 ${company} 的伺服器處理。`,
@@ -101,7 +109,12 @@ export const AiProviderStatusSchema = z.object({
   /** Only Gemini handles video; null elsewhere. */
   video_model: z.string().nullable(),
   /** The notice the user must confirm before anything is sent to this provider. */
-  notice: z.object({ version: z.number().int().positive(), text: z.string() }),
+  notice: z.object({
+    version: z.number().int().positive(),
+    text: z.string(),
+    /** Identifies the New API endpoint and key pairing this notice applies to. */
+    credential_id: IdSchema.optional(),
+  }),
   /** Confirmation of the current notice version, or null when not (or no longer) confirmed. */
   consent: z.object({ version: z.number().int().positive(), at: TimestampSchema }).nullable(),
   /** Key and current consent present: jobs can be submitted. */
@@ -114,19 +127,40 @@ export type AiProviderListResponse = z.infer<typeof AiProviderListResponseSchema
 
 export const AiProviderParamsSchema = z.object({ provider: AiProviderSchema });
 
-/** Store a key in the Keychain. It is write-only: no API ever returns it. */
+const NewApiBaseUrlSchema = z
+  .string()
+  .trim()
+  .max(2048)
+  .refine((value) => {
+    const url = URL.parse(value);
+    return (
+      url !== null &&
+      url.protocol === 'https:' &&
+      url.username === '' &&
+      url.password === '' &&
+      !/[?#]/.test(value) &&
+      /\/v1\/?$/.test(url.pathname) &&
+      !url.pathname.endsWith('/v1/v1') &&
+      !url.pathname.endsWith('/v1/v1/')
+    );
+  }, 'use an HTTPS Base URL ending in /v1, without credentials, query or fragment')
+  .transform((value) => new URL(value).href.replace(/\/$/, ''));
+
+/** Store a key in the Keychain. The New API key and base URL are written together. */
 export const SetAiKeyRequestSchema = z.object({
   api_key: z
     .string()
     .min(8, 'API key looks too short')
     .max(512, 'API key looks too long')
     .regex(/^[\x21-\x7e]+$/, 'API key must be printable ASCII without spaces'),
+  base_url: NewApiBaseUrlSchema.optional(),
 });
 export type SetAiKeyRequest = z.input<typeof SetAiKeyRequestSchema>;
 
 export const AiConsentRequestSchema = z.object({
   /** Must equal the current `notice.version`, proving the client showed that text. */
   notice_version: z.number().int().positive(),
+  credential_id: IdSchema.optional(),
 });
 export type AiConsentRequest = z.input<typeof AiConsentRequestSchema>;
 

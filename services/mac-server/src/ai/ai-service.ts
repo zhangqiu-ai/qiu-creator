@@ -14,7 +14,9 @@ import {
   costUsd,
   CreateAiJobRequestSchema,
   estimateTokens,
+  IdSchema,
   ListAiJobsQuerySchema,
+  SetAiKeyRequestSchema,
   type AiBudgetStatus,
   type AiCostEstimate,
   type AiFailureCode,
@@ -62,6 +64,7 @@ export interface AiRunnerOptions {
 interface ProviderRow {
   provider: string;
   key_set_at: string | null;
+  credential_id: string | null;
   text_model: string | null;
   video_model: string | null;
   consent_version: number | null;
@@ -99,6 +102,7 @@ interface JobRow {
   cache_key: string | null;
   progress: string | null;
   remote_state: string | null;
+  credential_id: string | null;
 }
 
 export type AiJobProgress = NonNullable<AiJobRecord['progress']>;
@@ -140,6 +144,7 @@ export type AiTaskFinalizer = (
 ) => { text: string; json?: unknown };
 
 const SETTINGS_KEY = 'ai';
+const NewApiCredentialSchema = SetAiKeyRequestSchema.required().extend({ id: IdSchema });
 
 function localMonth(date: Date): string {
   return `${String(date.getFullYear())}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -166,6 +171,7 @@ export class AiService {
   private readonly now: () => Date;
   private timer: NodeJS.Timeout | undefined;
   private stopped = true;
+  private changingNewApiCredential = false;
   private active = 0;
   private readonly inflight = new Set<Promise<void>>();
   private readonly finalizers = new Map<AiTask['type'], AiTaskFinalizer>();
@@ -204,7 +210,11 @@ export class AiService {
         AI_DEFAULT_MODELS[provider].video === null
           ? null
           : (row?.video_model ?? AI_DEFAULT_MODELS[provider].video),
-      notice: { version: AI_NOTICE_VERSION, text: aiConsentNotice(provider) },
+      notice: {
+        version: AI_NOTICE_VERSION,
+        text: aiConsentNotice(provider),
+        ...(row?.credential_id ? { credential_id: row.credential_id } : {}),
+      },
       consent:
         consentValid && row.consent_at !== null && row.consent_version !== null
           ? { version: row.consent_version, at: row.consent_at }
@@ -213,20 +223,69 @@ export class AiService {
     };
   }
 
-  async setKey(provider: AiProvider, apiKey: string): Promise<AiProviderStatus> {
+  async setKey(provider: AiProvider, apiKey: string, baseUrl?: string): Promise<AiProviderStatus> {
+    if (provider === 'new-api') {
+      if (baseUrl === undefined) {
+        throw new ServiceError(400, 'validation_error', 'New API requires a Base URL');
+      }
+      return this.changeNewApiCredential({ api_key: apiKey, base_url: baseUrl, id: randomUUID() });
+    }
+    if (baseUrl !== undefined) {
+      throw new ServiceError(400, 'validation_error', 'only New API accepts a Base URL');
+    }
     await this.secrets.set(provider, apiKey);
     this.upsertProvider(provider, { key_set_at: this.now().toISOString() });
     return this.providerStatus(provider);
   }
 
   async deleteKey(provider: AiProvider): Promise<AiProviderStatus> {
+    if (provider === 'new-api') return this.changeNewApiCredential(null);
     await this.secrets.delete(provider);
     this.upsertProvider(provider, { key_set_at: null });
     return this.providerStatus(provider);
   }
 
-  consent(provider: AiProvider, noticeVersion: number): AiProviderStatus {
-    if (noticeVersion !== AI_NOTICE_VERSION) {
+  private async changeNewApiCredential(
+    credential: { id: string; api_key: string; base_url: string } | null,
+  ): Promise<AiProviderStatus> {
+    if (this.changingNewApiCredential) {
+      throw new ServiceError(
+        409,
+        'ai_credentials_busy',
+        'a New API settings update is already in progress',
+      );
+    }
+    this.changingNewApiCredential = true;
+    try {
+      try {
+        if (credential === null) await this.secrets.delete('new-api');
+        else await this.secrets.set('new-api', JSON.stringify(credential));
+      } catch {
+        throw new ServiceError(
+          500,
+          'internal_error',
+          'could not update the New API Keychain entry',
+        );
+      }
+      this.upsertProvider('new-api', {
+        credential_id: credential?.id ?? null,
+        key_set_at: credential === null ? null : this.now().toISOString(),
+        consent_version: null,
+        consent_at: null,
+      });
+      return this.providerStatus('new-api');
+    } finally {
+      this.changingNewApiCredential = false;
+    }
+  }
+
+  consent(provider: AiProvider, noticeVersion: number, credentialId?: string): AiProviderStatus {
+    const currentCredentialId = this.providerStatus(provider).notice.credential_id;
+    if (
+      noticeVersion !== AI_NOTICE_VERSION ||
+      (provider === 'new-api' &&
+        (currentCredentialId === undefined || currentCredentialId !== credentialId))
+    ) {
       throw new ServiceError(
         409,
         'ai_consent_required',
@@ -292,9 +351,11 @@ export class AiService {
     return this.settings();
   }
 
-  price(model: string): AiModelPrice | null {
+  price(model: string, provider?: AiProvider): AiModelPrice | null {
     const overrides = this.settings().price_overrides;
-    return overrides[model] ?? AI_PRICE_TABLE[model] ?? null;
+    if (Object.hasOwn(overrides, model)) return overrides[model] ?? null;
+    if (provider === 'new-api' || !Object.hasOwn(AI_PRICE_TABLE, model)) return null;
+    return AI_PRICE_TABLE[model] ?? null;
   }
 
   estimate(request: CreateAiJobRequest): AiCostEstimate {
@@ -308,7 +369,7 @@ export class AiService {
         : estimateTokens(JSON.stringify(req.input.json_schema))) +
       // Role/format overhead.
       16;
-    const price = this.price(model);
+    const price = this.price(model, req.provider);
     return AiCostEstimateSchema.parse({
       provider: req.provider,
       model,
@@ -414,7 +475,7 @@ export class AiService {
     options: { task?: AiTask; cacheKey?: string; estimate?: AiCostEstimate } = {},
   ): { job: AiJobRecord; budget: AiBudgetStatus } {
     const req = CreateAiJobRequestSchema.parse(request);
-    this.assertReady(req.provider);
+    const credentialId = this.assertReady(req.provider);
     if (req.work_id !== undefined) {
       const work = this.db
         .prepare<[string], { id: string }>('SELECT id FROM works WHERE id = ?')
@@ -438,8 +499,9 @@ export class AiService {
       this.db
         .prepare(
           `INSERT INTO ai_jobs (id, work_id, model, action, source_revision, status, created_at,
-             updated_at, provider, input, attempts, max_attempts, run_after, estimate, task, cache_key)
-           VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, 0, 3, ?, ?, ?, ?)`,
+             updated_at, provider, input, attempts, max_attempts, run_after, estimate, task, cache_key,
+             credential_id)
+           VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, 0, 3, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -455,6 +517,7 @@ export class AiService {
           JSON.stringify(estimate),
           options.task === undefined ? null : JSON.stringify(options.task),
           options.cacheKey ?? null,
+          credentialId,
         );
       this.event(id, 'ai_job.queued', req.provider);
     })();
@@ -480,6 +543,7 @@ export class AiService {
       canonicalJson([
         'in_flight',
         req.provider,
+        ...(req.provider === 'new-api' ? [this.assertReady(req.provider)] : []),
         estimate.model,
         req.action,
         req.work_id ?? null,
@@ -573,15 +637,15 @@ export class AiService {
         },
       );
     }
-    this.assertReady(job.provider);
+    const credentialId = this.assertReady(job.provider);
     const now = this.now().toISOString();
     this.db.transaction(() => {
       this.db
         .prepare(
           `UPDATE ai_jobs SET status = 'queued', attempts = 0, error = NULL, error_code = NULL,
-             run_after = ?, updated_at = ?, finished_at = NULL WHERE id = ?`,
+             run_after = ?, updated_at = ?, finished_at = NULL, credential_id = ? WHERE id = ?`,
         )
-        .run(now, now, id);
+        .run(now, now, credentialId, id);
       this.event(id, 'ai_job.queued', job.provider);
     })();
     this.wake();
@@ -683,8 +747,25 @@ export class AiService {
     try {
       const status = this.providerStatus(provider);
       if (status.consent === null) throw providerError('consent_required');
-      apiKey = await this.secrets.get(provider);
-      if (apiKey === null) throw providerError('missing_key');
+      const savedCredential = await this.secrets.get(provider);
+      if (savedCredential === null) throw providerError('missing_key');
+      let baseUrl: string | undefined;
+      if (provider === 'new-api') {
+        const credential = NewApiCredentialSchema.safeParse(parseJson(savedCredential));
+        if (!credential.success) throw providerError('missing_key');
+        const current = this.providerStatus(provider);
+        if (
+          current.consent === null ||
+          row.credential_id !== current.notice.credential_id ||
+          credential.data.id !== row.credential_id
+        ) {
+          throw providerError('consent_required', '中轉站設定已變更，請手動重試');
+        }
+        apiKey = credential.data.api_key;
+        baseUrl = credential.data.base_url;
+      } else {
+        apiKey = savedCredential;
+      }
       const task = row.task === null ? null : AiTaskSchema.parse(JSON.parse(row.task));
       const execute = task === null ? undefined : this.executors.get(task.type);
       const result =
@@ -723,6 +804,7 @@ export class AiService {
                 signal: controller.signal,
               },
               apiKey,
+              baseUrl,
             );
       if (this.isCancelled(row.id)) return;
       let json: unknown;
@@ -730,14 +812,14 @@ export class AiService {
         try {
           json = JSON.parse(result.text);
         } catch {
-          this.recordUsage(row.id, result.model, result.usage);
+          this.recordUsage(row, provider, result.model, result.usage);
           throw providerError(
             'invalid_output',
             result.finish === 'max_tokens' ? 'output was cut off at max_output_tokens' : undefined,
           );
         }
       }
-      this.recordUsage(row.id, result.model, result.usage);
+      this.recordUsage(row, provider, result.model, result.usage);
       const finalize = task === null ? undefined : this.finalizers.get(task.type);
       const shaped =
         task === null || finalize === undefined
@@ -787,11 +869,14 @@ export class AiService {
 
   /** Usage counts toward the month it was billed in, also for failed parses. */
   private recordUsage(
-    id: string,
+    job: JobRow,
+    provider: AiProvider,
     servedModel: string,
     usage: { input_tokens: number; output_tokens: number },
   ): void {
-    const price = this.price(servedModel);
+    // Keep the gateway's configured alias for estimates and subsequent retries.
+    const model = provider === 'new-api' ? job.model : servedModel;
+    const price = this.price(model, provider);
     this.db
       .prepare(
         'UPDATE ai_jobs SET usage = ?, cost_estimate = ?, usage_month = ?, model = ?, updated_at = ? WHERE id = ?',
@@ -800,9 +885,9 @@ export class AiService {
         JSON.stringify(usage),
         price === null ? null : costUsd(price, usage.input_tokens, usage.output_tokens),
         localMonth(this.now()),
-        servedModel,
+        model,
         this.now().toISOString(),
-        id,
+        job.id,
       );
   }
 
@@ -826,7 +911,7 @@ export class AiService {
     })();
   }
 
-  private assertReady(provider: AiProvider): void {
+  private assertReady(provider: AiProvider): string | null {
     const status = this.providerStatus(provider);
     if (!status.key_configured) {
       throw new ServiceError(409, 'ai_key_missing', `no API key stored for ${status.name}`, {
@@ -841,6 +926,7 @@ export class AiService {
         { provider, notice_version: AI_NOTICE_VERSION },
       );
     }
+    return status.notice.credential_id ?? null;
   }
 
   private event(id: string, action: ChangeAction, provider: string): void {

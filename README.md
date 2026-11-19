@@ -33,6 +33,12 @@ corepack pnpm --filter @qiu-creator/mac dev     # Vite 5180 + Electron
 
 App 只透過 HTTP API 連 `127.0.0.1:7420`；服務沒開時顯示「服務未運行」，可按重試。關閉視窗或結束 App 不會停止服務。
 
+### 接入 New API 中轉站
+
+在 Mac App 開啟「設定 → AI 服務 → New API」。輸入以 `/v1` 結尾的 HTTPS Base URL 和中轉站的 API 金鑰，存到鑰匙圈，再確認使用告知。預設模型為 `gpt-4o-mini`，也可填入中轉站提供的模型 ID。中轉站與模型都需支援 Chat Completions 的結構化 JSON 輸出。
+
+要產生標題、簡介、標籤或改寫候選，送出前選擇「New API」。App 會記錄中轉站回報的 token 用量。費用以中轉站帳單為準。
+
 ### creatorhub CLI
 
 ```sh
@@ -53,6 +59,7 @@ node packages/agent-sdk/bin/creatorhub.js mounts list
 corepack pnpm -r typecheck
 corepack pnpm -r lint
 corepack pnpm test
+corepack pnpm test:e2e
 corepack pnpm format:check
 ```
 

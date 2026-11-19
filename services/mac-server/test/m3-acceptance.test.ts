@@ -33,7 +33,7 @@ import { FakeGeminiVideo } from './fake-gemini-video.js';
 import { mp4Bytes } from './fixtures.js';
 import { authHeaders, makeTempHome, startTestServer, type TestServer } from './helpers.js';
 
-const KEYS: Record<AiProvider, string> = {
+const KEYS: Record<Exclude<AiProvider, 'new-api'>, string> = {
   anthropic: 'sk-ant-api03-M3ACCEPT0123456789abcdefXYZ',
   openai: 'sk-proj-M3ACCEPT0123456789abcdefXYZ',
   gemini: 'AIzaM3ACCEPT0123456789abcdefXYZ',
@@ -70,7 +70,7 @@ interface Rig {
 interface RigOptions {
   /** `false` leaves queued jobs untouched until `s.ai.start()`. */
   start?: boolean;
-  keys?: AiProvider[];
+  keys?: (keyof typeof KEYS)[];
 }
 
 async function boot(home: string, start: boolean): Promise<TestServer> {

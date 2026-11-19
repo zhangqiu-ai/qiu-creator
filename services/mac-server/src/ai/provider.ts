@@ -40,7 +40,7 @@ export interface AiUploadedFile {
  */
 export interface AIProvider {
   readonly id: AiProvider;
-  generateText(request: AiTextRequest, apiKey: string): Promise<AiTextResult>;
+  generateText(request: AiTextRequest, apiKey: string, baseUrl?: string): Promise<AiTextResult>;
   /** File upload for multimodal prompts. Only Gemini needs it (QC-023 implements it). */
   uploadFile?(file: AiFileUpload, apiKey: string): Promise<AiUploadedFile>;
 }

@@ -1,6 +1,6 @@
-import type { Platform, RewriteMode } from '@qiu-creator/contracts';
+import type { AiProviderStatus, Platform, RewriteMode } from '@qiu-creator/contracts';
 import { getTemplate } from '@qiu-creator/platform-preview';
-import { useCallback, useState, useSyncExternalStore, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore, type KeyboardEvent } from 'react';
 import {
   AI_BLOCK_LABEL,
   FAILURE_LABEL,
@@ -8,6 +8,7 @@ import {
   titleLength,
   titleLimit,
   type AiBlock,
+  type AiProviders,
   type RewriteSession,
   type TitleSession,
   type WriteOutcome,
@@ -31,6 +32,7 @@ const PRESETS: readonly { mode: Exclude<RewriteMode, 'custom'>; label: string }[
 ];
 
 export interface AiPanelProps {
+  providers: AiProviders;
   rewrite: RewriteSession;
   titles: TitleSession;
   selection: AiSelection;
@@ -56,38 +58,83 @@ export function AiPanel(props: AiPanelProps) {
   const [tab, setTab] = useState<'rewrite' | 'title'>('rewrite');
   const rw = useStore(props.rewrite);
   const tt = useStore(props.titles);
-  const provider = (tab === 'rewrite' ? rw.provider : tt.provider) ?? rw.provider ?? tt.provider;
+  const { providers, rewrite, titles } = props;
+  const [options, setOptions] = useState<AiProviderStatus[]>([]);
+  const provider = rw.provider ?? tt.provider;
+  const selected = options.find((item) => item.provider === provider?.provider);
+  const canChoose = options.length > 1 || (options.length === 1 && selected === undefined);
+  useEffect(() => {
+    let active = true;
+    void providers.list().then(
+      (items) => {
+        if (active) setOptions(items.filter((item) => item.ready));
+      },
+      () => {
+        if (active) setOptions([]);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [providers, rw.block, tt.block]);
   return (
     <aside className="panel ai" aria-label="AI 改寫" id="ai-panel">
-      <div className="ai__tabs" role="tablist" aria-label="AI">
-        <button
-          type="button"
-          role="tab"
-          className="ai__tab"
-          aria-selected={tab === 'rewrite'}
-          onClick={() => {
-            setTab('rewrite');
-          }}
-        >
-          改寫
-        </button>
-        <button
-          type="button"
-          role="tab"
-          className="ai__tab"
-          aria-selected={tab === 'title'}
-          onClick={() => {
-            setTab('title');
-          }}
-        >
-          標題
-        </button>
-        {provider !== null && (
+      <div className="ai__tabs">
+        <div className="ai__tab-list" role="tablist" aria-label="AI">
+          <button
+            type="button"
+            role="tab"
+            className="ai__tab"
+            aria-selected={tab === 'rewrite'}
+            onClick={() => {
+              setTab('rewrite');
+            }}
+          >
+            改寫
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className="ai__tab"
+            aria-selected={tab === 'title'}
+            onClick={() => {
+              setTab('title');
+            }}
+          >
+            標題
+          </button>
+        </div>
+        {canChoose ? (
+          <select
+            className="input ai__provider ai__provider-select"
+            aria-label="文字 AI 供應商"
+            value={selected?.provider ?? ''}
+            disabled={rw.phase === 'loading' || rw.phase === 'busy' || tt.phase === 'loading'}
+            onChange={(event) => {
+              const selected = options.find((item) => item.provider === event.target.value);
+              if (selected === undefined) return;
+              providers.select(selected.provider);
+              void rewrite.loadProvider();
+              void titles.loadProvider();
+            }}
+          >
+            {selected === undefined && (
+              <option value="" disabled>
+                選擇供應商
+              </option>
+            )}
+            {options.map((item) => (
+              <option key={item.provider} value={item.provider}>
+                {item.name} · 雲端
+              </option>
+            ))}
+          </select>
+        ) : provider !== null ? (
           <span className="chip chip--neutral ai__provider">
             <Icon name="spark" size={12} />
             {provider.name} · 雲端
           </span>
-        )}
+        ) : null}
       </div>
       {tab === 'rewrite' ? <RewriteTab {...props} /> : <TitleTab {...props} />}
     </aside>

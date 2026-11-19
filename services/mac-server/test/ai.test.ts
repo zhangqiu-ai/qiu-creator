@@ -12,7 +12,7 @@ import { KeychainSecretStore } from '../src/ai/secret-store.js';
 import { fail, FakeAiServer, ok } from './fake-ai.js';
 import { authHeaders, startTestServer, type StartOptions, type TestServer } from './helpers.js';
 
-const KEYS: Record<AiProvider, string> = {
+const KEYS: Record<Exclude<AiProvider, 'new-api'>, string> = {
   anthropic: 'sk-ant-fake-key-0123456789',
   openai: 'sk-proj-fake-key-0123456789',
   gemini: 'AIzaFakeKey0123456789abcdef',
@@ -39,7 +39,7 @@ async function start(
 }
 
 /** Key + consent: the provider is ready to send. */
-async function ready(s: TestServer, provider: AiProvider): Promise<void> {
+async function ready(s: TestServer, provider: keyof typeof KEYS): Promise<void> {
   await s.client.ai.setKey(provider, KEYS[provider]);
   await s.client.ai.consent(provider, AI_NOTICE_VERSION);
 }
@@ -63,6 +63,131 @@ async function apiError(p: Promise<unknown>): Promise<ApiError> {
   expect(err).toBeInstanceOf(ApiError);
   return err as ApiError;
 }
+
+describe('New API gateway', () => {
+  const baseUrl = 'https://relay.example.test/v1';
+  const apiKey = 'relay_dummy_key_123';
+  const jobRequest = job('new-api', {
+    input: {
+      system: '你是編輯',
+      prompt: '幫這篇遊記想一個標題',
+      max_output_tokens: 256,
+      json_schema: {
+        type: 'object',
+        properties: { title: { type: 'string' } },
+        required: ['title'],
+        additionalProperties: false,
+      },
+    },
+  });
+
+  it('validates the endpoint, keeps credentials private, and submits structured chat completions', async () => {
+    const { s, fake } = await start();
+    const ai = s.client.ai;
+    const invalid = [
+      undefined,
+      'http://relay.example.test/v1',
+      'https://user:password@relay.example.test/v1',
+      'https://relay.example.test/v1?key=not-a-real-key',
+      'https://relay.example.test/v1#fragment',
+      'https://relay.example.test/v1/v1/',
+      'https://relay.example.test/v1/chat/completions',
+    ];
+    for (const url of invalid) {
+      expect((await apiError(ai.setKey('new-api', apiKey, url))).status).toBe(400);
+    }
+    expect((await apiError(ai.setKey('openai', apiKey, baseUrl))).status).toBe(400);
+    await ready(s, 'openai');
+    const configured = await ai.setKey('new-api', apiKey, baseUrl + '/');
+    expect(configured).toMatchObject({
+      ready: false,
+      key_configured: true,
+      consent: null,
+      text_model: 'gpt-4o-mini',
+    });
+    const providers = await ai.providers();
+    expect(JSON.stringify(providers)).not.toContain(apiKey);
+    expect(JSON.stringify(providers)).not.toContain(baseUrl);
+    expect(JSON.stringify(s.db.prepare('SELECT * FROM ai_providers').all())).not.toContain(baseUrl);
+    expect((await apiError(ai.submit(jobRequest))).code).toBe('ai_consent_required');
+    expect((await apiError(ai.consent('new-api', configured.notice.version))).status).toBe(409);
+    const enabled = await ai.consent(
+      'new-api',
+      configured.notice.version,
+      configured.notice.credential_id,
+    );
+    expect(enabled.ready).toBe(true);
+    expect(providers.items.find((p) => p.provider === 'openai')?.ready).toBe(true);
+
+    const result = { title: '秋天的京都' };
+    fake.script('new-api', ok('new-api', JSON.stringify(result), 'gpt-4o-mini'));
+    const { job: submitted } = await ai.submit(jobRequest);
+    expect(await finished(s, submitted.id)).toMatchObject({
+      status: 'succeeded',
+      result: { json: result },
+      usage: { input_tokens: 1200, output_tokens: 300 },
+      cost_usd: null,
+    });
+    expect(fake.for('new-api')).toHaveLength(1);
+    expect(fake.for('openai')).toHaveLength(0);
+    expect(fake.for('new-api')[0]).toMatchObject({
+      method: 'POST',
+      path: '/v1/chat/completions',
+      headers: { authorization: `Bearer ${apiKey}` },
+      body: {
+        model: 'gpt-4o-mini',
+        max_completion_tokens: 256,
+        messages: [
+          { role: 'system', content: jobRequest.input.system },
+          { role: 'user', content: jobRequest.input.prompt },
+        ],
+        response_format: {
+          type: 'json_schema',
+          json_schema: { strict: true, schema: jobRequest.input.json_schema },
+        },
+      },
+    });
+  });
+
+  it('requires fresh consent and an explicit retry before sending a queued job to a replacement URL', async () => {
+    const { s, fake } = await start({ start: false });
+    const ai = s.client.ai;
+    const a = await ai.setKey('new-api', apiKey, baseUrl);
+    await ai.consent('new-api', a.notice.version, a.notice.credential_id);
+    const { job: queued } = await ai.submit(job('new-api'));
+    const replacementKey = 'relay_dummy_key_456';
+    const b = await ai.setKey('new-api', replacementKey, 'https://next.example.test/v1');
+    expect(b).toMatchObject({ ready: false, consent: null });
+    expect(
+      (await apiError(ai.consent('new-api', a.notice.version, a.notice.credential_id))).status,
+    ).toBe(409);
+    await ai.consent('new-api', b.notice.version, b.notice.credential_id);
+
+    s.ai.start();
+    expect(await finished(s, queued.id)).toMatchObject({
+      status: 'failed',
+      error_code: 'consent_required',
+    });
+    expect(fake.for('new-api')).toHaveLength(0);
+    await ai.retry(queued.id);
+    expect(await finished(s, queued.id)).toMatchObject({ status: 'succeeded' });
+    expect(fake.for('new-api')[0]?.headers.authorization).toBe(`Bearer ${replacementKey}`);
+  });
+
+  it('does not retain upstream error text', async () => {
+    const { s, fake } = await start();
+    const ai = s.client.ai;
+    const configured = await ai.setKey('new-api', apiKey, baseUrl);
+    await ai.consent('new-api', configured.notice.version, configured.notice.credential_id);
+    fake.script('new-api', fail('new-api', 400, `${baseUrl} ${apiKey} ${jobRequest.input.prompt}`));
+    const { job: submitted } = await ai.submit(jobRequest);
+    const failure = await finished(s, submitted.id);
+    expect(failure).toMatchObject({ status: 'failed', error_code: 'bad_request' });
+    expect(failure.error).not.toContain(baseUrl);
+    expect(failure.error).not.toContain(apiKey);
+    expect(failure.error).not.toContain(jobRequest.input.prompt);
+  });
+});
 
 describe('access, keys and consent', () => {
   it('every AI route is owner-only, even for reads', async () => {

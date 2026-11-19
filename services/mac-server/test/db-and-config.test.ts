@@ -45,6 +45,34 @@ describe('database', () => {
     }
   });
 
+  it('keeps saved provider settings when adding New API', () => {
+    const file = path.join(home(), 'db.sqlite');
+    const db = openDatabase(
+      file,
+      migrations.filter((migration) => migration.id < '0012'),
+    );
+    try {
+      const timestamp = '2026-11-19T00:00:00.000Z';
+      db.prepare('INSERT INTO ai_providers VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+        'openai',
+        timestamp,
+        'gpt-5.5',
+        null,
+        1,
+        timestamp,
+        timestamp,
+      );
+      const before = db.prepare('SELECT * FROM ai_providers').get();
+      expect(runMigrations(db, migrations)).toEqual(['0012']);
+      expect(db.prepare('SELECT * FROM ai_providers').get()).toMatchObject({
+        ...(before as Record<string, unknown>),
+        credential_id: null,
+      });
+    } finally {
+      db.close();
+    }
+  });
+
   it('is idempotent and refuses edited or unknown applied migrations', () => {
     const file = path.join(home(), 'db.sqlite');
     const db = openDatabase(file);

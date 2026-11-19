@@ -165,6 +165,7 @@ QC-010：mac-server 用同一組 mdast 套件與版本，從 Markdown 找出圖�
 | globals | ^17.14.0 | MIT | Node 全域變數宣告 | — |
 | prettier | ^3.10.1 | MIT | 程式碼格式（Markdown 不格式化，見 `.prettierignore`） | Biome |
 | vitest | ^5.1.0 | MIT | 單元與整合測試 | node:test |
+| @playwright/test | 1.65.1 | Apache-2.0 | 在原始碼建置的 Electron 上執行跨介面與服務的流程測試（`corepack pnpm test:e2e`） | WebdriverIO |
 | @types/node | ^24.19.2 | MIT | Node 24 型別 | — |
 | @types/better-sqlite3 | ^9.6.0 | MIT | better-sqlite3 型別 | — |
 | esbuild（mac-server 開發依賴） | 0.28.2 | MIT | mac-server 建置產物打包（QC-030，見上） | pnpm deploy、tsc |
