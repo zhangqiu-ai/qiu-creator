@@ -1,0 +1,30 @@
+# QC-033 合蓋、電源與重開機（使用者操作，qc-test 讀紀錄）
+
+- 版本：bf3aaf8。
+- 時間來源：`pmset -g log`，時區 -0800。
+- 服務：launchd `com.qiu-creator.mac-server`。
+
+## U2 合蓋，接電源：第一次（**不到 10 分鐘，不算數**）
+
+使用者原話（總監轉述）：「U2 合蓋完成，App 自動重連，沒有錯誤」。使用者沒有提供時間，以下時間都取自 `pmset -g log`。
+
+| 時間 | 事件 |
+| --- | --- |
+| 06:30:27 | `Entering Sleep state due to 'Clamshell Sleep'`，`Using AC (Charge:80%)` |
+| 06:30:55 | `DarkWake from Deep Idle`（網路封包喚醒），維持 11 秒 |
+| 06:31:06 | `Entering Sleep state due to 'Maintenance Sleep'`，`Using AC` |
+| 06:35:05 | `com.apple.powermanagement.lidopen` |
+| 06:35:06 | `Wake from Deep Idle … lid …`，`Using AC (Charge:80%)` |
+
+- **合蓋時間：4 分 39 秒，未達 10 分鐘。** 全程接電源。
+- 服務：
+  - `launchctl print` 仍是 `runs = 2`、pid 62355，與 `kill -9` 補做後相同，**合蓋期間沒有重啟**。
+  - `mac-server.err.log` 是 0 位元組。
+  - 06:29:39 到檢查時間 06:37 之間，服務日誌沒有新的請求，也沒有 warn 或 error。
+- App 連線：
+  - 06:37:16 `lsof` 顯示，App（pid 109）與服務之間只有一條連線（127.0.0.1:52171 對 7420），是 App 06:29 開啟後建立的事件串流。
+  - 這條連線**撐過了睡眠，不需要重連**。所以日誌裡看不到重連；使用者看到的「沒有錯誤」與此相符。
+  - 是否真的「自動重連」，這次沒有發生需要重連的情況，無法驗證。
+- 合蓋前沒有長任務在跑：06:29:39 之後沒有任何請求。
+
+**結論**：服務與 App 在 4.6 分鐘的合蓋睡眠中保持正常，但不滿足「合蓋 10 分鐘以上」的驗收條件，需要使用者重做 U2。
