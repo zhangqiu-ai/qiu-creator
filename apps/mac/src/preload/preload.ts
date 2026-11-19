@@ -10,6 +10,7 @@ import {
   type ProxyResponse,
   type RevealTarget,
   type UploadItem,
+  type ThemeSource,
 } from '../shared/bridge.js';
 
 function listen(channel: string, listener: (payload: unknown) => void): () => void {
@@ -55,6 +56,8 @@ const bridge: CreatorHubBridge = {
   pickFolder: () => ipcRenderer.invoke(IPC.pickFolder) as Promise<string | null>,
   reveal: (target: RevealTarget) => ipcRenderer.invoke(IPC.reveal, target) as Promise<boolean>,
   copyText: (text) => ipcRenderer.invoke(IPC.copyText, text) as Promise<void>,
+  getTheme: () => ipcRenderer.invoke(IPC.getTheme) as Promise<ThemeSource>,
+  setTheme: (theme) => ipcRenderer.invoke(IPC.setTheme, theme) as Promise<void>,
 };
 
 contextBridge.exposeInMainWorld('creatorhub', bridge);
