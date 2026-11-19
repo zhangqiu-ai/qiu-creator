@@ -576,6 +576,8 @@ kbd {
 /* Editor */
 .editor {
   overflow: hidden;
+  /* The editor body switches to one column by its own width, not the window's (QC-040). */
+  container: editor / inline-size;
 }
 .editor__bar {
   display: flex;
@@ -628,26 +630,50 @@ kbd {
   flex: 1;
   min-height: 0;
   display: flex;
-  flex-wrap: wrap;
-  overflow: auto;
+  /*
+   * The body itself never scrolls (QC-040): the text and the side panel each
+   * scroll on their own, so the toolbar and the panel tabs stay in view.
+   */
+  overflow: hidden;
 }
 .editor__doc {
   flex: 999 1 480px;
   min-width: 0;
-  max-height: 100%;
+  min-height: 0;
   overflow: auto;
   background: var(--qc-surface);
 }
 .panel {
   flex: 1 1 340px;
   max-width: 400px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--qc-line);
   background: var(--qc-bg);
   overflow: auto;
 }
+/* Too narrow for two columns: text on top, the panel below with a capped height. */
+@container editor (max-width: 819px) {
+  .editor__body {
+    flex-direction: column;
+  }
+  .editor__body > .editor__doc {
+    flex: 1 1 auto;
+  }
+  .editor__body > .panel {
+    flex: 0 0 auto;
+    max-width: none;
+    max-height: 45%;
+    border-left: 0;
+    border-top: 1px solid var(--qc-line);
+  }
+}
 .panel__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--qc-bg);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2197,6 +2223,12 @@ kbd {
 
 /* ---- Editor AI panel (QC-024, MacEditor board) ---- */
 .ai__tabs {
+  /* Pinned while the panel scrolls (QC-040). */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  flex: none;
+  background: var(--qc-bg);
   display: flex;
   align-items: center;
   gap: 16px;
