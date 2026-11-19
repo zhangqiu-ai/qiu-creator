@@ -178,6 +178,7 @@ QC-010：mac-server 用同一組 mdast 套件與版本，從 Markdown 找出圖�
 - 簽章：`identity: '-'`（ad-hoc）。未簽名的 Electron 在 Apple Silicon 改過 Info.plist 後 `codesign --verify` 失敗、無法啟動。
 - 替代方案：@electron/packager（更輕，沒有 builder 的設定檔與 asar 整合，需自己處理簽章）；Electron Forge（較重，含 makers 與 publisher，用不到）。
 - 安裝腳本（`packages/installer`）只用 Node 內建模組與 `tsx`（已有），沒有新增執行期依賴。
+- App 圖示（QC-041）：`apps/mac/build/icon.svg` 是原稿，`apps/mac/scripts/build-icon.mjs` 用服務端已有的 sharp 轉出各尺寸，再由 macOS 內建的 `iconutil` 產生 `build/icon.icns`。只在開發時執行，沒有新增依賴。
 
 ## 未來候選（尚未加入）
 

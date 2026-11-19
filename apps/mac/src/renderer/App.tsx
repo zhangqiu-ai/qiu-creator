@@ -1,18 +1,20 @@
 import type { CreatorHubClient } from '@qiu-creator/api-client';
-import type { WorkDetail } from '@qiu-creator/contracts';
+import type { HealthResponse, WorkDetail } from '@qiu-creator/contracts';
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { connect, type ConnectResult } from './api.js';
 import { AssetsPage } from './AssetsPage.js';
 import { BackupSession, type BackupState } from './backups.js';
 import { onRestoringSeen } from './restoring.js';
 import { EditorPage } from './EditorPage.js';
-import { useChangeEvents, useRefreshOn, useUploads } from './events.js';
-import { Icon, type IconName } from './Icon.js';
+import { useChangeEvents, useEventStatus, useRefreshOn, useUploads } from './events.js';
+import { Icon } from './Icon.js';
 import { ImportsPage } from './ImportsPage.js';
 import { LibraryPage } from './LibraryPage.js';
 import { PreviewPage } from './PreviewPage.js';
 import { AiWorkbenchPage } from './AiWorkbenchPage.js';
 import { SettingsPage } from './SettingsPage.js';
+import { Sidebar, type NavPage } from './Sidebar.js';
+import { serviceSummary } from './sidebar-prefs.js';
 
 type Connection = { state: 'connecting' } | ConnectResult;
 type Route =
@@ -23,16 +25,31 @@ type Route =
   | { page: 'imports' }
   | { page: 'preview'; workId: string | null; from: WorkDetail | null }
   | { page: 'settings'; section?: 'ai' };
-type NavPage = 'library' | 'assets' | 'imports' | 'ai' | 'preview' | 'settings';
 
-const NAV: readonly { page: NavPage; label: string; icon: IconName }[] = [
-  { page: 'library', label: '作品庫', icon: 'library' },
-  { page: 'assets', label: '素材庫', icon: 'assets' },
-  { page: 'imports', label: '匯入任務', icon: 'imports' },
-  { page: 'ai', label: 'AI 工作台', icon: 'spark' },
-  { page: 'preview', label: '平台預覽', icon: 'phone' },
-  { page: 'settings', label: '設定', icon: 'settings' },
-];
+/** `/health` for the sidebar's service dot: on connect, every 30 s, and on 重新檢查. */
+function useServiceHealth(client: CreatorHubClient | null) {
+  const [health, setHealth] = useState<HealthResponse | 'down' | null>(null);
+  const checkHealth = useCallback(() => {
+    if (client === null) {
+      setHealth(null);
+      return;
+    }
+    client
+      .health()
+      .then(setHealth)
+      .catch(() => {
+        setHealth('down');
+      });
+  }, [client]);
+  useEffect(() => {
+    checkHealth();
+    const timer = setInterval(checkHealth, 30_000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [checkHealth]);
+  return { health, checkHealth };
+}
 
 /** Queued and running import jobs on the service plus this session's active uploads. */
 function useActiveTaskCount(client: CreatorHubClient | null, dataEpoch: number): number {
@@ -140,6 +157,19 @@ export function App() {
       backups.state.externalRestore);
   const serviceUp = client !== null;
   const activeTasks = useActiveTaskCount(client, dataEpoch);
+  const events = useEventStatus();
+  const { health, checkHealth } = useServiceHealth(client);
+  // Live updates dropped: find out right away whether the service itself is gone.
+  useEffect(() => {
+    if (events === 'reconnecting') checkHealth();
+  }, [events, checkHealth]);
+  const service = serviceSummary({
+    serviceUp: serviceUp && health !== 'down',
+    events,
+    health: health === 'down' ? null : health,
+    restoring,
+  });
+  const address = 'state' in connection ? '' : connection.baseUrl.replace(/^https?:\/\//, '');
 
   const openWork = useCallback(
     (id: string) => {
@@ -163,46 +193,17 @@ export function App() {
 
   return (
     <div className="shell">
-      <nav className="side" aria-label="主導航">
-        <div className="side__brand">
-          <span className="side__mark" aria-hidden="true" />
-          <span className="side__label">qiu-creator</span>
-        </div>
-        {NAV.map((item) => (
-          <button
-            key={item.page}
-            type="button"
-            className="nav-item"
-            aria-current={current === item.page ? 'page' : undefined}
-            title={item.label}
-            onClick={() => {
-              go(item.page);
-            }}
-          >
-            <Icon name={item.icon} />
-            <span className="side__label">{item.label}</span>
-            {item.page === 'imports' && activeTasks > 0 && (
-              <span className="chip chip--accent nav-item__badge">
-                <span className="visually-hidden">進行中 </span>
-                {activeTasks}
-              </span>
-            )}
-          </button>
-        ))}
-        <div
-          className="side__foot"
-          role="status"
-          title={restoring ? '還原中' : serviceUp ? '服務運行中' : '服務未回應'}
-        >
-          <span
-            className={restoring ? 'dot dot--warn' : serviceUp ? 'dot' : 'dot dot--off'}
-            aria-hidden="true"
-          />
-          <span className="side__label">
-            {restoring ? '還原中' : serviceUp ? '服務運行中' : '服務未回應'}
-          </span>
-        </div>
-      </nav>
+      <Sidebar
+        current={current}
+        onNavigate={go}
+        importsCount={activeTasks}
+        service={service}
+        address={address}
+        onRecheck={() => {
+          if (client === null) tryConnect();
+          else checkHealth();
+        }}
+      />
 
       {'state' in connection ? (
         <main className="page page--center" aria-busy="true" />

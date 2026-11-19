@@ -19,6 +19,8 @@ mac:
     - target: dir
       arch: arm64
   category: public.app-category.productivity
+  # Option B 「q 字標」 (PT-20261119-001, QC-041); regenerate with scripts/build-icon.mjs.
+  icon: build/icon.icns
   identity: '-'
   hardenedRuntime: false
   gatekeeperAssess: false
