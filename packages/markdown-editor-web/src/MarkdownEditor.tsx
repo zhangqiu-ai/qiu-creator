@@ -17,7 +17,13 @@ import {
   type LossyReason,
 } from './lossy.js';
 import { createEditorPlugins, TO_MARKDOWN_OPTIONS } from './plugins.js';
-import { expandToBlocks, rangeForBlockTexts, type MarkdownRange } from './selection.js';
+import { blockEndAt, boundaryBeforeBlock, insertBlockAt } from './insert.js';
+import {
+  expandToBlocks,
+  markdownBlocks,
+  rangeForBlockTexts,
+  type MarkdownRange,
+} from './selection.js';
 import { translateZhTW } from './translation.js';
 
 export type EditorMode = 'visual' | 'source';
@@ -63,6 +69,19 @@ export interface MarkdownEditorHandle {
   focus: () => void;
   /** The current selection as a Markdown source range (see `onSelectionChange`), or null. */
   getSelectionRange: () => MarkdownRange | null;
+  /**
+   * Insert a whole block (QC-039: an image from the library, a pasted or dropped
+   * file). `caret`: after the block holding the caret, or where it was last if
+   * focus moved to a side panel; `{ beforeBlock }`: at a visual-mode drop point
+   * from `boundaryAt`; `end`: at the end. Reported through `onChange` like typing.
+   */
+  insertBlock: (block: string, where?: 'caret' | 'end' | { beforeBlock: number }) => void;
+  /**
+   * Visual mode: the block boundary nearest to viewport `y` (for a drop line),
+   * as `{ index, y }` where `y` is where to draw the line. Null in source mode
+   * or when the rendered blocks cannot be matched to the Markdown.
+   */
+  boundaryAt: (y: number) => { index: number; y: number } | null;
 }
 
 /**
@@ -124,6 +143,19 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         end: children.indexOf(b),
       });
     }, [mode]);
+
+    /** The last caret or selection inside the editor, kept while focus is in a side panel. */
+    const lastRange = useRef<MarkdownRange | null>(null);
+    useEffect(() => {
+      const remember = () => {
+        const r = selectionRange();
+        if (r !== null) lastRange.current = r;
+      };
+      document.addEventListener('selectionchange', remember);
+      return () => {
+        document.removeEventListener('selectionchange', remember);
+      };
+    }, [selectionRange]);
 
     const { onSelectionChange } = props;
     const reportSourceSelection = useCallback(() => {
@@ -216,6 +248,68 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       [changeMode, enterVisual, mode],
     );
 
+    const insertBlock = useCallback(
+      (block: string, where: 'caret' | 'end' | { beforeBlock: number } = 'caret') => {
+        const text = current.current;
+        let offset = text.length;
+        if (typeof where === 'object') {
+          offset = boundaryBeforeBlock(text, where.beforeBlock);
+        } else if (where === 'caret') {
+          const t = textarea.current;
+          const caret =
+            mode === 'source' && t !== null
+              ? t.selectionEnd
+              : (selectionRange()?.end ?? lastRange.current?.end ?? null);
+          if (caret !== null) offset = blockEndAt(text, caret);
+        }
+        const result = insertBlockAt(text, offset, block);
+        current.current = result.markdown;
+        lastRange.current = { start: result.end, end: result.end };
+        if (mode === 'visual') {
+          visualLoaded.current = result.markdown;
+          visualNormalized.current = result.markdown;
+          setVisualKey((k) => k + 1);
+        } else {
+          setSourceText(result.markdown);
+          requestAnimationFrame(() => {
+            const el = textarea.current;
+            if (el === null) return;
+            el.focus();
+            el.setSelectionRange(result.end, result.end);
+          });
+        }
+        emit();
+      },
+      [emit, mode, selectionRange],
+    );
+
+    const boundaryAt = useCallback(
+      (y: number): { index: number; y: number } | null => {
+        if (mode !== 'visual') return null;
+        const root = container.current?.querySelector('.qc-md-editor__content');
+        if (root == null) return null;
+        // Empty paragraphs (a fresh line, the one Lexical keeps after a divider) are not in
+        // the Markdown: leave them out. An image paragraph has element children, not just <br>.
+        const children = Array.from(root.children).filter(
+          (c) =>
+            c.tagName === 'HR' ||
+            c.textContent.trim() !== '' ||
+            Array.from(c.children).some((ch) => ch.tagName !== 'BR'),
+        );
+        if (children.length !== markdownBlocks(current.current).length) return null;
+        for (const [i, child] of children.entries()) {
+          const r = child.getBoundingClientRect();
+          if (y < r.top + r.height / 2) {
+            const prev = children[i - 1]?.getBoundingClientRect();
+            return { index: i, y: prev === undefined ? r.top - 6 : (prev.bottom + r.top) / 2 };
+          }
+        }
+        const last = children.at(-1)?.getBoundingClientRect();
+        return { index: children.length, y: last === undefined ? y : last.bottom + 6 };
+      },
+      [mode],
+    );
+
     useImperativeHandle(
       ref,
       () => ({
@@ -228,8 +322,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           else textarea.current?.focus();
         },
         getSelectionRange: selectionRange,
+        insertBlock,
+        boundaryAt,
       }),
-      [mode, requestMode, selectionRange],
+      [mode, requestMode, selectionRange, insertBlock, boundaryAt],
     );
 
     const resolveImageRef = useRef(props.resolveImage);
@@ -253,6 +349,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         ref={container}
         className={['qc-md-editor', props.className].filter(Boolean).join(' ')}
         data-mode={mode}
+        onBlurCapture={() => {
+          // Focus is leaving (e.g. to the asset drawer): the selection is still here, keep it.
+          const r = selectionRange();
+          if (r !== null) lastRange.current = r;
+        }}
         onCompositionStartCapture={() => {
           setComposing(true);
         }}

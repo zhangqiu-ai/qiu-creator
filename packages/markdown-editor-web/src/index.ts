@@ -23,3 +23,10 @@ export {
   type MarkdownBlock,
   type MarkdownRange,
 } from './selection.js';
+export {
+  blockEndAt,
+  boundaryBeforeBlock,
+  imageMarkdown,
+  insertBlockAt,
+  type InsertResult,
+} from './insert.js';

@@ -9,6 +9,9 @@ import {
   SignedAssetUrlsResponseSchema,
   WorkDetailSchema,
   WorkMediaResponseSchema,
+  AttachWorkMediaRequestSchema,
+  AttachWorkMediaResponseSchema,
+  type AttachWorkMediaResponse,
   type CreateWorkRequest,
   type ErrorResponse,
   type HealthResponse,
@@ -141,6 +144,11 @@ export interface CreatorHubClient {
     ): Promise<WorkDetail>;
     /** Resolve media referenced from the work's Markdown, with signed URLs (relative; see `mediaUrl`). */
     media(id: string): Promise<WorkMediaResponse>;
+    /**
+     * Copy an asset into a managed work's `assets/` and link it (QC-039); returns the
+     * `src` to insert. External works answer 409 `attach_external_unsupported`.
+     */
+    attachMedia(id: string, assetId: string): Promise<AttachWorkMediaResponse>;
   };
   /** Signed, header-less URLs for `<img>`/`<video>` (QC-010). */
   media: {
@@ -269,6 +277,13 @@ export function createClient(options: CreatorHubClientOptions): CreatorHubClient
         ),
       media: (id) =>
         request(WorkMediaResponseSchema, 'GET', `/api/v1/works/${encodeURIComponent(id)}/media`),
+      attachMedia: (id, assetId) =>
+        request(
+          AttachWorkMediaResponseSchema,
+          'POST',
+          `/api/v1/works/${encodeURIComponent(id)}/media/attach`,
+          { body: AttachWorkMediaRequestSchema.parse({ asset_id: assetId }) },
+        ),
     },
     media: {
       signedAssetUrls: (input) =>

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -78,10 +79,35 @@ const relay = new EventRelay({
   },
 });
 
+/** Pasted images are queued from temporary files, removed once their upload settles (QC-039). */
+const pastedFiles = new Map<string, string>();
+const PASTE_MAX_BYTES = 200 * 1024 * 1024;
+
+async function writePasteFile(name: string, data: Uint8Array): Promise<string> {
+  const dir = path.join(app.getPath('temp'), 'qiu-creator-paste', randomUUID());
+  await fs.mkdir(dir, { recursive: true });
+  // Only the last segment, without separators or control characters.
+  let safe = '';
+  for (const ch of path.basename(name).slice(0, 120)) {
+    const code = ch.charCodeAt(0);
+    safe += code < 32 || code === 127 || ch === '/' || ch === '\\' || ch === ':' ? '-' : ch;
+  }
+  const file = path.join(dir, safe === '' || safe.startsWith('.') ? 'pasted-image.png' : safe);
+  await fs.writeFile(file, data);
+  return file;
+}
+
 const uploads = new UploadManager({
   connection,
   onChange: (items) => {
     broadcast(IPC.uploadsChanged, items);
+    for (const item of items) {
+      const file = pastedFiles.get(item.id);
+      if (file === undefined || (item.state !== 'succeeded' && item.state !== 'cancelled'))
+        continue;
+      pastedFiles.delete(item.id);
+      void fs.rm(path.dirname(file), { recursive: true, force: true });
+    }
   },
 });
 
@@ -207,6 +233,21 @@ function registerIpc(): void {
       throw new Error('invalid paths');
     }
     return uploads.add(paths as string[]);
+  });
+  handle(IPC.insertPaths, (paths) => {
+    if (!Array.isArray(paths) || !paths.every((p) => typeof p === 'string' && path.isAbsolute(p))) {
+      throw new Error('invalid paths');
+    }
+    return uploads.addWithIds(paths as string[]);
+  });
+  handle(IPC.insertBytes, async (name, data) => {
+    if (typeof name !== 'string' || !(data instanceof Uint8Array)) throw new Error('invalid paste');
+    if (data.byteLength === 0 || data.byteLength > PASTE_MAX_BYTES) throw new Error('invalid size');
+    const file = await writePasteFile(name, data);
+    const [id] = await uploads.addWithIds([file]);
+    if (id === undefined) throw new Error('could not queue the pasted file');
+    pastedFiles.set(id, file);
+    return id;
   });
   handle(IPC.uploads, () => uploads.list());
   handle(IPC.cancelUpload, (id) => {

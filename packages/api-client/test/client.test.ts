@@ -97,6 +97,42 @@ describe('createClient', () => {
     expect((err as ApiError).currentRevision).toBeUndefined();
   });
 
+  it('attaches an asset to a work and keeps attach_external_unsupported (QC-039)', async () => {
+    const asset = {
+      id: '00000000-0000-4000-8000-000000000001',
+      kind: 'image',
+      path: 'library/assets/00000000-0000-4000-8000-000000000001/a.png',
+      sha256: 'a'.repeat(64),
+      mime_type: 'image/png',
+      bytes: 10,
+      duration: null,
+      width: 1,
+      height: 1,
+      codec: null,
+      origin: 'upload',
+      created_at: '2026-11-19T00:00:00.000Z',
+      original_name: 'a.png',
+      metadata_status: 'ready',
+      thumbnail_status: 'ready',
+      updated_at: '2026-11-19T00:00:00.000Z',
+    };
+    const ok = fakeFetch(200, { src: 'assets/a.png', copied: true, asset });
+    const client = createClient({ baseUrl: 'http://mac', token: 't', fetch: ok.fetch });
+    const res = await client.works.attachMedia('00000000-0000-4000-8000-0000000000aa', asset.id);
+    expect(res.src).toBe('assets/a.png');
+    expect(ok.calls[0]?.url).toBe(
+      'http://mac/api/v1/works/00000000-0000-4000-8000-0000000000aa/media/attach',
+    );
+    expect(ok.calls[0]?.init?.method).toBe('POST');
+    const body = ok.calls[0]?.init?.body;
+    expect(typeof body === 'string' ? JSON.parse(body) : null).toEqual({ asset_id: asset.id });
+    const no = fakeFetch(409, { error: { code: 'attach_external_unsupported', message: 'x' } });
+    const c2 = createClient({ baseUrl: 'http://mac', token: 't', fetch: no.fetch });
+    const err: unknown = await c2.works.attachMedia('w', asset.id).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).code).toBe('attach_external_unsupported');
+  });
+
   it('keeps the backup error codes (QC-030)', async () => {
     const cases = [
       [409, 'restore_in_progress'],

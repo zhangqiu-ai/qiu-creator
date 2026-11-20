@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AssetRecordSchema } from './assets.js';
 import { AssetKindSchema, IdSchema, RevisionSchema, TimestampSchema } from './entities.js';
 
 // ---- Revisions: read one, restore (QC-010) ----------------------------------
@@ -93,3 +94,23 @@ export const SignedAssetUrlsResponseSchema = z.object({
   expires_at: TimestampSchema,
 });
 export type SignedAssetUrlsResponse = z.infer<typeof SignedAssetUrlsResponseSchema>;
+
+/**
+ * Make an asset usable from a managed work's Markdown (QC-039): the service
+ * copies the asset's file into the work's own `assets/` folder (an
+ * independent copy; same content is not copied twice, a different file never
+ * overwrites one with the same name) and links the asset to the work. It
+ * never writes the work's Markdown: the editor inserts `![](src)` and saves
+ * through the normal revision path.
+ */
+export const AttachWorkMediaRequestSchema = z.object({ asset_id: IdSchema });
+export type AttachWorkMediaRequest = z.input<typeof AttachWorkMediaRequestSchema>;
+
+export const AttachWorkMediaResponseSchema = z.object({
+  /** Markdown-relative path to write in `![](src)`, e.g. `assets/kyoto.png`. */
+  src: z.string(),
+  /** False when the same content was already in the work's `assets/`. */
+  copied: z.boolean(),
+  asset: AssetRecordSchema,
+});
+export type AttachWorkMediaResponse = z.infer<typeof AttachWorkMediaResponseSchema>;

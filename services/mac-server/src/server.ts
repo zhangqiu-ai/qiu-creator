@@ -49,6 +49,7 @@ import { registerAssetRoutes } from './routes/assets.js';
 import { registerEventRoutes } from './routes/events.js';
 import { registerImportRoutes, registerTokenRoutes } from './routes/imports.js';
 import { registerMediaRoutes } from './routes/media.js';
+import { WorkMediaAttacher } from './media/attach.js';
 import { registerMountRoutes } from './routes/mounts.js';
 import { registerAiRoutes } from './routes/ai.js';
 import { registerAiTextRoutes } from './routes/ai-text.js';
@@ -528,7 +529,14 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerImportRoutes(app, imports, idempotency);
   registerTokenRoutes(app, tokens);
   registerMountRoutes(app, mounts);
-  registerMediaRoutes(app, media, assets, signer, tokens);
+  registerMediaRoutes(
+    app,
+    media,
+    assets,
+    signer,
+    tokens,
+    new WorkMediaAttacher(layout, works, assets),
+  );
   registerVariantRoutes(app, variants);
   registerAiRoutes(app, ai, idempotency);
   registerAiTextRoutes(app, new TextAiService(ai, works, variants), ai, idempotency);

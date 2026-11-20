@@ -65,6 +65,22 @@ renderer（React，sandbox，無 Node）
 - **縮圖與媒體（QC-012）。** `qc-asset://thumbnail/<id>` 與 `qc-asset://stream/<id>` 由主程序的 protocol handler 帶上權杖向服務取得；串流只轉送單一 `bytes=` Range、不緩衝，影片可以跳轉。只接受 UUID 形式的 id，CSP 的 `img-src` 與 `media-src` 加上 `qc-asset:`。renderer 一律透過 `assetMediaUrl()` 取得媒體 URL，QC-010 改用簽名 URL 時只換這個函式。
 - **在 Finder 顯示、資料夾選擇、剪貼簿。** renderer 只傳素材或掛載的 id，主程序向服務查出路徑再顯示（素材路徑必須在 `CREATORHUB_HOME` 內）；掛載資料夾用系統資料夾選擇器；複製雜湊與權杖走主程序的 `clipboard`（renderer 的權限請求一律拒絕）。
 - **頁面（QC-012）。** 素材庫（網格、類型篩選、檔名搜尋、檢視器、拖放上傳）、匯入任務（URL 匯入任務加本次上傳，依狀態篩選，在原列重試／取消／繼續，重複內容標「已存在」並可沿用原素材；右欄 Agent 權杖，明文只在建立後顯示一次，撤銷前確認）、設定（服務狀態與即時更新連線、托管目錄、外部掛載的新增、重新掃描、卸載與重新掛載）。設定頁不放服務啟停、備份、AI 金鑰、Tailscale 與裝置配對：前兩者沒有 API，AI 金鑰是 M3，後兩者是第二期。
+- **編輯器插入素材（QC-039，PT-20261119-001）。**
+  - **入口**：標頭「插入」選單、空行輸入 `/`、右側素材抽屜（⌘⇧I，搜尋、全部圖片／本作品、點選或方向鍵加 ↩ 插入、拖進文中）、從 Finder 拖入、⌘V 貼上圖片、⌘⇧U 上傳圖片。視覺與原始碼兩種模式都支援。
+  - **流程**：每條路都一樣——先由服務 `POST /works/:id/media/attach` 把素材複製進作品自己的 `assets/` 並建立連結，再由編輯器把 `![alt](src)` 插成獨立的區塊，作品走一般的 `base_revision` 存檔。
+    - 貼上與拖入的檔案先交給主程序上傳（`insertBytes` 把貼上的位元組寫成暫存檔，上傳完成後刪除；`insertFiles` 用檔案原本的路徑）。
+    - 上傳中、插入中、失敗（重試／移除）以卡片顯示在正文上方。
+  - **插入位置**：
+    - 游標所在段落之後；焦點移到抽屜時，用編輯器失焦前記下的位置。
+    - 視覺模式拖放時插在插入線指出的區塊之前。
+    - `/` 在按下時就記下空行所在的區塊邊界。
+  - **為什麼要複製**：託管作品的 Markdown 只能讀到自己資料夾的 `assets/`，素材庫的檔案在共用的 `library/assets/`。
+    - 複製出來的是獨立的檔案：之後從素材庫刪除或永久刪除這個素材，文章裡的圖片不受影響。
+    - 同樣內容（sha256）不會重複複製；不同檔案同名時自動加 `-2`、`-3`，絕不覆蓋。
+    - 寫入時先寫暫存檔、核對雜湊並 fsync，再用 `link` 原子地放到正式名稱。
+    - 路徑一律檢查不離開 `library/works/<id>/assets/`；同一作品的 attach 依序執行。
+  - **外部作品**：不寫進使用者自己的資料夾，插入入口停用並說明。
+  - **圖片顯示**：`WorkMediaResolver` 在不認得某個 `src` 時，先存檔再重新讀取；快取剛失效時也一樣。存檔後不沿用存檔前就開始的讀取。
 - **素材庫 v2（QC-037 前端，PT-20261119-001）。**
   - **範圍**：全部、未引用、最近刪除；⌘ 點選可以多選，多選後可批次加標籤或移除。
   - **右側素材資訊**：可編輯名稱（`display_name`）、標籤、替代文字、備註，600 ms 後自動儲存，帶 `base_revision`。
@@ -166,6 +182,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/works/:id/revisions/:rid` | 單一歷史版本：標題與完整 Markdown 快照 |
 | POST | `/api/v1/works/:id/revisions/:rid/restore` | 恢復某版本：追加一個 `restore` revision；需要 `base_revision` 或 `If-Match` |
 | GET | `/api/v1/works/:id/media` | 解析 Markdown 引用的圖片／影音，回每項狀態與簽名網址；外部作品的引用登記成素材 |
+| POST | `/api/v1/works/:id/media/attach` | 把素材複製進託管作品的 `assets/`、連結到作品，回 `src` 給 `![](src)` 用（QC-039）；不寫 Markdown；外部作品回 409 `attach_external_unsupported` |
 | GET | `/api/v1/works/:id/files/*` | 以 Bearer 讀作品內的媒體檔，支援 Range（規則同簽名路由） |
 | POST | `/api/v1/media/signed-urls` | 為素材（`stream`／`thumbnail`）簽發短期網址 |
 | GET | `/media/v1/works/:id/files/*?exp&p&sig` | 簽名媒體檔，不需 Authorization，支援 Range |
