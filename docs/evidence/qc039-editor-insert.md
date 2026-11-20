@@ -10,8 +10,55 @@
   - 之後在素材庫把這個素材移到最近刪除，甚至永久刪除，**已經插進文章的圖片不受影響**，文章照常顯示。持久測試 `is an independent copy` 驗證了這點：刪除、清空素材後，作品的圖片仍存在、仍能解析。
   - 反過來，在素材庫編輯這個素材的名稱、標籤、替代文字，也不會改到文章裡已插入的圖片；替代文字只在插入的那一刻帶進 `![alt]`。
   - 代價是佔用兩份磁碟空間。同一作品重複插入同樣內容時不會再複製一份。
-- attach 同時建立作品與素材的連結，所以在 QC-037 的刪除規則裡，這個素材算「被引用」：刪除時會列出作品並要求確認，確認框文字說作品會顯示為缺圖。但因為文章用的是複本，實際上文章不會缺圖。
-  - 這句文字對以插入方式使用的素材偏保守。是否要改成「文章中的圖片已是獨立的複本，不受影響」，請總監決定；這次沒有改 QC-037 的文案。
+- attach 同時建立作品與素材的連結，所以在 QC-037 的刪除規則裡，這個素材算「被引用」：刪除時會列出作品並要求確認。確認框的文案已依總監審閱改成精確描述，見下方「審閱後修正」第 3 點。
+
+## 審閱後修正（總監 2026-11-19 審閱）
+
+### 1. Finder 拖入的虛線框位置
+
+- **原因**：框是編輯區捲動容器裡 `inset: 0` 的絕對定位元素，跟著內容捲動，捲動後只蓋住內容頂部。
+- **修正**：`dropFrame()`（`InsertUI.tsx`）依捲動容器當下的 `scrollTop`、`clientWidth`、`clientHeight` 與工具列底緣計算框的位置，框固定在可見範圍：工具列下方，四邊各留 8px。容器捲動時（`onScroll`）重新計算。
+  - 沒有改用 `position: fixed`：`.editor` 是 inline-size container，會成為 fixed 元素的定位基準。
+- **自動捲動**：指標在框上下緣 48px 內時，每次 dragover 捲動，越靠近邊緣越快（最多 24px）。插入線依捲動後的位置重算。
+- **同一根因一起修**：放開時原本用 React state 裡上一次 dragover 的位置，最後一次 dragover 還沒重繪就放開時會插錯位置（e2e 在自動捲動後放開時重現）。現在依放開當下的指標位置計算。
+- **測試**：
+  - e2e：捲動後（`scrollTop > 0`）框的 bounding box 等於可見範圍（工具列下方、四邊 8px）；在上緣 dragover 會往上捲、在下緣會往下捲，框始終等於可見範圍；放開後仍插在指定段落之前。
+  - 單元：`dropScrollStep` 的方向、速度與中間不捲動。
+  - 重拍 `qc039-05-finder-drop.png`。
+
+### 2. 貼上暫存檔的清理
+
+- 暫存檔改由 `PasteFiles`（`apps/mac/src/main/paste-files.ts`）管理，放在 `userData/qiu-creator-paste/<uuid>/`。
+  - 不放系統共用暫存目錄，避免第二個實例啟動時清掉另一個實例的檔案。
+- **何時刪除**：
+  - 上傳成功或取消：刪除。
+  - 上傳失敗：保留，讓「重試」能再讀同一個檔案。
+  - 失敗卡按「移除」（`dismissUpload`）：刪除。
+  - App 啟動與結束（`before-quit`）：清掉整個 `qiu-creator-paste`。
+- 只刪自己資料夾裡的檔案；對不在資料夾內的路徑不動作。
+- **單元測試**：`paste-files.test.ts`，5 個測試，涵蓋檔名清理、成功與取消時刪除、失敗時保留與移除時刪除、啟動或結束時全清與大小限制、不刪資料夾外的檔案。
+
+### 3. 刪除確認框的文案
+
+- **實際行為**（依 link role 檢查）：
+  - attach 插入的正文圖片：作品 `assets/` 裡是獨立複本，刪除素材後文章照常顯示。
+  - 封面、影片：直接指向素材檔，會缺圖。
+  - 舊路徑 `POST /works/:id/assets` 建立的正文連結：不複製，Markdown 直接指向素材檔，會缺圖。
+  - 平台版本的封面與圖片：會缺圖。
+- **後端**：`GET /assets/:id/references` 的作品連結加上 `independent_copy`。
+  - 正文連結、託管作品，而且作品的 `assets/` 裡有同大小、同 sha256 的另一個檔案時為 true；素材自己的檔案不算。
+  - 外部作品一律 false。
+  - 判斷與 attach 共用 `findSameContent`。
+- **文案**：
+  - 只有複本：「文章中的圖片是獨立複本，不受影響；這件作品（多件時：這些作品）的素材清單會移除此項，30 天內恢復即補回。」完成提示：「已移到最近刪除 · 文章中的圖片不受影響」。
+  - 有會缺圖的：「「A」、「B」 會顯示為缺圖，30 天內恢復即自動補回。」若同時有複本，補一句「「X」 中的圖片是獨立複本，不受影響。」並分兩組列出作品。完成提示：「已移到最近刪除 · 部分作品顯示為缺圖」。
+  - 批次移除也用同樣的判斷。
+- **測試**：
+  - 後端：attach 後 references 為 `independent_copy: true`；直接連結的封面與正文為 false，attach 後只有正文變 true。
+  - 前端：4 個文案測試。
+  - e2e：
+    - `editor-insert`：插入後刪除 kyoto，確認框寫「獨立複本」，沒有「缺圖」，截圖 `qc039-09`。
+    - `assets`：直接連結的素材，確認框寫「會顯示為缺圖」。
 
 ## 後端（`services/mac-server/src/media/attach.ts`）
 
@@ -118,19 +165,21 @@
 | `qc039-02-drawer-inserted.png` | 素材抽屜，點選後插入 |
 | `qc039-03-slash.png` | 斜線選單 |
 | `qc039-04-paste-failed.png` | 貼上失敗：重試／移除 |
-| `qc039-05-finder-drop.png` | Finder 拖入：虛線框、插入線、提示 |
+| `qc039-05-finder-drop.png` | Finder 拖入：捲動後虛線框蓋住可見範圍，插入線與提示（審閱後重拍） |
 | `qc039-06-source-mode.png` | 原始碼模式：斜線與貼上後的 Markdown |
 | `qc039-07-drawer-dark.png` | 深色，素材抽屜 |
 | `qc039-08-insert-menu-dark.png` | 深色，插入選單 |
+| `qc039-09-delete-copy-wording.png` | 刪除已插入的素材：確認框說明文章中的圖片是獨立複本 |
 
 ## 驗證
 
 - `pnpm -r typecheck`、`tsc -p e2e/tsconfig.json`：通過。
 - `pnpm -r lint` 與根目錄 `pnpm lint`：0 錯誤。`pnpm format:check`：通過。
-- `pnpm test:e2e`：7 passed／0 failed／7 total（`assets`、`editor-insert` ×2、`editor-scroll`、`new-api`、`settings-theme`、`sidebar`），期間持有 e2e 鎖。
-- 全倉 `pnpm -r --workspace-concurrency=1 --no-bail test`：**742 passed／0 failed／742 total**。
-  - 執行時間 2026-11-19 16:20:55–16:21:13。負載開始 2.41、結束 5.36，期間持有全倉測試鎖。
-  - 各套件：contracts 16、design-tokens 5、domain 27、installer 39、markdown-editor-web 28（+6）、api-client 19（+1）、platform-preview 12、mac-server 372（+11）、apps/mac 218（+11）、agent-sdk 6。
+- `pnpm test:e2e`（審閱後修正後重跑）：7 passed／0 failed／7 total（`assets`、`editor-insert` ×2、`editor-scroll`、`new-api`、`settings-theme`、`sidebar`），期間持有 e2e 鎖。
+- 全倉 `pnpm -r --workspace-concurrency=1 --no-bail test`（審閱後修正後重跑）：**753 passed／0 failed／753 total**。
+  - 執行時間 2026-11-19 16:37:11–16:37:26。負載開始 4.10、結束 4.47，期間持有全倉測試鎖。
+  - 各套件：contracts 16、design-tokens 5、domain 27、installer 39、markdown-editor-web 28（+6）、api-client 19（+1）、platform-preview 12、mac-server 373（+12）、apps/mac 228（+21）、agent-sdk 6。
+  - 比第一次交付的 742 多 11 個：mac-server 1 個（`independent_copy`），apps/mac 10 個（暫存檔 5、刪除文案 4、自動捲動 1）。
 
 ## NOT_VERIFIED
 

@@ -115,6 +115,8 @@ test('素材庫：編輯、刪除規則、復原、最近刪除與批次', async
       await inspector.getByRole('button', { name: '移到最近刪除' }).click();
       const dialog = page.getByRole('dialog', { name: '移到最近刪除？' });
       await expect(dialog).toContainText('被 1 件作品引用');
+      // Linked directly (not an attach copy): the article really loses the image.
+      await expect(dialog).toContainText('會顯示為缺圖');
       await expect(dialog.getByRole('button', { name: /京都紅葉季七日慢遊/ })).toBeVisible();
       await expect(dialog.getByRole('button', { name: '取消' })).toBeFocused();
       await shot(page, '04-delete-referenced');

@@ -108,9 +108,35 @@ describe('attach an asset to a managed work (QC-039)', () => {
     expect(second).toMatchObject({ src: first.src, copied: false });
     expect(fs.readdirSync(assetsDir)).toEqual(['desk.png']);
     expect((await s.client.workAssets.list(work.id)).items).toHaveLength(1);
-    // QC-037 delete rules: referenced → 409 asset_in_use without confirm.
+    // QC-037 delete rules: referenced → 409 asset_in_use without confirm, and the
+    // reference says the post holds an independent copy (its images survive).
     const err = await apiError(s.client.assets.trash(asset.id));
     expect(err.code).toBe('asset_in_use');
+    expect(await s.client.assets.references(asset.id)).toEqual({
+      works: [
+        { work_id: work.id, title: '書房改造', role: 'body', position: 0, independent_copy: true },
+      ],
+      variants: [],
+    });
+  });
+
+  it('marks direct links (cover, or a body link without a copy) as not independent', async () => {
+    const { s, work, upload } = await setup();
+    const { asset } = await upload('direct.png');
+    await s.client.workAssets.link(work.id, { asset_id: asset.id, role: 'cover' });
+    await s.client.workAssets.link(work.id, { asset_id: asset.id, role: 'body' });
+    const refs = await s.client.assets.references(asset.id);
+    expect(refs.works.map((r) => [r.role, r.independent_copy])).toEqual([
+      ['body', false],
+      ['cover', false],
+    ]);
+    // After attach the body image is a copy; the cover still points at the asset itself.
+    await s.client.works.attachMedia(work.id, asset.id);
+    const after = await s.client.assets.references(asset.id);
+    expect(after.works.map((r) => [r.role, r.independent_copy])).toEqual([
+      ['body', true],
+      ['cover', false],
+    ]);
   });
 
   it('reuses a file with the same content under another name instead of copying', async () => {

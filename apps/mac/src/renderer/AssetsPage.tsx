@@ -20,7 +20,12 @@ import {
 import {
   AssetEditor,
   assetErrorText,
+  batchInUseReferences,
   brokenLinkTitles,
+  deletedToast,
+  deleteImpact,
+  deleteImpactText,
+  type DeleteImpact,
   daysLeft,
   displayName,
   FIELD_LABEL,
@@ -1458,7 +1463,7 @@ function AssetDialogs({
   const [error, setError] = useState<string | null>(null);
   const [moveOriginal, setMoveOriginal] = useState(false);
   const [tagText, setTagText] = useState('');
-  const [batchRefs, setBatchRefs] = useState<number | null>(null);
+  const [batchRefs, setBatchRefs] = useState<{ count: number; impact: DeleteImpact } | null>(null);
 
   const run = (p: Promise<unknown>, then: () => void) => {
     setBusy(true);
@@ -1491,6 +1496,7 @@ function AssetDialogs({
 
   if (dialog.kind === 'referenced') {
     const works = referencingTitles(dialog.refs);
+    const impact = deleteImpact([dialog.refs]);
     return (
       <Dialog
         title="移到最近刪除？"
@@ -1505,7 +1511,7 @@ function AssetDialogs({
               onClick={() => {
                 run(client.assets.trash(dialog.asset.id, { confirm: true }), () => {
                   onDone([dialog.asset.id], {
-                    message: '已移到最近刪除 · 作品顯示為缺圖',
+                    message: deletedToast(impact),
                     undo: [dialog.asset.id],
                   });
                 });
@@ -1518,10 +1524,18 @@ function AssetDialogs({
       >
         <div className="form">
           <p>
-            「{displayName(dialog.asset)}」被 {works.length} 件作品引用。刪除後作品中顯示為缺圖，30
-            天內恢復即自動補回。
+            「{displayName(dialog.asset)}」被 {works.length} 件作品引用。{deleteImpactText(impact)}
           </p>
-          <WorkList refs={works} onOpenWork={onOpenWork} />
+          {impact.breaking.length > 0 && impact.safe.length > 0 ? (
+            <>
+              <span className="dialog__group dialog__group--bad">會顯示為缺圖</span>
+              <WorkList refs={impact.breaking} onOpenWork={onOpenWork} />
+              <span className="dialog__group">圖片是獨立複本，不受影響</span>
+              <WorkList refs={impact.safe} onOpenWork={onOpenWork} />
+            </>
+          ) : (
+            <WorkList refs={works} onOpenWork={onOpenWork} />
+          )}
           {errorLine}
         </div>
       </Dialog>
@@ -1626,15 +1640,22 @@ function AssetDialogs({
                   .then(() => {
                     setBusy(false);
                     onDone(dialog.ids, {
-                      message: `已移除 ${String(dialog.ids.length)} 個素材`,
+                      message:
+                        batchRefs === null
+                          ? `已移除 ${String(dialog.ids.length)} 個素材`
+                          : `已移除 ${String(dialog.ids.length)} 個素材 · ${
+                              batchRefs.impact.breaking.length === 0
+                                ? '文章中的圖片不受影響'
+                                : '部分作品顯示為缺圖'
+                            }`,
                       undo: chosen.filter((a) => !isExternal(a)).map((a) => a.id),
                     });
                   })
                   .catch((err: unknown) => {
                     setBusy(false);
                     if (err instanceof ApiError && err.code === 'asset_in_use') {
-                      const list = err.body?.error.details?.['assets'];
-                      setBatchRefs(Array.isArray(list) ? list.length : 1);
+                      const refs = batchInUseReferences(err);
+                      setBatchRefs({ count: Math.max(refs.length, 1), impact: deleteImpact(refs) });
                     } else {
                       setError(assetErrorText(err));
                     }
@@ -1655,7 +1676,7 @@ function AssetDialogs({
           </dl>
           {batchRefs !== null && (
             <p className="dialog__warn" role="alert">
-              其中 {batchRefs} 個被作品引用，移除後作品中顯示為缺圖；30 天內恢復即自動補回。
+              其中 {batchRefs.count} 個被作品引用。{deleteImpactText(batchRefs.impact)}
             </p>
           )}
           {errorLine}

@@ -11,6 +11,7 @@ import {
   type InsertBridge,
   type InsertWhere,
 } from '../src/renderer/editor-insert.js';
+import { dropScrollStep } from '../src/renderer/InsertUI.js';
 
 function asset(patch: Partial<AssetRecord> = {}): AssetRecord {
   return {
@@ -210,5 +211,16 @@ describe('InsertSession', () => {
     await h.session.insertFiles([new File(['x'], 'a.png', { type: 'image/png' })], 'caret');
     h.session.remove(h.session.getSnapshot().pending[0]?.key ?? '');
     expect(h.bridge.cancelUpload).toHaveBeenCalledWith('u1');
+  });
+});
+
+describe('drop frame auto-scroll (QC-039 review)', () => {
+  it('scrolls up near the top edge, down near the bottom, not in between', () => {
+    expect(dropScrollStep(105, 100, 800)).toBeLessThan(0);
+    expect(dropScrollStep(795, 100, 800)).toBeGreaterThan(0);
+    expect(dropScrollStep(450, 100, 800)).toBe(0);
+    // Faster closer to the edge.
+    expect(dropScrollStep(799, 100, 800)).toBeGreaterThan(dropScrollStep(770, 100, 800));
+    expect(Math.abs(dropScrollStep(100, 100, 800))).toBe(24);
   });
 });

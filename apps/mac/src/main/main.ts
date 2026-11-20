@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -35,6 +34,7 @@ import { readConnection, resolveConfig } from './config.js';
 import { contentSecurityPolicy } from './csp.js';
 import { isThemeSource, readPreferences, writePreferences } from './preferences.js';
 import { EventRelay } from './event-relay.js';
+import { PasteFiles } from './paste-files.js';
 import { performProxyRequest } from './proxy.js';
 import { readEventStream } from './sse.js';
 import { UploadManager, type UploadConnection } from './uploads.js';
@@ -79,35 +79,18 @@ const relay = new EventRelay({
   },
 });
 
-/** Pasted images are queued from temporary files, removed once their upload settles (QC-039). */
-const pastedFiles = new Map<string, string>();
-const PASTE_MAX_BYTES = 200 * 1024 * 1024;
-
-async function writePasteFile(name: string, data: Uint8Array): Promise<string> {
-  const dir = path.join(app.getPath('temp'), 'qiu-creator-paste', randomUUID());
-  await fs.mkdir(dir, { recursive: true });
-  // Only the last segment, without separators or control characters.
-  let safe = '';
-  for (const ch of path.basename(name).slice(0, 120)) {
-    const code = ch.charCodeAt(0);
-    safe += code < 32 || code === 127 || ch === '/' || ch === '\\' || ch === ':' ? '-' : ch;
-  }
-  const file = path.join(dir, safe === '' || safe.startsWith('.') ? 'pasted-image.png' : safe);
-  await fs.writeFile(file, data);
-  return file;
-}
+/** Pasted images are queued from temporary files (QC-039); see PasteFiles. */
+// Under this profile's userData, not the shared temp folder: a second instance (dev, tests)
+// clearing it at start must not touch another instance's pastes.
+const pasteFiles = new PasteFiles(path.join(app.getPath('userData'), 'qiu-creator-paste'));
+// Anything left by a crash or a forced quit goes now.
+pasteFiles.clearAll();
 
 const uploads = new UploadManager({
   connection,
   onChange: (items) => {
     broadcast(IPC.uploadsChanged, items);
-    for (const item of items) {
-      const file = pastedFiles.get(item.id);
-      if (file === undefined || (item.state !== 'succeeded' && item.state !== 'cancelled'))
-        continue;
-      pastedFiles.delete(item.id);
-      void fs.rm(path.dirname(file), { recursive: true, force: true });
-    }
+    pasteFiles.settle(items);
   },
 });
 
@@ -242,11 +225,10 @@ function registerIpc(): void {
   });
   handle(IPC.insertBytes, async (name, data) => {
     if (typeof name !== 'string' || !(data instanceof Uint8Array)) throw new Error('invalid paste');
-    if (data.byteLength === 0 || data.byteLength > PASTE_MAX_BYTES) throw new Error('invalid size');
-    const file = await writePasteFile(name, data);
+    const file = await pasteFiles.write(name, data);
     const [id] = await uploads.addWithIds([file]);
     if (id === undefined) throw new Error('could not queue the pasted file');
-    pastedFiles.set(id, file);
+    pasteFiles.track(id, file);
     return id;
   });
   handle(IPC.uploads, () => uploads.list());
@@ -257,7 +239,10 @@ function registerIpc(): void {
     if (typeof id === 'string') uploads.retry(id);
   });
   handle(IPC.dismissUpload, (id) => {
-    if (typeof id === 'string') uploads.dismiss(id);
+    if (typeof id !== 'string') return;
+    uploads.dismiss(id);
+    // 移除 on a failed pasted image: its temporary file is no longer needed.
+    pasteFiles.release(id);
   });
 
   handle(IPC.pickFolder, async () => {
@@ -426,6 +411,7 @@ void app.whenReady().then(() => {
 
 app.on('before-quit', () => {
   relay.stop();
+  pasteFiles.clearAll();
 });
 
 app.on('window-all-closed', () => {

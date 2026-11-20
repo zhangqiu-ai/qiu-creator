@@ -68,7 +68,8 @@ renderer（React，sandbox，無 Node）
 - **編輯器插入素材（QC-039，PT-20261119-001）。**
   - **入口**：標頭「插入」選單、空行輸入 `/`、右側素材抽屜（⌘⇧I，搜尋、全部圖片／本作品、點選或方向鍵加 ↩ 插入、拖進文中）、從 Finder 拖入、⌘V 貼上圖片、⌘⇧U 上傳圖片。視覺與原始碼兩種模式都支援。
   - **流程**：每條路都一樣——先由服務 `POST /works/:id/media/attach` 把素材複製進作品自己的 `assets/` 並建立連結，再由編輯器把 `![alt](src)` 插成獨立的區塊，作品走一般的 `base_revision` 存檔。
-    - 貼上與拖入的檔案先交給主程序上傳（`insertBytes` 把貼上的位元組寫成暫存檔，上傳完成後刪除；`insertFiles` 用檔案原本的路徑）。
+    - 貼上與拖入的檔案先交給主程序上傳（`insertFiles` 用檔案原本的路徑）。`insertBytes` 把貼上的位元組寫成暫存檔，放在 `userData/qiu-creator-paste/<uuid>/`（`PasteFiles`，`main/paste-files.ts`）：上傳成功或取消時刪除；失敗時保留，讓「重試」能再讀；按「移除」時刪除；App 啟動與結束時清掉整個資料夾。
+    - 拖曳時的虛線框固定在編輯區可見範圍（工具列下方，四邊各留 8px），不跟內容捲動；指標在框上下緣 48px 內會自動捲動，放開時依指標當下的位置插入。
     - 上傳中、插入中、失敗（重試／移除）以卡片顯示在正文上方。
   - **插入位置**：
     - 游標所在段落之後；焦點移到抽屜時，用編輯器失焦前記下的位置。
@@ -89,7 +90,9 @@ renderer（React，sandbox，無 Node）
     - 兩邊都改了的欄位：不覆蓋，由使用者選「用最新的」或「用我的」（`AssetEditor`，`asset-session.ts`）。
   - **刪除依情況分三種**：
     - 未引用的託管素材：直接移到最近刪除，提示附「復原」（⌘Z）。
-    - 被引用的：409 `asset_in_use` 時列出作品，確認後才刪。
+    - 被引用的：409 `asset_in_use` 時列出作品，確認後才刪。確認框依引用的 `independent_copy` 說明實際影響（QC-039）：
+      - 正文圖片是 attach 插入的獨立複本：文章不受影響，作品的素材清單會移除此項，30 天內恢復即補回。
+      - 封面、影片、平台版本，以及直接指向素材檔的正文連結：列出「會顯示為缺圖」的作品。兩種都有時分兩組列出。
     - 外部素材：預設只移出素材庫，勾選後才把原檔移到系統垃圾桶。
   - **最近刪除**：顯示剩餘天數，可恢復、永久刪除、清空。`markdown_referrers` 不是空的時候，提示哪些作品會出現缺圖。
   - **e2e**：fixture 以假的系統垃圾桶取代 `/usr/bin/trash`，測試不會動到使用者的垃圾桶。
@@ -194,7 +197,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/assets/:id` | 素材詳情（含縮圖、元資料狀態）；`ETag` 為素材 revision |
 | PATCH | `/api/v1/assets/:id` | 改顯示名稱、標籤、替代文字、備註（QC-037）；必須帶 `base_revision` 或 `If-Match`，沒帶回 428，過期回 409；磁碟檔名不變 |
 | DELETE | `/api/v1/assets/:id` | 移到最近刪除（QC-037）；被引用時要 `confirm: true`，否則 409 `asset_in_use`；外部素材加 `move_original_to_trash: true` 才把原檔移到系統垃圾桶 |
-| GET | `/api/v1/assets/:id/references` | 使用此素材的作品連結與平台版本（封面、圖片）（QC-037） |
+| GET | `/api/v1/assets/:id/references` | 使用此素材的作品連結與平台版本（封面、圖片）（QC-037）；作品連結帶 `independent_copy`：正文連結且託管作品的 `assets/` 有同內容複本時為 true（QC-039） |
 | POST | `/api/v1/assets/:id/restore` | 從最近刪除恢復，引用一併回來；檔案不在原路徑回 409 `asset_file_missing`（QC-037） |
 | POST | `/api/v1/assets/batch` | 最多 200 個素材批次加標籤、移除標籤或移到最近刪除；全部成功或全部不做（QC-037） |
 | DELETE | `/api/v1/trash/:id` | 永久刪除最近刪除中的一個素材；回應附 Markdown 仍連到該檔的作品（QC-037） |

@@ -510,11 +510,77 @@ export function PendingInserts({
 }
 
 /** Where a drop will land: an accent line between blocks and a badge saying what happens. */
-export function DropIndicator({ y, label }: { y: number | null; label: string }) {
+/** The drop frame, in the scroll container's content coordinates. */
+export interface DropFrame {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
+/** Gap between the frame and the visible area's edges (and the toolbar). */
+export const DROP_INSET = 8;
+/** Distance from the frame's top or bottom edge where dragging scrolls. */
+export const DROP_SCROLL_ZONE = 48;
+
+/**
+ * The visible part of the scroll container below its sticky toolbar, inset
+ * evenly on all four sides. It is placed at the current scroll offset so it
+ * covers what is on screen, not the top of the document (QC-039 review).
+ */
+export function dropFrame(doc: HTMLElement): DropFrame {
+  const top = doc.getBoundingClientRect().top + doc.clientTop;
+  const bar = doc.querySelector('[role="toolbar"]');
+  const barBottom =
+    bar === null
+      ? top
+      : Math.min(Math.max(bar.getBoundingClientRect().bottom, top), top + doc.clientHeight);
+  const head = barBottom - top;
+  return {
+    top: doc.scrollTop + head + DROP_INSET,
+    left: doc.scrollLeft + DROP_INSET,
+    width: Math.max(0, doc.clientWidth - 2 * DROP_INSET),
+    height: Math.max(0, doc.clientHeight - head - 2 * DROP_INSET),
+  };
+}
+
+/**
+ * How far to scroll for a pointer at `clientY` while dragging: negative near
+ * the frame's top edge, positive near its bottom, faster closer to the edge.
+ */
+export function dropScrollStep(clientY: number, frameTop: number, frameBottom: number): number {
+  const fromTop = clientY - frameTop;
+  const fromBottom = frameBottom - clientY;
+  const speed = (d: number) =>
+    Math.ceil(((DROP_SCROLL_ZONE - Math.max(0, d)) / DROP_SCROLL_ZONE) * 24);
+  if (fromTop < DROP_SCROLL_ZONE && fromTop <= fromBottom) return -speed(fromTop);
+  if (fromBottom < DROP_SCROLL_ZONE) return speed(fromBottom);
+  return 0;
+}
+
+export function DropIndicator({
+  frame,
+  y,
+  label,
+}: {
+  frame: DropFrame;
+  /** Insertion line in content coordinates; null when there is no block boundary. */
+  y: number | null;
+  label: string;
+}) {
+  const line = y === null ? null : y - frame.top;
+  const shown = line !== null && line >= 0 && line <= frame.height ? line : null;
   return (
-    <div className="drop" aria-hidden="true">
-      {y !== null && <div className="drop__line" style={{ top: y }} />}
-      <div className="drop__badge" style={y === null ? undefined : { top: y + 10 }}>
+    <div
+      className="drop"
+      aria-hidden="true"
+      style={{ top: frame.top, left: frame.left, width: frame.width, height: frame.height }}
+    >
+      {shown !== null && <div className="drop__line" style={{ top: shown }} />}
+      <div
+        className="drop__badge"
+        style={shown === null ? undefined : { top: Math.min(shown + 10, frame.height - 34) }}
+      >
         <Icon name="upload" size={14} />
         {label}
       </div>

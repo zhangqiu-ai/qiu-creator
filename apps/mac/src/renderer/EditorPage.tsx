@@ -25,6 +25,9 @@ import {
   ASSET_DRAG_TYPE,
   AssetDrawer,
   DropIndicator,
+  dropFrame,
+  dropScrollStep,
+  type DropFrame,
   InsertMenu,
   PendingInserts,
   SlashMenu,
@@ -184,9 +187,12 @@ function SessionEditor({
       clearTimeout(t);
     };
   }, [notice]);
-  const [drop, setDrop] = useState<{ y: number | null; label: string; where: InsertWhere } | null>(
-    null,
-  );
+  const [drop, setDrop] = useState<{
+    frame: DropFrame;
+    y: number | null;
+    label: string;
+    where: InsertWhere;
+  } | null>(null);
   const draggedAsset = useRef<AssetRecord | null>(null);
   const docRef = useRef<HTMLElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -710,13 +716,29 @@ function SessionEditor({
                 return;
               }
               e.dataTransfer.dropEffect = 'copy';
+              const doc = e.currentTarget;
+              // Near the top or bottom edge, scroll so the line can reach any block.
+              const docTop = doc.getBoundingClientRect().top + doc.clientTop;
+              const before = dropFrame(doc);
+              const step = dropScrollStep(
+                e.clientY,
+                docTop + before.top - doc.scrollTop,
+                docTop + before.top - doc.scrollTop + before.height,
+              );
+              if (step !== 0) doc.scrollTop += step;
+              const frame = dropFrame(doc);
               const t = dropTarget(e.clientY);
               const n = [...e.dataTransfer.items].filter((i) => i.kind === 'file').length;
               const label =
                 kind === 'asset'
                   ? `放開以插入「${draggedAsset.current === null ? '素材' : (draggedAsset.current.display_name ?? draggedAsset.current.original_name ?? '素材')}」`
                   : `放開以插入 ${String(Math.max(n, 1))} 個檔案 · 同時加入素材庫`;
-              setDrop({ y: t.y, label, where: t.where });
+              setDrop({ frame, y: t.y, label, where: t.where });
+            }}
+            onScroll={(e) => {
+              // Keep the frame on the visible area while the content scrolls under it.
+              const doc = e.currentTarget;
+              setDrop((d) => (d === null ? d : { ...d, frame: dropFrame(doc) }));
             }}
             onDragLeave={(e) => {
               if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
@@ -727,7 +749,8 @@ function SessionEditor({
               if (kind === null) return;
               e.preventDefault();
               e.stopPropagation();
-              const where = drop?.where ?? dropTarget(e.clientY).where;
+              // Where the pointer is now (the last dragover may not have rendered yet).
+              const where = dropTarget(e.clientY).where;
               setDrop(null);
               if (insertBlocked !== null) return;
               if (kind === 'asset') {
@@ -753,7 +776,7 @@ function SessionEditor({
                 insert?.remove(key);
               }}
             />
-            {drop !== null && <DropIndicator y={drop.y} label={drop.label} />}
+            {drop !== null && <DropIndicator frame={drop.frame} y={drop.y} label={drop.label} />}
             <MarkdownEditor
               key={`${work.id}:${editorKey}:${state.epoch}`}
               ref={editor}

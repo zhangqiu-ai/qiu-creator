@@ -81,7 +81,7 @@ export class WorkMediaAttacher {
       throw new ServiceError(403, 'path_rejected', 'the work folder is not usable');
     }
 
-    let name = this.findSameContent(dir, asset.bytes, asset.sha256);
+    let name = findSameContent(dir, asset.bytes, asset.sha256);
     const copied = name === null;
     if (name === null) name = await this.copyIn(source, dir, attachName(asset), asset.sha256);
 
@@ -89,17 +89,6 @@ export class WorkMediaAttacher {
     if (!linked) this.assets.link(workId, assetId, asset.kind === 'video' ? 'video' : 'body');
 
     return { src: `assets/${name}`, copied, asset: this.assets.get(assetId) };
-  }
-
-  /** A regular file in `dir` with this size and sha256, if any. */
-  private findSameContent(dir: string, bytes: number, sha256: string): string | null {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isFile() || entry.name.startsWith('.')) continue;
-      const file = path.join(dir, entry.name);
-      if (fs.statSync(file).size !== bytes) continue;
-      if (hashFile(file) === sha256) return entry.name;
-    }
-    return null;
   }
 
   private async copyIn(
@@ -159,6 +148,32 @@ const UNSAFE_CHARS = new Set([
   '\\',
   '/',
 ]);
+
+/**
+ * A regular file directly in `dir` with this size and sha256 (not a symlink,
+ * not a dot-file, not `exclude`), if any. Shared with the delete rules (QC-037).
+ */
+export function findSameContent(
+  dir: string,
+  bytes: number,
+  sha256: string,
+  exclude: string | null = null,
+): string | null {
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+  for (const entry of entries) {
+    if (!entry.isFile() || entry.name.startsWith('.')) continue;
+    const file = path.join(dir, entry.name);
+    if (exclude !== null && path.resolve(file) === path.resolve(exclude)) continue;
+    if (fs.statSync(file).size !== bytes) continue;
+    if (hashFile(file) === sha256) return entry.name;
+  }
+  return null;
+}
 
 function hashFile(file: string): string {
   return createHash('sha256').update(fs.readFileSync(file)).digest('hex');

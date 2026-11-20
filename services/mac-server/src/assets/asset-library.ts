@@ -19,6 +19,7 @@ import type { ChangeFeed } from '../events/change-feed.js';
 import type { Layout } from '../layout.js';
 import { toRecord, type AssetRow, type AssetService } from './asset-service.js';
 import { defaultSystemTrash, type SystemTrash } from './system-trash.js';
+import { findSameContent } from '../media/attach.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -107,13 +108,22 @@ export class AssetLibrary {
 
   references(id: string): AssetReferences {
     this.row(id);
-    const works = this.db
-      .prepare<[string], AssetReferences['works'][number]>(
-        `SELECT w.id AS work_id, w.title, wa.role, wa.position
+    const asset = this.assets.get(id);
+    const rows = this.db
+      .prepare<
+        [string],
+        Omit<AssetReferences['works'][number], 'independent_copy'> & { storage_mode: string }
+      >(
+        `SELECT w.id AS work_id, w.title, wa.role, wa.position, w.storage_mode
          FROM work_assets wa JOIN works w ON w.id = wa.work_id
          WHERE wa.asset_id = ? ORDER BY w.updated_at DESC, w.id, wa.role`,
       )
       .all(id);
+    const works = rows.map(({ storage_mode, ...ref }) => ({
+      ...ref,
+      independent_copy:
+        ref.role === 'body' && storage_mode !== 'external' && this.hasCopy(ref.work_id, asset),
+    }));
     const variants = this.db
       .prepare<[string, string], AssetReferences['variants'][number]>(
         `SELECT pv.work_id, w.title, pv.platform, 'cover' AS usage
@@ -128,6 +138,17 @@ export class AssetLibrary {
       )
       .all(id, id);
     return { works, variants };
+  }
+
+  /**
+   * A body image of a managed work survives deleting the library asset when the
+   * work's own `assets/` holds another file with the same content (QC-039 attach).
+   * The asset's own file does not count: deleting the asset removes it.
+   */
+  private hasCopy(workId: string, asset: AssetRecord): boolean {
+    const dir = this.layout.abs(path.join(this.layout.workDirRel(workId), 'assets'));
+    const own = asset.mount_id == null ? this.layout.abs(asset.path) : null;
+    return findSameContent(dir, asset.bytes, asset.sha256, own) !== null;
   }
 
   // ---- Delete and restore -------------------------------------------------------

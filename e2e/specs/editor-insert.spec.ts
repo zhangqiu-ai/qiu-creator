@@ -60,6 +60,42 @@ const PASTE_BROKEN = `(() => {
   const target = document.querySelector('.qc-md-editor__content') ?? document.querySelector('textarea.qc-md-editor__source');
   target.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
 })()`;
+/**
+ * The drop frame and the editor's visible area below the sticky toolbar, in
+ * viewport coordinates, plus the scroll offset.
+ */
+const DROP_GEOMETRY = `(() => {
+  const doc = document.querySelector('.editor__doc');
+  const r = doc.getBoundingClientRect();
+  const top = r.top + doc.clientTop;
+  const bar = doc.querySelector('[role="toolbar"]');
+  const below = bar === null ? top : bar.getBoundingClientRect().bottom;
+  const f = document.querySelector('.drop').getBoundingClientRect();
+  return {
+    scrollTop: doc.scrollTop,
+    frame: { x: f.x, y: f.y, width: f.width, height: f.height },
+    visible: { x: r.left + doc.clientLeft + 8, y: below + 8, width: doc.clientWidth - 16, height: top + doc.clientHeight - below - 16 },
+  };
+})()`;
+interface DropGeometry {
+  scrollTop: number;
+  frame: { x: number; y: number; width: number; height: number };
+  visible: { x: number; y: number; width: number; height: number };
+}
+function expectFrameOnVisibleArea(g: DropGeometry): void {
+  expect(g.frame.x).toBeCloseTo(g.visible.x, 0);
+  expect(g.frame.y).toBeCloseTo(g.visible.y, 0);
+  expect(g.frame.width).toBeCloseTo(g.visible.width, 0);
+  expect(g.frame.height).toBeCloseTo(g.visible.height, 0);
+}
+/** Drag over the editor at a viewport y (dragover only). */
+const dragOverAt = (clientY: number) => `(() => {
+  const dt = new DataTransfer();
+  for (const f of document.getElementById('qc039-picker').files) dt.items.add(f);
+  const doc = document.querySelector('.editor__doc');
+  const at = { clientX: doc.getBoundingClientRect().left + 200, clientY: ${String(clientY)}, bubbles: true, cancelable: true, dataTransfer: dt };
+  document.elementFromPoint(at.clientX, at.clientY).dispatchEvent(new DragEvent('dragover', at));
+})()`;
 /** Drag the files of #qc039-picker over (and optionally onto) the n-th block of the text. */
 const dragFiles = (block: number, release: boolean) => `(() => {
   const files = document.getElementById('qc039-picker').files;
@@ -183,7 +219,24 @@ test('插入素材：選單、抽屜、斜線、貼上、Finder 拖入，視覺�
       await expect(page.locator('.drop__badge')).toContainText('放開以插入 1 個檔案');
       await expect(page.locator('.drop__line')).toBeVisible();
       await imagesShown(page, 2);
+      // Review fix: the frame covers what is on screen (below the toolbar, even
+      // inset), not the top of the scrolled content.
+      const g = await page.evaluate<DropGeometry>(DROP_GEOMETRY);
+      expect(g.scrollTop).toBeGreaterThan(0);
+      expectFrameOnVisibleArea(g);
       await shot(page, '05-finder-drop');
+      // Holding the pointer near the top edge scrolls up (the last block is
+      // already at the bottom); near the bottom edge it scrolls down again. The
+      // frame stays on the visible area throughout.
+      for (let i = 0; i < 5; i++) await page.evaluate(dragOverAt(g.frame.y + 6));
+      const up = await page.evaluate<DropGeometry>(DROP_GEOMETRY);
+      expect(up.scrollTop).toBeLessThan(g.scrollTop);
+      expectFrameOnVisibleArea(up);
+      const bottom = up.frame.y + up.frame.height - 6;
+      for (let i = 0; i < 5; i++) await page.evaluate(dragOverAt(bottom));
+      const down = await page.evaluate<DropGeometry>(DROP_GEOMETRY);
+      expect(down.scrollTop).toBeGreaterThan(up.scrollTop);
+      expectFrameOnVisibleArea(down);
       await page.evaluate(dragFiles(index, true));
       await expect.poll(md).toContain('![](assets/desk-after.png)');
       const text = await md();
@@ -227,6 +280,26 @@ test('插入素材：選單、抽屜、斜線、貼上、Finder 拖入，視覺�
       await page.getByRole('button', { name: '插入', exact: true }).click();
       await shot(page, '08-insert-menu-dark');
       await page.keyboard.press('Escape');
+    });
+
+    await test.step('刪除已插入的素材：文章裡是複本，文案說明不受影響', async () => {
+      await page.emulateMedia({ colorScheme: 'light' });
+      await page
+        .getByRole('navigation', { name: '主導航' })
+        .getByRole('button', { name: '素材庫', exact: true })
+        .click();
+      await page.getByRole('button', { name: 'kyoto.png，圖片' }).click();
+      await page
+        .getByRole('complementary', { name: '素材資訊' })
+        .getByRole('button', { name: '移到最近刪除' })
+        .click();
+      const dialog = page.getByRole('dialog', { name: '移到最近刪除？' });
+      await expect(dialog).toContainText('被 1 件作品引用');
+      await expect(dialog).toContainText('文章中的圖片是獨立複本，不受影響');
+      await expect(dialog).not.toContainText('缺圖');
+      await shot(page, '09-delete-copy-wording');
+      await dialog.getByRole('button', { name: '取消' }).click();
+      await expect(dialog).toHaveCount(0);
     });
   } finally {
     rmSync(tmp, { recursive: true, force: true });

@@ -4252,9 +4252,10 @@ kbd {
   display: block;
 }
 .drop {
+  /* Placed on the visible area by dropFrame(); it does not scroll with the content. */
   position: absolute;
-  inset: 0;
   z-index: 3;
+  overflow: hidden;
   border: 2px dashed var(--qc-accent);
   border-radius: 8px;
   background: color-mix(in srgb, var(--qc-accent) 5%, transparent);
@@ -4279,7 +4280,7 @@ kbd {
 }
 .drop__badge {
   position: absolute;
-  top: 24px;
+  top: 16px;
   left: 50%;
   transform: translateX(-50%);
   display: inline-flex;
@@ -4295,4 +4296,14 @@ kbd {
 }
 .editor .toast {
   position: fixed;
+}
+
+/* QC-039: which works lose the image and which keep their own copy. */
+.dialog__group {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--qc-ink2);
+}
+.dialog__group--bad {
+  color: var(--qc-bad);
 }
