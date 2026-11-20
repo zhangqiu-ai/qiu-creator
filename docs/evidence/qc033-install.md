@@ -158,3 +158,38 @@ exit 0。升級前備份 id：**`20261119T141639416Z-manual`**（`~/CreatorHub/b
 ### 提醒
 
 使用者的 App 是舊版的行程（升級換掉了 /Applications 裡的 .app，服務重啟過，連線會暫時中斷）。請使用者**自行關閉並重新開啟** qiu-creator 以載入新版；重新開啟後介面應顯示與 New API 中轉站相關的新設定。（後半句是依發版內容的預期，沒有開 App 驗證。）
+
+## 升級到 47bfc32（2026-11-19，UI 批次 QC-037～QC-041）：成功
+
+總監轉述使用者「你做好就發版並安裝」。本版含遷移 0013（QC-037，`asset_metadata_trash`）。
+
+- 建置：乾淨 worktree，47bfc32，`git status` 為空；服務 commit `47bfc329772eab20c5981c4ba73ca8439aa5e00a`（不帶 `-dirty`），built_at `2026-11-20T00:40:39.601Z`，220 MB；.app 261 MB，ad-hoc 簽名驗證通過。
+- 升級前檢查（16:40:31，另於 16:41:28 再查 7431）：7420 只有 launchd 的服務（pid 62355）；7431 沒有監聽；`/health` 為 bf3aaf8；唯讀查 `schema_migrations` 最新為 `0012｜new_api_provider`；`~/CreatorHub/backups/` 有最新備份 `20261119T142939218Z-manual`。
+- 乾跑（16:41:28）：備份 → 暫存 → 停服務換位 → `bootstrap`，`nothing was changed`。
+- `upgrade --yes`（16:41:30 → 16:41:32，約 2 秒）輸出：
+
+```
+backup 20261120T004130225Z-manual ok
+stage new service and app
+stop service and swap in the new build
+launchctl bootstrap
+upgraded 0.1.0 -> 0.1.0; previous build kept as server.prev; backup 20261120T004130225Z-manual
+```
+
+exit 0。升級前備份 id：**`20261120T004130225Z-manual`**（`.json`＋`.sqlite` 都在）。
+
+### 驗證
+
+| 項目 | 結果 |
+| --- | --- |
+| `/health` | `{"status":"ok","version":"0.1.0","commit":"47bfc329772eab20c5981c4ba73ca8439aa5e00a","built_at":"2026-11-20T00:40:39.601Z"}` |
+| launchd | `state = running`，pid 87044 |
+| 資料庫 schema | 最新一列 `0013｜asset_metadata_trash`（唯讀只查遷移表；沒讀權杖與使用者內容） |
+| `server.prev` | 在，commit `bf3aaf8`（上一版） |
+| `app.prev/qiu-creator.app` | 在 |
+| 日誌 | 最近 4000 行沒有 error 等級（level 50）記錄 |
+| 使用者的 App | 沒有被關閉或重開（行程還在） |
+
+### 提醒
+
+使用者的 App 仍是舊版行程，服務重啟時連線暫時中斷，/Applications 已是新版 .app：請**自行關閉並重新開啟** qiu-creator。沒有開 App 驗證 QC-037～QC-041 的介面。若新版有問題：`deploy/qc.sh rollback --yes`；回滾後舊版（0012）能否讀 0013 的資料庫未驗證，必要時從上面的升級前備份還原。
