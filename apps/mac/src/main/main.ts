@@ -34,6 +34,7 @@ import { readConnection, resolveConfig } from './config.js';
 import { contentSecurityPolicy } from './csp.js';
 import { isThemeSource, readPreferences, writePreferences } from './preferences.js';
 import { EventRelay } from './event-relay.js';
+import { PasteFiles } from './paste-files.js';
 import { performProxyRequest } from './proxy.js';
 import { readEventStream } from './sse.js';
 import { UploadManager, type UploadConnection } from './uploads.js';
@@ -78,10 +79,18 @@ const relay = new EventRelay({
   },
 });
 
+/** Pasted images are queued from temporary files (QC-039); see PasteFiles. */
+// Under this profile's userData, not the shared temp folder: a second instance (dev, tests)
+// clearing it at start must not touch another instance's pastes.
+const pasteFiles = new PasteFiles(path.join(app.getPath('userData'), 'qiu-creator-paste'));
+// Anything left by a crash or a forced quit goes now.
+pasteFiles.clearAll();
+
 const uploads = new UploadManager({
   connection,
   onChange: (items) => {
     broadcast(IPC.uploadsChanged, items);
+    pasteFiles.settle(items);
   },
 });
 
@@ -208,6 +217,20 @@ function registerIpc(): void {
     }
     return uploads.add(paths as string[]);
   });
+  handle(IPC.insertPaths, (paths) => {
+    if (!Array.isArray(paths) || !paths.every((p) => typeof p === 'string' && path.isAbsolute(p))) {
+      throw new Error('invalid paths');
+    }
+    return uploads.addWithIds(paths as string[]);
+  });
+  handle(IPC.insertBytes, async (name, data) => {
+    if (typeof name !== 'string' || !(data instanceof Uint8Array)) throw new Error('invalid paste');
+    const file = await pasteFiles.write(name, data);
+    const [id] = await uploads.addWithIds([file]);
+    if (id === undefined) throw new Error('could not queue the pasted file');
+    pasteFiles.track(id, file);
+    return id;
+  });
   handle(IPC.uploads, () => uploads.list());
   handle(IPC.cancelUpload, (id) => {
     if (typeof id === 'string') uploads.cancel(id);
@@ -216,7 +239,10 @@ function registerIpc(): void {
     if (typeof id === 'string') uploads.retry(id);
   });
   handle(IPC.dismissUpload, (id) => {
-    if (typeof id === 'string') uploads.dismiss(id);
+    if (typeof id !== 'string') return;
+    uploads.dismiss(id);
+    // 移除 on a failed pasted image: its temporary file is no longer needed.
+    pasteFiles.release(id);
   });
 
   handle(IPC.pickFolder, async () => {
@@ -385,6 +411,7 @@ void app.whenReady().then(() => {
 
 app.on('before-quit', () => {
   relay.stop();
+  pasteFiles.clearAll();
 });
 
 app.on('window-all-closed', () => {

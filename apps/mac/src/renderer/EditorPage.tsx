@@ -1,5 +1,5 @@
 import type { CreatorHubClient } from '@qiu-creator/api-client';
-import type { Revision, WorkDetail, WorkStatus } from '@qiu-creator/contracts';
+import type { AssetRecord, Revision, WorkDetail, WorkStatus } from '@qiu-creator/contracts';
 import {
   blockNumbers,
   MarkdownEditor,
@@ -20,8 +20,88 @@ import { WorkMediaResolver } from './media.js';
 import { externalSource, useMounts } from './mounts.js';
 import { TagEditor } from './TagEditor.js';
 import { WorkSession, type RemoteChange } from './work-session.js';
+import { imageFiles, InsertSession, type InsertState, type InsertWhere } from './editor-insert.js';
+import {
+  ASSET_DRAG_TYPE,
+  AssetDrawer,
+  DropIndicator,
+  dropFrame,
+  dropScrollStep,
+  type DropFrame,
+  InsertMenu,
+  PendingInserts,
+  SlashMenu,
+  type SlashCommand,
+} from './InsertUI.js';
 
 const STATUS_ORDER: readonly WorkStatus[] = ['drafting', 'in_review', 'ready', 'published'];
+const EMPTY_INSERT: InsertState = { pending: [], notice: null };
+
+/** True when the caret sits in an empty block (where `/` opens the insert menu). */
+function caretInEmptyBlock(root: Element | null, source: HTMLTextAreaElement | null): boolean {
+  if (source !== null) {
+    const v = source.value;
+    const at = source.selectionStart;
+    if (at !== source.selectionEnd) return false;
+    const start = v.lastIndexOf('\n', at - 1) + 1;
+    const end = v.indexOf('\n', at);
+    return v.slice(start, end === -1 ? v.length : end).trim() === '';
+  }
+  const sel = window.getSelection();
+  if (root === null || sel === null || sel.rangeCount === 0 || !sel.isCollapsed) return false;
+  let n: Node | null = sel.anchorNode;
+  while (n !== null && n.parentNode !== root) n = n.parentNode;
+  return n instanceof Element && n.textContent.trim() === '';
+}
+
+/**
+ * Visual mode: the Markdown block boundary at the empty block holding the caret.
+ * An empty paragraph is not in the Markdown, so count the non-empty blocks before it.
+ */
+function emptyBlockBoundary(root: Element | null): number | null {
+  const sel = window.getSelection();
+  if (root === null || sel === null || sel.rangeCount === 0) return null;
+  let n: Node | null = sel.anchorNode;
+  while (n !== null && n.parentNode !== root) n = n.parentNode;
+  if (!(n instanceof Element)) return null;
+  let count = 0;
+  for (const child of Array.from(root.children)) {
+    if (child === n) return count;
+    const empty =
+      child.tagName !== 'HR' &&
+      child.textContent.trim() === '' &&
+      Array.from(child.children).every((ch) => ch.tagName === 'BR');
+    if (!empty) count += 1;
+  }
+  return null;
+}
+
+/** Where the caret is on screen, for the `/` menu. */
+function caretPoint(source: HTMLTextAreaElement | null): { x: number; y: number } | null {
+  if (source !== null) {
+    const r = source.getBoundingClientRect();
+    const style = getComputedStyle(source);
+    const line = parseFloat(style.lineHeight) || 24;
+    const before = source.value.slice(0, source.selectionStart).split('\n').length - 1;
+    return {
+      x: r.left + (parseFloat(style.paddingLeft) || 0),
+      y: r.top + (parseFloat(style.paddingTop) || 0) + (before + 1) * line - source.scrollTop,
+    };
+  }
+  const sel = window.getSelection();
+  if (sel === null || sel.rangeCount === 0) return null;
+  const range = sel.getRangeAt(0);
+  let rect = range.getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) {
+    const el =
+      range.startContainer instanceof Element
+        ? range.startContainer
+        : range.startContainer.parentElement;
+    if (el === null) return null;
+    rect = el.getBoundingClientRect();
+  }
+  return { x: rect.left, y: rect.bottom + 4 };
+}
 
 const REMOTE_LABEL: Readonly<Record<RemoteChange['source'], string>> = {
   external: '外部編輯器',
@@ -87,6 +167,66 @@ function SessionEditor({
   const [editorKey, setEditorKey] = useState(0);
   const [mode, setMode] = useState<EditorMode>('visual');
   const [historyOpen, setHistoryOpen] = useState(false);
+  // QC-039: the asset drawer replaces the AI panel while open (⌘⇧I).
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [slashAt, setSlashAt] = useState<{ x: number; y: number } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  /** Where the next insert from the `/` menu goes (computed when `/` is pressed). */
+  const pendingWhere = useRef<InsertWhere | null>(null);
+  const takeWhere = (): InsertWhere => {
+    const w = pendingWhere.current ?? 'caret';
+    pendingWhere.current = null;
+    return w;
+  };
+  useEffect(() => {
+    if (notice === null) return;
+    const t = setTimeout(() => {
+      setNotice(null);
+    }, 5000);
+    return () => {
+      clearTimeout(t);
+    };
+  }, [notice]);
+  const [drop, setDrop] = useState<{
+    frame: DropFrame;
+    y: number | null;
+    label: string;
+    where: InsertWhere;
+  } | null>(null);
+  const draggedAsset = useRef<AssetRecord | null>(null);
+  const docRef = useRef<HTMLElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [insert, setInsert] = useState<InsertSession | null>(null);
+  useEffect(() => {
+    // Created in the effect: StrictMode would dispose an instance made during render.
+    const s = new InsertSession({
+      client,
+      workId: work.id,
+      insert: (markdown, where) => {
+        editor.current?.insertBlock(markdown, where);
+      },
+      bridge: window.creatorhub ?? null,
+      createPreview: (blob) => URL.createObjectURL(blob),
+      revokePreview: (url) => {
+        URL.revokeObjectURL(url);
+      },
+    });
+    setInsert(s);
+    return () => {
+      s.dispose();
+    };
+  }, [client, work.id]);
+  const insertState = useSyncExternalStore(
+    useCallback((cb: () => void) => insert?.subscribe(cb) ?? (() => undefined), [insert]),
+    () => insert?.getSnapshot() ?? EMPTY_INSERT,
+  );
+  useEffect(() => {
+    if (insertState.notice === null) return;
+    const t = setTimeout(() => insert?.dismissNotice(), 5000);
+    return () => {
+      clearTimeout(t);
+    };
+  }, [insertState.notice, insert]);
   const [revisions, setRevisions] = useState<readonly Revision[]>([]);
 
   const loadRevisions = useCallback(() => {
@@ -233,6 +373,13 @@ function SessionEditor({
       } else if (e.key === '/') {
         e.preventDefault();
         editor.current?.requestMode(editor.current.getMode() === 'visual' ? 'source' : 'visual');
+      } else if (e.shiftKey && e.key.toLowerCase() === 'i') {
+        e.preventDefault();
+        setDrawerOpen((v) => !v);
+        setHistoryOpen(false);
+      } else if (e.shiftKey && e.key.toLowerCase() === 'u') {
+        e.preventDefault();
+        fileInput.current?.click();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -242,6 +389,54 @@ function SessionEditor({
   }, [session, onPreview]);
 
   const readOnly = state.readOnly !== null;
+  // External works keep their images in their own folder; nothing is copied into it (QC-039).
+  const insertBlocked: string | null = readOnly
+    ? '唯讀時不能插入'
+    : work.storage_mode === 'external'
+      ? '外部掛載的作品請把圖片放進作品所在的資料夾'
+      : null;
+  const openDrawer = () => {
+    setHistoryOpen(false);
+    setDrawerOpen(true);
+  };
+  const slashCommands: SlashCommand[] = [
+    {
+      key: 'library',
+      label: '從素材庫插入圖片',
+      hint: '⌘⇧I',
+      icon: 'assets',
+      run: openDrawer,
+    },
+    {
+      key: 'upload',
+      label: '上傳圖片…',
+      hint: '⌘⇧U',
+      icon: 'upload',
+      run: () => {
+        fileInput.current?.click();
+      },
+    },
+    {
+      key: 'divider',
+      label: '分隔線',
+      hint: '---',
+      icon: 'lines',
+      run: () => {
+        editor.current?.insertBlock('---', takeWhere());
+      },
+    },
+  ];
+  const sourceArea = () =>
+    docRef.current?.querySelector<HTMLTextAreaElement>('textarea.qc-md-editor__source') ?? null;
+  const dropTarget = (clientY: number): { where: InsertWhere; y: number | null } => {
+    const doc = docRef.current;
+    const b = editor.current?.boundaryAt(clientY) ?? null;
+    if (doc === null || b === null) return { where: 'caret', y: null };
+    const top = doc.getBoundingClientRect().top;
+    return { where: { beforeBlock: b.index }, y: b.y - top + doc.scrollTop };
+  };
+  const dragKind = (types: readonly string[]): 'asset' | 'files' | null =>
+    types.includes(ASSET_DRAG_TYPE) ? 'asset' : types.includes('Files') ? 'files' : null;
   const save = readOnly ? { label: '唯讀', tone: 'neutral' as const } : SAVE_STATUS[state.status];
   const rev = numbers.get(state.baseRevision);
   const words = useMemo(() => countWords(state.draft.markdown), [state.draft.markdown]);
@@ -328,6 +523,14 @@ function SessionEditor({
                 </button>
               ))}
             </div>
+            <InsertMenu
+              disabled={insertBlocked !== null}
+              disabledReason={insertBlocked}
+              onLibrary={openDrawer}
+              onUpload={() => {
+                fileInput.current?.click();
+              }}
+            />
             {onPreview !== undefined && (
               <button
                 type="button"
@@ -462,9 +665,118 @@ function SessionEditor({
 
         <div className="editor__body">
           <section
+            ref={docRef}
             className={readOnly ? 'editor__doc editor__doc--readonly' : 'editor__doc'}
             aria-label="正文"
+            onKeyDownCapture={(e) => {
+              // `/` on an empty line opens the insert menu instead of typing a slash.
+              if (
+                e.key !== '/' ||
+                e.metaKey ||
+                e.ctrlKey ||
+                e.altKey ||
+                e.nativeEvent.isComposing
+              ) {
+                return;
+              }
+              if (insertBlocked !== null) return;
+              const root = docRef.current?.querySelector('.qc-md-editor__content') ?? null;
+              const source = sourceArea();
+              if (
+                !caretInEmptyBlock(
+                  mode === 'source' ? null : root,
+                  mode === 'source' ? source : null,
+                )
+              ) {
+                return;
+              }
+              const at = caretPoint(mode === 'source' ? source : null);
+              if (at === null) return;
+              e.preventDefault();
+              e.stopPropagation();
+              const boundary = mode === 'source' ? null : emptyBlockBoundary(root);
+              pendingWhere.current = boundary === null ? 'caret' : { beforeBlock: boundary };
+              setSlashAt(at);
+            }}
+            onPasteCapture={(e) => {
+              const images = imageFiles([...e.clipboardData.files]);
+              if (images.length === 0) return;
+              e.preventDefault();
+              e.stopPropagation();
+              if (insertBlocked !== null) return;
+              for (const f of images) void insert?.pasteImage(f, 'caret');
+            }}
+            onDragOverCapture={(e) => {
+              const kind = dragKind([...e.dataTransfer.types]);
+              if (kind === null) return;
+              e.preventDefault();
+              e.stopPropagation();
+              if (insertBlocked !== null) {
+                e.dataTransfer.dropEffect = 'none';
+                return;
+              }
+              e.dataTransfer.dropEffect = 'copy';
+              const doc = e.currentTarget;
+              // Near the top or bottom edge, scroll so the line can reach any block.
+              const docTop = doc.getBoundingClientRect().top + doc.clientTop;
+              const before = dropFrame(doc);
+              const step = dropScrollStep(
+                e.clientY,
+                docTop + before.top - doc.scrollTop,
+                docTop + before.top - doc.scrollTop + before.height,
+              );
+              if (step !== 0) doc.scrollTop += step;
+              const frame = dropFrame(doc);
+              const t = dropTarget(e.clientY);
+              const n = [...e.dataTransfer.items].filter((i) => i.kind === 'file').length;
+              const label =
+                kind === 'asset'
+                  ? `放開以插入「${draggedAsset.current === null ? '素材' : (draggedAsset.current.display_name ?? draggedAsset.current.original_name ?? '素材')}」`
+                  : `放開以插入 ${String(Math.max(n, 1))} 個檔案 · 同時加入素材庫`;
+              setDrop({ frame, y: t.y, label, where: t.where });
+            }}
+            onScroll={(e) => {
+              // Keep the frame on the visible area while the content scrolls under it.
+              const doc = e.currentTarget;
+              setDrop((d) => (d === null ? d : { ...d, frame: dropFrame(doc) }));
+            }}
+            onDragLeave={(e) => {
+              if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+              setDrop(null);
+            }}
+            onDropCapture={(e) => {
+              const kind = dragKind([...e.dataTransfer.types]);
+              if (kind === null) return;
+              e.preventDefault();
+              e.stopPropagation();
+              // Where the pointer is now (the last dragover may not have rendered yet).
+              const where = dropTarget(e.clientY).where;
+              setDrop(null);
+              if (insertBlocked !== null) return;
+              if (kind === 'asset') {
+                const asset = draggedAsset.current;
+                draggedAsset.current = null;
+                if (asset !== null) void insert?.insertAsset(asset, where);
+                return;
+              }
+              const files = [...e.dataTransfer.files];
+              const images = imageFiles(files);
+              if (images.length < files.length) {
+                setNotice('目前只能插入圖片；其他檔案請到素材庫上傳');
+              }
+              void insert?.insertFiles(images, where);
+            }}
           >
+            <PendingInserts
+              pending={insertState.pending}
+              onRetry={(key) => {
+                insert?.retry(key);
+              }}
+              onRemove={(key) => {
+                insert?.remove(key);
+              }}
+            />
+            {drop !== null && <DropIndicator frame={drop.frame} y={drop.y} label={drop.label} />}
             <MarkdownEditor
               key={`${work.id}:${editorKey}:${state.epoch}`}
               ref={editor}
@@ -483,7 +795,25 @@ function SessionEditor({
             />
           </section>
 
-          {!historyOpen && ai !== null && (
+          {!historyOpen && drawerOpen && (
+            <AssetDrawer
+              client={client}
+              workId={work.id}
+              disabledReason={insertBlocked}
+              onInsert={(asset) => {
+                void insert?.insertAsset(asset, takeWhere());
+              }}
+              onDragAsset={(asset) => {
+                draggedAsset.current = asset;
+              }}
+              onClose={() => {
+                setDrawerOpen(false);
+                editor.current?.focus();
+              }}
+            />
+          )}
+
+          {!historyOpen && !drawerOpen && ai !== null && (
             <AiPanel
               providers={ai.providers}
               rewrite={ai.rewrite}
@@ -514,6 +844,56 @@ function SessionEditor({
             />
           )}
         </div>
+        {slashAt !== null && (
+          <SlashMenu
+            at={slashAt}
+            commands={slashCommands}
+            onClose={(ran) => {
+              if (!ran) pendingWhere.current = null;
+              setSlashAt(null);
+            }}
+          />
+        )}
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            const files = [...(e.target.files ?? [])];
+            e.target.value = '';
+            const where = takeWhere();
+            if (insertBlocked === null) void insert?.insertFiles(imageFiles(files), where);
+          }}
+        />
+        {(insertState.notice !== null || notice !== null) && (
+          <div
+            className={
+              (insertState.notice?.tone ?? 'bad') === 'bad' && notice === null
+                ? 'toast toast--bad'
+                : 'toast'
+            }
+            role="status"
+          >
+            <Icon
+              name={insertState.notice?.tone === 'ok' && notice === null ? 'check' : 'alert'}
+              size={16}
+            />
+            <span className="toast__msg">{notice ?? insertState.notice?.message}</span>
+            <button
+              type="button"
+              className="btn btn--ghost btn--icon btn--small"
+              aria-label="關閉提示"
+              onClick={() => {
+                setNotice(null);
+                insert?.dismissNotice();
+              }}
+            >
+              <Icon name="close" size={14} />
+            </button>
+          </div>
+        )}
       </main>
 
       {dialogOpen && (

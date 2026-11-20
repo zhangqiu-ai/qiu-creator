@@ -194,8 +194,15 @@ describe('delete and 最近刪除 for managed assets (QC-037)', () => {
 
     expect(await s.client.assets.references(cover.id)).toEqual({
       works: [
-        { work_id: work.id, title: '京都秋天', role: 'body', position: 1 },
-        { work_id: work.id, title: '京都秋天', role: 'cover', position: 0 },
+        // Linked directly (not an attach copy): deleting the asset really removes it (QC-039).
+        { work_id: work.id, title: '京都秋天', role: 'body', position: 1, independent_copy: false },
+        {
+          work_id: work.id,
+          title: '京都秋天',
+          role: 'cover',
+          position: 0,
+          independent_copy: false,
+        },
       ],
       variants: [
         { work_id: work.id, title: '京都秋天', platform: 'xiaohongshu', usage: 'cover' },

@@ -7,6 +7,8 @@ import {
   SIGNED_MEDIA_PREFIX,
   WorkIdParamsSchema,
   WorkMediaResponseSchema,
+  AttachWorkMediaRequestSchema,
+  AttachWorkMediaResponseSchema,
 } from '@qiu-creator/contracts';
 import type { FastifyReply } from 'fastify';
 import { z } from 'zod';
@@ -17,6 +19,7 @@ import type { App } from '../http/app-type.js';
 import { sendRanged } from '../http/ranged.js';
 import { THUMBNAIL_MIME } from '../media/thumbnails.js';
 import type { MediaUrlSigner, SignedQuery } from '../media/url-signer.js';
+import type { WorkMediaAttacher } from '../media/attach.js';
 import { assetMediaPath, workFilePath, type WorkMediaService } from '../media/work-media.js';
 
 const errorResponses = {
@@ -52,6 +55,7 @@ export function registerMediaRoutes(
   assets: AssetService,
   signer: MediaUrlSigner,
   tokens: TokenService,
+  attacher: WorkMediaAttacher,
 ): void {
   /** Verify a signed request and that the principal that asked for it may still read. */
   const verify = (pathname: string, query: SignedQuery): number => {
@@ -73,6 +77,24 @@ export function registerMediaRoutes(
       },
     },
     (req) => media.resolve(req.params.id, requirePrincipal(req.principal).id),
+  );
+
+  app.post(
+    '/api/v1/works/:id/media/attach',
+    {
+      schema: {
+        description:
+          "Make an asset usable from a managed work's Markdown (QC-039): its file is copied into the work's own `assets/` folder (an independent copy; the same content is reused, a different file with the same name gets `-2`, `-3`… and nothing is overwritten) and the asset is linked to the work. Answers `src` for `![](src)`. The work's Markdown is not written: the editor saves it with `base_revision` as usual. 404 for an unknown work or asset, 409 `asset_in_trash`, 409 `asset_file_missing`, 409 `attach_external_unsupported` for external (mounted) works, whose folders are never written.",
+        params: WorkIdParamsSchema,
+        body: AttachWorkMediaRequestSchema,
+        response: {
+          200: AttachWorkMediaResponseSchema,
+          409: ErrorResponseSchema,
+          ...errorResponses,
+        },
+      },
+    },
+    (req) => attacher.attach(req.params.id, req.body.asset_id),
   );
 
   app.get(

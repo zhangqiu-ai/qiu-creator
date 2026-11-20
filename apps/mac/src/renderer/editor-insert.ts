@@ -1,0 +1,310 @@
+import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
+import type { AssetRecord } from '@qiu-creator/contracts';
+import { imageMarkdown } from '@qiu-creator/markdown-editor-web';
+import type { CreatorHubBridge, UploadItem } from '../shared/bridge.js';
+import { assetName } from './format.js';
+
+/**
+ * Inserting assets into the editor (QC-039, PT-20261119-001 「v2 · 編輯器：插入
+ * 素材」). Every route — the 插入 menu, `/`, the asset drawer, Finder drops
+ * and ⌘V — ends the same way: the service copies the asset into the work
+ * (`works.attachMedia`), then the editor inserts `![alt](src)` as its own block
+ * and the work is saved through the usual revision path. Files that are not
+ * in the library yet are uploaded first by the main process; they show as
+ * pending cards (uploading → done, or failed with 重試／移除) meanwhile.
+ */
+
+/** Where a block goes: after the caret's block, before a visual-mode block, or at the end. */
+export type InsertWhere = 'caret' | 'end' | { beforeBlock: number };
+
+export type PendingState = 'uploading' | 'attaching' | 'failed';
+
+export interface PendingInsert {
+  key: string;
+  /** Main-process upload id; null once uploaded (or for library assets). */
+  uploadId: string | null;
+  name: string;
+  /** `blob:` preview of a pasted or dropped image, revoked when the card goes. */
+  preview: string | null;
+  state: PendingState;
+  /** 0–100 while uploading; null when unknown. */
+  progress: number | null;
+  error: string | null;
+  where: InsertWhere;
+  /** Set once uploaded (a failure after that retries the attach only). */
+  asset: AssetRecord | null;
+}
+
+export interface InsertNotice {
+  message: string;
+  tone: 'ok' | 'bad';
+}
+
+export interface InsertState {
+  pending: PendingInsert[];
+  notice: InsertNotice | null;
+}
+
+export type InsertBridge = Pick<
+  CreatorHubBridge,
+  'insertFiles' | 'insertBytes' | 'onUploads' | 'retryUpload' | 'cancelUpload' | 'dismissUpload'
+>;
+
+export interface InsertSessionOptions {
+  client: Pick<CreatorHubClient, 'works'>;
+  workId: string;
+  /** Put a block into the editor (MarkdownEditorHandle.insertBlock). */
+  insert: (markdown: string, where: InsertWhere) => void;
+  bridge: InsertBridge | null;
+  /** Object URLs for previews (injectable for tests). */
+  createPreview?: (blob: Blob) => string | null;
+  revokePreview?: (url: string) => void;
+}
+
+/** Why an attach failed, in the user's words. */
+export function attachErrorText(err: unknown): string {
+  if (!(err instanceof ApiError)) return '本機服務未回應';
+  switch (err.code) {
+    case 'attach_external_unsupported':
+      return '外部掛載的作品不能插入素材庫的圖片；請把圖片放進作品所在的資料夾';
+    case 'asset_in_trash':
+      return '這個素材在最近刪除，請先恢復';
+    case 'asset_file_missing':
+      return '素材的檔案找不到了';
+    case 'not_found':
+      return '找不到這個素材或作品';
+    case 'restoring':
+      return '服務正在還原資料庫，請稍候再試';
+    default:
+      return '插入失敗，請稍後再試';
+  }
+}
+
+/** Why an upload failed, in the user's words. */
+export function uploadErrorText(item: Pick<UploadItem, 'error' | 'errorCode'>): string {
+  switch (item.errorCode) {
+    case 'unsupported_media_type':
+      return '不支援這種檔案';
+    case 'payload_too_large':
+      return '檔案太大';
+    case 'restoring':
+      return '服務正在還原資料庫，請稍候再試';
+    case null:
+      return '本機服務未回應';
+    default:
+      return item.error ?? '上傳失敗';
+  }
+}
+
+/** 「貼上的圖片 14.32.png」: a readable name for a pasted image. */
+export function pastedName(type: string, now: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const ext =
+    type === 'image/jpeg' ? 'jpg' : (type.split('/')[1] ?? 'png').replace(/[^a-z0-9]/g, '');
+  return `貼上的圖片 ${pad(now.getHours())}.${pad(now.getMinutes())}.${ext === '' ? 'png' : ext}`;
+}
+
+/** The image files in a paste or drop (the rest is left to the editor). */
+export function imageFiles(files: readonly File[]): File[] {
+  return files.filter((f) => f.type.startsWith('image/'));
+}
+
+let keySeq = 0;
+
+export class InsertSession {
+  private state: InsertState = { pending: [], notice: null };
+  private readonly listeners = new Set<() => void>();
+  private readonly offUploads: () => void;
+  private disposed = false;
+
+  constructor(private readonly options: InsertSessionOptions) {
+    this.offUploads =
+      options.bridge?.onUploads((items) => {
+        this.onUploads(items);
+      }) ?? (() => undefined);
+  }
+
+  subscribe = (l: () => void): (() => void) => {
+    this.listeners.add(l);
+    return () => {
+      this.listeners.delete(l);
+    };
+  };
+
+  getSnapshot = (): InsertState => this.state;
+
+  private set(patch: Partial<InsertState>): void {
+    if (this.disposed) return;
+    this.state = { ...this.state, ...patch };
+    for (const l of this.listeners) l();
+  }
+
+  private update(key: string, patch: Partial<PendingInsert>): void {
+    this.set({
+      pending: this.state.pending.map((p) => (p.key === key ? { ...p, ...patch } : p)),
+    });
+  }
+
+  dismissNotice(): void {
+    this.set({ notice: null });
+  }
+
+  /** A library asset: attach, then insert. Resolves true when it was inserted. */
+  async insertAsset(asset: AssetRecord, where: InsertWhere): Promise<boolean> {
+    try {
+      const res = await this.options.client.works.attachMedia(this.options.workId, asset.id);
+      this.options.insert(imageMarkdown(res.src, asset.alt_text ?? ''), where);
+      this.set({ notice: { message: `已插入「${displayOf(asset)}」`, tone: 'ok' } });
+      return true;
+    } catch (err) {
+      this.set({ notice: { message: attachErrorText(err), tone: 'bad' } });
+      return false;
+    }
+  }
+
+  /** Dropped or picked files with a path on disk. */
+  async insertFiles(files: readonly File[], where: InsertWhere): Promise<void> {
+    const bridge = this.options.bridge;
+    if (bridge === null || files.length === 0) return;
+    const ids = await bridge.insertFiles(files);
+    const pending = ids.map((uploadId, i) => {
+      const file = files[i];
+      return this.newPending(uploadId, file?.name ?? '檔案', file ?? null, where);
+    });
+    this.set({ pending: [...this.state.pending, ...pending] });
+  }
+
+  /** A pasted image (no file on disk): the main process keeps the bytes until uploaded. */
+  async pasteImage(blob: Blob, where: InsertWhere, now: Date = new Date()): Promise<void> {
+    const bridge = this.options.bridge;
+    if (bridge === null) return;
+    const name =
+      blob instanceof File && blob.name !== '' && blob.name !== 'image.png'
+        ? blob.name
+        : pastedName(blob.type, now);
+    const data = new Uint8Array(await blob.arrayBuffer());
+    const key = `p${String(++keySeq)}`;
+    const preview = this.options.createPreview?.(blob) ?? null;
+    this.set({
+      pending: [
+        ...this.state.pending,
+        {
+          key,
+          uploadId: null,
+          name,
+          preview,
+          state: 'uploading',
+          progress: 0,
+          error: null,
+          where,
+          asset: null,
+        },
+      ],
+    });
+    try {
+      const uploadId = await bridge.insertBytes(name, data);
+      this.update(key, { uploadId });
+    } catch {
+      this.update(key, { state: 'failed', error: '無法暫存貼上的圖片', progress: null });
+    }
+  }
+
+  private newPending(
+    uploadId: string,
+    name: string,
+    file: Blob | null,
+    where: InsertWhere,
+  ): PendingInsert {
+    return {
+      key: `p${String(++keySeq)}`,
+      uploadId,
+      name,
+      preview:
+        file !== null && file.type.startsWith('image/')
+          ? (this.options.createPreview?.(file) ?? null)
+          : null,
+      state: 'uploading',
+      progress: 0,
+      error: null,
+      where,
+      asset: null,
+    };
+  }
+
+  /** Follow the main process's upload list. */
+  onUploads(items: readonly UploadItem[]): void {
+    for (const p of this.state.pending) {
+      if (p.uploadId === null || p.state !== 'uploading') continue;
+      const item = items.find((i) => i.id === p.uploadId);
+      if (item === undefined) continue;
+      if (item.state === 'failed' || item.state === 'cancelled') {
+        this.update(p.key, { state: 'failed', error: uploadErrorText(item), progress: null });
+      } else if (item.state === 'succeeded' && item.result !== null) {
+        const asset = item.result.asset;
+        this.update(p.key, { state: 'attaching', asset, progress: 100 });
+        void this.attachPending(p.key, asset);
+      } else {
+        const progress = item.bytes > 0 ? Math.round((item.sentBytes / item.bytes) * 100) : null;
+        if (progress !== p.progress) this.update(p.key, { progress });
+      }
+    }
+  }
+
+  private async attachPending(key: string, asset: AssetRecord): Promise<void> {
+    const p = this.state.pending.find((x) => x.key === key);
+    if (p === undefined) return;
+    try {
+      const res = await this.options.client.works.attachMedia(this.options.workId, asset.id);
+      this.options.insert(imageMarkdown(res.src, asset.alt_text ?? ''), p.where);
+      this.finish(key);
+      this.set({ notice: { message: `已插入「${p.name}」，同時加入素材庫`, tone: 'ok' } });
+    } catch (err) {
+      this.update(key, { state: 'failed', error: attachErrorText(err) });
+    }
+  }
+
+  /** 重試: upload again, or only the attach if the file already reached the library. */
+  retry(key: string): void {
+    const p = this.state.pending.find((x) => x.key === key);
+    if (p === undefined || p.state !== 'failed') return;
+    if (p.asset !== null) {
+      this.update(key, { state: 'attaching', error: null });
+      void this.attachPending(key, p.asset);
+    } else if (p.uploadId !== null) {
+      this.update(key, { state: 'uploading', error: null, progress: 0 });
+      void this.options.bridge?.retryUpload(p.uploadId);
+    }
+  }
+
+  /** 取消 / 移除: stop the upload if it is still running and drop the card. */
+  remove(key: string): void {
+    const p = this.state.pending.find((x) => x.key === key);
+    if (p === undefined) return;
+    if (p.uploadId !== null) {
+      const bridge = this.options.bridge;
+      if (p.state === 'uploading') void bridge?.cancelUpload(p.uploadId);
+      else void bridge?.dismissUpload(p.uploadId);
+    }
+    this.finish(key);
+  }
+
+  private finish(key: string): void {
+    const p = this.state.pending.find((x) => x.key === key);
+    if (p?.preview != null) this.options.revokePreview?.(p.preview);
+    this.set({ pending: this.state.pending.filter((x) => x.key !== key) });
+  }
+
+  dispose(): void {
+    this.offUploads();
+    for (const p of this.state.pending) {
+      if (p.preview !== null) this.options.revokePreview?.(p.preview);
+    }
+    this.disposed = true;
+    this.listeners.clear();
+  }
+}
+
+function displayOf(asset: AssetRecord): string {
+  const d = asset.display_name ?? null;
+  return d !== null && d.trim() !== '' ? d : assetName(asset);
+}

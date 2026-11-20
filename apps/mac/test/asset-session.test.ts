@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   AssetEditor,
   assetErrorText,
+  batchInUseReferences,
+  deletedToast,
+  deleteImpact,
+  deleteImpactText,
   brokenLinkTitles,
   daysLeft,
   displayName,
@@ -120,6 +124,75 @@ describe('asset helpers (QC-037)', () => {
     expect(normalizeTag('京都', ['京都'])).toBeNull();
     expect(normalizeTag('   ', [])).toBeNull();
     expect(normalizeTag('x'.repeat(80), [])).toHaveLength(64);
+  });
+});
+
+describe('delete dialog says what really happens (QC-039)', () => {
+  const copy = (id: string, title: string) => ({
+    work_id: id,
+    title,
+    role: 'body' as const,
+    position: 0,
+    independent_copy: true,
+  });
+  it('only independent copies: the posts are not affected', () => {
+    const impact = deleteImpact([
+      { works: [copy('w1', '京都'), copy('w2', '咖啡')], variants: [] },
+    ]);
+    expect(impact.breaking).toEqual([]);
+    expect(deleteImpactText(impact)).toBe(
+      '文章中的圖片是獨立複本，不受影響；這些作品的素材清單會移除此項，30 天內恢復即補回。',
+    );
+    expect(deletedToast(impact)).toBe('已移到最近刪除 · 文章中的圖片不受影響');
+    expect(
+      deleteImpactText(deleteImpact([{ works: [copy('w1', '京都')], variants: [] }])),
+    ).toContain('這件作品的素材清單');
+  });
+
+  it('covers, videos, platform versions and direct links really go missing, named', () => {
+    const impact = deleteImpact([
+      {
+        works: [
+          copy('w1', '京都'),
+          { work_id: 'w2', title: '書房', role: 'cover', position: 0, independent_copy: false },
+          // A reference from an older service without the flag counts as missing.
+          { work_id: 'w3', title: '舊作品', role: 'body', position: 0 },
+        ],
+        variants: [{ work_id: 'w4', title: '咖啡', platform: 'xiaohongshu', usage: 'cover' }],
+      },
+    ]);
+    expect(impact.breaking.map((w) => w.title)).toEqual(['書房', '舊作品', '咖啡']);
+    expect(impact.safe.map((w) => w.title)).toEqual(['京都']);
+    expect(deleteImpactText(impact)).toBe(
+      '「書房」、「舊作品」、「咖啡」 會顯示為缺圖，30 天內恢復即自動補回。「京都」 中的圖片是獨立複本，不受影響。',
+    );
+    expect(deletedToast(impact)).toBe('已移到最近刪除 · 部分作品顯示為缺圖');
+  });
+
+  it('a work with a copied body image but also a cover counts as missing', () => {
+    const impact = deleteImpact([
+      {
+        works: [
+          copy('w1', '京都'),
+          { work_id: 'w1', title: '京都', role: 'cover', position: 0, independent_copy: false },
+        ],
+        variants: [],
+      },
+    ]);
+    expect(impact).toEqual({ safe: [], breaking: [{ work_id: 'w1', title: '京都' }] });
+  });
+
+  it('reads a batch asset_in_use answer', () => {
+    const err = apiError(409, 'asset_in_use', {
+      assets: [
+        { id: 'a1', references: { works: [copy('w1', '京都')], variants: [] } },
+        { id: 'a2', references: { works: [], variants: [] } },
+      ],
+    });
+    const refs = batchInUseReferences(err);
+    expect(refs).toHaveLength(2);
+    expect(deleteImpact(refs).safe.map((w) => w.title)).toEqual(['京都']);
+    expect(batchInUseReferences(apiError(409, 'asset_in_trash'))).toEqual([]);
   });
 });
 

@@ -11,6 +11,8 @@ export type RequiredAccess = TokenScope | 'owner' | 'read_or_own_import';
 const WRITE_ROUTES = new Set([
   'PATCH /api/v1/works/:id',
   'POST /api/v1/works/:id/assets',
+  // QC-039: copies an asset into the work's own folder and links it (like linking an asset).
+  'POST /api/v1/works/:id/media/attach',
   'DELETE /api/v1/works/:id/assets/:assetId',
   'PUT /api/v1/works/:id/assets/order',
   'POST /api/v1/works/:id/revisions/:rid/restore',

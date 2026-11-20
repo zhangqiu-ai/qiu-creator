@@ -56,6 +56,11 @@ export const ErrorCodeSchema = z.enum([
   'asset_file_missing',
   /** The original could not be moved to the macOS Trash; nothing changed (500, QC-037). */
   'trash_failed',
+  /**
+   * attach (QC-039): an external (mounted) work cannot take a copied-in file;
+   * the app never writes into the user's own folders.
+   */
+  'attach_external_unsupported',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 

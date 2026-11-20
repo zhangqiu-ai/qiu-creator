@@ -181,6 +181,13 @@ export const AssetWorkReferenceSchema = z.object({
   title: z.string(),
   role: WorkAssetRoleSchema,
   position: z.number().int().nonnegative(),
+  /**
+   * QC-039: the work's own `assets/` holds an independent copy of this file
+   * (made by `POST /works/:id/media/attach`), so the images in its text keep
+   * working when the library asset is deleted. Only the work's asset list loses
+   * the entry. False for covers, videos and links that point at the asset itself.
+   */
+  independent_copy: z.boolean().optional(),
 });
 export type AssetWorkReference = z.infer<typeof AssetWorkReferenceSchema>;
 

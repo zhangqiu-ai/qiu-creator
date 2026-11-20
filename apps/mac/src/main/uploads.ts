@@ -101,6 +101,12 @@ export class UploadManager {
 
   /** Queue files by absolute path. Directories and unreadable paths are skipped. */
   async add(filePaths: readonly string[]): Promise<number> {
+    return (await this.addWithIds(filePaths)).length;
+  }
+
+  /** Like `add`, returning the new upload ids in order (QC-039 inserts follow them). */
+  async addWithIds(filePaths: readonly string[]): Promise<string[]> {
+    const ids: string[] = [];
     let added = 0;
     for (const filePath of filePaths) {
       let stat;
@@ -126,13 +132,14 @@ export class UploadManager {
       };
       this.entries.set(item.id, { item, filePath, uploadUrl: null, controller: null });
       this.order.unshift(item.id);
+      ids.push(item.id);
       added += 1;
     }
     if (added > 0) {
       this.emit();
       this.pump();
     }
-    return added;
+    return ids;
   }
 
   cancel(id: string): void {

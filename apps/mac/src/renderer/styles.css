@@ -850,6 +850,8 @@ kbd {
   min-height: 0;
   overflow: auto;
   background: var(--qc-surface);
+  /* Anchors the drop line and pending cards (QC-039). */
+  position: relative;
 }
 .panel {
   flex: 1 1 340px;
@@ -3980,4 +3982,328 @@ kbd {
   .atile__check {
     transition: none;
   }
+}
+
+/* ---- 編輯器插入素材 (PT-20261119-001 「v2 · 編輯器：插入素材」, QC-039) ---- */
+.insert-menu {
+  position: relative;
+}
+.pop {
+  position: absolute;
+  z-index: 40;
+  min-width: 240px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border: 1px solid var(--qc-line);
+  border-radius: 10px;
+  background: var(--qc-surface);
+  box-shadow: var(--qc-shadow-dialog);
+}
+.insert-menu__pop {
+  top: 38px;
+  right: 0;
+}
+.pop__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--qc-ink);
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pop__item:hover,
+.pop__item:focus-visible,
+.pop__item[aria-selected='true'] {
+  background: var(--qc-accent-soft);
+  outline: none;
+}
+.pop__item kbd,
+.pop__item-hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--qc-ink3);
+}
+.pop__sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--qc-line);
+}
+.pop__hint,
+.pop__keys {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 10px 6px;
+  font-size: 12px;
+  color: var(--qc-ink3);
+}
+.pop__keys {
+  flex-direction: row;
+  gap: 10px;
+  font-size: 11px;
+}
+.pop__empty {
+  padding: 8px 10px;
+  color: var(--qc-ink3);
+}
+.slash {
+  position: fixed;
+  width: 300px;
+}
+.slash__input {
+  height: 30px;
+  margin-bottom: 4px;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 1px solid var(--qc-line);
+  background: transparent;
+  font: inherit;
+  outline: none;
+}
+.drawer__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 41px;
+  padding: 0 8px 0 16px;
+  border-bottom: 1px solid var(--qc-line);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--qc-bg);
+}
+.drawer__title {
+  font-weight: 600;
+}
+.drawer__close {
+  margin-left: auto;
+}
+.drawer__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px 0;
+}
+.drawer__search {
+  flex: none;
+  width: 100%;
+}
+.drawer__search kbd {
+  margin-left: auto;
+}
+.drawer__controls .seg {
+  align-self: flex-start;
+}
+.drawer__note {
+  font-size: 12px;
+  color: var(--qc-warn);
+}
+.drawer__grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 6px;
+  padding: 10px 12px;
+  outline: none;
+}
+.drawer__tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--qc-ink2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.drawer__tile:hover {
+  background: var(--qc-surface);
+}
+.drawer__tile[aria-selected='true'] {
+  border-color: var(--qc-accent);
+  box-shadow: 0 0 0 1px var(--qc-accent);
+}
+.drawer__tile:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.drawer__thumb {
+  display: block;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--qc-sunken);
+}
+.drawer__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.drawer__name {
+  overflow: hidden;
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.drawer__empty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 0;
+  color: var(--qc-ink3);
+}
+.drawer__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--qc-line);
+  font-size: 11px;
+  color: var(--qc-ink3);
+}
+.pending {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 680px;
+  margin: 12px auto 0;
+  padding: 0 48px;
+}
+.pending__card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: 10px;
+  background: var(--qc-surface);
+  box-shadow: var(--qc-shadow-card);
+}
+.pending__card--bad {
+  border-color: var(--qc-bad);
+  background: var(--qc-bad-soft);
+}
+.pending__card--bad .icon {
+  color: var(--qc-bad);
+}
+.pending__thumb {
+  flex: none;
+  width: 56px;
+  height: 42px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--qc-sunken);
+}
+.pending__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.pending__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pending__row {
+  display: flex;
+  gap: 8px;
+}
+.pending__title {
+  overflow: hidden;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pending__card--bad .pending__title {
+  color: var(--qc-bad);
+}
+.pending__sub {
+  font-size: 12px;
+  color: var(--qc-ink2);
+}
+.pending__pct {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--qc-ink3);
+  font-variant-numeric: tabular-nums;
+}
+.pending .bar {
+  display: block;
+}
+.drop {
+  /* Placed on the visible area by dropFrame(); it does not scroll with the content. */
+  position: absolute;
+  z-index: 3;
+  overflow: hidden;
+  border: 2px dashed var(--qc-accent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--qc-accent) 5%, transparent);
+  pointer-events: none;
+}
+.drop__line {
+  position: absolute;
+  left: max(24px, calc(50% - 340px));
+  right: max(24px, calc(50% - 340px));
+  height: 2px;
+  background: var(--qc-accent);
+}
+.drop__line::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--qc-accent);
+}
+.drop__badge {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--qc-accent);
+  color: var(--qc-on-accent);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.editor .toast {
+  position: fixed;
+}
+
+/* QC-039: which works lose the image and which keep their own copy. */
+.dialog__group {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--qc-ink2);
+}
+.dialog__group--bad {
+  color: var(--qc-bad);
 }

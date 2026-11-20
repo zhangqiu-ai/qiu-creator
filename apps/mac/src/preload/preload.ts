@@ -44,6 +44,11 @@ const bridge: CreatorHubBridge = {
     const paths = files.map((file) => webUtils.getPathForFile(file)).filter((p) => p !== '');
     return ipcRenderer.invoke(IPC.uploadPaths, paths) as Promise<number>;
   },
+  insertFiles: (files) => {
+    const paths = files.map((file) => webUtils.getPathForFile(file)).filter((p) => p !== '');
+    return ipcRenderer.invoke(IPC.insertPaths, paths) as Promise<string[]>;
+  },
+  insertBytes: (name, data) => ipcRenderer.invoke(IPC.insertBytes, name, data) as Promise<string>,
   uploads: () => ipcRenderer.invoke(IPC.uploads) as Promise<UploadItem[]>,
   onUploads: (listener) =>
     listen(IPC.uploadsChanged, (p) => {

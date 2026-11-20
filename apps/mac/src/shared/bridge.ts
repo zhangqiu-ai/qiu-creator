@@ -86,6 +86,13 @@ export interface CreatorHubBridge {
   cancelUpload: (id: string) => Promise<void>;
   retryUpload: (id: string) => Promise<void>;
   dismissUpload: (id: string) => Promise<void>;
+  /** Queue dropped files for insertion into a work (QC-039); resolves with their upload ids. */
+  insertFiles: (files: readonly File[]) => Promise<string[]>;
+  /**
+   * Queue bytes without a file on disk (a pasted clipboard image, QC-039): the
+   * main process keeps them in a temporary file until the upload settles.
+   */
+  insertBytes: (name: string, data: Uint8Array) => Promise<string>;
 
   /** Opens the system folder picker; resolves with the absolute path or null when cancelled. */
   pickFolder: () => Promise<string | null>;
@@ -111,6 +118,8 @@ export const IPC = {
   cancelUpload: 'creatorhub:cancel-upload',
   retryUpload: 'creatorhub:retry-upload',
   dismissUpload: 'creatorhub:dismiss-upload',
+  insertPaths: 'creatorhub:insert-paths',
+  insertBytes: 'creatorhub:insert-bytes',
   pickFolder: 'creatorhub:pick-folder',
   reveal: 'creatorhub:reveal',
   copyText: 'creatorhub:copy-text',

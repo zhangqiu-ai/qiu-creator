@@ -47,6 +47,75 @@ export function referencingTitles(refs: AssetReferences): { work_id: string; tit
   return out;
 }
 
+export interface DeleteImpact {
+  /** Works whose text images are independent copies (QC-039 attach): unaffected. */
+  safe: { work_id: string; title: string }[];
+  /** Works that will really show a missing image (covers, videos, platform versions, direct links). */
+  breaking: { work_id: string; title: string }[];
+}
+
+/**
+ * What deleting an asset really does to each work using it: a body image the
+ * work holds as its own copy survives; anything pointing at the asset itself
+ * (cover, video, platform version, a direct body link) goes missing.
+ */
+export function deleteImpact(refsList: readonly AssetReferences[]): DeleteImpact {
+  const titles = new Map<string, string>();
+  const breaking = new Set<string>();
+  for (const refs of refsList) {
+    for (const r of refs.works) {
+      titles.set(r.work_id, r.title);
+      if (r.independent_copy !== true) breaking.add(r.work_id);
+    }
+    for (const v of refs.variants) {
+      titles.set(v.work_id, v.title);
+      breaking.add(v.work_id);
+    }
+  }
+  const list = [...titles].map(([work_id, title]) => ({ work_id, title }));
+  return {
+    safe: list.filter((w) => !breaking.has(w.work_id)),
+    breaking: list.filter((w) => breaking.has(w.work_id)),
+  };
+}
+
+/** The dialog sentence for an impact, exact about what will happen. */
+export function deleteImpactText(impact: DeleteImpact): string {
+  const names = (ws: readonly { title: string }[]) => ws.map((w) => `「${w.title}」`).join('、');
+  if (impact.breaking.length === 0) {
+    const these = impact.safe.length === 1 ? '這件作品' : '這些作品';
+    return `文章中的圖片是獨立複本，不受影響；${these}的素材清單會移除此項，30 天內恢復即補回。`;
+  }
+  const lost = `${names(impact.breaking)} 會顯示為缺圖，30 天內恢復即自動補回。`;
+  return impact.safe.length === 0
+    ? lost
+    : `${lost}${names(impact.safe)} 中的圖片是獨立複本，不受影響。`;
+}
+
+/** The toast after a confirmed delete. */
+export function deletedToast(impact: DeleteImpact): string {
+  return impact.breaking.length === 0
+    ? '已移到最近刪除 · 文章中的圖片不受影響'
+    : '已移到最近刪除 · 部分作品顯示為缺圖';
+}
+
+/** The references in a 409 `asset_in_use` answer for a batch (`details.assets`). */
+export function batchInUseReferences(err: unknown): AssetReferences[] {
+  if (!(err instanceof ApiError) || err.code !== 'asset_in_use') return [];
+  const list = err.body?.error.details?.['assets'];
+  if (!Array.isArray(list)) return [];
+  const out: AssetReferences[] = [];
+  for (const item of list as unknown[]) {
+    if (typeof item !== 'object' || item === null) continue;
+    const refs = (item as { references?: Partial<AssetReferences> }).references;
+    out.push({
+      works: Array.isArray(refs?.works) ? refs.works : [],
+      variants: Array.isArray(refs?.variants) ? refs.variants : [],
+    });
+  }
+  return out;
+}
+
 /** The references in a 409 `asset_in_use` answer, or null. */
 export function inUseReferences(err: unknown): AssetReferences | null {
   if (!(err instanceof ApiError) || err.code !== 'asset_in_use') return null;

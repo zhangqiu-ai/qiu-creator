@@ -77,6 +77,79 @@ describe('WorkMediaResolver', () => {
     expect(calls).toEqual(['load', 'save', 'load']);
   });
 
+  it('saves before looking up a new image after the cache was invalidated (QC-039)', async () => {
+    const calls: string[] = [];
+    let items = [ref('assets/a.png')];
+    const r = new WorkMediaResolver({
+      load: () => {
+        calls.push('load');
+        return Promise.resolve(media(items, '2099-01-01T00:00:00Z'));
+      },
+      absolute: (u) => u,
+      beforeLookup: () => {
+        calls.push('save');
+        items = [ref('assets/a.png'), ref('assets/inserted.png')];
+        return Promise.resolve();
+      },
+    });
+    await r.resolve('assets/a.png');
+    r.invalidate();
+    expect(await r.resolve('assets/inserted.png')).toContain('assets/inserted.png');
+    expect(calls).toEqual(['load', 'save', 'load']);
+  });
+
+  it('after a save, does not reuse a load that started before it (QC-039)', async () => {
+    let items = [ref('assets/a.png')];
+    let release: () => void = () => undefined;
+    let loads = 0;
+    const r = new WorkMediaResolver({
+      load: () => {
+        loads += 1;
+        const snapshot = items;
+        // The second load is slow, so it is still in flight when the save happens.
+        if (loads === 2) {
+          return new Promise((done) => {
+            release = () => {
+              done(media(snapshot, '2099-01-01T00:00:00Z'));
+            };
+          });
+        }
+        return Promise.resolve(media(snapshot, '2099-01-01T00:00:00Z'));
+      },
+      absolute: (u) => u,
+      beforeLookup: () => {
+        items = [ref('assets/a.png'), ref('assets/new.png')];
+        release();
+        return Promise.resolve();
+      },
+    });
+    await r.resolve('assets/a.png');
+    r.invalidate();
+    const a = r.resolve('assets/a.png');
+    const fresh = r.resolve('assets/new.png');
+    expect(await fresh).toContain('assets/new.png');
+    expect(await a).toContain('assets/a.png');
+  });
+
+  it('saves once more when a first load does not know the image yet', async () => {
+    const calls: string[] = [];
+    let items: ReturnType<typeof ref>[] = [];
+    const r = new WorkMediaResolver({
+      load: () => {
+        calls.push('load');
+        return Promise.resolve(media(items, '2099-01-01T00:00:00Z'));
+      },
+      absolute: (u) => u,
+      beforeLookup: () => {
+        calls.push('save');
+        items = [ref('assets/new.png')];
+        return Promise.resolve();
+      },
+    });
+    expect(await r.resolve('assets/new.png')).toContain('assets/new.png');
+    expect(calls).toEqual(['load', 'save', 'load']);
+  });
+
   it('shows placeholders for missing, rejected, unsupported and remote images', async () => {
     const r = new WorkMediaResolver({
       load: () =>

@@ -62,6 +62,9 @@ export class WorkMediaResolver {
   }
 
   /** Forget cached URLs (the work's Markdown or assets changed). */
+  /** True after the first successful load. */
+  private loaded = false;
+
   invalidate(): void {
     this.expiresAt = 0;
   }
@@ -70,11 +73,20 @@ export class WorkMediaResolver {
     return this.now() < this.expiresAt - EXPIRY_MARGIN_MS;
   }
 
-  private refresh(): Promise<void> {
+  /**
+   * Load the media list. `force`: a save just happened, so a load that was already
+   * in flight may predate it; wait for it, then load again.
+   */
+  private refresh(force = false): Promise<void> {
+    if (force && this.loading !== null) {
+      const prior = this.loading;
+      return prior.catch(() => undefined).then(() => this.refresh(true));
+    }
     this.loading ??= this.options
       .load()
       .then((res) => {
         this.refs = new Map(res.items.map((r) => [r.src, r]));
+        this.loaded = true;
         this.expiresAt = Date.parse(res.expires_at);
       })
       .finally(() => {
@@ -86,11 +98,25 @@ export class WorkMediaResolver {
   async resolve(src: string): Promise<string> {
     if (src.startsWith('data:')) return src;
     if (/^https?:\/\//i.test(src)) return placeholderImage('remote', src);
+    // A new image reference only resolves once the Markdown containing it is saved.
+    let saved = false;
     if (!this.fresh() || !this.refs.has(src)) {
-      // A new image reference only resolves once the Markdown containing it is saved.
-      if (this.fresh() && !this.refs.has(src)) await this.options.beforeLookup?.();
+      if (this.loaded && !this.refs.has(src)) {
+        await this.options.beforeLookup?.();
+        saved = true;
+      }
       try {
-        await this.refresh();
+        await this.refresh(saved);
+      } catch {
+        return placeholderImage('missing', src);
+      }
+    }
+    // Still unknown after a refresh that did not save first (e.g. the cache was just
+    // invalidated by an inserted image, QC-039): save, then look once more.
+    if (!this.refs.has(src) && !saved && this.options.beforeLookup !== undefined) {
+      await this.options.beforeLookup();
+      try {
+        await this.refresh(true);
       } catch {
         return placeholderImage('missing', src);
       }
