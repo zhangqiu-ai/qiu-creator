@@ -1,5 +1,14 @@
 # Done
 
+## QC-039: 作品編輯插入素材與貼上圖片
+
+**Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, ui, api | **Done:** 2026-11-19
+
+- 新增 `POST /works/:id/media/attach`：把素材複製到託管作品自己的 `assets/`（同內容沿用、同名自動改名、絕不覆蓋、暫存檔加 link），建立連結；外部作品回 409 `attach_external_unsupported`，不寫外部資料夾；不寫 `.md`。
+- 插入選單、`/` 斜線選單、素材抽屜（⌘⇧I）、Finder 拖入（插入線、固定在可視區的虛線框、靠邊自動捲動）、⌘V 貼上（上傳中／完成／失敗可重試或移除），視覺與原始碼模式都可用。貼上的暫存檔在成功、取消、移除時清掉，啟動與結束時再清一次。
+- 素材引用回傳 `independent_copy`，QC-037 刪除確認框分別說明「獨立複本不受影響」與「真的會缺圖」的作品。順修 QC-010 媒體解析在 attach 後顯示「未儲存」佔位圖。
+- 全倉 753／0／753、e2e 7／7。證據 `docs/evidence/qc039-editor-insert.md`。NOT_VERIFIED：真實 Finder 拖曳與系統剪貼簿、抽屜拖進文中（無 e2e）、大檔續傳、多掛載資料夾、VoiceOver。
+
 ## QC-037: 素材庫刪除與編輯
 
 **Priority:** P1 | **Assignee:** qc-backend + qc-frontend | **Tags:** M3, ui, api | **Done:** 2026-11-19
