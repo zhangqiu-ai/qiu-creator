@@ -11,8 +11,10 @@ import {
   type RevealTarget,
   type UploadItem,
   type LanguageState,
+  type TabCommand,
   type ThemeSource,
 } from '../shared/bridge.js';
+import type { PersistedTabs } from '../shared/tabs.js';
 
 function listen(channel: string, listener: (payload: unknown) => void): () => void {
   const wrapped = (_event: IpcRendererEvent, payload: unknown): void => {
@@ -70,6 +72,12 @@ const bridge: CreatorHubBridge = {
   onLanguage: (listener) =>
     listen(IPC.languageChanged, (p) => {
       listener(p as LanguageState);
+    }),
+  getTabs: () => ipcRenderer.invoke(IPC.getTabs) as Promise<PersistedTabs | null>,
+  setTabs: (tabs) => ipcRenderer.invoke(IPC.setTabs, tabs) as Promise<void>,
+  onTabCommand: (listener) =>
+    listen(IPC.tabCommand, (p) => {
+      listener(p as TabCommand);
     }),
 };
 

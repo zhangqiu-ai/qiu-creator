@@ -10,6 +10,7 @@ import { main } from './main.js';
 import { serviceSettings } from './serviceSettings.js';
 import { settings } from './settings.js';
 import { shell } from './shell.js';
+import { tabs } from './tabs.js';
 
 /**
  * All messages by area. Each area is its own file so pages can be translated
@@ -27,6 +28,7 @@ export const catalog = {
   serviceSettings,
   editor,
   library,
+  tabs,
 } as const;
 
 type Areas = typeof catalog;

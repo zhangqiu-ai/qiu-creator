@@ -28,7 +28,7 @@ describe('upgrade keeps 繁體中文 (QC-042, decision C)', () => {
       extra: 1,
       language: 'zh-Hant',
     });
-    expect(readPreferences(file)).toEqual({ theme: 'dark', language: 'zh-Hant' });
+    expect(readPreferences(file)).toEqual({ theme: 'dark', language: 'zh-Hant', tabs: null });
     expect(fs.readdirSync(path.dirname(file))).toEqual(['preferences.json']);
   });
 
@@ -71,7 +71,10 @@ describe('LanguageController', () => {
 
 describe('menu bar', () => {
   const labels = (locale: 'zh-Hans' | 'zh-Hant' | 'en') =>
-    menuTemplate(translator(locale), 'qiu-creator', { devTools: false }).map((m) => m.label);
+    menuTemplate(translator(locale), 'qiu-creator', {
+      devTools: false,
+      onTabCommand: () => undefined,
+    }).map((m) => m.label);
   it('top-level menus in each language', () => {
     expect(labels('zh-Hant')).toEqual(['qiu-creator', '檔案', '編輯', '顯示方式', '視窗']);
     expect(labels('zh-Hans')).toEqual(['qiu-creator', '文件', '编辑', '显示', '窗口']);
@@ -79,7 +82,7 @@ describe('menu bar', () => {
   });
   it('keeps the standard roles and only shows developer tools in development', () => {
     const roles = (devTools: boolean) =>
-      menuTemplate(translator('en'), 'qiu-creator', { devTools })
+      menuTemplate(translator('en'), 'qiu-creator', { devTools, onTabCommand: () => undefined })
         .flatMap((m) => (Array.isArray(m.submenu) ? m.submenu : []))
         .map((i) => i.role)
         .filter((r) => r !== undefined);
@@ -87,7 +90,10 @@ describe('menu bar', () => {
     expect(roles(false)).toContain('quit');
     expect(roles(false)).not.toContain('toggleDevTools');
     expect(roles(true)).toContain('toggleDevTools');
-    const app = menuTemplate(translator('en'), 'qiu-creator', { devTools: false })[0];
+    const app = menuTemplate(translator('en'), 'qiu-creator', {
+      devTools: false,
+      onTabCommand: () => undefined,
+    })[0];
     const quit = Array.isArray(app?.submenu) ? app.submenu.at(-1) : undefined;
     expect(quit?.label).toBe('Quit qiu-creator');
   });

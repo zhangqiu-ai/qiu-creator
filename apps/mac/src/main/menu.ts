@@ -1,5 +1,6 @@
 import type { Translate } from '@qiu-creator/i18n';
 import type { MenuItemConstructorOptions } from 'electron';
+import type { TabCommand } from '../shared/bridge.js';
 
 /**
  * The macOS menu bar (QC-042). Same items and roles as Electron's default
@@ -9,8 +10,29 @@ import type { MenuItemConstructorOptions } from 'electron';
 export function menuTemplate(
   t: Translate,
   appName: string,
-  options: { devTools: boolean },
+  options: { devTools: boolean; onTabCommand: (command: TabCommand) => void },
 ): MenuItemConstructorOptions[] {
+  /** Editor tab items (QC-047). Each has an id so tests can find and click it. */
+  const tab = (
+    command: TabCommand,
+    label: string,
+    accelerator: string,
+  ): MenuItemConstructorOptions => ({
+    id: `tab-${command}`,
+    label,
+    accelerator,
+    click: () => {
+      options.onTabCommand(command);
+    },
+  });
+  const jumps: MenuItemConstructorOptions[] = [1, 2, 3, 4, 5, 6, 7, 8].map((n) =>
+    tab(
+      `jump-${n as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8}`,
+      t('main.menuTabN', { n }),
+      `CommandOrControl+${String(n)}`,
+    ),
+  );
+  jumps.push(tab('jump-9', t('main.menuTabLast'), 'CommandOrControl+9'));
   const view: MenuItemConstructorOptions[] = [
     { role: 'reload', label: t('main.menuReload') },
     { role: 'forceReload', label: t('main.menuForceReload') },
@@ -41,7 +63,14 @@ export function menuTemplate(
     },
     {
       label: t('main.menuFile'),
-      submenu: [{ role: 'close', label: t('main.menuCloseWindow') }],
+      submenu: [
+        tab('close', t('main.menuCloseTab'), 'CommandOrControl+W'),
+        {
+          role: 'close',
+          label: t('main.menuCloseWindow'),
+          accelerator: 'CommandOrControl+Shift+W',
+        },
+      ],
     },
     {
       label: t('main.menuEdit'),
@@ -64,6 +93,10 @@ export function menuTemplate(
       submenu: [
         { role: 'minimize', label: t('main.menuMinimize') },
         { role: 'zoom', label: t('main.menuZoom') },
+        { type: 'separator' },
+        tab('previous', t('main.menuPreviousTab'), 'CommandOrControl+Shift+['),
+        tab('next', t('main.menuNextTab'), 'CommandOrControl+Shift+]'),
+        { label: t('main.menuGoToTab'), submenu: jumps },
         { type: 'separator' },
         { role: 'front', label: t('main.menuFront') },
       ],

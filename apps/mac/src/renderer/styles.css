@@ -4361,3 +4361,250 @@ kbd {
 .dialog__group--bad {
   color: var(--qc-bad);
 }
+
+/* ---- 多分頁編輯 (PT-20261121-001 「v3 · 多分頁編輯」, QC-047) ---- */
+.tabs-area {
+  /* Anchors the tab notices. */
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tabs-area[hidden],
+.tab-pane[hidden] {
+  display: none;
+}
+.tab-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tabbar {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  height: 36px;
+  border-bottom: 1px solid var(--qc-line);
+  background: var(--qc-sunken);
+}
+.tabbar__strip {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabbar__strip::-webkit-scrollbar {
+  display: none;
+}
+/* More tabs past the edge: the strip fades out there. */
+.tabbar__strip--fade-right {
+  mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+}
+.tabbar__strip--fade-left {
+  mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+}
+.tabbar__strip--fade-left.tabbar__strip--fade-right {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 40px,
+    #000 calc(100% - 40px),
+    transparent
+  );
+}
+.tab {
+  position: relative;
+  /* Tabs keep their width; past the edge the strip scrolls and fades (no squeezing). */
+  flex: none;
+  width: 184px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px 0 12px;
+  border-right: 1px solid var(--qc-line);
+  color: var(--qc-ink3);
+  font-size: 12.5px;
+  cursor: default;
+  user-select: none;
+}
+.tab:hover {
+  color: var(--qc-ink);
+  background: var(--qc-bg);
+}
+.tab--active {
+  color: var(--qc-ink);
+  background: var(--qc-surface);
+}
+/* The active tab joins the page below it. */
+.tab--active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--qc-surface);
+}
+.tab--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: var(--qc-accent);
+}
+.tab:focus-visible {
+  outline: 2px solid var(--qc-accent);
+  outline-offset: -2px;
+}
+.tab .icon {
+  flex: none;
+}
+.tab__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.tab--unloaded .tab__title {
+  font-style: italic;
+}
+.tab--missing .tab__title {
+  text-decoration: line-through;
+}
+.tab--dragging {
+  opacity: 0.5;
+}
+.tab__conflict {
+  display: inline-flex;
+  color: var(--qc-bad);
+}
+.tab__ai {
+  display: inline-flex;
+  color: var(--qc-accent);
+}
+.tab__end {
+  position: relative;
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+.tab__dot {
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background: var(--qc-ink3);
+}
+.tab__close {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--qc-ink3);
+  opacity: 0;
+  cursor: pointer;
+}
+.tab__close:hover {
+  background: var(--qc-line);
+  color: var(--qc-ink);
+}
+/* × on the active tab and on hover; an unsaved tab shows its dot until hovered. */
+.tab--active .tab__close,
+.tab:hover .tab__close {
+  opacity: 1;
+}
+.tab--unsaved .tab__close {
+  opacity: 0;
+}
+.tab--unsaved:hover .tab__close {
+  opacity: 1;
+}
+.tab--unsaved:hover .tab__dot {
+  display: none;
+}
+@keyframes tab-flash {
+  0%,
+  60% {
+    background: var(--qc-accent-soft);
+  }
+  100% {
+    background: var(--qc-surface);
+  }
+}
+.tab--flash {
+  animation: tab-flash 0.9s ease-out;
+}
+.tabbar__insert {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--qc-accent);
+  pointer-events: none;
+}
+.tabbar__all {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  border-left: 1px solid var(--qc-line);
+}
+.tabbar__all-btn {
+  gap: 2px;
+}
+.tabbar__count {
+  font-variant-numeric: tabular-nums;
+}
+.tabbar__pop {
+  top: 34px;
+  right: 6px;
+  width: 340px;
+}
+.tabbar__search {
+  margin: 2px 2px 6px;
+}
+.tabbar__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 360px;
+  overflow: auto;
+}
+.tabbar__item[aria-current='true'] {
+  font-weight: 600;
+}
+.tabbar__item {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto 30px;
+  gap: 8px;
+}
+.tabbar__item-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tabbar__item kbd {
+  margin-left: 0;
+  justify-self: end;
+}
+.tabbar__item--unloaded .tabbar__item-title {
+  font-style: italic;
+}
+.tabbar__item-state {
+  flex: none;
+  font-size: 11px;
+  color: var(--qc-ink3);
+}

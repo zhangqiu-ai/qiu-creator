@@ -1,11 +1,11 @@
 import type { CreatorHubClient } from '@qiu-creator/api-client';
 import type { HealthResponse, WorkDetail } from '@qiu-creator/contracts';
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { connect, type ConnectResult } from './api.js';
 import { AssetsPage } from './AssetsPage.js';
 import { BackupSession, type BackupState } from './backups.js';
 import { onRestoringSeen } from './restoring.js';
-import { EditorPage } from './EditorPage.js';
+import { EditorTabs } from './EditorTabs.js';
 import { useChangeEvents, useEventStatus, useRefreshOn, useUploads } from './events.js';
 import { Icon } from './Icon.js';
 import { ImportsPage } from './ImportsPage.js';
@@ -16,11 +16,12 @@ import { SettingsPage } from './SettingsPage.js';
 import { Sidebar, type NavPage } from './Sidebar.js';
 import { serviceSummary } from './sidebar-prefs.js';
 import { t, useLocale } from './i18n.js';
+import { TabsModel } from './tabs.js';
 
 type Connection = { state: 'connecting' } | ConnectResult;
 type Route =
   | { page: 'library' }
-  | { page: 'editor'; work: WorkDetail }
+  | { page: 'editor' }
   | { page: 'assets'; focusAssetId: string | null; startAt?: number }
   | { page: 'ai' }
   | { page: 'imports' }
@@ -119,8 +120,61 @@ function useBackupSession(client: CreatorHubClient | null, onDataReplaced: () =>
 }
 
 /**
+ * Editor tabs (QC-047): restored from the app preferences once per launch,
+ * and saved there whenever they change.
+ */
+function useTabs(client: CreatorHubClient | null, onRestored: () => void) {
+  const [model] = useState(() => new TabsModel());
+  const restored = useRef(false);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (client === null || restored.current) return;
+    restored.current = true;
+    const bridge = window.creatorhub;
+    if (bridge === undefined) {
+      setReady(true);
+      return;
+    }
+    void bridge
+      .getTabs()
+      .then((saved) => {
+        if (saved !== null && saved.items.length > 0 && model.tabs.length === 0) {
+          model.restore(saved);
+          onRestored();
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        setReady(true);
+      });
+  }, [client, model, onRestored]);
+  useEffect(() => {
+    // Nothing is written before the saved tabs were read, so they are never overwritten by none.
+    if (!ready) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let last = JSON.stringify(model.persisted());
+    const off = model.subscribe(() => {
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        const next = model.persisted();
+        const text = JSON.stringify(next);
+        if (text === last) return;
+        last = text;
+        void window.creatorhub?.setTabs(next).catch(() => undefined);
+      }, 300);
+    });
+    return () => {
+      off();
+      if (timer !== null) clearTimeout(timer);
+    };
+  }, [ready, model]);
+  return model;
+}
+
+/**
  * App shell from the approved prototype (PT-20261116-001): a left navigation
- * column and one page at a time. 發布中心 is phase two.
+ * column and one page at a time. 發布中心 is phase two. The editor area keeps
+ * its tabs mounted while another page is in front (QC-047).
  */
 export function App() {
   // Re-render the whole tree in place when the language changes (QC-042).
@@ -174,19 +228,47 @@ export function App() {
   });
   const address = 'state' in connection ? '' : connection.baseUrl.replace(/^https?:\/\//, '');
 
+  const showEditor = useCallback(() => {
+    setRoute({ page: 'editor' });
+  }, []);
+  const tabs = useTabs(client, showEditor);
+  const tabsState = useSyncExternalStore(tabs.subscribe, tabs.getSnapshot);
+  /** Works fetched to open a tab, handed to its editor so it does not fetch them again. */
+  const [preloaded] = useState(() => new Map<string, WorkDetail>());
+  const [focusToken, setFocusToken] = useState(0);
+  const focusEditor = useCallback(() => {
+    setFocusToken((n) => n + 1);
+    setRoute({ page: 'editor' });
+  }, []);
+  const openTab = useCallback(
+    (work: WorkDetail) => {
+      if (tabs.find(work.id) === null) preloaded.set(work.id, work);
+      tabs.open({ id: work.id, kind: work.type, title: work.title });
+      focusEditor();
+    },
+    [tabs, preloaded, focusEditor],
+  );
   const openWork = useCallback(
     (id: string) => {
       if (client === null) return;
-      void client.works.get(id).then((work) => {
-        setLastWorkId(work.id);
-        setRoute({ page: 'editor', work });
-      });
+      // Already open: focus (and flash) its tab, with whatever is unsaved in it.
+      const open = tabs.find(id);
+      if (open !== null) {
+        tabs.open(open);
+        focusEditor();
+        return;
+      }
+      void client.works.get(id).then(openTab);
     },
-    [client],
+    [client, tabs, openTab, focusEditor],
   );
+  // The last tab closed: back to 作品庫.
+  useEffect(() => {
+    if (route.page === 'editor' && tabsState.tabs.length === 0) setRoute({ page: 'library' });
+  }, [route.page, tabsState.tabs.length]);
 
-  // The work last opened in the editor, so 平台預覽 in the navigation goes straight to it.
-  const [lastWorkId, setLastWorkId] = useState<string | null>(null);
+  // The work in the active tab, so 平台預覽 in the navigation goes straight to it.
+  const lastWorkId = tabsState.activeId;
   const go = (page: NavPage) => {
     if (page === 'assets') setRoute({ page, focusAssetId: null });
     else if (page === 'preview') setRoute({ page, workId: lastWorkId, from: null });
@@ -224,27 +306,9 @@ export function App() {
           client={connection.client}
           userHome={userHome}
           onOpen={openWork}
-          onCreated={(work) => {
-            setRoute({ page: 'editor', work });
-          }}
+          onCreated={openTab}
         />
-      ) : route.page === 'editor' ? (
-        <EditorPage
-          key={route.work.id}
-          client={connection.client}
-          work={route.work}
-          userHome={userHome}
-          onPreview={() => {
-            setRoute({ page: 'preview', workId: route.work.id, from: route.work });
-          }}
-          onOpenSettings={() => {
-            setRoute({ page: 'settings', section: 'ai' });
-          }}
-          onBack={() => {
-            setRoute({ page: 'library' });
-          }}
-        />
-      ) : route.page === 'assets' ? (
+      ) : route.page === 'editor' ? null : route.page === 'assets' ? (
         <AssetsPage
           key={`${route.focusAssetId ?? 'assets'}:${String(route.startAt ?? '')}:${String(dataEpoch)}`}
           client={connection.client}
@@ -266,7 +330,6 @@ export function App() {
           client={connection.client}
           workId={route.workId}
           onPickWork={(id) => {
-            setLastWorkId(id);
             setRoute({ page: 'preview', workId: id, from: null });
           }}
           onBack={
@@ -313,6 +376,26 @@ export function App() {
           eventStatus={events}
           service={service}
           checkHealth={checkHealth}
+        />
+      )}
+      {client !== null && (
+        <EditorTabs
+          model={tabs}
+          client={client}
+          userHome={userHome}
+          visible={route.page === 'editor'}
+          preloaded={preloaded}
+          focusToken={focusToken}
+          onFocusEditor={focusEditor}
+          onBack={() => {
+            setRoute({ page: 'library' });
+          }}
+          onPreview={(work) => {
+            setRoute({ page: 'preview', workId: work.id, from: work });
+          }}
+          onOpenSettings={() => {
+            setRoute({ page: 'settings', section: 'ai' });
+          }}
         />
       )}
     </div>
