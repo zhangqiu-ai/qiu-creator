@@ -5,6 +5,7 @@
  */
 import type { ChangeEvent, UploadAssetResponse } from '@qiu-creator/contracts';
 import type { LanguagePreference, Locale } from '@qiu-creator/i18n';
+import type { PersistedTabs } from './tabs.js';
 
 export type ConnectionInfo =
   | { ok: true; baseUrl: string; token: string }
@@ -109,7 +110,35 @@ export interface CreatorHubBridge {
   setLanguage: (preference: LanguagePreference) => Promise<LanguageState>;
   /** The language in use changed (a new choice, or macOS changed while following the system). */
   onLanguage: (listener: (state: LanguageState) => void) => () => void;
+  /** Editor tabs saved at the last launch (QC-047), or null. */
+  getTabs: () => Promise<PersistedTabs | null>;
+  /** Save the open tabs to the app preferences. */
+  setTabs: (tabs: PersistedTabs) => Promise<void>;
+  /** A tab command from the native menu (⌘W, ⌘⇧[ ], ⌘1–9). */
+  onTabCommand: (listener: (command: TabCommand) => void) => () => void;
 }
+
+/**
+ * Editor tab commands sent by the menu bar (QC-047). `close` is ⌘W: the
+ * renderer closes the visible tab, or the window when no tab is showing.
+ */
+export type TabCommand =
+  'close' | 'next' | 'previous' | `jump-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`;
+
+export const TAB_COMMANDS: readonly TabCommand[] = [
+  'close',
+  'next',
+  'previous',
+  'jump-1',
+  'jump-2',
+  'jump-3',
+  'jump-4',
+  'jump-5',
+  'jump-6',
+  'jump-7',
+  'jump-8',
+  'jump-9',
+];
 
 /** 設定 → 外觀 → 語言 (QC-042): the choice, and what it resolves to right now. */
 export interface LanguageState {
@@ -143,6 +172,9 @@ export const IPC = {
   getLanguage: 'creatorhub:get-language',
   setLanguage: 'creatorhub:set-language',
   languageChanged: 'creatorhub:language-changed',
+  getTabs: 'creatorhub:get-tabs',
+  setTabs: 'creatorhub:set-tabs',
+  tabCommand: 'creatorhub:tab-command',
 } as const;
 
 /**

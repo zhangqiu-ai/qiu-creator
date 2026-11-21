@@ -25,6 +25,16 @@ QC-043 範圍外發現：匯入任務的錯誤細節仍原樣顯示，沒有用�
 
 依 QC-044 核准的原型實作頂部分頁：多作品並行、狀態保留、未存提示、快捷鍵、重開恢復。
 
+### Plan
+
+- `renderer/tabs.ts`：純狀態模型 `TabsModel`（開啟／聚焦閃一下、關閉與重新開啟、關閉其他保留未存、拖曳移動、⌘1–9、上下一個、最多 8 個載入的 LRU 卸載，不卸載未存／衝突／有 AI 候選的分頁），可單元測試；`EditorKind` 讓貼圖、視頻編輯器之後放進同一框架。
+- `renderer/EditorTabs.tsx`：分頁列（類型圖示、截斷標題＋tooltip、未存點懸停變關閉、衝突紅三角、AI 星號、右緣漸隱捲動、插入線拖曳、←→）、「N ⌄」全部分頁選單（搜尋、狀態、⌘ 編號、關閉其他）、關閉未存對話框、重新開啟與恢復提示。
+- `EditorPage.tsx`：加 `active`（只有作用中的分頁處理快捷鍵）、回報分頁狀態、保留／還原模式、游標、捲動與側欄面板；`markdown-editor-web` 加 `restoreSelection`。
+- `App.tsx`：編輯路由改由分頁驅動，載入的分頁同時掛載、非作用中隱藏。
+- 主程序：`preferences.ts` 存 `tabs`（順序、作用中、各分頁模式與標題快取）；`menu.ts` 加「分頁」相關選單項（⌘W 關閉分頁、⌘⇧[ ]、⌘1–9），經 IPC 交給 renderer。
+- `packages/i18n` 加 `tabs` 文案三語。
+- 測試：`tabs.test.ts`、偏好與選單單元測試、e2e `editor-tabs.spec.ts`；證據 `docs/evidence/qc047-editor-tabs.md`。
+
 ## QC-028: 畫布同步已實作的 M3 狀態與既有差異
 
 **Priority:** P3 | **Assignee:** qc-prototype | **Tags:** M3, prototype

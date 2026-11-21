@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { isLanguagePreference, type LanguagePreference } from '@qiu-creator/i18n';
 import type { ThemeSource } from '../shared/bridge.js';
+import { parsePersistedTabs, type PersistedTabs } from '../shared/tabs.js';
 
 /**
  * App preferences that must apply before the first window paints (QC-038):
@@ -12,9 +13,15 @@ export interface Preferences {
   theme: ThemeSource;
   /** 設定 → 外觀 → 語言 (QC-042); applied before the first window too. */
   language: LanguagePreference;
+  /** Open editor tabs, restored on the next launch (QC-047); null when none were saved. */
+  tabs: PersistedTabs | null;
 }
 
-export const DEFAULT_PREFERENCES: Preferences = { theme: 'system', language: 'system' };
+export const DEFAULT_PREFERENCES: Preferences = {
+  theme: 'system',
+  language: 'system',
+  tabs: null,
+};
 
 export function isThemeSource(value: unknown): value is ThemeSource {
   return value === 'system' || value === 'light' || value === 'dark';
@@ -29,6 +36,7 @@ export function readPreferences(file: string): Preferences {
     return {
       theme: isThemeSource(theme) ? theme : DEFAULT_PREFERENCES.theme,
       language: isLanguagePreference(language) ? language : DEFAULT_PREFERENCES.language,
+      tabs: parsePersistedTabs((parsed as Record<string, unknown>)['tabs']),
     };
   } catch {
     return { ...DEFAULT_PREFERENCES };

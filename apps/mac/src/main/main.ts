@@ -25,6 +25,7 @@ import {
   type ProxyRequest,
   type RevealTarget,
 } from '../shared/bridge.js';
+import { parsePersistedTabs } from '../shared/tabs.js';
 import {
   APP_INDEX_URL,
   APP_SCHEME,
@@ -289,6 +290,12 @@ function registerIpc(): void {
     });
     return language().setPreference(preference);
   });
+  handle(IPC.getTabs, () => readPreferences(preferencesFile()).tabs);
+  handle(IPC.setTabs, (tabs) => {
+    const parsed = parsePersistedTabs(tabs);
+    if (parsed === null) throw new Error('invalid tabs');
+    writePreferences(preferencesFile(), { ...readPreferences(preferencesFile()), tabs: parsed });
+  });
   handle(IPC.copyText, async (text) => {
     if (typeof text !== 'string' || text.length > 10_000) throw new Error('invalid text');
     await clipboard.writeText(text);
@@ -435,7 +442,16 @@ function language(): LanguageController {
 function applyMenu(): void {
   const t = language().t;
   Menu.setApplicationMenu(
-    Menu.buildFromTemplate(menuTemplate(t, 'qiu-creator', { devTools: !app.isPackaged })),
+    Menu.buildFromTemplate(
+      menuTemplate(t, 'qiu-creator', {
+        devTools: !app.isPackaged,
+        // ⌘W and the other tab items go to the window in front (QC-047).
+        onTabCommand: (command) => {
+          const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+          win?.webContents.send(IPC.tabCommand, command);
+        },
+      }),
+    ),
   );
 }
 

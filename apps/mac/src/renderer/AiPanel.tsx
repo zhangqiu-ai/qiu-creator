@@ -48,6 +48,8 @@ export interface AiPanelProps {
   /** Revision number (r12) for the 「已採用 · r12」 bar. */
   revisionNumber: (id: string) => number | undefined;
   onOpenSettings: () => void;
+  /** Bumped when the tab comes back to the front (QC-047): re-read the provider list. */
+  refreshToken?: number;
 }
 
 function useStore<S>(store: { subscribe: (l: (s: S) => void) => () => void; snapshot: S }): S {
@@ -83,7 +85,7 @@ export function AiPanel(props: AiPanelProps) {
     return () => {
       active = false;
     };
-  }, [providers, rw.block, tt.block]);
+  }, [providers, rw.block, tt.block, props.refreshToken]);
   return (
     <aside className="panel ai" aria-label={t('ai.panelLabel')} id="ai-panel">
       <div className="ai__tabs">

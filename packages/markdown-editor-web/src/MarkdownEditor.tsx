@@ -85,6 +85,12 @@ export interface MarkdownEditorHandle {
    * or when the rendered blocks cannot be matched to the Markdown.
    */
   boundaryAt: (y: number) => { index: number; y: number } | null;
+  /**
+   * Put the caret back where it was (QC-047, after a tab is reloaded): the exact
+   * range in source mode, the start of the block holding `range.start` in
+   * visual mode (the visual editor has no source offsets). Focuses the editor.
+   */
+  restoreSelection: (range: MarkdownRange) => void;
 }
 
 /**
@@ -313,6 +319,53 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       [mode],
     );
 
+    /** Top-level rendered blocks that exist in the Markdown (see `boundaryAt`). */
+    const renderedBlocks = useCallback((): Element[] | null => {
+      const root = container.current?.querySelector('.qc-md-editor__content');
+      if (root == null) return null;
+      return Array.from(root.children).filter(
+        (c) =>
+          c.tagName === 'HR' ||
+          c.textContent.trim() !== '' ||
+          Array.from(c.children).some((ch) => ch.tagName !== 'BR'),
+      );
+    }, []);
+
+    const restoreSelection = useCallback(
+      (range: MarkdownRange) => {
+        const text = current.current;
+        const start = Math.max(0, Math.min(range.start, text.length));
+        const end = Math.max(start, Math.min(range.end, text.length));
+        if (mode === 'source') {
+          const el = textarea.current;
+          if (el === null) return;
+          el.focus();
+          el.setSelectionRange(start, end);
+          lastRange.current = { start, end };
+          return;
+        }
+        const place = () => {
+          const blocks = markdownBlocks(text);
+          const index = blocks.findIndex((b) => start <= b.end);
+          const rendered = renderedBlocks();
+          const target =
+            rendered === null || rendered.length !== blocks.length || index < 0
+              ? undefined
+              : rendered[index];
+          const sel = window.getSelection();
+          if (target === undefined || sel === null) return;
+          const r = document.createRange();
+          r.selectNodeContents(target);
+          r.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(r);
+        };
+        // Lexical places its own caret when focused; move it once that is done.
+        mdx.current?.focus(place, { preventScroll: true });
+      },
+      [mode, renderedBlocks],
+    );
+
     useImperativeHandle(
       ref,
       () => ({
@@ -327,8 +380,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         getSelectionRange: selectionRange,
         insertBlock,
         boundaryAt,
+        restoreSelection,
       }),
-      [mode, requestMode, selectionRange, insertBlock, boundaryAt],
+      [mode, requestMode, selectionRange, insertBlock, boundaryAt, restoreSelection],
     );
 
     const locale = props.locale ?? SOURCE_LOCALE;

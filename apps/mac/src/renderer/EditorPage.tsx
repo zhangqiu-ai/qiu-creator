@@ -7,7 +7,15 @@ import {
   type MarkdownEditorHandle,
   type MarkdownRange,
 } from '@qiu-creator/markdown-editor-web';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { codeText, t, useLocale } from './i18n.js';
 import { AiPanel, type AiSelection } from './AiPanel.js';
 import { AiProviders, RewriteSession, TitleSession } from './ai-session.js';
@@ -20,8 +28,10 @@ import { Icon } from './Icon.js';
 import { WorkMediaResolver } from './media.js';
 import { externalSource, useMounts } from './mounts.js';
 import { TagEditor } from './TagEditor.js';
+import type { TabPanel, TabStatusPatch, TabView } from './tabs.js';
 import {
   WorkSession,
+  type Draft,
   type ReadOnlyReason,
   type RemoteChange,
   type SaveError,
@@ -150,6 +160,32 @@ export interface EditorPageProps {
   onPreview?: () => void;
   /** 「前往設定」 from the AI panel when no key or consent is set. */
   onOpenSettings?: () => void;
+  /**
+   * QC-047: false while this editor's tab is in the background. Background
+   * editors stay mounted (draft, caret, scroll, panels intact) but handle no
+   * shortcuts. Defaults to true.
+   */
+  active?: boolean;
+  /** Bumped when the tab is brought forward by a click or shortcut: the caret goes back into the text. */
+  focusToken?: number;
+  /** Where the user was when this tab was last unloaded or restored. */
+  initialView?: TabView;
+  /** A draft discarded by 不儲存並關閉 and brought back by 重新開啟. */
+  initialDraft?: Draft | null;
+  /** Title and badges for the tab. */
+  onTabStatus?: (patch: TabStatusPatch) => void;
+  /** Mode, caret, scroll and panel when the tab goes to the background or is unloaded. */
+  onViewChange?: (view: TabView) => void;
+  /** Lets the tab bar save or discard this editor's draft when its tab is closed. */
+  onHandle?: (handle: EditorTabHandle | null) => void;
+}
+
+/** What the tab bar may do with an open editor (QC-047). */
+export interface EditorTabHandle {
+  /** Save now; true when nothing unsaved is left. */
+  flush: () => Promise<boolean>;
+  /** Stop saving and hand back the unsaved draft (不儲存並關閉), or null when there is none. */
+  discard: () => Draft | null;
 }
 
 /**
@@ -159,16 +195,35 @@ export interface EditorPageProps {
  * panel (QC-024), which history replaces while open.
  */
 export function EditorPage(props: EditorPageProps) {
-  const { client, work } = props;
+  const { client, work, onHandle } = props;
   const [session, setSession] = useState<WorkSession | null>(null);
+  const initialDraft = useRef(props.initialDraft ?? null);
   useEffect(() => {
     const s = new WorkSession(client, work);
+    let discarded = false;
+    // 重新開啟 after 不儲存並關閉: the discarded edits come back as unsaved edits.
+    const back = initialDraft.current;
+    initialDraft.current = null;
+    if (back !== null) s.edit(back);
     setSession(s);
+    onHandle?.({
+      flush: async () => {
+        await s.save();
+        return !s.hasUnsavedChanges() && s.snapshot.status !== 'conflict';
+      },
+      discard: () => {
+        discarded = true;
+        const draft = s.hasUnsavedChanges() ? s.snapshot.draft : null;
+        s.dispose();
+        return draft;
+      },
+    });
     return () => {
+      onHandle?.(null);
       // Flush pending edits when leaving; a conflict stays unsaved (the dialog blocks leaving).
-      s.close();
+      if (!discarded) s.close();
     };
-  }, [client, work]);
+  }, [client, work, onHandle]);
 
   if (session === null) return <main className="page" aria-busy="true" />;
   return <SessionEditor {...props} session={session} />;
@@ -187,6 +242,11 @@ function SessionEditor({
   onPreview,
   onOpenSettings,
   session,
+  active = true,
+  focusToken = 0,
+  initialView,
+  onTabStatus,
+  onViewChange,
 }: EditorPageProps & { session: WorkSession }) {
   const locale = useLocale();
   const state = useSyncExternalStore(
@@ -197,9 +257,13 @@ function SessionEditor({
   /** Bumped when the draft is replaced from outside the editor, to remount it. */
   const [editorKey, setEditorKey] = useState(0);
   const [mode, setMode] = useState<EditorMode>('visual');
-  const [historyOpen, setHistoryOpen] = useState(false);
+  // Only `source` is forced back: forcing visual could skip the lossy-syntax check.
+  const forcedMode = useRef<EditorMode | undefined>(
+    initialView?.mode === 'source' ? 'source' : undefined,
+  );
+  const [historyOpen, setHistoryOpen] = useState(initialView?.panel === 'history');
   // QC-039: the asset drawer replaces the AI panel while open (⌘⇧I).
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(initialView?.panel === 'assets');
   const [slashAt, setSlashAt] = useState<{ x: number; y: number } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   /** Where the next insert from the `/` menu goes (computed when `/` is pressed). */
@@ -392,8 +456,9 @@ function SessionEditor({
     if (m !== undefined) setMode(m);
   }, [editorKey, state.epoch]);
 
-  // ⌘S save now, ⌘/ switch mode; never during IME composition.
+  // ⌘S save now, ⌘/ switch mode; never during IME composition. Background tabs listen to nothing.
   useEffect(() => {
+    if (!active) return;
     const onKey = (e: KeyboardEvent) => {
       if (!e.metaKey || e.altKey || e.isComposing || session.isComposing()) return;
       if (!e.shiftKey && e.key.toLowerCase() === 's') {
@@ -418,7 +483,144 @@ function SessionEditor({
     return () => {
       window.removeEventListener('keydown', onKey);
     };
-  }, [session, onPreview]);
+  }, [session, onPreview, active]);
+
+  // ---- QC-047: tab badges and where the user was ----------------------------------------------
+  useEffect(() => {
+    onTabStatus?.({
+      title: state.draft.title,
+      unsaved: session.hasUnsavedChanges(),
+      conflict: state.status === 'conflict' || state.remote !== null,
+    });
+  }, [state, session, onTabStatus]);
+  const rewriteState = useSyncExternalStore(
+    useCallback((cb: () => void) => ai?.rewrite.subscribe(cb) ?? (() => undefined), [ai]),
+    () => ai?.rewrite.snapshot ?? null,
+  );
+  const titleState = useSyncExternalStore(
+    useCallback((cb: () => void) => ai?.titles.subscribe(cb) ?? (() => undefined), [ai]),
+    () => ai?.titles.snapshot ?? null,
+  );
+  useEffect(() => {
+    onTabStatus?.({
+      aiCandidate: rewriteState?.candidate != null || titleState?.phase === 'ready',
+      aiBusy:
+        rewriteState?.phase === 'loading' ||
+        titleState?.phase === 'loading' ||
+        titleState?.writing === true,
+    });
+  }, [rewriteState, titleState, onTabStatus]);
+
+  const panel: TabPanel = historyOpen ? 'history' : drawerOpen ? 'assets' : 'ai';
+  /** Kept up to date while the tab is in front, read when it goes to the background or unloads. */
+  const where = useRef<{
+    scrollTop: number;
+    selection: TabView['selection'];
+    domRange: Range | null;
+  }>({
+    scrollTop: initialView?.scrollTop ?? 0,
+    selection: initialView?.selection ?? null,
+    domRange: null,
+  });
+  const latest = useRef({ mode, panel, onViewChange });
+  latest.current = { mode, panel, onViewChange };
+  useEffect(() => {
+    if (!active) return;
+    const remember = () => {
+      const doc = docRef.current;
+      const sel = window.getSelection();
+      if (doc === null || sel === null || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      if (!doc.contains(range.startContainer)) return;
+      const ta = sourceArea();
+      where.current.selection =
+        ta !== null
+          ? { start: ta.selectionStart, end: ta.selectionEnd }
+          : (editor.current?.getSelectionRange() ?? where.current.selection);
+      where.current.domRange = ta !== null ? null : range.cloneRange();
+    };
+    document.addEventListener('selectionchange', remember);
+    return () => {
+      document.removeEventListener('selectionchange', remember);
+    };
+  }, [active]);
+  const reportView = useCallback(() => {
+    const { mode: m, panel: p, onViewChange: report } = latest.current;
+    report?.({
+      mode: m,
+      selection: where.current.selection,
+      scrollTop: where.current.scrollTop,
+      panel: p,
+    });
+  }, []);
+  // The text scrolls in the document (visual) or inside the source textarea.
+  useEffect(() => {
+    const doc = docRef.current;
+    if (!active || doc === null) return;
+    const onScroll = (e: Event) => {
+      const el = e.target;
+      if (el === doc || (el instanceof HTMLTextAreaElement && doc.contains(el))) {
+        where.current.scrollTop = (el as HTMLElement).scrollTop;
+      }
+    };
+    doc.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    return () => {
+      doc.removeEventListener('scroll', onScroll, { capture: true });
+    };
+  }, [active]);
+  // Mode and panel are saved as they change, so a quit keeps them for the next launch.
+  useEffect(() => {
+    if (active) reportView();
+  }, [mode, panel, active, reportView]);
+  // Going to the background: hand the view to the tab (it may be unloaded later).
+  // Coming back: AI keys and consent may have changed in 設定 meanwhile, so re-read them
+  // (before tabs, leaving the editor unmounted it and the panel started fresh).
+  const wasActive = useRef(active);
+  const [providersEpoch, setProvidersEpoch] = useState(0);
+  useEffect(() => {
+    if (wasActive.current && !active) reportView();
+    if (!wasActive.current && active && ai !== null) {
+      ai.providers.invalidate();
+      void ai.rewrite.loadProvider();
+      void ai.titles.loadProvider();
+      setProvidersEpoch((n) => n + 1);
+    }
+    wasActive.current = active;
+  }, [active, reportView, ai]);
+  // Unloading: report before the DOM goes (layout cleanup runs before the children detach).
+  useLayoutEffect(() => reportView, [reportView]);
+  // Back in front (or first shown): scroll back, and on a click or shortcut, the caret too.
+  const handledFocus = useRef(-1);
+  useEffect(() => {
+    if (!active) return;
+    const wantFocus = handledFocus.current !== focusToken;
+    handledFocus.current = focusToken;
+    const frame = requestAnimationFrame(() => {
+      const doc = docRef.current;
+      if (doc === null) return;
+      const scroller = (): HTMLElement => sourceArea() ?? doc;
+      scroller().scrollTop = where.current.scrollTop;
+      if (!wantFocus) return;
+      const range = where.current.domRange;
+      const content = doc.querySelector<HTMLElement>('.qc-md-editor__content');
+      if (range !== null && content !== null && content.contains(range.startContainer)) {
+        content.focus({ preventScroll: true });
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      } else if (where.current.selection !== null) {
+        editor.current?.restoreSelection(where.current.selection);
+      }
+      scroller().scrollTop = where.current.scrollTop;
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+    // `editorKey`/`epoch`: a remount needs its caret and scroll put back as well.
+  }, [active, focusToken, editorKey, state.epoch]);
+  useEffect(() => {
+    forcedMode.current = undefined;
+  }, []);
 
   const readOnly = state.readOnly !== null;
   // External works keep their images in their own folder; nothing is copied into it (QC-039).
@@ -816,6 +1018,7 @@ function SessionEditor({
             <MarkdownEditor
               key={`${work.id}:${editorKey}:${state.epoch}`}
               ref={editor}
+              initialMode={forcedMode.current}
               markdown={state.draft.markdown}
               readOnly={readOnly}
               resolveImage={resolveImage}
@@ -858,6 +1061,7 @@ function SessionEditor({
               selection={aiSelection}
               readOnly={readOnly}
               revisionNumber={(id) => numbers.get(id)}
+              refreshToken={providersEpoch}
               onOpenSettings={() => {
                 void session.save().finally(() => onOpenSettings?.());
               }}

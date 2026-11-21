@@ -30,6 +30,12 @@ interface Desktop {
   backend: TestServer;
   upstream: FakeAiServer;
   systemTrash: FakeSystemTrash;
+  /**
+   * Quit the app and start it again on the same profile and service (QC-047:
+   * tabs restored on the next launch). `page` and `app` above stay the first
+   * launch's; use the returned ones.
+   */
+  relaunch: () => Promise<{ page: Page; app: ElectronApplication }>;
 }
 
 export const test = base.extend<{ desktop: Desktop }>({
@@ -73,24 +79,29 @@ export const test = base.extend<{ desktop: Desktop }>({
         `${JSON.stringify({ language: 'zh-Hant' })}\n`,
       );
       const address = new URL(backend.baseUrl);
-      const app = await playwright._electron.launch({
-        executablePath,
-        args: [entry],
-        env: {
-          PATH: process.env['PATH'] ?? '',
-          HOME: home,
-          CREATORHUB_HOME: home,
-          CREATORHUB_HOST: address.hostname,
-          CREATORHUB_PORT: address.port,
-          CREATORHUB_TOKEN: TEST_TOKEN,
-          CREATORHUB_E2E_PROFILE: profile,
-        },
-      });
-      resources.defer(() => app.close());
+      const launch = () =>
+        playwright._electron.launch({
+          executablePath,
+          args: [entry],
+          env: {
+            PATH: process.env['PATH'] ?? '',
+            HOME: home,
+            CREATORHUB_HOME: home,
+            CREATORHUB_HOST: address.hostname,
+            CREATORHUB_PORT: address.port,
+            CREATORHUB_TOKEN: TEST_TOKEN,
+            CREATORHUB_E2E_PROFILE: profile,
+          },
+        });
+      const app = await launch();
+      let current: ElectronApplication = app;
+      resources.defer(() => current.close());
       // Playwright Test records the spec steps but leaves Electron context tracing to the fixture.
       const tracing = app.context().tracing;
       await tracing.start({ screenshots: true, snapshots: true });
       resources.defer(async () => {
+        // After relaunch() the traced launch is already closed and its trace gone.
+        if (current !== app) return;
         if (testInfo.status === testInfo.expectedStatus) {
           await tracing.stop();
           return;
@@ -99,7 +110,20 @@ export const test = base.extend<{ desktop: Desktop }>({
         await tracing.stop({ path: trace });
         await testInfo.attach('Electron trace', { path: trace, contentType: 'application/zip' });
       });
-      await use({ page: await app.firstWindow(), app, profile, backend, upstream, systemTrash });
+      const relaunch = async () => {
+        await current.close();
+        current = await launch();
+        return { page: await current.firstWindow(), app: current };
+      };
+      await use({
+        page: await app.firstWindow(),
+        app,
+        profile,
+        backend,
+        upstream,
+        systemTrash,
+        relaunch,
+      });
     } finally {
       await resources.disposeAsync();
     }
