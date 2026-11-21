@@ -1,7 +1,9 @@
 import type { ImportErrorCode, ImportJobRecord, ImportMethod } from '@qiu-creator/contracts';
+import type { MessageKey } from '@qiu-creator/i18n';
 import type { UploadItem } from '../shared/bridge.js';
 import type { ChipTone } from './format.js';
 import { formatBytes } from './format.js';
+import { t } from './i18n.js';
 
 /** Filter buckets on the 匯入任務 page. */
 export type TaskGroup = 'run' | 'fail' | 'done';
@@ -28,6 +30,8 @@ export interface TaskRow {
   canRetry: boolean;
   canCancel: boolean;
   canDismiss: boolean;
+  /** True for a cancelled job or upload (the label is translated, so never compare it). */
+  cancelled: boolean;
   /** Asset produced (or reused) by this task. */
   assetId: string | null;
   /** True when the service already had identical content and reused it. */
@@ -35,34 +39,53 @@ export interface TaskRow {
   createdAt: string;
 }
 
-export const METHOD_LABEL: Readonly<Record<ImportMethod, string>> = {
-  url: 'URL',
-  upload: '上傳',
-  folder: '資料夾',
-  markdown: 'API',
+/** 上傳 / 資料夾 in the current language; URL and API read the same everywhere. */
+export function methodLabel(method: ImportMethod): string {
+  switch (method) {
+    case 'url':
+      return 'URL';
+    case 'upload':
+      return t('library.upload');
+    case 'folder':
+      return t('library.folder');
+    case 'markdown':
+      return 'API';
+  }
+}
+
+const IMPORT_ERROR_KEY: Readonly<Record<ImportErrorCode, MessageKey>> = {
+  url_rejected: 'library.importErrUrlRejected',
+  blocked_address: 'library.importErrBlockedAddress',
+  too_many_redirects: 'library.importErrTooManyRedirects',
+  http_error: 'library.importErrHttp',
+  unsupported_content_type: 'library.importErrContentType',
+  payload_too_large: 'library.importErrTooLarge',
+  unsupported_media_type: 'library.importErrMediaType',
+  timeout: 'library.importErrTimeout',
+  network_error: 'library.importErrNetwork',
+  internal_error: 'library.importErrInternal',
 };
 
-export const IMPORT_ERROR_TEXT: Readonly<Record<ImportErrorCode, string>> = {
-  url_rejected: '網址無效或不允許',
-  blocked_address: '內網或本機位址，已阻擋',
-  too_many_redirects: '重新導向次數過多',
-  http_error: '來源網站回應錯誤',
-  unsupported_content_type: '不支援的內容類型',
-  payload_too_large: '檔案超過大小上限',
-  unsupported_media_type: '不支援的檔案格式',
-  timeout: '下載逾時',
-  network_error: '網路連線失敗',
-  internal_error: '本機服務內部錯誤',
+/** Why a URL import failed, in the current language. */
+export function importErrorText(code: ImportErrorCode): string {
+  return t(IMPORT_ERROR_KEY[code]);
+}
+
+const UPLOAD_ERROR_KEY: Readonly<Record<string, MessageKey>> = {
+  unsupported_media_type: 'library.importErrMediaType',
+  payload_too_large: 'library.importErrTooLarge',
+  network_error: 'library.uploadErrNetwork',
+  file_changed: 'library.uploadErrFileChanged',
+  internal_error: 'library.importErrInternal',
+  unauthorized: 'library.uploadErrUnauthorized',
 };
 
-const UPLOAD_ERROR_TEXT: Readonly<Record<string, string>> = {
-  unsupported_media_type: '不支援的檔案格式',
-  payload_too_large: '檔案超過大小上限',
-  network_error: '與本機服務的連線中斷',
-  file_changed: '檔案在上傳期間被修改',
-  internal_error: '本機服務內部錯誤',
-  unauthorized: '權杖無效',
-};
+/** Why an upload failed, in the current language; null when the code is unknown. */
+function uploadErrorText(code: string | null): string | null {
+  if (code === null) return null;
+  const key = UPLOAD_ERROR_KEY[code];
+  return key === undefined ? null : t(key);
+}
 
 /** Path-ish tail of a URL for the second line of a row. */
 function shortUrl(url: string): string {
@@ -93,7 +116,7 @@ export function jobRow(job: ImportJobRecord): TaskRow {
     source: 'job' as const,
     id: job.id,
     method: job.method,
-    name: job.filename ?? (job.url === null ? METHOD_LABEL[job.method] : nameFromUrl(job.url)),
+    name: job.filename ?? (job.url === null ? methodLabel(job.method) : nameFromUrl(job.url)),
     origin:
       job.url !== null
         ? shortUrl(job.url)
@@ -108,33 +131,43 @@ export function jobRow(job: ImportJobRecord): TaskRow {
     canRetry: false,
     canCancel: false,
     canDismiss: false,
+    cancelled: false,
     assetId: job.result_asset_id,
     reused: false,
     createdAt: job.created_at,
   };
   switch (job.status) {
     case 'queued':
-      return { ...base, label: '排隊', tone: 'neutral', group: 'run' };
+      return { ...base, label: t('library.taskQueued'), tone: 'neutral', group: 'run' };
     case 'running':
       return {
         ...base,
-        label: '進行中',
+        label: t('library.taskRunning'),
         tone: 'accent',
         group: 'run',
         running: true,
         progress: job.progress > 0 && job.progress < 1 ? job.progress : null,
       };
     case 'succeeded':
-      return { ...base, label: '成功', tone: 'ok', group: 'done' };
+      return { ...base, label: t('library.taskSucceeded'), tone: 'ok', group: 'done' };
     case 'cancelled':
-      return { ...base, label: '已取消', tone: 'neutral', group: 'fail' };
+      return {
+        ...base,
+        label: t('library.taskCancelled'),
+        tone: 'neutral',
+        group: 'fail',
+        cancelled: true,
+      };
     case 'failed':
       return {
         ...base,
-        label: blocked ? '已阻擋' : '失敗',
+        label: t(blocked ? 'library.taskBlocked' : 'library.taskFailed'),
         tone: 'bad',
         group: 'fail',
-        reason: job.error_code === null ? (job.error ?? '失敗') : IMPORT_ERROR_TEXT[job.error_code],
+        reason:
+          job.error_code === null
+            ? (job.error ?? t('library.taskFailed'))
+            : importErrorText(job.error_code),
         reasonDetail: job.error,
         // The service refuses to retry blocked addresses only by failing again; let the user decide.
         canRetry: true,
@@ -149,7 +182,9 @@ export function uploadRow(upload: UploadItem): TaskRow {
     id: upload.id,
     method: 'upload' as const,
     name: upload.filename,
-    origin: upload.transport === 'tus' ? 'Mac 上傳 · 可續傳' : 'Mac 上傳',
+    origin: t(
+      upload.transport === 'tus' ? 'library.originUploadResumable' : 'library.originUpload',
+    ),
     size: formatBytes(upload.bytes),
     progress: null,
     running: false,
@@ -158,17 +193,24 @@ export function uploadRow(upload: UploadItem): TaskRow {
     canRetry: false,
     canCancel: false,
     canDismiss: false,
+    cancelled: false,
     assetId: upload.result?.asset.id ?? null,
     reused: upload.result?.deduplicated ?? false,
     createdAt: upload.createdAt,
   };
   switch (upload.state) {
     case 'queued':
-      return { ...base, label: '排隊', tone: 'neutral', group: 'run', canCancel: true };
+      return {
+        ...base,
+        label: t('library.taskQueued'),
+        tone: 'neutral',
+        group: 'run',
+        canCancel: true,
+      };
     case 'uploading':
       return {
         ...base,
-        label: '進行中',
+        label: t('library.taskRunning'),
         tone: 'accent',
         group: 'run',
         running: true,
@@ -177,14 +219,27 @@ export function uploadRow(upload: UploadItem): TaskRow {
       };
     case 'succeeded':
       return upload.result?.deduplicated === true
-        ? { ...base, label: '已存在', tone: 'warn', group: 'done', canDismiss: true }
-        : { ...base, label: '成功', tone: 'ok', group: 'done', canDismiss: true };
+        ? {
+            ...base,
+            label: t('library.taskExists'),
+            tone: 'warn',
+            group: 'done',
+            canDismiss: true,
+          }
+        : {
+            ...base,
+            label: t('library.taskSucceeded'),
+            tone: 'ok',
+            group: 'done',
+            canDismiss: true,
+          };
     case 'cancelled':
       return {
         ...base,
-        label: '已取消',
+        label: t('library.taskCancelled'),
         tone: 'neutral',
         group: 'fail',
+        cancelled: true,
         canRetry: true,
         canDismiss: true,
         progress: upload.bytes === 0 ? null : upload.sentBytes / upload.bytes,
@@ -192,13 +247,10 @@ export function uploadRow(upload: UploadItem): TaskRow {
     case 'failed':
       return {
         ...base,
-        label: '失敗',
+        label: t('library.taskFailed'),
         tone: 'bad',
         group: 'fail',
-        reason:
-          (upload.errorCode === null ? undefined : UPLOAD_ERROR_TEXT[upload.errorCode]) ??
-          upload.error ??
-          '上傳失敗',
+        reason: uploadErrorText(upload.errorCode) ?? upload.error ?? t('library.uploadFailed'),
         reasonDetail: upload.error,
         canRetry: true,
         canDismiss: true,

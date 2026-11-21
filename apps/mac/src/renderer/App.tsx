@@ -15,6 +15,7 @@ import { AiWorkbenchPage } from './AiWorkbenchPage.js';
 import { SettingsPage } from './SettingsPage.js';
 import { Sidebar, type NavPage } from './Sidebar.js';
 import { serviceSummary } from './sidebar-prefs.js';
+import { t, useLocale } from './i18n.js';
 
 type Connection = { state: 'connecting' } | ConnectResult;
 type Route =
@@ -122,6 +123,8 @@ function useBackupSession(client: CreatorHubClient | null, onDataReplaced: () =>
  * column and one page at a time. 發布中心 is phase two.
  */
 export function App() {
+  // Re-render the whole tree in place when the language changes (QC-042).
+  useLocale();
   const [connection, setConnection] = useState<Connection>({ state: 'connecting' });
   const [route, setRoute] = useState<Route>({ page: 'library' });
   const [home, setHome] = useState<string | null>(null);
@@ -327,10 +330,10 @@ function ServiceProblem({
 }) {
   const title =
     reason === 'service_down'
-      ? '本機服務未回應'
+      ? t('shell.connectServiceDown')
       : reason === 'unauthorized'
-        ? '權杖無效'
-        : '未設定 CREATORHUB_HOME';
+        ? t('shell.connectUnauthorized')
+        : t('shell.connectHomeMissing');
   return (
     <div className="state-card" role="alert">
       <Icon name="offline" size={28} />
@@ -339,7 +342,7 @@ function ServiceProblem({
         <span className="mono state-card__detail">{address}</span>
       )}
       <button type="button" className="btn btn--primary" onClick={onRetry}>
-        重試
+        {t('common.retry')}
       </button>
     </div>
   );

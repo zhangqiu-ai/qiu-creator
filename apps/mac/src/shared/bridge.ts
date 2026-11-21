@@ -4,6 +4,7 @@
  * through `window.creatorhub`.
  */
 import type { ChangeEvent, UploadAssetResponse } from '@qiu-creator/contracts';
+import type { LanguagePreference, Locale } from '@qiu-creator/i18n';
 
 export type ConnectionInfo =
   | { ok: true; baseUrl: string; token: string }
@@ -102,6 +103,20 @@ export interface CreatorHubBridge {
   getTheme: () => Promise<ThemeSource>;
   /** Save and apply a theme choice to every window. */
   setTheme: (theme: ThemeSource) => Promise<void>;
+  /** The language choice and the language in use (QC-042). */
+  getLanguage: () => Promise<LanguageState>;
+  /** Save a language choice; every window, the menu and dialogs switch at once. */
+  setLanguage: (preference: LanguagePreference) => Promise<LanguageState>;
+  /** The language in use changed (a new choice, or macOS changed while following the system). */
+  onLanguage: (listener: (state: LanguageState) => void) => () => void;
+}
+
+/** 設定 → 外觀 → 語言 (QC-042): the choice, and what it resolves to right now. */
+export interface LanguageState {
+  preference: LanguagePreference;
+  locale: Locale;
+  /** The language macOS prefers, shown on the 跟隨系統 card. */
+  systemLocale: Locale;
 }
 
 export const IPC = {
@@ -125,6 +140,9 @@ export const IPC = {
   copyText: 'creatorhub:copy-text',
   getTheme: 'creatorhub:get-theme',
   setTheme: 'creatorhub:set-theme',
+  getLanguage: 'creatorhub:get-language',
+  setLanguage: 'creatorhub:set-language',
+  languageChanged: 'creatorhub:language-changed',
 } as const;
 
 /**

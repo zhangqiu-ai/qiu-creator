@@ -8,7 +8,13 @@ import {
   type Work,
   type WorkDetail,
 } from '@qiu-creator/contracts';
-import { buildPreviewModel, getTemplate, PLATFORMS } from '@qiu-creator/platform-preview';
+import { formatShortDate, type MessageKey } from '@qiu-creator/i18n';
+import {
+  buildPreviewModel,
+  getTemplate,
+  PLATFORM_SHORT_KEY,
+  PLATFORMS,
+} from '@qiu-creator/platform-preview';
 import { PlatformPreview } from '@qiu-creator/platform-preview/react';
 import '@qiu-creator/platform-preview/style.css';
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
@@ -17,11 +23,23 @@ import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
 import { useChangeEvents, useRefreshOn } from './events.js';
 import { SAVE_STATUS, WORK_STATUS } from './format.js';
+import { t, useLocale } from './i18n.js';
 import { Icon } from './Icon.js';
 import { addTags } from './TagEditor.js';
 import { VariantSession, type VariantDraft } from './variant-session.js';
 
-const dateLabel = new Intl.DateTimeFormat('zh-TW', { month: 'numeric', day: 'numeric' });
+/** Short platform name for our own labels, in the current language (QC-042). */
+function shortName(platform: Platform): string {
+  return t(PLATFORM_SHORT_KEY[platform]);
+}
+
+/** Which 第 n 張 label a thumbnail gets: cover and over-limit are said in one message. */
+function imageAriaKey(isCover: boolean, over: boolean): MessageKey {
+  if (isCover && over) return 'library.imageAtCoverOver';
+  if (isCover) return 'library.imageAtCover';
+  if (over) return 'library.imageAtOver';
+  return 'library.imageAt';
+}
 
 /** Warnings for a draft, computed live as the user types (never blocks saving). */
 export function draftWarnings(platform: Platform, draft: VariantDraft | null) {
@@ -85,12 +103,12 @@ function WorkPicker({
       });
   }, [client]);
   return (
-    <main className="page" aria-label="平台預覽">
+    <main className="page" aria-label={t('library.preview')}>
       <header className="page__header">
-        <h1 className="page__title">平台預覽</h1>
+        <h1 className="page__title">{t('library.preview')}</h1>
       </header>
       <section className="page__body">
-        <p className="muted pv-pick__hint">選一篇作品，編輯它的四個平台版本。</p>
+        <p className="muted pv-pick__hint">{t('library.previewPickHint')}</p>
         <ul className="pv-pick">
           {(works ?? []).map((w) => (
             <li key={w.id}>
@@ -190,7 +208,7 @@ function WorkPreview({
       <main className="page page--center">
         <div className="state-card" role="alert">
           <Icon name="offline" size={28} />
-          <span className="state-card__title">無法載入平台版本</span>
+          <span className="state-card__title">{t('library.previewLoadFailed')}</span>
         </div>
       </main>
     );
@@ -198,13 +216,13 @@ function WorkPreview({
   if (work === null || sessions === null) return <main className="page" aria-busy="true" />;
 
   return (
-    <main className="page pv" aria-label="平台預覽">
+    <main className="page pv" aria-label={t('library.preview')}>
       <header className="editor__bar">
         {onBack !== null && (
           <button
             type="button"
             className="btn btn--ghost btn--icon"
-            aria-label="返回編輯"
+            aria-label={t('library.backToEditor')}
             onClick={onBack}
           >
             <Icon name="back" />
@@ -212,7 +230,7 @@ function WorkPreview({
         )}
         <span className="pv__work">{work.title}</span>
         <Chip tone={WORK_STATUS[work.status].tone}>{WORK_STATUS[work.status].label}</Chip>
-        <div className="pv-tabs" role="tablist" aria-label="平台">
+        <div className="pv-tabs" role="tablist" aria-label={t('library.platform')}>
           {PLATFORMS.map((p) => (
             <PlatformTab
               key={p}
@@ -258,12 +276,12 @@ function PlatformTab({
   const unsaved = state.status === 'dirty' || state.status === 'saving';
   return (
     <button type="button" role="tab" className="pv-tab" aria-selected={selected} onClick={onSelect}>
-      {getTemplate(state.platform).shortName}
-      {warn && <span className="pv-tab__warn" aria-label="超出上限" role="img" />}
+      {shortName(state.platform)}
+      {warn && <span className="pv-tab__warn" aria-label={t('library.overLimit')} role="img" />}
       {state.status === 'conflict' && (
-        <span className="pv-tab__bad" aria-label="版本衝突" role="img" />
+        <span className="pv-tab__bad" aria-label={t('library.versionConflict')} role="img" />
       )}
-      {unsaved && <span className="visually-hidden">（未儲存）</span>}
+      {unsaved && <span className="visually-hidden">{t('library.unsaved')}</span>}
     </button>
   );
 }
@@ -299,6 +317,7 @@ function VariantEditor({
   work: WorkDetail;
 }) {
   const state = useSession(session);
+  const locale = useLocale();
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -322,9 +341,10 @@ function VariantEditor({
       tags: draft.tags,
       coverUrl: cover === null ? null : thumbnailUrl(cover),
       imageUrls: ids.map(thumbnailUrl),
-      dateLabel: dateLabel.format(new Date(state?.record?.updated_at ?? work.updated_at)),
+      dateLabel: formatShortDate(locale, new Date(state?.record?.updated_at ?? work.updated_at)),
+      locale,
     });
-  }, [platform, draft, state?.record?.updated_at, work.updated_at]);
+  }, [platform, draft, state?.record?.updated_at, work.updated_at, locale]);
 
   if (session === undefined || state === null) return null;
 
@@ -333,7 +353,7 @@ function VariantEditor({
     setActionError(null);
     action()
       .catch(() => {
-        setActionError('操作失敗，請確認本機服務是否運行');
+        setActionError(t('library.actionFailed'));
       })
       .finally(() => {
         setBusy(false);
@@ -357,9 +377,11 @@ function VariantEditor({
 
   return (
     <div className="pv__body">
-      <section className="pv__form" aria-label="平台版本">
+      <section className="pv__form" aria-label={t('library.platformVersion')}>
         <div className="pv__head">
-          <h1 className="pv__title">{template.shortName}版本</h1>
+          <h1 className="pv__title">
+            {t('library.platformVersionTitle', { platform: shortName(platform) })}
+          </h1>
           {state.record !== null && <Chip>r{state.record.revision}</Chip>}
           {save !== null && (
             <span role="status" aria-live="polite">
@@ -373,7 +395,9 @@ function VariantEditor({
 
         {state.record === null ? (
           <div className="pv-empty">
-            <span className="pv-empty__title">尚無{template.shortName}版本</span>
+            <span className="pv-empty__title">
+              {t('library.noPlatformVersion', { platform: shortName(platform) })}
+            </span>
             <div className="state-card__actions">
               <button
                 type="button"
@@ -383,7 +407,7 @@ function VariantEditor({
                   run(() => session.draftFromSource());
                 }}
               >
-                從原稿建立
+                {t('library.draftFromSource')}
               </button>
               {platform !== 'wechat_mp' && mpDraft !== null && (
                 <button
@@ -394,11 +418,11 @@ function VariantEditor({
                     run(() => session.copyFrom(mpDraft));
                   }}
                 >
-                  複製公眾號版本
+                  {t('library.copyPlatformVersion', { platform: shortName('wechat_mp') })}
                 </button>
               )}
             </div>
-            <span className="faint">依固定規則從原稿產生，不使用 AI，原稿不會被修改。</span>
+            <span className="faint">{t('library.draftRuleNote')}</span>
           </div>
         ) : draft === null ? null : (
           <>
@@ -406,9 +430,12 @@ function VariantEditor({
               <div className="banner banner--warn pv-banner" role="alert">
                 <Icon name="alert" />
                 <span className="banner__text">
-                  {template.shortName}版本已在其他地方更新
-                  {state.conflictRevision !== null && `為 r${String(state.conflictRevision)}`}
-                  ，你的修改保留在此視窗
+                  {state.conflictRevision === null
+                    ? t('library.variantConflict', { platform: shortName(platform) })
+                    : t('library.variantConflictAt', {
+                        platform: shortName(platform),
+                        revision: String(state.conflictRevision),
+                      })}
                 </span>
                 <button
                   type="button"
@@ -418,7 +445,7 @@ function VariantEditor({
                     run(() => session.takeLatest());
                   }}
                 >
-                  載入最新版本
+                  {t('library.loadLatest')}
                 </button>
                 <button
                   type="button"
@@ -428,14 +455,16 @@ function VariantEditor({
                     run(() => session.keepMine());
                   }}
                 >
-                  以我的修改覆蓋
+                  {t('library.overwriteWithMine')}
                 </button>
               </div>
             )}
             {state.status === 'error' && (
               <div className="banner banner--bad pv-banner" role="alert">
                 <Icon name="alert" />
-                <span className="banner__text">{state.errorMessage ?? '儲存失敗'}</span>
+                <span className="banner__text">
+                  {state.errorMessage ?? t('library.saveFailed')}
+                </span>
                 <button
                   type="button"
                   className="btn"
@@ -443,21 +472,21 @@ function VariantEditor({
                     void session.save();
                   }}
                 >
-                  重試
+                  {t('common.retry')}
                 </button>
               </div>
             )}
             {warnings.length > 0 && (
               <div className="pv-wbar" role="status">
                 <Icon name="alert" />
-                {warnings.length} 項超出上限
-                <span className="pv-wbar__note">不影響儲存</span>
+                {t('library.overLimitCount', { count: warnings.length })}
+                <span className="pv-wbar__note">{t('library.doesNotBlockSaving')}</span>
               </div>
             )}
 
             <div className="pv-fld">
               <label className="pv-lb" htmlFor="pv-title">
-                標題
+                {t('library.colTitle')}
                 <Count value={charCount(draft.title)} limit={limits.titleMaxChars} />
               </label>
               <input
@@ -478,14 +507,16 @@ function VariantEditor({
               {limits.titleMaxChars !== null && charCount(draft.title) > limits.titleMaxChars && (
                 <span id="pv-title-hint" className="pv-hint">
                   <Icon name="alert" size={13} />
-                  超出 {charCount(draft.title) - limits.titleMaxChars} 字，預覽已截斷
+                  {t('library.titleOverBy', {
+                    count: charCount(draft.title) - limits.titleMaxChars,
+                  })}
                 </span>
               )}
             </div>
 
             <div className="pv-fld">
               <label className="pv-lb" htmlFor="pv-body">
-                正文
+                {t('library.body')}
                 <Count value={charCount(draft.body)} limit={limits.bodyMaxChars} />
               </label>
               <textarea
@@ -506,28 +537,30 @@ function VariantEditor({
               {limits.bodyMaxChars !== null && charCount(draft.body) > limits.bodyMaxChars && (
                 <span className="pv-hint">
                   <Icon name="alert" size={13} />
-                  超出 {charCount(draft.body) - limits.bodyMaxChars} 字
+                  {t('library.bodyOverBy', { count: charCount(draft.body) - limits.bodyMaxChars })}
                 </span>
               )}
             </div>
 
             <div className="pv-fld">
               <span className="pv-lb">
-                封面與圖片順序
-                <Count value={ids.length} limit={limits.imagesMax} unit=" 張" />
+                {t('library.coverAndOrder')}
+                <Count value={ids.length} limit={limits.imagesMax} unit={t('library.unitImages')} />
               </span>
               {ids.length === 0 ? (
-                <span className="faint">還沒有圖片。從下方作品的圖片加入。</span>
+                <span className="faint">{t('library.noImagesHint')}</span>
               ) : (
-                <div className="pv-thumbs" role="group" aria-label="圖片順序">
+                <div className="pv-thumbs" role="group" aria-label={t('library.imageOrder')}>
                   {cover !== null && !ids.includes(cover) && (
                     <span
                       className="pv-thumb pv-thumb--cover"
                       role="img"
-                      aria-label="封面（不在圖片列表中）"
+                      aria-label={t('library.coverNotInList')}
                     >
                       <img src={thumbnailUrl(cover)} alt="" draggable={false} />
-                      <span className="pv-thumb__no">封</span>
+                      <span className="pv-thumb__no" title={t('library.coverNotInList')}>
+                        {t('library.coverBadge')}
+                      </span>
                     </span>
                   )}
                   {ids.map((id, i) => {
@@ -539,20 +572,25 @@ function VariantEditor({
                         type="button"
                         className={over ? 'pv-thumb pv-thumb--over' : 'pv-thumb'}
                         aria-pressed={selectedImage === id}
-                        aria-label={`第 ${String(i + 1)} 張${isCover ? '，目前封面' : ''}${over ? '，超出上限不會顯示' : ''}`}
+                        aria-label={t(imageAriaKey(isCover, over), { index: i + 1 })}
                         onClick={() => {
                           setSelectedImage(selectedImage === id ? null : id);
                         }}
                       >
                         <img src={thumbnailUrl(id)} alt="" draggable={false} />
-                        <span className="pv-thumb__no">{isCover ? '封' : String(i + 1)}</span>
+                        <span
+                          className="pv-thumb__no"
+                          title={isCover ? t('library.coverBadge') : undefined}
+                        >
+                          {isCover ? t('library.coverBadge') : String(i + 1)}
+                        </span>
                       </button>
                     );
                   })}
                 </div>
               )}
               {selectedImage !== null && ids.includes(selectedImage) && (
-                <div className="pv-imgbar" role="toolbar" aria-label="所選圖片">
+                <div className="pv-imgbar" role="toolbar" aria-label={t('library.selectedImage')}>
                   <button
                     type="button"
                     className="btn btn--small"
@@ -561,12 +599,12 @@ function VariantEditor({
                       session.edit({ cover_asset_id: selectedImage }, true);
                     }}
                   >
-                    設為封面
+                    {t('library.setAsCover')}
                   </button>
                   <button
                     type="button"
                     className="btn btn--small"
-                    aria-label="往前移"
+                    aria-label={t('library.moveEarlier')}
                     disabled={ids.indexOf(selectedImage) === 0}
                     onClick={() => {
                       session.edit({ image_asset_ids: moveId(ids, selectedImage, -1) }, true);
@@ -577,7 +615,7 @@ function VariantEditor({
                   <button
                     type="button"
                     className="btn btn--small"
-                    aria-label="往後移"
+                    aria-label={t('library.moveLater')}
                     disabled={ids.indexOf(selectedImage) === ids.length - 1}
                     onClick={() => {
                       session.edit({ image_asset_ids: moveId(ids, selectedImage, 1) }, true);
@@ -602,26 +640,28 @@ function VariantEditor({
                       setSelectedImage(null);
                     }}
                   >
-                    從這個平台移除
+                    {t('library.removeFromPlatform')}
                   </button>
                 </div>
               )}
               {imagesOver && (
                 <span className="pv-hint">
                   <Icon name="alert" size={13} />
-                  超出 {ids.length - (limits.imagesMax ?? 0)} 張，多出的不會顯示
+                  {t('library.imagesOverBy', { count: ids.length - (limits.imagesMax ?? 0) })}
                 </span>
               )}
               {addable.length > 0 && (
                 <div className="pv-add">
-                  <span className="faint">作品的圖片</span>
+                  <span className="faint">{t('library.workImages')}</span>
                   <div className="pv-thumbs">
                     {addable.map((a) => (
                       <button
                         key={a.id}
                         type="button"
                         className="pv-thumb pv-thumb--add"
-                        aria-label={`加入 ${a.original_name ?? '圖片'}`}
+                        aria-label={t('library.addImage', {
+                          name: a.original_name ?? t('library.imageFallback'),
+                        })}
                         onClick={() => {
                           session.edit(
                             {
@@ -645,21 +685,25 @@ function VariantEditor({
 
             <div className="pv-fld">
               <span className="pv-lb">
-                標籤
+                {t('library.tags')}
                 {limits.tagsMax !== null && (
-                  <Count value={draft.tags.length} limit={limits.tagsMax} unit=" 個" />
+                  <Count
+                    value={draft.tags.length}
+                    limit={limits.tagsMax}
+                    unit={t('library.unitTags')}
+                  />
                 )}
               </span>
               <div className="tags">
-                {draft.tags.map((t) => (
-                  <span key={t} className="tag">
-                    #{t}
+                {draft.tags.map((tag) => (
+                  <span key={tag} className="tag">
+                    #{tag}
                     <button
                       type="button"
                       className="tag__remove"
-                      aria-label={`移除標籤 ${t}`}
+                      aria-label={t('library.removeTag', { tag })}
                       onClick={() => {
-                        session.edit({ tags: draft.tags.filter((x) => x !== t) }, true);
+                        session.edit({ tags: draft.tags.filter((x) => x !== tag) }, true);
                       }}
                     >
                       <Icon name="close" size={11} />
@@ -668,8 +712,8 @@ function VariantEditor({
                 ))}
                 <input
                   className="tags__input pv-taginput"
-                  aria-label="新增標籤"
-                  placeholder="新增"
+                  aria-label={t('library.addTag')}
+                  placeholder={t('library.addTagPlaceholder')}
                   value={tagText}
                   onChange={(e) => {
                     setTagText(e.target.value);
@@ -696,9 +740,9 @@ function VariantEditor({
                 }}
               >
                 <Icon name="refresh" size={14} />
-                重新從原稿產生
+                {t('library.redraftFromSource')}
               </button>
-              <span className="faint">每個平台獨立儲存，不影響原稿與其他平台。</span>
+              <span className="faint">{t('library.perPlatformNote')}</span>
             </div>
           </>
         )}
@@ -709,14 +753,18 @@ function VariantEditor({
         )}
       </section>
 
-      <section className="pv__preview" aria-label="模擬預覽">
-        <PlatformPreview model={model} empty={`尚無${template.shortName}版本`} />
-        <p className="faint pv__note">版面為模擬，實際呈現以平台為準。</p>
+      <section className="pv__preview" aria-label={t('library.simulatedPreview')}>
+        <PlatformPreview
+          model={model}
+          empty={t('library.noPlatformVersion', { platform: shortName(platform) })}
+          locale={locale}
+        />
+        <p className="faint pv__note">{t('library.simulationNote')}</p>
       </section>
 
       {confirmRedraft && (
         <Dialog
-          title={`重新產生${template.shortName}版本？`}
+          title={t('library.redraftTitle', { platform: shortName(platform) })}
           onClose={() => {
             setConfirmRedraft(false);
           }}
@@ -730,7 +778,7 @@ function VariantEditor({
                   setConfirmRedraft(false);
                 }}
               >
-                取消
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -740,16 +788,16 @@ function VariantEditor({
                   run(() => session.draftFromSource());
                 }}
               >
-                重新產生
+                {t('library.redraft')}
               </button>
             </>
           }
         >
           <div className="form">
             <p>
-              依目前原稿重新產生標題、正文與圖片，成為新版本 r{(state.record?.revision ?? 0) + 1}。
+              {t('library.redraftBody', { revision: String((state.record?.revision ?? 0) + 1) })}
             </p>
-            <p className="muted">舊版本留在歷史裡；其他平台與原稿都不受影響。</p>
+            <p className="muted">{t('library.redraftNote')}</p>
           </div>
         </Dialog>
       )}

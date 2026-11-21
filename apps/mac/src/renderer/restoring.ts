@@ -1,21 +1,29 @@
 import { ApiError } from '@qiu-creator/api-client';
+import { codeText, t } from './i18n.js';
 
 /**
  * 503 `restoring` (QC-030): a backup restore was accepted and the service is
  * about to reload, so every write is refused for a moment. Not a failure of
  * the page that asked: it says so and the app shows 「還原中」 until the
- * service is back (QC-031).
+ * service is back (QC-031). A function, not a constant, so it follows the
+ * interface language (QC-042).
  */
-export const RESTORING_TEXT = '服務正在還原資料庫，請稍候再試';
+export function restoringText(): string {
+  return t('common.restoringText');
+}
 
 export function isRestoring(err: unknown): boolean {
   return err instanceof ApiError && err.status === 503 && err.code === 'restoring';
 }
 
-/** The usual 「server message, or 無法連線到服務」 text, with 503 `restoring` in the user's words. */
+/**
+ * An error in the user's words: by the service's error code (never its own
+ * message, QC-042), 503 `restoring` as 「還原中」, and 無法連線到服務 when
+ * the request did not get an answer.
+ */
 export function serviceErrorText(err: unknown): string {
-  if (isRestoring(err)) return RESTORING_TEXT;
-  return err instanceof ApiError ? err.message : '無法連線到服務';
+  if (isRestoring(err)) return restoringText();
+  return err instanceof ApiError ? codeText(err.code) : t('common.cannotConnect');
 }
 
 const listeners = new Set<() => void>();

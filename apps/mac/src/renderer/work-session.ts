@@ -1,8 +1,16 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
-import { serviceErrorText } from './restoring.js';
 import type { WorkDetail, WorkStatus } from '@qiu-creator/contracts';
+import { t } from './i18n.js';
 
 export type SaveStatus = 'saved' | 'dirty' | 'saving' | 'error' | 'conflict';
+
+/**
+ * Why the last save failed. QC-042: the reason, not a sentence — the page
+ * words it in the current language, and the service's own (English) message
+ * is never shown.
+ */
+export type SaveError =
+  { kind: 'title_blank' } | { kind: 'offline' } | { kind: 'service'; code: string | null };
 
 export interface Draft {
   title: string;
@@ -42,7 +50,7 @@ export interface WorkSessionState {
    * to the server's revision (QC-027).
    */
   conflictBase: string | null;
-  errorMessage: string | null;
+  error: SaveError | null;
   /** Non-null while the external file is missing or its folder unmounted: no saves, no restore. */
   readOnly: ReadOnlyReason | null;
   /** A newer revision exists on the server and the draft has unsaved edits; autosave is paused. */
@@ -117,7 +125,7 @@ export class WorkSession {
       status: 'saved',
       conflictRevision: null,
       conflictBase: null,
-      errorMessage: null,
+      error: null,
       readOnly: readOnlyOf(work),
       remote: null,
       epoch: 0,
@@ -227,11 +235,11 @@ export class WorkSession {
     }
     if (this.blocked()) return;
     if (this.state.draft.title.trim() === '') {
-      this.set({ status: 'error', errorMessage: '標題不可空白' });
+      this.set({ status: 'error', error: { kind: 'title_blank' } });
       return;
     }
     if (!this.hasUnsavedChanges()) {
-      if (this.state.status !== 'saved') this.set({ status: 'saved', errorMessage: null });
+      if (this.state.status !== 'saved') this.set({ status: 'saved', error: null });
       return;
     }
     await this.exclusive(() => this.doSave());
@@ -250,7 +258,7 @@ export class WorkSession {
             status: 'saved' as const,
             conflictRevision: null,
             conflictBase: null,
-            errorMessage: null,
+            error: null,
             remote: null,
             epoch: this.state.epoch + 1,
           }
@@ -272,7 +280,7 @@ export class WorkSession {
     if (sent.status !== saved.status) changes.status = sent.status;
     if (!sameTags(sent.tags, saved.tags)) changes.tags = [...sent.tags];
     const sentBase = this.state.baseRevision;
-    this.set({ status: 'saving', errorMessage: null });
+    this.set({ status: 'saving', error: null });
     try {
       const work = await this.client.works.patch(this.state.workId, {
         base_revision: sentBase,
@@ -291,7 +299,7 @@ export class WorkSession {
         this.set({
           status: 'dirty',
           readOnly: state === 'unmounted' ? 'unmounted' : 'missing',
-          errorMessage: null,
+          error: null,
         });
         return;
       }
@@ -300,11 +308,17 @@ export class WorkSession {
           status: 'conflict',
           conflictRevision: err.currentRevision ?? null,
           conflictBase: sentBase,
-          errorMessage: null,
+          error: null,
         });
         return;
       }
-      this.set({ status: 'error', errorMessage: serviceErrorText(err) });
+      this.set({
+        status: 'error',
+        error:
+          err instanceof ApiError
+            ? { kind: 'service', code: err.code ?? null }
+            : { kind: 'offline' },
+      });
     }
   }
 
@@ -462,7 +476,7 @@ export class WorkSession {
       status: 'conflict',
       conflictRevision: serverRevision,
       conflictBase: draftBase,
-      errorMessage: null,
+      error: null,
       epoch: this.state.epoch + 1,
     });
   }
@@ -486,7 +500,7 @@ export class WorkSession {
   async keepBoth(): Promise<WorkDetail> {
     const { title, markdown } = this.state.draft;
     const copy = await this.client.works.create({
-      title: `${title.trim() || '未命名'}（我的修改）`,
+      title: t('editor.keepBothCopy', { title: title.trim() || t('editor.untitled') }),
       markdown,
       source: 'mac-app',
     });

@@ -1,5 +1,5 @@
 import { ApiError, videoUnderstandingOf, type CreatorHubClient } from '@qiu-creator/api-client';
-import { serviceErrorText } from './restoring.js';
+import { codeText, formatBytes, t } from './i18n.js';
 import {
   GEMINI_VIDEO_LIMITS,
   type AiFailureCode,
@@ -43,8 +43,51 @@ export interface VideoState {
   failure: { code: AiFailureCode | null; message: string } | null;
 }
 
+/**
+ * Interface text for a failed call: the error code, never the service's own
+ * (English) message (QC-042). A failed fetch is reported as 「無法連線到服務」,
+ * the wording this page has always used.
+ */
 function messageOf(err: unknown): string {
-  return serviceErrorText(err);
+  return err instanceof ApiError ? codeText(err.code) : t('common.cannotConnect');
+}
+
+/** A number from an error's `details`, or null. */
+function detail(err: ApiError, key: string): number | null {
+  const value = err.body?.error.details?.[key];
+  return typeof value === 'number' ? value : null;
+}
+
+/**
+ * Why this video cannot be estimated or sent, worded from the code and the
+ * `details` of the service's answer (QC-042): too large, too long for the
+ * chosen resolution, or not a video Gemini reads.
+ */
+function estimateErrorText(err: unknown, asset: AssetRecord | null): string {
+  if (!(err instanceof ApiError)) return t('common.cannotConnect');
+  if (err.code === 'unsupported_media_type') {
+    return asset !== null && asset.kind === 'video'
+      ? t('ai.estErrUnsupportedFormat', { format: asset.mime_type })
+      : t('ai.estErrNotVideo');
+  }
+  if (err.code === 'payload_too_large') {
+    const size = detail(err, 'size_bytes');
+    const max = detail(err, 'max_bytes');
+    if (size !== null && max !== null) {
+      return t('ai.estErrTooLarge', { size: formatBytes(size), max: formatBytes(max) });
+    }
+  }
+  if (err.code === 'validation_error') {
+    const seconds = detail(err, 'duration_seconds');
+    const max = detail(err, 'max_seconds');
+    if (seconds !== null && max !== null) {
+      const minutes = Math.round(seconds / 6) / 10;
+      return max <= GEMINI_VIDEO_LIMITS.maxDurationSeconds.default
+        ? t('ai.estErrTooLongDefault', { minutes })
+        : t('ai.estErrTooLongLow', { minutes });
+    }
+  }
+  return codeText(err.code);
 }
 
 /** Job is a video analysis of this asset. */
@@ -59,12 +102,23 @@ export function uploadPercent(job: AiJobRecord | null): number | null {
   return Math.min(100, Math.round((p.uploaded_bytes / p.total_bytes) * 100));
 }
 
-export const PHASE_LABEL = {
-  queued: '排隊中',
-  uploading: '上傳中',
-  processing: 'Gemini 處理影片中',
-  analyzing: '分析中',
-} as const;
+/** Getters, so the labels follow the interface language (QC-042). */
+export const PHASE_LABEL: Readonly<
+  Record<'queued' | 'uploading' | 'processing' | 'analyzing', string>
+> = {
+  get queued() {
+    return t('ai.phaseQueued');
+  },
+  get uploading() {
+    return t('ai.phaseUploading');
+  },
+  get processing() {
+    return t('ai.phaseProcessing');
+  },
+  get analyzing() {
+    return t('ai.phaseAnalyzing');
+  },
+};
 
 export function runLabel(job: AiJobRecord | null): string {
   const phase = job?.progress?.phase;
@@ -214,7 +268,7 @@ export class VideoSession {
       const phase = this.now().phase;
       this.set({
         estimate: null,
-        estimateError: messageOf(err),
+        estimateError: estimateErrorText(err, asset),
         phase: phase === 'estimating' ? 'ready' : phase,
       });
     }
@@ -272,11 +326,14 @@ export class VideoSession {
         const updated = await this.client.ai.consent('gemini', gemini.notice.version);
         this.set({ gemini: updated });
       } catch (err) {
-        this.set({ phase: 'confirm', confirmError: `無法確認告知：${messageOf(err)}` });
+        this.set({
+          phase: 'confirm',
+          confirmError: t('ai.consentFailed', { reason: messageOf(err) }),
+        });
         return;
       }
       if (this.now().gemini?.consent == null) {
-        this.set({ phase: 'confirm', confirmError: '無法確認告知，未送出任何內容' });
+        this.set({ phase: 'confirm', confirmError: t('ai.consentFailedNothingSent') });
         return;
       }
     }
@@ -303,7 +360,10 @@ export class VideoSession {
         this.set({ noKey: true, phase: 'ready' });
         return;
       }
-      this.set({ phase: 'failed', failure: { code: null, message: messageOf(err) } });
+      this.set({
+        phase: 'failed',
+        failure: { code: null, message: estimateErrorText(err, asset) },
+      });
     }
   }
 
@@ -345,7 +405,7 @@ export class VideoSession {
         this.set({
           phase: 'failed',
           job,
-          failure: { code: job.error_code, message: job.error ?? '分析失敗' },
+          failure: { code: job.error_code, message: job.error ?? t('ai.analyzeFailed') },
         });
         return;
       case 'cancelled':
@@ -436,11 +496,17 @@ export class AiActivity {
 }
 
 export const ACTION_LABEL: Readonly<Record<string, string>> = {
-  video_understanding: '視頻理解',
-  platform_suggestions: '平台標題候選',
-  rewrite: '改寫',
+  get video_understanding() {
+    return t('ai.actionVideoUnderstanding');
+  },
+  get platform_suggestions() {
+    return t('ai.actionPlatformSuggestions');
+  },
+  get rewrite() {
+    return t('ai.actionRewrite');
+  },
 };
 
 export function jobActionLabel(job: AiJobRecord): string {
-  return ACTION_LABEL[job.task?.type ?? ''] ?? 'AI 任務';
+  return ACTION_LABEL[job.task?.type ?? ''] ?? t('ai.actionOther');
 }

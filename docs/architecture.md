@@ -30,16 +30,29 @@
 | `packages/api-client` | 型別安全的 fetch 用戶端（base URL + Bearer 權杖），回應以契約驗證；409 時帶出 `currentRevision` | contracts |
 | `packages/agent-sdk` | `creatorhub` CLI（`works create`、`works list`），只走 api-client；`mcp/` 預留 | api-client、commander |
 | `services/mac-server` | Fastify 服務、SQLite、檔案系統、OpenAPI | contracts、domain |
-| `apps/mac` | Electron Mac App（見下節） | api-client、contracts、design-tokens、markdown-editor-web |
-| `packages/markdown-editor-web` | MDXEditor 視覺模式 + `<textarea>` 原始碼模式；可能有損語法偵測與原文保護；不依賴 Electron，第二期可嵌進 WebView | @mdxeditor/editor、mdast 工具 |
+| `apps/mac` | Electron Mac App（見下節） | api-client、contracts、design-tokens、i18n、markdown-editor-web、platform-preview |
+| `packages/markdown-editor-web` | MDXEditor 視覺模式 + `<textarea>` 原始碼模式；可能有損語法偵測與原文保護；不依賴 Electron，第二期可嵌進 WebView | @mdxeditor/editor、mdast 工具、i18n |
 | `packages/design-tokens` | DESIGN.md 視覺基線（PT-20261116-001「暖白克制」）的語義 token：淺色／深色色彩、陰影、字型堆疊、字級、間距、圓角、尺寸、斷點、動效；輸出 CSS 變數，第二期 React Native 直接讀值 | 無 |
-| `packages/platform-preview` | 四平台模擬預覽：純 TS 的模板與 view model（主入口），DOM 模板在 `./react`、樣式在 `./style.css` | contracts（react 為 peer） |
+| `packages/platform-preview` | 四平台模擬預覽：純 TS 的模板與 view model（主入口），DOM 模板在 `./react`、樣式在 `./style.css` | contracts、i18n（react 為 peer） |
+| `packages/i18n` | 介面多語言（QC-042）：简体中文、繁體中文（來源）、English 三語文案目錄（`src/catalog/<區>.ts`）、系統語言對應、`{name}` 佔位符與英文複數、`Intl` 日期／數字／大小／相對時間；用語表 `GLOSSARY.md`；不依賴 Electron，第二期直接沿用 | 無 |
 
 共用套件不依賴 Electron 或 Node 專屬 UI；`domain` 的路徑工具用到 `node:path`，第二期若要在 React Native 使用需再拆分（目前行動端不使用）。
 
 各套件目前直接匯出 TypeScript 原始碼（`exports` 指向 `src/index.ts`），由 tsx／Vitest 執行；尚無建置產物。
 
 ## Mac App（apps/mac）
+
+- **介面多語言（QC-042）。**
+  - **設定**：設定 → 外觀 →「語言」：跟隨系統（預設）、简体中文、繁體中文、English。選擇存在主程序的 `<userData>/preferences.json`（`language`）。
+  - **升級**：既有的 `preferences.json` 沒有 `language` 時，首次啟動寫入 `zh-Hant`，其他鍵不變（`migrateLanguage`），舊安裝不會因系統語言而改變；沒有這個檔案的新安裝才跟隨系統。
+  - **跟隨系統**：取 `app.getPreferredSystemLanguages()` 的第一順位：`zh-Hans`／`zh-CN`／`zh-SG` → 简体，`zh-Hant`／`zh-TW`／`zh-HK`／`zh-MO` → 繁體，`en*` 與其他語言 → English。macOS 發出 `AppleLanguagePreferencesChangedNotification`，或視窗取得焦點時重新檢查。
+  - **主程序**（`main/language.ts`）：開窗前就決定語言並建立原生選單（`main/menu.ts`，與 Electron 預設選單相同的角色，標籤取自目錄）。語言改變時重建選單，並對每個視窗送 `languageChanged`。檔案選擇器的標題與按鈕、上傳錯誤也用目前語言；系統面板本身的文字仍跟 macOS。
+  - **Renderer**（`renderer/i18n.ts`）：首次渲染前先取得語言，所以第一個畫面就是正確語言，並設定 `<html lang>`，讓中日韓字型選對字形。根元件訂閱語言，切換時整棵樹原地重繪，不重新載入，草稿與開著的對話框都保留。模組層級的表格放的是目錄鍵或 getter，不是翻好的文字。
+  - **錯誤**：服務的錯誤依 `ErrorCode` 對應 `errors.<code>` 文案（`errorText`／`codeText`），不直接顯示服務端的英文 message。
+  - **不翻譯**：使用者內容、四平台模擬預覽中平台自身的介面文字（`platform-preview/src/templates.ts`）、AI 提示詞與輸出、日誌、API message。
+  - **檢查**：
+    - `packages/i18n` 的測試檢查三語鍵完整、值不為空、佔位符一致、英文不含中文、简体不含繁體專用字。
+    - `apps/mac/test/no-hardcoded-chinese.test.ts` 掃描 app 與 UI 套件的字串、模板與 JSX 文字（註解除外），寫死中文就失敗。
 
 ```text
 renderer（React，sandbox，無 Node）

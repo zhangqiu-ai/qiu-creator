@@ -15,6 +15,8 @@ import {
   type PrefStorage,
   type ServiceSummary,
 } from './sidebar-prefs.js';
+import type { MessageKey } from '@qiu-creator/i18n';
+import { t } from './i18n.js';
 
 export type NavPage = 'library' | 'assets' | 'imports' | 'ai' | 'preview' | 'settings';
 
@@ -25,24 +27,33 @@ interface NavItem {
 }
 
 /** Groups from the approved board; 設定 is pinned at the bottom, 發布中心 waits for M4. */
-const GROUPS: readonly { title: string; items: readonly NavItem[] }[] = [
+const nav = (page: NavPage, key: MessageKey, icon: IconName): NavItem => ({
+  page,
+  get label() {
+    return t(key);
+  },
+  icon,
+});
+const GROUPS: readonly { id: string; title: MessageKey; items: readonly NavItem[] }[] = [
   {
-    title: '創作',
+    id: 'create',
+    title: 'shell.groupCreate',
     items: [
-      { page: 'library', label: '作品庫', icon: 'library' },
-      { page: 'preview', label: '平台預覽', icon: 'phone' },
+      nav('library', 'shell.navLibrary', 'library'),
+      nav('preview', 'shell.navPreview', 'phone'),
     ],
   },
   {
-    title: '素材',
+    id: 'assets',
+    title: 'shell.groupAssets',
     items: [
-      { page: 'assets', label: '素材庫', icon: 'assets' },
-      { page: 'imports', label: '匯入任務', icon: 'imports' },
+      nav('assets', 'shell.navAssets', 'assets'),
+      nav('imports', 'shell.navImports', 'imports'),
     ],
   },
-  { title: 'AI', items: [{ page: 'ai', label: 'AI 工作台', icon: 'spark' }] },
+  { id: 'ai', title: 'shell.groupAi', items: [nav('ai', 'shell.navAi', 'spark')] },
 ];
-const SETTINGS: NavItem = { page: 'settings', label: '設定', icon: 'settings' };
+const SETTINGS: NavItem = nav('settings', 'shell.navSettings', 'settings');
 
 function storage(): PrefStorage | null {
   try {
@@ -160,7 +171,7 @@ export function Sidebar({
       aria-label={it.label}
       data-tip={
         it.page === 'imports' && importsCount > 0
-          ? `${it.label} · ${String(importsCount)} 進行中`
+          ? t('shell.importsRunningTip', { label: it.label, count: importsCount })
           : it.label
       }
       onClick={() => {
@@ -171,7 +182,7 @@ export function Sidebar({
       <span className="sb__label">{it.label}</span>
       {it.page === 'imports' && importsCount > 0 && (
         <span className="sb__count">
-          <span className="visually-hidden">進行中 </span>
+          <span className="visually-hidden">{t('shell.importsRunning')}</span>
           {importsCount}
         </span>
       )}
@@ -182,7 +193,7 @@ export function Sidebar({
     <nav
       className={rail ? 'sb sb--rail' : dragging ? 'sb sb--dragging' : 'sb'}
       style={style}
-      aria-label="主導航"
+      aria-label={t('shell.mainNav')}
     >
       <div className="sb__top">
         <div className="sb__brand">
@@ -199,11 +210,11 @@ export function Sidebar({
           <div className="sb__pop" id="sb-svc-pop" role="tooltip">
             <div className="sb__pop-row sb__pop-title">{service.title}</div>
             <div className="sb__pop-row">
-              <span>本機服務</span>
+              <span>{t('shell.popService')}</span>
               <span className="sb__pop-v mono">{address}</span>
             </div>
             <div className="sb__pop-row">
-              <span>即時更新</span>
+              <span>{t('shell.popRealtime')}</span>
               <span className="sb__pop-v">{service.realtime}</span>
             </div>
             <div className="sb__pop-row">
@@ -211,13 +222,13 @@ export function Sidebar({
               <span className="sb__pop-v">{service.agentApi}</span>
             </div>
             <div className="sb__pop-row">
-              <span>版本</span>
+              <span>{t('shell.popVersion')}</span>
               <span className="sb__pop-v mono">{service.version}</span>
             </div>
             {service.tone === 'bad' && (
               <div className="sb__pop-row sb__pop-actions">
                 <button type="button" className="btn btn--small" onClick={onRecheck}>
-                  重新檢查
+                  {t('common.recheck')}
                 </button>
                 <button
                   type="button"
@@ -226,7 +237,7 @@ export function Sidebar({
                     onNavigate('settings');
                   }}
                 >
-                  服務設定
+                  {t('shell.serviceSettings')}
                 </button>
               </div>
             )}
@@ -235,9 +246,15 @@ export function Sidebar({
         <button
           type="button"
           className="btn btn--ghost btn--icon btn--small sb__toggle"
-          aria-label={rail ? '展開側欄' : '收起側欄'}
+          aria-label={rail ? t('shell.expandSidebar') : t('shell.collapseSidebar')}
           aria-keyshortcuts="Control+Meta+S"
-          title={narrow ? '視窗較窄時固定為圖示列' : `${rail ? '展開' : '收起'}側欄（⌃⌘S）`}
+          title={
+            narrow
+              ? t('shell.narrowRail')
+              : rail
+                ? t('shell.expandSidebarTip')
+                : t('shell.collapseSidebarTip')
+          }
           disabled={narrow}
           onClick={toggle}
         >
@@ -247,9 +264,9 @@ export function Sidebar({
 
       <div className="sb__scroll">
         {GROUPS.map((g) => (
-          <div key={g.title} className="sb__grp" role="group" aria-label={g.title}>
+          <div key={g.id} className="sb__grp" role="group" aria-label={t(g.title)}>
             <div className="sb__grp-h" aria-hidden="true">
-              {g.title}
+              {t(g.title)}
             </div>
             {g.items.map(item)}
           </div>
@@ -263,12 +280,12 @@ export function Sidebar({
           className={limit === null ? 'sb__handle' : 'sb__handle sb__handle--lim'}
           role="separator"
           aria-orientation="vertical"
-          aria-label="調整側欄寬度"
+          aria-label={t('shell.resizeSidebar')}
           aria-valuemin={SIDEBAR_MIN}
           aria-valuemax={SIDEBAR_MAX}
           aria-valuenow={prefs.width}
           tabIndex={0}
-          title="拖曳調整寬度，雙擊恢復預設"
+          title={t('shell.resizeSidebarTip')}
           onPointerDown={(e) => {
             e.preventDefault();
             e.currentTarget.setPointerCapture(e.pointerId);

@@ -1,6 +1,6 @@
+import { translate, type Locale } from '@qiu-creator/i18n';
 import type { ReactNode } from 'react';
-import { SIMULATED_LABEL } from '../templates.js';
-import type { PreviewModel } from '../model.js';
+import { PLATFORM_NAME_KEY, type PreviewModel } from '../model.js';
 
 /**
  * DOM templates for the four simulated platforms, from the approved MacPreview
@@ -12,16 +12,18 @@ import type { PreviewModel } from '../model.js';
 function Cover({
   url,
   ratio,
+  locale,
   children,
 }: {
   url: string | null;
   ratio: number;
+  locale: Locale;
   children?: ReactNode;
 }) {
   return (
     <div className="pp-cover" style={{ aspectRatio: String(ratio) }}>
       {url === null ? (
-        <span className="pp-cover__empty">無封面</span>
+        <span className="pp-cover__empty">{translate(locale, 'library.noCover')}</span>
       ) : (
         <img className="pp-cover__img" src={url} alt="" draggable={false} />
       )}
@@ -36,14 +38,14 @@ function Counter({ model }: { model: PreviewModel }) {
   return <span className="pp-counter">1/{shown}</span>;
 }
 
-function Xiaohongshu({ model }: { model: PreviewModel }) {
+function Xiaohongshu({ model, locale }: { model: PreviewModel; locale: Locale }) {
   return (
     <div className="pp-xhs">
       <div className="pp-xhs__author">
         <span className="pp-avatar" aria-hidden="true" />
         <span>{model.author}</span>
       </div>
-      <Cover url={model.coverUrl} ratio={model.template.coverAspectRatio}>
+      <Cover url={model.coverUrl} ratio={model.template.coverAspectRatio} locale={locale}>
         <Counter model={model} />
       </Cover>
       <div className="pp-xhs__text">
@@ -58,7 +60,7 @@ function Xiaohongshu({ model }: { model: PreviewModel }) {
   );
 }
 
-function WechatArticle({ model }: { model: PreviewModel }) {
+function WechatArticle({ model, locale }: { model: PreviewModel; locale: Locale }) {
   return (
     <div className="pp-mp">
       <div className="pp-mp__title">{model.title.shown}</div>
@@ -66,7 +68,7 @@ function WechatArticle({ model }: { model: PreviewModel }) {
         <span className="pp-link">{model.author}</span>
         {model.dateLabel !== '' && <span>{model.dateLabel}</span>}
       </div>
-      <Cover url={model.coverUrl} ratio={model.template.coverAspectRatio} />
+      <Cover url={model.coverUrl} ratio={model.template.coverAspectRatio} locale={locale} />
       <div className="pp-mp__body">
         {model.body.blocks.map((b, i) =>
           b.kind === 'heading' ? (
@@ -86,12 +88,12 @@ function WechatArticle({ model }: { model: PreviewModel }) {
   );
 }
 
-function Douyin({ model }: { model: PreviewModel }) {
+function Douyin({ model, locale }: { model: PreviewModel; locale: Locale }) {
   const dots = model.images.visible.length;
   return (
     <div className="pp-dy">
       {model.coverUrl === null ? (
-        <span className="pp-cover__empty pp-dy__empty">無封面</span>
+        <span className="pp-cover__empty pp-dy__empty">{translate(locale, 'library.noCover')}</span>
       ) : (
         <img className="pp-dy__bg" src={model.coverUrl} alt="" draggable={false} />
       )}
@@ -122,7 +124,7 @@ function Douyin({ model }: { model: PreviewModel }) {
   );
 }
 
-function Channels({ model }: { model: PreviewModel }) {
+function Channels({ model, locale }: { model: PreviewModel; locale: Locale }) {
   return (
     <div className="pp-sph">
       <div className="pp-sph__author">
@@ -133,7 +135,7 @@ function Channels({ model }: { model: PreviewModel }) {
         {model.title.shown} {model.tags.line}
       </div>
       <div className="pp-sph__media">
-        <Cover url={model.coverUrl} ratio={model.template.coverAspectRatio}>
+        <Cover url={model.coverUrl} ratio={model.template.coverAspectRatio} locale={locale}>
           <Counter model={model} />
         </Cover>
       </div>
@@ -143,29 +145,41 @@ function Channels({ model }: { model: PreviewModel }) {
 }
 
 /** A phone-framed simulation of one platform variant. */
-export function PlatformPreview({ model, empty }: { model: PreviewModel | null; empty?: string }) {
+export function PlatformPreview({
+  model,
+  empty,
+  locale,
+}: {
+  model: PreviewModel | null;
+  empty?: string;
+  locale: Locale;
+}) {
+  const emptyText = empty ?? translate(locale, 'library.noVersion');
   return (
     <div
       className="pp-phone"
       role="img"
       aria-label={
         model === null
-          ? `${SIMULATED_LABEL}預覽：${empty ?? '無版本'}`
-          : `${model.template.displayName}${SIMULATED_LABEL}預覽：${model.title.shown}`
+          ? translate(locale, 'library.previewAriaEmpty', { text: emptyText })
+          : translate(locale, 'library.previewAria', {
+              platform: translate(locale, PLATFORM_NAME_KEY[model.platform]),
+              title: model.title.shown,
+            })
       }
     >
       <div className="pp-screen">
-        <span className="pp-sim">{SIMULATED_LABEL}</span>
+        <span className="pp-sim">{translate(locale, 'library.simulated')}</span>
         {model === null ? (
-          <div className="pp-empty">{empty ?? '無版本'}</div>
+          <div className="pp-empty">{emptyText}</div>
         ) : model.platform === 'xiaohongshu' ? (
-          <Xiaohongshu model={model} />
+          <Xiaohongshu model={model} locale={locale} />
         ) : model.platform === 'wechat_mp' ? (
-          <WechatArticle model={model} />
+          <WechatArticle model={model} locale={locale} />
         ) : model.platform === 'douyin' ? (
-          <Douyin model={model} />
+          <Douyin model={model} locale={locale} />
         ) : (
-          <Channels model={model} />
+          <Channels model={model} locale={locale} />
         )}
       </div>
     </div>

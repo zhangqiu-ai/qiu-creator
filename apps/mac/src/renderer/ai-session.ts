@@ -1,5 +1,5 @@
 import { ApiError, rewriteOf, suggestionsOf, type CreatorHubClient } from '@qiu-creator/api-client';
-import { serviceErrorText } from './restoring.js';
+import { codeText, t } from './i18n.js';
 import {
   charCount,
   PLATFORM_LIMITS,
@@ -29,24 +29,53 @@ export const PROVIDER_ORDER: readonly AiProvider[] = ['anthropic', 'gemini', 'op
 /** Why AI cannot be used right now; the panel shows a 「前往設定」 notice. */
 export type AiBlock = 'key' | 'consent';
 
+/** Getters, so the labels follow the interface language (QC-042). */
 export const AI_BLOCK_LABEL: Readonly<Record<AiBlock, string>> = {
-  key: '尚未設定 AI 金鑰',
-  consent: '尚未確認雲端 AI 使用告知',
+  get key() {
+    return t('ai.blockKey');
+  },
+  get consent() {
+    return t('ai.blockConsent');
+  },
 };
 
 export const FAILURE_LABEL: Readonly<Record<AiFailureCode, string>> = {
-  rate_limited: '請求太頻繁（429）',
-  invalid_key: '金鑰無效',
-  missing_key: '金鑰已移除',
-  consent_required: '雲端使用告知未確認',
-  timeout: '逾時',
-  content_blocked: '內容被供應商拒絕',
-  provider_unavailable: '服務暫時無法使用',
-  bad_request: '請求無效',
-  invalid_output: '結果格式無法解析',
-  file_processing_failed: 'Gemini 處理影片失敗',
-  source_unavailable: '素材檔案找不到',
-  unknown: '未知錯誤',
+  get rate_limited() {
+    return t('ai.failRateLimited');
+  },
+  get invalid_key() {
+    return t('ai.failInvalidKey');
+  },
+  get missing_key() {
+    return t('ai.failMissingKey');
+  },
+  get consent_required() {
+    return t('ai.failConsentRequired');
+  },
+  get timeout() {
+    return t('ai.failTimeout');
+  },
+  get content_blocked() {
+    return t('ai.failContentBlocked');
+  },
+  get provider_unavailable() {
+    return t('ai.failProviderUnavailable');
+  },
+  get bad_request() {
+    return t('ai.failBadRequest');
+  },
+  get invalid_output() {
+    return t('ai.failInvalidOutput');
+  },
+  get file_processing_failed() {
+    return t('ai.failFileProcessing');
+  },
+  get source_unavailable() {
+    return t('ai.failSourceUnavailable');
+  },
+  get unknown() {
+    return t('ai.failUnknown');
+  },
 };
 
 /** First ready provider in `PROVIDER_ORDER`, or why none is. */
@@ -67,8 +96,13 @@ function blockOf(err: unknown): AiBlock | null {
   return null;
 }
 
+/**
+ * Interface text for a failed call: the error code, never the service's own
+ * (English) message (QC-042). A failed fetch is reported as 「無法連線到服務」,
+ * the wording these panels have always used.
+ */
 function messageOf(err: unknown): string {
-  return serviceErrorText(err);
+  return err instanceof ApiError ? codeText(err.code) : t('common.cannotConnect');
 }
 
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled']);
@@ -319,7 +353,7 @@ export class RewriteSession {
       case 'failed':
         this.set({
           phase: 'failed',
-          failure: { code: job.error_code, message: job.error ?? '生成失敗' },
+          failure: { code: job.error_code, message: job.error ?? t('ai.generateFailed') },
         });
         return;
       case 'succeeded':
@@ -329,7 +363,7 @@ export class RewriteSession {
     if (result === null) {
       this.set({
         phase: 'failed',
-        failure: { code: 'invalid_output', message: '結果格式無法解析' },
+        failure: { code: 'invalid_output', message: t('ai.failInvalidOutput') },
       });
       return;
     }
@@ -346,7 +380,7 @@ export class RewriteSession {
     const segments = diffSentences(original, result.text);
     const hunks = hunkCount(segments);
     if (hunks === 0) {
-      this.set({ phase: 'idle', candidate: null, notice: '這次沒有產生修改' });
+      this.set({ phase: 'idle', candidate: null, notice: t('ai.noChanges') });
       return;
     }
     this.set({
@@ -414,14 +448,18 @@ export class RewriteSession {
       return Promise.resolve('blocked');
     }
     const all = this.state.picks.every(Boolean);
-    return this.apply(c, splice(c.source, c.result.range, text), all ? '已採用' : '已部分採用');
+    return this.apply(
+      c,
+      splice(c.source, c.result.range, text),
+      all ? t('ai.accepted') : t('ai.acceptedPartial'),
+    );
   }
 
   /** 插入: keep the original and add the whole candidate after it. */
   insert(): Promise<ApplyResult> {
     const c = this.state.candidate;
     if (c === null) return Promise.resolve('blocked');
-    return this.apply(c, insertAfter(c.source, c.result.range, c.result.text), '已插入');
+    return this.apply(c, insertAfter(c.source, c.result.range, c.result.text), t('ai.inserted'));
   }
 
   private async apply(c: RewriteCandidate, markdown: string, label: string): Promise<ApplyResult> {
@@ -430,7 +468,7 @@ export class RewriteSession {
     try {
       result = await this.work.acceptAi(c.jobId, markdown, c.result.source_revision);
     } catch (err) {
-      this.set({ phase: 'pending', notice: `無法採用：${messageOf(err)}` });
+      this.set({ phase: 'pending', notice: t('ai.cannotApply', { reason: messageOf(err) }) });
       return 'blocked';
     }
     if (result === 'accepted') {
@@ -447,7 +485,7 @@ export class RewriteSession {
       // The conflict dialog takes over with the composed text as this window's draft.
       this.set({ phase: 'idle', candidate: null });
     } else {
-      this.set({ phase: 'pending', notice: '這個視窗有未儲存或衝突的修改，處理後再採用' });
+      this.set({ phase: 'pending', notice: t('ai.applyBlocked') });
     }
     return result;
   }
@@ -458,8 +496,8 @@ export class RewriteSession {
     if (done === null) return 'blocked';
     const r = await this.work.restore(done.previousRevisionId);
     // The candidate was based on the text before 採用; it is stale now.
-    if (r === 'restored') this.set({ done: null, notice: '原稿已變更，請重新生成' });
-    else if (r === 'conflict') this.set({ done: null, notice: '作品已在別處修改，未復原' });
+    if (r === 'restored') this.set({ done: null, notice: t('ai.undoneStale') });
+    else if (r === 'conflict') this.set({ done: null, notice: t('ai.undoConflict') });
     return r;
   }
 
@@ -617,7 +655,7 @@ export class TitleSession {
     if (job.status === 'failed') {
       this.set({
         phase: 'failed',
-        failure: { code: job.error_code, message: job.error ?? '生成失敗' },
+        failure: { code: job.error_code, message: job.error ?? t('ai.generateFailed') },
       });
       return;
     }
@@ -625,7 +663,7 @@ export class TitleSession {
     if (result === null) {
       this.set({
         phase: 'failed',
-        failure: { code: 'invalid_output', message: '結果格式無法解析' },
+        failure: { code: 'invalid_output', message: t('ai.failInvalidOutput') },
       });
       return;
     }

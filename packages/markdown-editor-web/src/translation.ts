@@ -1,66 +1,26 @@
-/** Traditional Chinese labels for the editor chrome; unknown keys fall back to MDXEditor's English. */
-const zhTW: Readonly<Record<string, string>> = {
-  'toolbar.undo': '復原 {{shortcut}}',
-  'toolbar.redo': '重做 {{shortcut}}',
-  'toolbar.bold': '粗體',
-  'toolbar.removeBold': '取消粗體',
-  'toolbar.italic': '斜體',
-  'toolbar.removeItalic': '取消斜體',
-  'toolbar.underline': '底線',
-  'toolbar.removeUnderline': '取消底線',
-  'toolbar.inlineCode': '行內程式碼',
-  'toolbar.removeInlineCode': '取消行內程式碼',
-  'toolbar.strikethrough': '刪除線',
-  'toolbar.removeStrikethrough': '取消刪除線',
-  'toolbar.bulletedList': '項目清單',
-  'toolbar.numberedList': '編號清單',
-  'toolbar.checkList': '待辦清單',
-  'toolbar.link': '連結',
-  'toolbar.image': '插入圖片',
-  'toolbar.table': '插入表格',
-  'toolbar.codeBlock': '插入程式碼區塊',
-  'toolbar.thematicBreak': '分隔線',
-  'toolbar.blockTypeSelect.placeholder': '段落樣式',
-  'toolbar.blockTypeSelect.selectBlockTypeTooltip': '段落樣式',
-  'toolbar.blockTypes.paragraph': '內文',
-  'toolbar.blockTypes.quote': '引用',
-  'toolbar.blockTypes.heading': '標題 {{level}}',
-  'createLink.url': '網址',
-  'createLink.text': '文字',
-  'createLink.title': '標題',
-  'createLink.saveTooltip': '套用',
-  'createLink.cancelTooltip': '取消',
-  'createLink.urlPlaceholder': '貼上網址',
-  'dialogControls.save': '儲存',
-  'dialogControls.cancel': '取消',
-  'dialog.close': '關閉',
-  'linkPreview.edit': '編輯連結',
-  'linkPreview.remove': '移除連結',
-  'linkPreview.copyToClipboard': '複製',
-  'linkPreview.copied': '已複製',
-  'imageEditor.editImage': '編輯圖片',
-  'imageEditor.deleteImage': '刪除圖片',
-  'codeblock.delete': '刪除程式碼區塊',
-  'codeBlock.language': '程式語言',
-  'codeBlock.selectLanguage': '選擇程式語言',
-  'contentArea.editableMarkdown': 'Markdown 編輯區',
-  'table.deleteTable': '刪除表格',
-  'table.deleteRow': '刪除此列',
-  'table.deleteColumn': '刪除此欄',
-  'table.insertRowAbove': '上方插入列',
-  'table.insertRowBelow': '下方插入列',
-  'table.insertColumnLeft': '左側插入欄',
-  'table.insertColumnRight': '右側插入欄',
-};
+import { lookup, SOURCE_LOCALE, type Locale } from '@qiu-creator/i18n';
 
-export function translateZhTW(
+/**
+ * MDXEditor's chrome in the app's language (QC-042). MDXEditor asks for a key
+ * (`toolbar.undo`) with its own English default and `{{…}}` interpolations;
+ * the catalog holds the same keys under `editor.mdx.*`, so an unknown key
+ * falls back to MDXEditor's English.
+ */
+export type EditorTranslation = (
   key: string,
   defaultValue: string,
-  interpolations: Record<string, unknown> = {},
-): string {
-  let value = zhTW[key] ?? defaultValue;
-  for (const [k, v] of Object.entries(interpolations)) {
-    value = value.replaceAll(`{{${k}}}`, String(v));
-  }
-  return value;
+  interpolations?: Record<string, unknown>,
+) => string;
+
+export function editorTranslation(locale: Locale = SOURCE_LOCALE): EditorTranslation {
+  return (key, defaultValue, interpolations = {}) => {
+    const full = `editor.mdx.${key}`;
+    const message = lookup(locale, full);
+    // `lookup` answers with the key itself when the catalog has no such message.
+    let value = typeof message === 'string' && message !== full ? message : defaultValue;
+    for (const [k, v] of Object.entries(interpolations)) {
+      value = value.replaceAll(`{{${k}}}`, String(v));
+    }
+    return value;
+  };
 }

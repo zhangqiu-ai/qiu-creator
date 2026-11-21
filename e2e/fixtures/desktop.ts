@@ -1,8 +1,8 @@
-import { mkdir, rename, rm } from 'node:fs/promises';
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { test as base, type Page } from '@playwright/test';
+import { test as base, type ElectronApplication, type Page } from '@playwright/test';
 import { FakeAiServer } from '../../services/mac-server/test/fake-ai.js';
 import {
   makeTempHome,
@@ -23,6 +23,10 @@ export interface FakeSystemTrash {
 
 interface Desktop {
   page: Page;
+  /** The Electron app, for main-process checks such as the menu bar (QC-042). */
+  app: ElectronApplication;
+  /** userData of this run (holds preferences.json). */
+  profile: string;
   backend: TestServer;
   upstream: FakeAiServer;
   systemTrash: FakeSystemTrash;
@@ -62,6 +66,12 @@ export const test = base.extend<{ desktop: Desktop }>({
       if (typeof executablePath !== 'string') throw new Error('Missing workspace Electron binary');
       const profile = path.join(home, 'electron-profile');
       await mkdir(profile);
+      // Specs find elements by the 繁體中文 source text (QC-042): pin the language,
+      // since a fresh profile follows macOS, which may prefer English.
+      await writeFile(
+        path.join(profile, 'preferences.json'),
+        `${JSON.stringify({ language: 'zh-Hant' })}\n`,
+      );
       const address = new URL(backend.baseUrl);
       const app = await playwright._electron.launch({
         executablePath,
@@ -89,7 +99,7 @@ export const test = base.extend<{ desktop: Desktop }>({
         await tracing.stop({ path: trace });
         await testInfo.attach('Electron trace', { path: trace, contentType: 'application/zip' });
       });
-      await use({ page: await app.firstWindow(), backend, upstream, systemTrash });
+      await use({ page: await app.firstWindow(), app, profile, backend, upstream, systemTrash });
     } finally {
       await resources.disposeAsync();
     }

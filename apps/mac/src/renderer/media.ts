@@ -1,4 +1,5 @@
 import type { MediaRef, MediaRefStatus, WorkMediaResponse } from '@qiu-creator/contracts';
+import { t } from './i18n.js';
 
 /**
  * Why Markdown images use the service's signed URLs (QC-010) rather than the
@@ -15,11 +16,21 @@ const EXPIRY_MARGIN_MS = 30_000;
 export type Placeholder = Exclude<MediaRefStatus, 'resolved' | 'inline'> | 'unsaved';
 
 const PLACEHOLDER_TEXT: Readonly<Record<Placeholder, string>> = {
-  missing: '找不到圖片',
-  rejected: '路徑不允許',
-  unsupported: '不支援的格式',
-  remote: '外部網址圖片未載入',
-  unsaved: '儲存後顯示',
+  get missing() {
+    return t('assets.phMissing');
+  },
+  get rejected() {
+    return t('assets.phRejected');
+  },
+  get unsupported() {
+    return t('assets.phUnsupported');
+  },
+  get remote() {
+    return t('assets.phRemote');
+  },
+  get unsaved() {
+    return t('assets.phUnsaved');
+  },
 };
 
 function escapeXml(text: string): string {

@@ -10,6 +10,7 @@ import {
   type ProxyResponse,
   type RevealTarget,
   type UploadItem,
+  type LanguageState,
   type ThemeSource,
 } from '../shared/bridge.js';
 
@@ -63,6 +64,13 @@ const bridge: CreatorHubBridge = {
   copyText: (text) => ipcRenderer.invoke(IPC.copyText, text) as Promise<void>,
   getTheme: () => ipcRenderer.invoke(IPC.getTheme) as Promise<ThemeSource>,
   setTheme: (theme) => ipcRenderer.invoke(IPC.setTheme, theme) as Promise<void>,
+  getLanguage: () => ipcRenderer.invoke(IPC.getLanguage) as Promise<LanguageState>,
+  setLanguage: (preference) =>
+    ipcRenderer.invoke(IPC.setLanguage, preference) as Promise<LanguageState>,
+  onLanguage: (listener) =>
+    listen(IPC.languageChanged, (p) => {
+      listener(p as LanguageState);
+    }),
 };
 
 contextBridge.exposeInMainWorld('creatorhub', bridge);

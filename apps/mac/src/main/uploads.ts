@@ -8,6 +8,7 @@ import {
   UploadAssetResponseSchema,
   type UploadAssetResponse,
 } from '@qiu-creator/contracts';
+import { translator, type Translate } from '@qiu-creator/i18n';
 import type { UploadItem } from '../shared/bridge.js';
 
 export type UploadFetch = (input: string, init: RequestInit) => Promise<Response>;
@@ -19,6 +20,8 @@ export interface UploadConnection {
 
 export interface UploadManagerOptions {
   connection: () => UploadConnection | null;
+  /** Translates upload errors; defaults to 繁體中文 (tests). */
+  t?: Translate;
   onChange: (items: UploadItem[]) => void;
   fetch?: UploadFetch;
   /** tus chunk size (default 8 MiB). */
@@ -83,8 +86,11 @@ export class UploadManager {
   private readonly directMax: number;
   private readonly concurrency: number;
   private readonly now: () => Date;
+  /** Error text in the app's current language (QC-042). */
+  private readonly t: Translate;
 
   constructor(private readonly options: UploadManagerOptions) {
+    this.t = options.t ?? translator('zh-Hant');
     this.doFetch = options.fetch ?? ((input, init) => fetch(input, init));
     this.chunkSize = options.chunkSize ?? 8 * 1024 * 1024;
     this.directMax = options.directMaxBytes ?? DIRECT_UPLOAD_MAX_BYTES;
@@ -205,7 +211,11 @@ export class UploadManager {
   private async run(entry: Entry): Promise<void> {
     const conn = this.options.connection();
     if (conn === null) {
-      this.update(entry, { state: 'failed', error: '本機服務未連線', errorCode: null });
+      this.update(entry, {
+        state: 'failed',
+        error: this.t('main.uploadServiceOffline'),
+        errorCode: null,
+      });
       return;
     }
     const controller = new AbortController();
@@ -239,7 +249,7 @@ export class UploadManager {
   ): Promise<UploadAssetResponse> {
     const data = await fs.readFile(entry.filePath);
     if (data.length !== entry.item.bytes) {
-      throw new UploadFailed('檔案在上傳前被修改，請重試', 'file_changed', false);
+      throw new UploadFailed(this.t('main.uploadChangedBefore'), 'file_changed', false);
     }
     const qs = new URLSearchParams({ filename: entry.item.filename }).toString();
     const res = await this.doFetch(`${conn.baseUrl}/api/v1/assets/uploads?${qs}`, {
@@ -299,7 +309,7 @@ export class UploadManager {
         : `${conn.baseUrl}${location.startsWith('/') ? '' : '/'}${location}`;
       if (new URL(entry.uploadUrl).origin !== new URL(conn.baseUrl).origin) {
         entry.uploadUrl = null;
-        throw new UploadFailed('上傳位址不在本機服務', 'bad_location', false);
+        throw new UploadFailed(this.t('main.uploadBadLocation'), 'bad_location', false);
       }
     }
     this.update(entry, { sentBytes: offset });
@@ -309,7 +319,7 @@ export class UploadManager {
       const stat = await handle.stat();
       if (stat.size !== total) {
         entry.uploadUrl = null;
-        throw new UploadFailed('檔案在上傳期間被修改，請重新上傳', 'file_changed', false);
+        throw new UploadFailed(this.t('main.uploadChangedDuring'), 'file_changed', false);
       }
       for (;;) {
         const length = Math.min(this.chunkSize, total - offset);
@@ -317,7 +327,7 @@ export class UploadManager {
         const { bytesRead } = await handle.read(chunk, 0, length, offset);
         if (bytesRead !== length) {
           entry.uploadUrl = null;
-          throw new UploadFailed('讀取檔案失敗', 'file_changed', false);
+          throw new UploadFailed(this.t('main.uploadReadFailed'), 'file_changed', false);
         }
         const res = await this.doFetch(entry.uploadUrl, {
           method: 'PATCH',
@@ -339,7 +349,7 @@ export class UploadManager {
         offset = Number(res.headers.get('upload-offset') ?? String(end));
         this.update(entry, { sentBytes: offset });
         if (offset >= total) {
-          throw new UploadFailed('服務沒有回傳結果', 'internal_error', false);
+          throw new UploadFailed(this.t('main.uploadNoResult'), 'internal_error', false);
         }
       }
     } finally {

@@ -12,6 +12,7 @@ import {
 import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
 import { tildePath } from './format.js';
+import { t } from './i18n.js';
 import { Icon } from './Icon.js';
 
 /** Rows shown before 「全部 N 份」 (PT-20261119-001 「v2 · 設定」: 3). */
@@ -47,9 +48,9 @@ export function BackupSection({
   return (
     <section className="settings__sec" aria-labelledby="set-backup">
       <h2 id="set-backup" className="settings__h" tabIndex={-1}>
-        備份與還原
+        {t('serviceSettings.backupTitle')}
       </h2>
-      <p className="settings__sub">只備份資料庫；原稿與媒體請用 Time Machine。</p>
+      <p className="settings__sub">{t('serviceSettings.backupSub')}</p>
 
       <RestoreNotice
         restore={s.restore}
@@ -65,18 +66,22 @@ export function BackupSection({
       <div className="card">
         <div className="ln">
           <div className="ln__main">
-            <span className="ln__k">最近備份</span>
+            <span className="ln__k">{t('serviceSettings.backupLatest')}</span>
             <span className="ln__v">
               {list === null
                 ? '—'
                 : latest === null
-                  ? '還沒有備份'
+                  ? t('serviceSettings.backupNone')
                   : `${formatStamp(latest.created_at)} · ${backupSummary(latest)}`}
             </span>
             {s.created !== null && !s.creating && (
               <span className="ln__v backup__ok" role="status">
-                已備份 · {formatStamp(s.created.created_at)}
-                {s.created.integrity === 'failed' && '（完整性檢查未通過）'}
+                {t(
+                  s.created.integrity === 'failed'
+                    ? 'serviceSettings.backupDoneBroken'
+                    : 'serviceSettings.backupDone',
+                  { when: formatStamp(s.created.created_at) },
+                )}
               </span>
             )}
             {s.createError !== null && (
@@ -91,7 +96,7 @@ export function BackupSection({
           {s.creating ? (
             <span className="chip chip--accent" role="status">
               <span className="spin" aria-hidden="true" />
-              備份中
+              {t('serviceSettings.backupInProgress')}
             </span>
           ) : (
             <button
@@ -102,40 +107,47 @@ export function BackupSection({
                 void session.create();
               }}
             >
-              立即備份
+              {t('serviceSettings.backupNow')}
             </button>
           )}
         </div>
 
         <div className="ln">
           <div className="ln__main">
-            <span className="ln__k">每日自動備份</span>
+            <span className="ln__k">{t('serviceSettings.backupDaily')}</span>
             <span className="ln__v">
               {list === null
                 ? '—'
-                : `上次 ${list.last_daily_at === null ? '尚未執行' : formatStamp(list.last_daily_at)} · 下次 ${nextDailyLabel(list.next_daily_at)}`}
+                : t('serviceSettings.backupDailyTimes', {
+                    last:
+                      list.last_daily_at === null
+                        ? t('serviceSettings.backupDailyNever')
+                        : formatStamp(list.last_daily_at),
+                    next: nextDailyLabel(list.next_daily_at),
+                  })}
             </span>
             {list !== null && (
               <span className="ln__v faint backup__wrap">
-                每種保留最新 {list.retention_per_kind} 份
+                {t('serviceSettings.backupRetention', { count: list.retention_per_kind })}
               </span>
             )}
             {list?.last_error != null && (
               <span className="ln__err" role="alert">
-                上次自動備份失敗：<span className="mono backup__detail">{list.last_error}</span>
+                {t('serviceSettings.backupDailyFailedLabel')}
+                <span className="mono backup__detail">{list.last_error}</span>
               </span>
             )}
           </div>
           {list?.last_error != null ? (
-            <Chip tone="bad">失敗</Chip>
+            <Chip tone="bad">{t('serviceSettings.chipFailed')}</Chip>
           ) : (
-            list !== null && <Chip tone="ok">開啟</Chip>
+            list !== null && <Chip tone="ok">{t('serviceSettings.chipOn')}</Chip>
           )}
         </div>
 
         <div className="ln">
           <div className="ln__main">
-            <span className="ln__k">備份位置</span>
+            <span className="ln__k">{t('serviceSettings.backupLocation')}</span>
             <span className="ln__v mono" title={list?.directory}>
               {list === null ? '—' : tildePath(list.directory, userHome)}
             </span>
@@ -148,22 +160,24 @@ export function BackupSection({
               void window.creatorhub?.reveal({ kind: 'backups' });
             }}
           >
-            在 Finder 顯示
+            {t('common.revealInFinder')}
           </button>
         </div>
       </div>
 
       <div className="card">
         <div className="ln ln--head">
-          <span className="ln__k ln__main">從備份還原</span>
+          <span className="ln__k ln__main">{t('serviceSettings.restoreFromBackup')}</span>
           {list !== null && list.backups.length > 0 && (
-            <span className="ln__v faint">{list.backups.length} 份</span>
+            <span className="ln__v faint">
+              {t('serviceSettings.backupCount', { count: list.backups.length })}
+            </span>
           )}
         </div>
         {s.loadError !== null && list === null ? (
           <div className="ln">
             <span className="ln__main ln__err" role="alert">
-              無法載入備份清單
+              {t('serviceSettings.backupListFailed')}
             </span>
             <button
               type="button"
@@ -172,7 +186,7 @@ export function BackupSection({
                 void session.load();
               }}
             >
-              重試
+              {t('common.retry')}
             </button>
           </div>
         ) : list === null ? (
@@ -183,22 +197,24 @@ export function BackupSection({
           <div className="ln backup__empty">
             <Icon name="history" />
             <span className="ln__main">
-              <span>還沒有可以還原的備份</span>
+              <span>{t('serviceSettings.backupEmptyTitle')}</span>
               <span className="ln__v faint">
-                第一份每日備份會在 {nextDailyLabel(list.next_daily_at)}{' '}
-                之後自動建立，也可以按「立即備份」。
+                {t('serviceSettings.backupEmptyHint', {
+                  next: nextDailyLabel(list.next_daily_at),
+                })}
               </span>
             </span>
           </div>
         ) : (
-          <ul className="backup__list" aria-label="最近備份">
+          <ul className="backup__list" aria-label={t('serviceSettings.backupListLabel')}>
             {rows.map((b) => (
               <li key={b.id} className="ln backup__row">
                 <div className="ln__main">
                   <span className="ln__k">{formatStamp(b.created_at)}</span>
                   <span className="ln__v">
                     {backupSummary(b)}
-                    {b.schema_version !== null && ` · 結構 ${b.schema_version}`}
+                    {b.schema_version !== null &&
+                      ` · ${t('serviceSettings.backupSchema', { version: b.schema_version })}`}
                   </span>
                 </div>
                 <Chip
@@ -211,22 +227,26 @@ export function BackupSection({
                 {b.integrity === 'ok' ? (
                   <Chip tone="ok">
                     <Icon name="check" size={12} />
-                    完整
+                    {t('serviceSettings.backupIntact')}
                   </Chip>
                 ) : (
-                  <Chip tone="bad">檢查未通過</Chip>
+                  <Chip tone="bad">{t('serviceSettings.backupBroken')}</Chip>
                 )}
                 <button
                   type="button"
                   className="btn btn--ghost btn--small"
                   disabled={b.integrity !== 'ok' || busy || s.externalRestore}
-                  title={b.integrity === 'ok' ? undefined : '未通過完整性檢查的備份不能還原'}
-                  aria-label={`還原到 ${formatStamp(b.created_at)} 的備份`}
+                  title={
+                    b.integrity === 'ok' ? undefined : t('serviceSettings.restoreDisabledHint')
+                  }
+                  aria-label={t('serviceSettings.restoreTo', {
+                    when: formatStamp(b.created_at),
+                  })}
                   onClick={() => {
                     setConfirming(b);
                   }}
                 >
-                  還原
+                  {t('serviceSettings.restore')}
                 </button>
               </li>
             ))}
@@ -242,7 +262,9 @@ export function BackupSection({
               }}
             >
               <Icon name={showAll ? 'chevronUp' : 'chevronDown'} size={14} />
-              {showAll ? '收起' : `全部 ${String(list.backups.length)} 份`}
+              {showAll
+                ? t('serviceSettings.showLess')
+                : t('serviceSettings.showAllBackups', { count: list.backups.length })}
             </button>
           </div>
         )}
@@ -250,7 +272,9 @@ export function BackupSection({
 
       {confirming !== null && (
         <Dialog
-          title={`還原到 ${formatStamp(confirming.created_at)} 的備份？`}
+          title={t('serviceSettings.restoreConfirmTitle', {
+            when: formatStamp(confirming.created_at),
+          })}
           onClose={() => {
             setConfirming(null);
           }}
@@ -264,7 +288,7 @@ export function BackupSection({
                   setConfirming(null);
                 }}
               >
-                取消
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -275,24 +299,18 @@ export function BackupSection({
                   void session.restore(target);
                 }}
               >
-                備份目前狀態並還原
+                {t('serviceSettings.restoreConfirmAction')}
               </button>
             </>
           }
         >
           <div className="form">
+            <p>{t('serviceSettings.restoreConfirmBody', { summary: backupSummary(confirming) })}</p>
             <p>
-              作品索引、版本記錄、平台版本、匯入與 AI 任務、設定都會回到這份備份的時間（
-              {backupSummary(confirming)}）。之後的變更會被取代。
+              <strong>{t('serviceSettings.restoreSafetyStrong')}</strong>
+              {t('serviceSettings.restoreSafetyRest')}
             </p>
-            <p>
-              <strong>還原前會先自動備份目前的狀態</strong>
-              （種類「還原前」），需要時可以從清單再還原回來。
-            </p>
-            <p className="muted">
-              磁碟上的 .md 原稿與媒體檔案不會改變。還原時本機服務會重新載入幾秒，期間其他頁面與
-              Agent 的請求會暫時失敗。
-            </p>
+            <p className="muted">{t('serviceSettings.restoreConfirmNote')}</p>
           </div>
         </Dialog>
       )}
@@ -318,8 +336,8 @@ function RestoreNotice({
         <div className="bar bar--indeterminate" aria-hidden="true">
           <span />
         </div>
-        <span className="ln__k">本機服務正在還原資料庫</span>
-        <span className="ln__v faint">由其他視窗或工具發起；完成後會重新載入資料。</span>
+        <span className="ln__k">{t('serviceSettings.externalRestoreTitle')}</span>
+        <span className="ln__v faint">{t('serviceSettings.externalRestoreHint')}</span>
       </div>
     );
   }
@@ -332,11 +350,11 @@ function RestoreNotice({
           <div className="bar bar--indeterminate" aria-hidden="true">
             <span />
           </div>
-          <span className="ln__k">還原中 · {when}</span>
+          <span className="ln__k">{t('serviceSettings.restoringTitle', { when })}</span>
           <span className="ln__v faint">
             {restore.phase === 'sending'
-              ? '正在備份目前的狀態，然後換上這份備份…'
-              : '本機服務正在重新載入。完成後所有頁面會重新讀取資料，不要關閉 App。'}
+              ? t('serviceSettings.restoringSending')
+              : t('serviceSettings.restoringReloading')}
           </span>
         </div>
       );
@@ -344,15 +362,16 @@ function RestoreNotice({
       return (
         <div className="card backup__notice backup__notice--ok" role="status">
           <span className="ln__k">
-            <Icon name="check" size={14} /> 已還原到 {when} 的備份
+            <Icon name="check" size={14} /> {t('serviceSettings.restoredTitle', { when })}
           </span>
           <span className="ln__v">
-            還原前的狀態已備份為「{formatStamp(restore.safety.created_at)} ·
-            還原前」，需要時可以再還原回來。
+            {t('serviceSettings.restoredSafety', {
+              when: formatStamp(restore.safety.created_at),
+            })}
           </span>
           <div className="backup__notice-actions">
             <button type="button" className="btn btn--small" onClick={onDismiss}>
-              知道了
+              {t('serviceSettings.gotIt')}
             </button>
           </div>
         </div>
@@ -360,15 +379,16 @@ function RestoreNotice({
     case 'restart_required':
       return (
         <div className="card backup__notice backup__notice--warn" role="alert">
-          <span className="ln__k">需要重新啟動本機服務</span>
+          <span className="ln__k">{t('serviceSettings.restartRequiredTitle')}</span>
           <span className="ln__v">
-            {when}{' '}
-            的備份已排定，會在本機服務下次啟動時套用；在那之前資料不會改變。目前的狀態已備份為「
-            {formatStamp(restore.safety.created_at)} · 還原前」。
+            {t('serviceSettings.restartRequiredBody', {
+              when,
+              safety: formatStamp(restore.safety.created_at),
+            })}
           </span>
           <div className="backup__notice-actions">
             <button type="button" className="btn btn--small" onClick={onDismiss}>
-              知道了
+              {t('serviceSettings.gotIt')}
             </button>
           </div>
         </div>
@@ -377,12 +397,14 @@ function RestoreNotice({
       return (
         <div className="card backup__notice backup__notice--bad" role="alert">
           <span className="ln__k">
-            <Icon name="alert" size={14} /> 還原失敗 · {when}
+            <Icon name="alert" size={14} /> {t('serviceSettings.restoreFailedTitle', { when })}
           </span>
           <span className="ln__v">{restore.message}</span>
           {restore.safety !== null && (
             <span className="ln__v faint">
-              還原前的狀態已備份為「{formatStamp(restore.safety.created_at)} · 還原前」。
+              {t('serviceSettings.restoreFailedSafety', {
+                when: formatStamp(restore.safety.created_at),
+              })}
             </span>
           )}
           {restore.detail !== null && <span className="mono backup__detail">{restore.detail}</span>}
@@ -390,11 +412,11 @@ function RestoreNotice({
             {restore.stage === 'reload' && (
               <button type="button" className="btn btn--small btn--primary" onClick={onRecheck}>
                 <Icon name="refresh" size={14} />
-                再等一次
+                {t('serviceSettings.waitAgain')}
               </button>
             )}
             <button type="button" className="btn btn--small" onClick={onDismiss}>
-              關閉
+              {t('common.close')}
             </button>
           </div>
         </div>

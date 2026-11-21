@@ -3,6 +3,7 @@ import type { AssetRecord } from '@qiu-creator/contracts';
 import { imageMarkdown } from '@qiu-creator/markdown-editor-web';
 import type { CreatorHubBridge, UploadItem } from '../shared/bridge.js';
 import { assetName } from './format.js';
+import { t } from './i18n.js';
 
 /**
  * Inserting assets into the editor (QC-039, PT-20261119-001 「v2 · 編輯器：插入
@@ -63,36 +64,39 @@ export interface InsertSessionOptions {
 
 /** Why an attach failed, in the user's words. */
 export function attachErrorText(err: unknown): string {
-  if (!(err instanceof ApiError)) return '本機服務未回應';
+  if (!(err instanceof ApiError)) return t('common.serviceDown');
   switch (err.code) {
     case 'attach_external_unsupported':
-      return '外部掛載的作品不能插入素材庫的圖片；請把圖片放進作品所在的資料夾';
+      return t('editor.attachExternalUnsupported');
     case 'asset_in_trash':
-      return '這個素材在最近刪除，請先恢復';
+      return t('errors.asset_in_trash');
     case 'asset_file_missing':
-      return '素材的檔案找不到了';
+      return t('errors.asset_file_missing');
     case 'not_found':
-      return '找不到這個素材或作品';
+      return t('editor.attachNotFound');
     case 'restoring':
-      return '服務正在還原資料庫，請稍候再試';
+      return t('errors.restoring');
     default:
-      return '插入失敗，請稍後再試';
+      return t('editor.attachFailed');
   }
 }
 
-/** Why an upload failed, in the user's words. */
+/**
+ * Why an upload failed, in the user's words. QC-042: an unknown code is
+ * worded generically rather than showing the service's own English message.
+ */
 export function uploadErrorText(item: Pick<UploadItem, 'error' | 'errorCode'>): string {
   switch (item.errorCode) {
     case 'unsupported_media_type':
-      return '不支援這種檔案';
+      return t('errors.unsupported_media_type');
     case 'payload_too_large':
-      return '檔案太大';
+      return t('errors.payload_too_large');
     case 'restoring':
-      return '服務正在還原資料庫，請稍候再試';
+      return t('errors.restoring');
     case null:
-      return '本機服務未回應';
+      return t('common.serviceDown');
     default:
-      return item.error ?? '上傳失敗';
+      return t('editor.uploadFailed');
   }
 }
 
@@ -101,7 +105,10 @@ export function pastedName(type: string, now: Date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   const ext =
     type === 'image/jpeg' ? 'jpg' : (type.split('/')[1] ?? 'png').replace(/[^a-z0-9]/g, '');
-  return `貼上的圖片 ${pad(now.getHours())}.${pad(now.getMinutes())}.${ext === '' ? 'png' : ext}`;
+  return t('editor.pastedImageName', {
+    time: `${pad(now.getHours())}.${pad(now.getMinutes())}`,
+    ext: ext === '' ? 'png' : ext,
+  });
 }
 
 /** The image files in a paste or drop (the rest is left to the editor). */
@@ -154,7 +161,9 @@ export class InsertSession {
     try {
       const res = await this.options.client.works.attachMedia(this.options.workId, asset.id);
       this.options.insert(imageMarkdown(res.src, asset.alt_text ?? ''), where);
-      this.set({ notice: { message: `已插入「${displayOf(asset)}」`, tone: 'ok' } });
+      this.set({
+        notice: { message: t('editor.insertedAsset', { name: displayOf(asset) }), tone: 'ok' },
+      });
       return true;
     } catch (err) {
       this.set({ notice: { message: attachErrorText(err), tone: 'bad' } });
@@ -169,7 +178,7 @@ export class InsertSession {
     const ids = await bridge.insertFiles(files);
     const pending = ids.map((uploadId, i) => {
       const file = files[i];
-      return this.newPending(uploadId, file?.name ?? '檔案', file ?? null, where);
+      return this.newPending(uploadId, file?.name ?? t('editor.fileFallback'), file ?? null, where);
     });
     this.set({ pending: [...this.state.pending, ...pending] });
   }
@@ -205,7 +214,11 @@ export class InsertSession {
       const uploadId = await bridge.insertBytes(name, data);
       this.update(key, { uploadId });
     } catch {
-      this.update(key, { state: 'failed', error: '無法暫存貼上的圖片', progress: null });
+      this.update(key, {
+        state: 'failed',
+        error: t('editor.pasteCacheFailed'),
+        progress: null,
+      });
     }
   }
 
@@ -257,7 +270,9 @@ export class InsertSession {
       const res = await this.options.client.works.attachMedia(this.options.workId, asset.id);
       this.options.insert(imageMarkdown(res.src, asset.alt_text ?? ''), p.where);
       this.finish(key);
-      this.set({ notice: { message: `已插入「${p.name}」，同時加入素材庫`, tone: 'ok' } });
+      this.set({
+        notice: { message: t('editor.insertedAndLibrary', { name: p.name }), tone: 'ok' },
+      });
     } catch (err) {
       this.update(key, { state: 'failed', error: attachErrorText(err) });
     }

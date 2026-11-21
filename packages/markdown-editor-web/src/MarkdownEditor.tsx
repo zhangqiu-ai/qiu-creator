@@ -1,4 +1,5 @@
 import { MDXEditor, type MDXEditorMethods } from '@mdxeditor/editor';
+import { SOURCE_LOCALE, translate, type Locale } from '@qiu-creator/i18n';
 import '@mdxeditor/editor/style.css';
 import {
   forwardRef,
@@ -12,7 +13,7 @@ import {
 } from 'react';
 import {
   detectLossySyntax,
-  LOSSY_REASON_LABELS,
+  lossyReasonLabel,
   restoreFinalNewline,
   type LossyReason,
 } from './lossy.js';
@@ -24,7 +25,7 @@ import {
   rangeForBlockTexts,
   type MarkdownRange,
 } from './selection.js';
-import { translateZhTW } from './translation.js';
+import { editorTranslation } from './translation.js';
 
 export type EditorMode = 'visual' | 'source';
 
@@ -56,6 +57,8 @@ export interface MarkdownEditorProps {
   onSelectionChange?: (range: MarkdownRange | null) => void;
   /** Accessible name for the editing area. */
   label?: string;
+  /** Interface language (QC-042). Defaults to 繁體中文, the source text. */
+  locale?: Locale;
   className?: string;
 }
 
@@ -328,21 +331,25 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       [mode, requestMode, selectionRange, insertBlock, boundaryAt],
     );
 
+    const locale = props.locale ?? SOURCE_LOCALE;
     const resolveImageRef = useRef(props.resolveImage);
     resolveImageRef.current = props.resolveImage;
     const hasResolver = props.resolveImage !== undefined;
     const plugins = useMemo(
       () =>
-        createEditorPlugins(
-          hasResolver
+        createEditorPlugins({
+          locale,
+          ...(hasResolver
             ? {
-                resolveImage: (src) => resolveImageRef.current?.(src) ?? Promise.resolve(src),
+                resolveImage: (src: string) =>
+                  resolveImageRef.current?.(src) ?? Promise.resolve(src),
               }
-            : {},
-        ),
-      [hasResolver],
+            : {}),
+        }),
+      [hasResolver, locale],
     );
-    const label = props.label ?? '內文';
+    const translation = useMemo(() => editorTranslation(locale), [locale]);
+    const label = props.label ?? translate(locale, 'editor.sourceLabel');
 
     return (
       <div
@@ -365,7 +372,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         }}
       >
         {props.showModeSwitch !== false && (
-          <div className="qc-md-editor__modes" role="radiogroup" aria-label="編輯模式">
+          <div
+            className="qc-md-editor__modes"
+            role="radiogroup"
+            aria-label={translate(locale, 'editor.modeGroup')}
+          >
             {(['visual', 'source'] as const).map((m) => (
               <button
                 key={m}
@@ -377,19 +388,27 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                   requestMode(m);
                 }}
               >
-                {m === 'visual' ? '視覺' : '原始碼'}
+                {translate(locale, m === 'visual' ? 'editor.modeVisual' : 'editor.modeSource')}
               </button>
             ))}
           </div>
         )}
 
         {pendingVisual !== null && (
-          <div className="qc-md-editor__confirm" role="alertdialog" aria-label="切換到視覺模式">
+          <div
+            className="qc-md-editor__confirm"
+            role="alertdialog"
+            aria-label={translate(locale, 'editor.switchToVisualTitle')}
+          >
             <span>
-              {pendingVisual.map((r) => LOSSY_REASON_LABELS[r]).join('、')} 可能在視覺模式被改寫
+              {translate(locale, 'editor.lossyWarning', {
+                reasons: pendingVisual
+                  .map((r) => lossyReasonLabel(r, locale))
+                  .join(translate(locale, 'common.listSeparator')),
+              })}
             </span>
             <button type="button" onClick={enterVisual}>
-              仍要切換
+              {translate(locale, 'editor.switchAnyway')}
             </button>
             <button
               type="button"
@@ -397,7 +416,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                 setPendingVisual(null);
               }}
             >
-              取消
+              {translate(locale, 'common.cancel')}
             </button>
           </div>
         )}
@@ -417,7 +436,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               changeMode('source');
             }}
             readOnly={readOnly}
-            translation={translateZhTW}
+            translation={translation}
             trim={false}
             toMarkdownOptions={TO_MARKDOWN_OPTIONS}
           />

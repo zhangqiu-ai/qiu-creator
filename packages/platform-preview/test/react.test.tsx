@@ -21,6 +21,7 @@ describe('PlatformPreview', () => {
     for (const platform of PLATFORMS) {
       const el = render(
         <PlatformPreview
+          locale="zh-Hant"
           model={buildPreviewModel({
             platform,
             title: '一'.repeat(70),
@@ -41,7 +42,7 @@ describe('PlatformPreview', () => {
   });
 
   it('shows an empty state without a variant', () => {
-    const el = render(<PlatformPreview model={null} empty="尚無版本" />);
+    const el = render(<PlatformPreview model={null} empty="尚無版本" locale="zh-Hant" />);
     expect(el.querySelector('.pp-empty')?.textContent).toBe('尚無版本');
   });
 });

@@ -3,6 +3,7 @@ import type { Mount, Work } from '@qiu-creator/contracts';
 import { useCallback, useEffect, useState } from 'react';
 import { useRefreshOn } from './events.js';
 import { tildePath } from './format.js';
+import { t } from './i18n.js';
 
 /** Mounts by id, refreshed when works change (scans, missing and restored files). */
 export function useMounts(client: CreatorHubClient): ReadonlyMap<string, Mount> {
@@ -41,12 +42,12 @@ export function externalSource(
   const mount =
     work.mount_id === null || work.mount_id === undefined ? undefined : mounts.get(work.mount_id);
   if (mount === undefined) {
-    return { label: '外部掛載', folder: null, file: work.external_path ?? null };
+    return { label: t('format.sourceExternal'), folder: null, file: work.external_path ?? null };
   }
   const folder = tildePath(mount.root_path, userHome);
   const rel = work.external_path ?? null;
   return {
-    label: `外部掛載 · ${mount.name}`,
+    label: t('assets.groupExternal', { name: mount.name }),
     folder,
     file: rel === null ? folder : `${folder}/${rel}`,
   };

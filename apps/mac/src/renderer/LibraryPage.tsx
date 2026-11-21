@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Chip } from './Chip.js';
 import { useRefreshOn } from './events.js';
 import { formatWhen, sourceLabel, WORK_STATUS, WORK_TYPE } from './format.js';
+import { t } from './i18n.js';
 import { Icon } from './Icon.js';
 import { externalSource, useMounts } from './mounts.js';
 
@@ -104,7 +105,7 @@ export function LibraryPage({ client, userHome, onOpen, onCreated }: LibraryPage
     if (creating) return;
     setCreating(true);
     client.works
-      .create({ title: '未命名', markdown: '', source: 'mac-app' })
+      .create({ title: t('library.untitledWork'), markdown: '', source: 'mac-app' })
       .then(onCreated)
       .catch(() => {
         setFailed(true);
@@ -162,17 +163,17 @@ export function LibraryPage({ client, userHome, onOpen, onCreated }: LibraryPage
   };
 
   return (
-    <main className="page" aria-label="作品庫">
+    <main className="page" aria-label={t('library.library')}>
       <header className="page__header">
-        <h1 className="page__title">作品庫</h1>
+        <h1 className="page__title">{t('library.library')}</h1>
         <span className="page__count">{works === null ? '' : shown.length}</span>
         <label className="search">
           <Icon name="search" />
-          <span className="visually-hidden">搜尋作品</span>
+          <span className="visually-hidden">{t('library.searchWorks')}</span>
           <input
             ref={searchRef}
             type="search"
-            placeholder="搜尋"
+            placeholder={t('common.search')}
             value={query}
             aria-keyshortcuts="Meta+F"
             onChange={(e) => {
@@ -184,12 +185,12 @@ export function LibraryPage({ client, userHome, onOpen, onCreated }: LibraryPage
           />
           <kbd>⌘F</kbd>
         </label>
-        <div className="seg" role="group" aria-label="檢視">
+        <div className="seg" role="group" aria-label={t('library.view')}>
           {(['grid', 'list'] as const).map((v) => (
             <button
               key={v}
               type="button"
-              aria-label={v === 'grid' ? '網格' : '列表'}
+              aria-label={v === 'grid' ? t('library.viewGrid') : t('library.viewList')}
               aria-pressed={view === v}
               onClick={() => {
                 setView(v);
@@ -208,27 +209,27 @@ export function LibraryPage({ client, userHome, onOpen, onCreated }: LibraryPage
           onClick={create}
         >
           <Icon name="plus" />
-          新建
+          {t('library.new')}
         </button>
       </header>
 
       <div className="filters">
-        <div className="seg" role="group" aria-label="類型">
-          {TYPE_FILTERS.map((t) => (
+        <div className="seg" role="group" aria-label={t('library.type')}>
+          {TYPE_FILTERS.map((f) => (
             <button
-              key={t}
+              key={f}
               type="button"
-              aria-pressed={type === t}
+              aria-pressed={type === f}
               onClick={() => {
-                setType(t);
+                setType(f);
               }}
             >
-              {t === 'all' ? '全部' : WORK_TYPE[t].label}
+              {f === 'all' ? t('library.all') : WORK_TYPE[f].label}
             </button>
           ))}
         </div>
         <span className="filters__divider" aria-hidden="true" />
-        <div className="filters__chips" role="group" aria-label="狀態">
+        <div className="filters__chips" role="group" aria-label={t('library.status')}>
           {STATUS_FILTERS.map((s) => (
             <button
               key={s}
@@ -239,24 +240,28 @@ export function LibraryPage({ client, userHome, onOpen, onCreated }: LibraryPage
                 setStatus(s);
               }}
             >
-              {s === 'all' ? '全部' : WORK_STATUS[s].label}
+              {s === 'all' ? t('library.all') : WORK_STATUS[s].label}
               <span className="fchip__n">{counts[s]}</span>
             </button>
           ))}
         </div>
       </div>
 
-      <section className="page__body" aria-label="作品" aria-busy={works === null && !failed}>
+      <section
+        className="page__body"
+        aria-label={t('library.works')}
+        aria-busy={works === null && !failed}
+      >
         {failed ? (
           <div className="state-card" role="alert">
             <Icon name="offline" size={28} />
-            <span className="state-card__title">本機服務未回應</span>
+            <span className="state-card__title">{t('common.serviceDown')}</span>
             <button type="button" className="btn btn--primary" onClick={load}>
-              重試
+              {t('common.retry')}
             </button>
           </div>
         ) : works === null ? (
-          <div className="card-grid" aria-label="載入中">
+          <div className="card-grid" aria-label={t('common.loading')}>
             {Array.from({ length: 8 }, (_, i) => (
               <div key={i} className="wcard wcard--skeleton">
                 <div className="skel wcard__cover" />
@@ -268,17 +273,17 @@ export function LibraryPage({ client, userHome, onOpen, onCreated }: LibraryPage
         ) : works.length === 0 && !filtering ? (
           <div className="state-card state-card--dashed">
             <Icon name="library" size={28} />
-            <span className="state-card__title">還沒有作品</span>
+            <span className="state-card__title">{t('library.empty')}</span>
             <button type="button" className="btn btn--primary" onClick={create}>
-              新建
+              {t('library.new')}
             </button>
           </div>
         ) : shown.length === 0 ? (
           <div className="state-card state-card--dashed">
             <Icon name="search" size={28} />
-            <span className="state-card__title">無符合作品</span>
+            <span className="state-card__title">{t('library.noMatches')}</span>
             <button type="button" className="btn" onClick={clearFilters}>
-              清除篩選
+              {t('library.clearFilters')}
             </button>
           </div>
         ) : view === 'grid' ? (
@@ -318,13 +323,13 @@ export function LibraryPage({ client, userHome, onOpen, onCreated }: LibraryPage
             <table className="tbl">
               <thead>
                 <tr>
-                  <th scope="col">標題</th>
-                  <th scope="col">類型</th>
-                  <th scope="col">狀態</th>
-                  <th scope="col">來源</th>
-                  <th scope="col">標籤</th>
+                  <th scope="col">{t('library.colTitle')}</th>
+                  <th scope="col">{t('library.colType')}</th>
+                  <th scope="col">{t('library.colStatus')}</th>
+                  <th scope="col">{t('library.colSource')}</th>
+                  <th scope="col">{t('library.colTags')}</th>
                   <th scope="col" className="tbl__right">
-                    更新
+                    {t('library.colUpdated')}
                   </th>
                 </tr>
               </thead>
@@ -356,7 +361,7 @@ export function LibraryPage({ client, userHome, onOpen, onCreated }: LibraryPage
                             title={externalSource(w, mounts, userHome)?.folder ?? undefined}
                           >
                             <Icon name="folder" size={11} />
-                            外部
+                            {t('library.externalBadge')}
                           </span>
                         )}
                         {isMissing(w) && <MissingChip />}
@@ -369,7 +374,7 @@ export function LibraryPage({ client, userHome, onOpen, onCreated }: LibraryPage
                     <td className="muted">
                       {externalSource(w, mounts, userHome)?.label ?? sourceLabel(w)}
                     </td>
-                    <td className="faint">{w.tags.map((t) => `#${t}`).join(' ')}</td>
+                    <td className="faint">{w.tags.map((tag) => `#${tag}`).join(' ')}</td>
                     <td className="faint tbl__right">{formatWhen(w.updated_at)}</td>
                   </tr>
                 ))}
@@ -386,7 +391,7 @@ function MissingChip() {
   return (
     <span className="chip chip--bad">
       <Icon name="fileMissing" size={12} />
-      檔案遺失
+      {t('library.fileMissing')}
     </span>
   );
 }

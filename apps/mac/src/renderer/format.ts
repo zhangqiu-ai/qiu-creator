@@ -6,67 +6,128 @@ import type {
   WorkStatus,
   WorkType,
 } from '@qiu-creator/contracts';
+import { t } from './i18n.js';
 import type { IconName } from './Icon.js';
 import type { SaveStatus } from './work-session.js';
 
 export const SAVE_STATUS: Readonly<Record<SaveStatus, { label: string; tone: ChipTone }>> = {
-  saved: { label: '已儲存', tone: 'ok' },
-  dirty: { label: '未儲存', tone: 'neutral' },
-  saving: { label: '儲存中', tone: 'neutral' },
-  error: { label: '儲存失敗', tone: 'bad' },
-  conflict: { label: '衝突', tone: 'bad' },
+  saved: {
+    get label() {
+      return t('format.saveSaved');
+    },
+    tone: 'ok',
+  },
+  dirty: {
+    get label() {
+      return t('format.saveDirty');
+    },
+    tone: 'neutral',
+  },
+  saving: {
+    get label() {
+      return t('format.saveSaving');
+    },
+    tone: 'neutral',
+  },
+  error: {
+    get label() {
+      return t('format.saveError');
+    },
+    tone: 'bad',
+  },
+  conflict: {
+    get label() {
+      return t('format.saveConflict');
+    },
+    tone: 'bad',
+  },
 };
 
 export type ChipTone = 'neutral' | 'ok' | 'warn' | 'bad' | 'accent';
 
 export const REVISION_SOURCE_LABEL: Readonly<Record<RevisionSource, string>> = {
-  create: '建立',
-  edit: 'Mac 編輯',
-  external: '外部修改',
-  restore: '恢復',
-  ai_accepted: 'AI 採用',
+  get create() {
+    return t('format.revCreate');
+  },
+  get edit() {
+    return t('format.revEdit');
+  },
+  get external() {
+    return t('format.revExternal');
+  },
+  get restore() {
+    return t('format.revRestore');
+  },
+  get ai_accepted() {
+    return t('format.revAiAccepted');
+  },
 };
 
 export const WORK_STATUS: Readonly<Record<WorkStatus, { label: string; tone: ChipTone }>> = {
-  drafting: { label: '創作中', tone: 'neutral' },
-  in_review: { label: '待審核', tone: 'warn' },
-  ready: { label: '待發布', tone: 'accent' },
-  published: { label: '已發布', tone: 'ok' },
+  drafting: {
+    get label() {
+      return t('format.statusDrafting');
+    },
+    tone: 'neutral',
+  },
+  in_review: {
+    get label() {
+      return t('format.statusInReview');
+    },
+    tone: 'warn',
+  },
+  ready: {
+    get label() {
+      return t('format.statusReady');
+    },
+    tone: 'accent',
+  },
+  published: {
+    get label() {
+      return t('format.statusPublished');
+    },
+    tone: 'ok',
+  },
 };
 
 export const WORK_TYPE: Readonly<Record<WorkType, { label: string; icon: IconName }>> = {
-  article: { label: '長文', icon: 'doc' },
-  image: { label: '圖文', icon: 'image' },
-  video: { label: '視頻', icon: 'video' },
-  mixed: { label: '混合', icon: 'mixed' },
+  article: {
+    get label() {
+      return t('format.typeArticle');
+    },
+    icon: 'doc',
+  },
+  image: {
+    get label() {
+      return t('format.typeImage');
+    },
+    icon: 'image',
+  },
+  video: {
+    get label() {
+      return t('format.typeVideo');
+    },
+    icon: 'video',
+  },
+  mixed: {
+    get label() {
+      return t('format.typeMixed');
+    },
+    icon: 'mixed',
+  },
 };
 
 /** Where a work came from, in the library's words. */
 export function sourceLabel(work: Pick<Work, 'source' | 'storage_mode'>): string {
-  if (work.storage_mode === 'external') return '外部掛載';
+  if (work.storage_mode === 'external') return t('format.sourceExternal');
   if (work.source === 'mac-app') return 'Mac';
   if (work.source === 'cli') return 'CLI';
   if (work.source === 'api' || work.source.startsWith('api:')) return 'Agent API';
   return work.source;
 }
 
-const time = new Intl.DateTimeFormat('zh-TW', {
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-});
-const date = new Intl.DateTimeFormat('zh-TW', { month: 'numeric', day: 'numeric' });
-
-/** 剛剛 / 14:32 / 昨天 / 11/14 */
-export function formatWhen(iso: string, now: Date = new Date()): string {
-  const d = new Date(iso);
-  const diff = now.getTime() - d.getTime();
-  if (diff >= 0 && diff < 60_000) return '剛剛';
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  if (d.getTime() >= startOfToday) return time.format(d);
-  if (d.getTime() >= startOfToday - 86_400_000) return '昨天';
-  return date.format(d);
-}
+/** 剛剛 / 14:32 / 昨天 / 11/14, in the current language (QC-042: through Intl). */
+export { formatWhen } from './i18n.js';
 
 /**
  * Length of a Markdown document in "字": each CJK character counts as one,
@@ -82,27 +143,35 @@ export function countWords(markdown: string): number {
 }
 
 export const ASSET_KIND: Readonly<Record<AssetKind, { label: string; icon: IconName }>> = {
-  image: { label: '圖片', icon: 'image' },
-  video: { label: '視頻', icon: 'video' },
-  audio: { label: '音訊', icon: 'audio' },
+  image: {
+    get label() {
+      return t('format.kindImage');
+    },
+    icon: 'image',
+  },
+  video: {
+    get label() {
+      return t('format.kindVideo');
+    },
+    icon: 'video',
+  },
+  audio: {
+    get label() {
+      return t('format.kindAudio');
+    },
+    icon: 'audio',
+  },
   markdown: { label: 'Markdown', icon: 'doc' },
-  other: { label: '其他', icon: 'file' },
+  other: {
+    get label() {
+      return t('format.kindOther');
+    },
+    icon: 'file',
+  },
 };
 
-/** 1 KB = 1000 bytes, as Finder shows sizes. */
-export function formatBytes(bytes: number): string {
-  if (bytes < 1000) return `${bytes} B`;
-  const units = ['KB', 'MB', 'GB', 'TB'];
-  let value = bytes / 1000;
-  let unit = 0;
-  while (value >= 1000 && unit < units.length - 1) {
-    value /= 1000;
-    unit += 1;
-  }
-  const digits = value >= 100 ? 0 : value >= 10 ? 1 : 2;
-  const text = digits === 0 ? value.toFixed(0) : value.toFixed(digits).replace(/\.?0+$/, '');
-  return `${text} ${units[unit] ?? 'TB'}`;
-}
+/** 1 KB = 1000 bytes, as Finder shows sizes; digits follow the current language. */
+export { formatBytes } from './i18n.js';
 
 /** 252.4 → 4:12; 3725 → 1:02:05 */
 export function formatDuration(seconds: number): string {

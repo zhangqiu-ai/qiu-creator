@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@mdxeditor/editor": "^4.5.0",
+    "@qiu-creator/i18n": "workspace:*",
     "mdast-util-from-markdown": "^2.1.0",
     "mdast-util-frontmatter": "^2.0.1",
     "mdast-util-gfm": "^3.1.0",
