@@ -318,6 +318,38 @@ export class VariantSession {
     this.adopt(record, true);
   }
 
+  /**
+   * 沿用共用文案 on or off (QC-046). Off on a platform without a version first
+   * drafts one from the work, so there is text of its own to edit. A stale base
+   * is a conflict like any other write.
+   */
+  async setInherit(inherit: boolean): Promise<void> {
+    await this.save();
+    let record = this.state.record;
+    if (record === null) {
+      if (inherit) return;
+      record = await this.exclusive(() =>
+        this.client.variants.redraft(this.workId, this.state.platform),
+      );
+    }
+    const base = record.revision;
+    try {
+      const updated = await this.exclusive(() =>
+        this.client.variants.patch(this.workId, this.state.platform, {
+          base_revision: base,
+          inherit,
+        }),
+      );
+      this.adopt(updated, true);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        this.set({ status: 'conflict', conflictRevision: null });
+        return;
+      }
+      throw err;
+    }
+  }
+
   /** 複製某平台版本: create this platform from another platform's current fields. */
   async copyFrom(source: VariantDraft): Promise<void> {
     if (this.state.record !== null) return;

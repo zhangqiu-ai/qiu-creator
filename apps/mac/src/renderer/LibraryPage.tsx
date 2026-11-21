@@ -16,11 +16,11 @@ type StatusFilter = 'all' | WorkStatus;
 // 混合 works keep their label but only show under 全部 (PT-20261121-001 decision).
 const TYPE_FILTERS: readonly TypeFilter[] = ['all', 'article', 'image', 'video'];
 
-/** What 新建 can make (QC-045). Video waits for its editor (QC-046). */
+/** What 新建 can make (QC-045; video since QC-046). */
 export const NEW_TYPES: readonly { type: WorkType; enabled: boolean }[] = [
   { type: 'article', enabled: true },
   { type: 'image', enabled: true },
-  { type: 'video', enabled: false },
+  { type: 'video', enabled: true },
 ];
 const STATUS_FILTERS: readonly StatusFilter[] = [
   'all',

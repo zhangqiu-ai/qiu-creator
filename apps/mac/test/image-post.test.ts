@@ -133,7 +133,7 @@ describe('新建 menu (QC-045)', () => {
     expect(NEW_TYPES).toEqual([
       { type: 'article', enabled: true },
       { type: 'image', enabled: true },
-      { type: 'video', enabled: false },
+      { type: 'video', enabled: true },
     ]);
   });
 });

@@ -607,6 +607,37 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 - **平台預覽**：`buildPreviewModel` 加 `workType`，貼圖依 `imagesLimit` 計算張數與可見張數。編輯器右側有模擬預覽，可切換四個平台。
 - **平台版本警告（QC-048）**：介面依 `code`、`limit`、`actual` 用三語組句（`warningText`），不顯示服務端的 `message`。
 
+## 視頻作品編輯器（QC-046 前端）
+
+依原型 PT-20261121-001「v3 · 視頻作品」，`VideoWorkEditor.tsx` 放在 QC-047 的分頁框架裡。
+
+- **視頻**：
+  - 選擇方式：從素材抽屜選（`AssetDrawer` 加 `kind="video"`），或上傳。
+  - 上傳沿用 QC-039 的 `InsertSession`，由 `place` 把素材設成作品的視頻。上傳中，封面與 AI 理解都暫停使用。
+  - 存檔沿用 `WorkSession`：草稿的 `video` 欄位對應 `video_asset_id`。
+- **播放器**：
+  - 原生 `<video crossorigin>`，加上自己畫的時間軸，標出重點時間點。
+  - ←→ 前後 5 秒（`seekBy`）。
+- **封面**：
+  - 照 decisions 由 App 截圖。`frames.ts` 的 `FrameGrabber` 用隱藏的播放器跳到指定秒數、畫到 canvas，產生 8 格幀條或整格畫面。
+  - 整格畫面經 `insertBytes` 上傳成圖片素材，再寫成作品的 `cover: { asset_id }`。
+  - 主程序對 `qc-asset://` 開 `corsEnabled`，回應只對本 App 的 origin（`rendererOrigin`）加 `Access-Control-Allow-Origin`，所以 canvas 不會被污染，其他來源也讀不到。
+  - 有抖音 3:4、視頻號 6:7 的裁切預覽。
+- **文案**：共用一份，存在作品的標題、簡介、話題；抖音與視頻號用平台版本的 `inherit`。
+  - 沒有版本或 `inherit: true` 時沿用共用文案。
+  - 取消勾選時，先從作品產生該平台的版本，再設 `inherit: false` 讓它單獨改寫。
+  - 改回沿用時，版本自己的文字會保留（`VariantSession.setInherit`）。
+- **Gemini 理解**：沿用 QC-023 的 AI job、預估與告知，以及 QC-025 的 `VideoSession`，並帶 `work_id`。
+  - 確認框加 `requireAck`：先顯示預估費用，勾選「我了解視頻會上傳到 Google，並可能產生最多 $X 的費用」後才能送出。首次使用時同時確認告知。
+  - 超過 1 小時的視頻預設用低解析度分析全片。
+  - 超過 2 GB 或 3 小時的視頻，在呼叫服務前就說明無法分析（`analyzeBlock`），不送出任何東西。
+  - 分析失敗時顯示原因與技術細節，可以重試。
+- **採用建議**：標題、簡介、封面建議先開確認框，標題與簡介用 `diffSentences` 顯示差異，封面則並列前後兩張。
+  - 採用時用 `WorkSession.acceptSuggestion`，帶 `ai_job_id` 寫成一個 `ai_accepted` 版本。提示裡的「復原」會恢復採用前的版本。
+  - 重點時間點都標「待核驗」，超出片長的另外標出。
+  - 說明文字用介面自己的三語文案，不顯示服務端的 `disclaimer`。
+- **自己的 SSE 回音**：`WorkSession.exclusive` 改在下一個 task 才檢查請求期間收到的 SSE 修訂，讓呼叫端先採用自己剛寫入的版本。否則恢復版本、AI 採用、採用建議時，自己的回音會被當成「已在別處修改」，擋住之後的復原。
+
 ## 編輯器多分頁（QC-047）
 
 作品編輯改為頂部分頁，依原型 PT-20261121-001「v3 · 多分頁編輯」。分頁只存在用戶端，不經服務。

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test as base, type ElectronApplication, type Page } from '@playwright/test';
 import { FakeAiServer } from '../../services/mac-server/test/fake-ai.js';
+import { FakeGeminiVideo } from '../../services/mac-server/test/fake-gemini-video.js';
 import {
   makeTempHome,
   startTestServer,
@@ -29,6 +30,8 @@ interface Desktop {
   profile: string;
   backend: TestServer;
   upstream: FakeAiServer;
+  /** Local stand-in for Gemini video understanding (QC-046). */
+  geminiVideo: FakeGeminiVideo;
   systemTrash: FakeSystemTrash;
   /**
    * Quit the app and start it again on the same profile and service (QC-047:
@@ -60,10 +63,19 @@ export const test = base.extend<{ desktop: Desktop }>({
           this.moved.push(absPath);
         },
       };
+      // QC-046: Gemini video understanding goes to a local fake (Files API and
+      // generateContent); no spec uses Gemini text, so all Gemini traffic goes there.
+      const geminiVideo = new FakeGeminiVideo();
+      resources.defer(() => geminiVideo.stop());
+      await geminiVideo.start();
       // Reuse the service test harness for MemorySecretStore and loopback ports.
       const backend = await startTestServer({
         home,
-        ai: { baseUrls: upstream.baseUrls() },
+        ai: {
+          baseUrls: { ...upstream.baseUrls(), gemini: geminiVideo.baseUrl() },
+          retryBaseMs: 10,
+          video: { chunkBytes: 256 * 1024, pollMs: 20, processingTimeoutMs: 5000 },
+        },
         assetLibrary: { trash: systemTrash },
       });
       resources.defer(() => backend.close());
@@ -121,6 +133,7 @@ export const test = base.extend<{ desktop: Desktop }>({
         profile,
         backend,
         upstream,
+        geminiVideo,
         systemTrash,
         relaunch,
       });

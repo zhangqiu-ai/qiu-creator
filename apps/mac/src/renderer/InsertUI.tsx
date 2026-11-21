@@ -1,7 +1,7 @@
 import type { CreatorHubClient } from '@qiu-creator/api-client';
 import type { AssetRecord } from '@qiu-creator/contracts';
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { thumbnailUrl } from '../shared/bridge.js';
+import { assetMediaUrl, thumbnailUrl } from '../shared/bridge.js';
 import type { PendingInsert } from './editor-insert.js';
 import { assetName } from './format.js';
 import { t } from './i18n.js';
@@ -243,6 +243,7 @@ export function AssetDrawer({
   onDragAsset,
   onClose,
   forPost = false,
+  kind = 'image',
 }: {
   client: CreatorHubClient;
   workId: string;
@@ -252,6 +253,8 @@ export function AssetDrawer({
   onClose: () => void;
   /** Image posts (QC-045): images join the grid, and closing goes back to the preview. */
   forPost?: boolean;
+  /** Videos for a video work (QC-046); images otherwise. */
+  kind?: 'image' | 'video';
 }) {
   const [scope, setScope] = useState<DrawerScope>('images');
   const [query, setQuery] = useState('');
@@ -271,11 +274,9 @@ export function AssetDrawer({
             .then((r) =>
               r.items
                 .map((i) => i.asset)
-                .filter((a) => a.kind === 'image' && (q === '' || nameOf(a).includes(q))),
+                .filter((a) => a.kind === kind && (q === '' || nameOf(a).includes(q))),
             )
-        : client.assets
-            .list({ kind: 'image', q: q === '' ? undefined : q, limit: 60 })
-            .then((r) => r.items);
+        : client.assets.list({ kind, q: q === '' ? undefined : q, limit: 60 }).then((r) => r.items);
     req
       .then((list) => {
         setItems(list);
@@ -284,7 +285,7 @@ export function AssetDrawer({
       .catch(() => {
         setFailed(true);
       });
-  }, [client, workId, scope, applied]);
+  }, [client, workId, scope, applied, kind]);
   useEffect(load, [load]);
 
   const move = (delta: number) => {
@@ -346,7 +347,7 @@ export function AssetDrawer({
         <div className="seg" role="group" aria-label={t('editor.scopeLabel')}>
           {(
             [
-              ['images', 'editor.scopeAllImages'],
+              ['images', kind === 'video' ? 'videoWork.scopeAllVideos' : 'editor.scopeAllImages'],
               ['work', 'editor.scopeThisWork'],
             ] as const
           ).map(([k, label]) => (
@@ -417,7 +418,11 @@ export function AssetDrawer({
               }}
             >
               <span className="drawer__thumb">
-                <img src={thumbnailUrl(a.id)} alt="" draggable={false} loading="lazy" />
+                {a.kind === 'video' ? (
+                  <video src={`${assetMediaUrl(a.id)}#t=0.5`} muted preload="metadata" />
+                ) : (
+                  <img src={thumbnailUrl(a.id)} alt="" draggable={false} loading="lazy" />
+                )}
               </span>
               <span className="drawer__name">{nameOf(a)}</span>
             </button>

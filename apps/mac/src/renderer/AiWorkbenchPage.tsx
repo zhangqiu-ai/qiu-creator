@@ -748,7 +748,7 @@ function VideoPicker({
   );
 }
 
-function ReuseDialog({ s, session }: { s: VideoState; session: VideoSession }) {
+export function ReuseDialog({ s, session }: { s: VideoState; session: VideoSession }) {
   const prev = s.previous;
   const max = s.estimate?.estimate.max_cost_usd ?? null;
   return (
@@ -799,8 +799,21 @@ function ReuseDialog({ s, session }: { s: VideoState; session: VideoSession }) {
   );
 }
 
-function ConfirmDialog({ s, session }: { s: VideoState; session: VideoSession }) {
+export function ConfirmDialog({
+  s,
+  session,
+  requireAck = false,
+}: {
+  s: VideoState;
+  session: VideoSession;
+  /**
+   * The video editor (QC-046): nothing is sent until the user ticks that the
+   * video goes to Google and the estimated cost is charged.
+   */
+  requireAck?: boolean;
+}) {
   const [busy, setBusy] = useState(false);
+  const [ack, setAck] = useState(false);
   const asset = s.asset;
   const est = s.estimate;
   if (asset === null) return null;
@@ -829,7 +842,7 @@ function ConfirmDialog({ s, session }: { s: VideoState; session: VideoSession })
             type="button"
             className="btn btn--primary"
             data-autofocus
-            disabled={busy || est === null}
+            disabled={busy || est === null || (requireAck && !ack)}
             onClick={() => {
               setBusy(true);
               void session.confirm().finally(() => {
@@ -915,6 +928,23 @@ function ConfirmDialog({ s, session }: { s: VideoState; session: VideoSession })
             </p>
           )}
         </section>
+        {requireAck && (
+          <label className="aiw-confirm__ack">
+            <input
+              type="checkbox"
+              checked={ack}
+              onChange={(e) => {
+                setAck(e.target.checked);
+              }}
+            />
+            <span>
+              {t('videoWork.ackSend', {
+                company: s.gemini?.company ?? 'Google',
+                max: est === null ? '—' : formatUsd(est.estimate.max_cost_usd),
+              })}
+            </span>
+          </label>
+        )}
         {s.confirmError !== null && (
           <p className="aiw__err" role="alert">
             {s.confirmError}

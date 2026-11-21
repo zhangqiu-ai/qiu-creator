@@ -22,6 +22,8 @@ export interface Draft {
   images?: readonly string[];
   /** Image works: the cover image's asset id; video works may use a frame. Null: none. */
   cover?: DraftCover | null;
+  /** Video works: the video's library asset id; null when none is chosen yet (QC-046). */
+  video?: string | null;
 }
 
 /** The cover in a draft: an image asset, or a frame of the video (QC-046). */
@@ -106,6 +108,7 @@ function draftOf(work: WorkDetail): Draft {
       .map((i) => i.asset_id)
       .filter((id): id is string => id !== null),
     cover: coverOf(work.media),
+    ...(work.type === 'video' ? { video: work.media?.video?.asset_id ?? null } : {}),
   };
 }
 
@@ -205,7 +208,8 @@ export class WorkSession {
       draft.status !== saved.status ||
       !sameTags(draft.tags, saved.tags) ||
       !sameTags(draft.images ?? [], saved.images ?? []) ||
-      !sameCover(draft.cover, saved.cover)
+      !sameCover(draft.cover, saved.cover) ||
+      (draft.video ?? null) !== (saved.video ?? null)
     );
   }
 
@@ -228,7 +232,8 @@ export class WorkSession {
       change.status !== undefined ||
       change.tags !== undefined ||
       change.images !== undefined ||
-      change.cover !== undefined;
+      change.cover !== undefined ||
+      change.video !== undefined;
     this.schedule(immediate ? 0 : this.autosaveMs);
   }
 
@@ -279,7 +284,14 @@ export class WorkSession {
       this.inFlight = null;
       const pending = this.pendingRemote;
       this.pendingRemote = null;
-      if (pending !== null) void this.remoteRevision(pending.revisionId, pending.source);
+      // On the next task, not now: the caller first adopts the work this request returned
+      // (restore, AI accept, adopting suggestions), so an SSE echo of our own revision that
+      // arrived meanwhile is recognised as ours instead of becoming a "changed elsewhere".
+      if (pending !== null) {
+        setTimeout(() => {
+          void this.remoteRevision(pending.revisionId, pending.source);
+        }, 0);
+      }
     }
   }
 
@@ -336,6 +348,7 @@ export class WorkSession {
       tags?: string[];
       images?: string[];
       cover?: DraftCover | null;
+      video_asset_id?: string | null;
     } = {};
     if (sent.title !== saved.title) changes.title = sent.title;
     if (sent.markdown !== saved.markdown) {
@@ -349,6 +362,9 @@ export class WorkSession {
       changes.images = [...(sent.images ?? [])];
     }
     if (this.typed && !sameCover(sent.cover, saved.cover)) changes.cover = sent.cover ?? null;
+    if (this.typed && (sent.video ?? null) !== (saved.video ?? null)) {
+      changes.video_asset_id = sent.video ?? null;
+    }
     const sentBase = this.state.baseRevision;
     this.set({ status: 'saving', error: null });
     try {
@@ -532,6 +548,45 @@ export class WorkSession {
         const latest = err.currentRevision ?? (await this.fetchServerVersion()).current_revision_id;
         this.toConflict(markdown, latest, sourceRevision);
         return 'conflict';
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * 採用 AI video suggestions (QC-046): save pending edits, then write the
+   * chosen title / description / cover as one `ai_accepted` revision tied to
+   * the analysis job. Returns the revision it replaced, for 復原 (restore it).
+   * A stale base (409) is not overwritten: the newer revision is surfaced.
+   */
+  async acceptSuggestion(
+    jobId: string,
+    change: { title?: string; description?: string; cover?: DraftCover | null },
+  ): Promise<{ result: AcceptResult; previousRevision: string | null }> {
+    if (this.state.readOnly !== null || this.state.status === 'conflict') {
+      return { result: 'blocked', previousRevision: null };
+    }
+    await this.save();
+    if (this.hasUnsavedChanges() || this.current().remote !== null) {
+      return { result: 'blocked', previousRevision: null };
+    }
+    const previous = this.state.baseRevision;
+    try {
+      const work = await this.exclusive(() =>
+        this.client.works.patch(this.state.workId, {
+          base_revision: previous,
+          ai_job_id: jobId,
+          ...change,
+        }),
+      );
+      if (this.disposed) return { result: 'accepted', previousRevision: previous };
+      this.adopt(work, true);
+      this.options.onSaved?.(work);
+      return { result: 'accepted', previousRevision: previous };
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409 && err.code === 'revision_conflict') {
+        await this.remoteRevision(err.currentRevision ?? '', 'other');
+        return { result: 'conflict', previousRevision: null };
       }
       throw err;
     }
