@@ -295,7 +295,10 @@
               "file": "Main.dc.html",
               "title": "Mac · 作品庫",
               "tweak": "狀態 = 外部檔案遺失",
-              "states": ["外部作品封面變灰", "「檔案遺失」標籤（網格與列表）"]
+              "states": [
+                "外部作品封面變灰",
+                "「檔案遺失」標籤（網格與列表）"
+              ]
             },
             {
               "file": "MacEditor.dc.html",
@@ -342,7 +345,9 @@
               "file": "MacEditor.dc.html",
               "title": "Mac · 編輯與 AI 改寫",
               "tweak": "狀態 = 外部掛載",
-              "states": ["標頭標籤「外部掛載 · ~/Documents/寫作」（hover 顯示完整檔案路徑）"]
+              "states": [
+                "標頭標籤「外部掛載 · ~/Documents/寫作」（hover 顯示完整檔案路徑）"
+              ]
             }
           ]
         },
@@ -426,7 +431,9 @@
               "file": "MacEditor.dc.html",
               "title": "Mac · 編輯與 AI 改寫",
               "tweak": "供應商 Tweak = Claude／Gemini／GPT",
-              "states": ["標籤「{名稱} · 雲端」，hover 說明依 Claude → Gemini → GPT 取第一個可用"]
+              "states": [
+                "標籤「{名稱} · 雲端」，hover 說明依 Claude → Gemini → GPT 取第一個可用"
+              ]
             }
           ]
         },
@@ -468,7 +475,9 @@
               "file": "MacEditor.dc.html",
               "title": "Mac · 編輯與 AI 改寫",
               "tweak": "標題分頁按寫入平台版本",
-              "states": ["結果訊息「已寫入 4 個版本（新建：小紅書、公眾號、抖音、視頻號）」"]
+              "states": [
+                "結果訊息「已寫入 4 個版本（新建：小紅書、公眾號、抖音、視頻號）」"
+              ]
             }
           ]
         },
@@ -479,7 +488,9 @@
               "file": "MacEditor.dc.html",
               "title": "Mac · 編輯與 AI 改寫",
               "tweak": "採用後按復原",
-              "states": ["回到無候選，提示「原稿已變更，請重新生成」，不再顯示舊候選與復原列"]
+              "states": [
+                "回到無候選，提示「原稿已變更，請重新生成」，不再顯示舊候選與復原列"
+              ]
             }
           ]
         },
@@ -505,7 +516,9 @@
               "file": "MacEditor.dc.html",
               "title": "Mac · 編輯與 AI 改寫",
               "tweak": "狀態 = 無選取",
-              "states": ["標籤「選取：全文 · N 字」，按鈕「改寫全文」；有選取時為「第 N 段」"]
+              "states": [
+                "標籤「選取：全文 · N 字」，按鈕「改寫全文」；有選取時為「第 N 段」"
+              ]
             }
           ]
         }
@@ -527,7 +540,12 @@
       "session": "qc-prototype",
       "requestedBy": "使用者 via 開發總監",
       "userRequest": "UI、UX 設計要符合優秀作品的，而不是隨便寫寫（2026-11-19）",
-      "tasks": ["QC-037", "QC-038", "QC-039", "QC-041"],
+      "tasks": [
+        "QC-037",
+        "QC-038",
+        "QC-039",
+        "QC-041"
+      ],
       "approvedBy": "qiu-creator 開發總監（使用者授權，見 docs/decisions.md 2026-11-19「UI 改進批次」）",
       "approvedAt": "2026-11-19",
       "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
@@ -560,8 +578,21 @@
           "file": "AssetsV2.dc.html",
           "title": "v2 · 素材庫：刪除與編輯",
           "tweaks": {
-            "state": ["正常", "刪除未引用", "刪除已引用", "刪除外部", "多選", "最近刪除"],
-            "side": ["展開", "收起", "最小寬度", "最大寬度", "服務異常"]
+            "state": [
+              "正常",
+              "刪除未引用",
+              "刪除已引用",
+              "刪除外部",
+              "多選",
+              "最近刪除"
+            ],
+            "side": [
+              "展開",
+              "收起",
+              "最小寬度",
+              "最大寬度",
+              "服務異常"
+            ]
           },
           "states": [
             "範圍：全部／未引用／最近刪除",
@@ -601,7 +632,11 @@
           "file": "SettingsV2.dc.html",
           "title": "v2 · 設定",
           "tweaks": {
-            "state": ["正常", "服務停止", "還原確認"]
+            "state": [
+              "正常",
+              "服務停止",
+              "還原確認"
+            ]
           },
           "states": [
             "左側分類：外觀、本機服務、備份與還原、AI 服務、資料夾、關於",
@@ -614,17 +649,23 @@
         {
           "file": "SettingsV2Dark.dc.html",
           "title": "v2 · 設定（深色）",
-          "states": ["dc-import SettingsV2，dark"]
+          "states": [
+            "dc-import SettingsV2，dark"
+          ]
         },
         {
           "file": "AssetsV2Dark.dc.html",
           "title": "v2 · 素材庫（深色）",
-          "states": ["dc-import AssetsV2，dark，多選"]
+          "states": [
+            "dc-import AssetsV2，dark，多選"
+          ]
         },
         {
           "file": "EditorInsertDark.dc.html",
           "title": "v2 · 插入素材（深色）",
-          "states": ["dc-import EditorInsert，dark，從抽屜拖入"]
+          "states": [
+            "dc-import EditorInsert，dark，從抽屜拖入"
+          ]
         }
       ],
       "decisions": [
@@ -723,14 +764,16 @@
       "id": "PT-20261121-001",
       "title": "新建選類型、貼圖編輯、視頻作品、多分頁編輯、三語版面",
       "date": "2026-11-21",
-      "status": "pending_director",
+      "status": "approved",
       "model": "claude-opus-5-5",
       "session": "qc-prototype",
       "requestedBy": "使用者 via 開發總監",
       "userRequest": "目前作品庫只能創建文章，我需要的是公眾號貼圖和視頻創作也要補齊……視頻創作就需要你自己去發散構思了。還有作品編輯界面目前只支持單個編輯，可以改成並行通過頂部標籤的方式來方便多個之間切換。（2026-11-21，見 docs/decisions.md）",
-      "tasks": ["QC-044"],
-      "approvedBy": null,
-      "approvedAt": null,
+      "tasks": [
+        "QC-044"
+      ],
+      "approvedBy": "開發總監（使用者授權，docs/decisions.md 2026-11-21「補齊貼圖、視頻創作，作品編輯改成多分頁」）",
+      "approvedAt": "2026-11-21",
       "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
       "baseCanvasVersion": "version id 1795274130-74a9",
       "canvasVersion": "41 (version id 1795275033-35aa)",
@@ -743,8 +786,18 @@
           "file": "NewType.dc.html",
           "title": "v3 · 新建：選類型與作品庫縮圖",
           "tweaks": {
-            "state": ["正常", "新建選單", "篩選貼圖", "篩選視頻", "視頻為空"],
-            "lang": ["繁中", "简中", "English"]
+            "state": [
+              "正常",
+              "新建選單",
+              "篩選貼圖",
+              "篩選視頻",
+              "視頻為空"
+            ],
+            "lang": [
+              "繁中",
+              "简中",
+              "English"
+            ]
           },
           "states": [
             "新建按鈕選單：文章／貼圖／視頻，↑↓ 選擇、1–3 直接選、↩ 建立、esc 關閉，⌘N 開啟",
@@ -767,7 +820,11 @@
               "拖曳排序",
               "封面設置"
             ],
-            "lang": ["繁中", "简中", "English"]
+            "lang": [
+              "繁中",
+              "简中",
+              "English"
+            ]
           },
           "states": [
             "圖片格 3:4，右下編號、封面標記，懸停：設為封面／移除",
@@ -809,7 +866,14 @@
           "file": "EditorTabs.dc.html",
           "title": "v3 · 多分頁編輯",
           "tweaks": {
-            "state": ["正常", "分頁很多", "關閉未存", "重複開啟", "重開恢復", "拖曳排序"]
+            "state": [
+              "正常",
+              "分頁很多",
+              "關閉未存",
+              "重複開啟",
+              "重開恢復",
+              "拖曳排序"
+            ]
           },
           "states": [
             "分頁列在側欄右側、作品標頭上方；AI 面板屬於分頁",
@@ -826,7 +890,9 @@
         {
           "file": "I18nNotes.dc.html",
           "title": "v3 · 三語版面",
-          "states": ["分頁、選類型、描述計數與平台上限在繁中／简中／English 的寬度與換行"]
+          "states": [
+            "分頁、選類型、描述計數與平台上限在繁中／简中／English 的寬度與換行"
+          ]
         },
         {
           "file": "NewTypeDark.dc.html",
@@ -958,43 +1024,76 @@
       "openQuestions": [
         {
           "q": "貼圖與視頻作品怎麼存？",
-          "options": ["Markdown＋front matter（source.md）", "JSON manifest＋另存描述"],
-          "recommend": "Markdown＋front matter：Finder 可讀，沿用現有 revision、409 與外部掛載。"
+          "options": [
+            "Markdown＋front matter（source.md）",
+            "JSON manifest＋另存描述"
+          ],
+          "recommend": "Markdown＋front matter：Finder 可讀，沿用現有 revision、409 與外部掛載。",
+          "resolved": true
         },
         {
           "q": "視頻封面幀從哪裡來？",
-          "options": ["App 從播放器截圖後上傳成素材", "服務端用 ffmpeg 擷取"],
-          "recommend": "App 截圖：不必把 ffmpeg 打包進服務，也避開授權問題。"
+          "options": [
+            "App 從播放器截圖後上傳成素材",
+            "服務端用 ffmpeg 擷取"
+          ],
+          "recommend": "App 截圖：不必把 ffmpeg 打包進服務，也避開授權問題。",
+          "resolved": true
         },
         {
           "q": "公眾號貼圖張數上限？",
-          "options": ["暫用 20，只提示", "不設上限"],
-          "recommend": "暫用 20 只提示，確認後寫進 PLATFORM_LIMITS。"
+          "options": [
+            "暫用 20，只提示",
+            "不設上限"
+          ],
+          "recommend": "暫用 20 只提示，確認後寫進 PLATFORM_LIMITS。",
+          "resolved": true
         },
         {
           "q": "視頻平台文案怎麼分？",
-          "options": ["共用文案＋各平台可覆寫", "各平台完全獨立"],
-          "recommend": "共用＋覆寫：多數時候只寫一次，視頻號標題 16 字再單獨改短。"
+          "options": [
+            "共用文案＋各平台可覆寫",
+            "各平台完全獨立"
+          ],
+          "recommend": "共用＋覆寫：多數時候只寫一次，視頻號標題 16 字再單獨改短。",
+          "resolved": true
         },
         {
           "q": "長視頻（超過 1 小時）預設怎麼分析？",
-          "options": ["低解析度分析全片", "只分析前 60 分鐘"],
-          "recommend": "低解析度全片：較便宜，且不漏掉後段。"
+          "options": [
+            "低解析度分析全片",
+            "只分析前 60 分鐘"
+          ],
+          "recommend": "低解析度全片：較便宜，且不漏掉後段。",
+          "resolved": true
         },
         {
           "q": "分頁數量要不要設上限？",
-          "options": ["不設上限，溢出時捲動加全部分頁選單", "上限 10，自動關閉最舊"],
-          "recommend": "不設上限：自動關閉可能關掉還在用的作品。"
+          "options": [
+            "不設上限，溢出時捲動加全部分頁選單",
+            "上限 10，自動關閉最舊"
+          ],
+          "recommend": "不設上限：自動關閉可能關掉還在用的作品。",
+          "resolved": true
         },
         {
           "q": "關閉未存分頁的選項？",
-          "options": ["重試儲存／不儲存並關閉／取消", "儲存／不儲存／取消"],
-          "recommend": "重試儲存：內容本來會自動儲存，未存只會出現在寫入失敗時。"
+          "options": [
+            "重試儲存／不儲存並關閉／取消",
+            "儲存／不儲存／取消"
+          ],
+          "recommend": "重試儲存：內容本來會自動儲存，未存只會出現在寫入失敗時。",
+          "resolved": true
         },
         {
           "q": "重開 App 時恢復分頁的方式？",
-          "options": ["全部恢復，只載入作用中的分頁", "全部恢復並立即載入", "不恢復"],
-          "recommend": "全部恢復、延後載入：開得快，分頁也都在。"
+          "options": [
+            "全部恢復，只載入作用中的分頁",
+            "全部恢復並立即載入",
+            "不恢復"
+          ],
+          "recommend": "全部恢復、延後載入：開得快，分頁也都在。",
+          "resolved": true
         },
         {
           "q": "英文介面裡的平台名稱？",
@@ -1002,15 +1101,33 @@
             "RED／WeChat OA／Douyin／Channels",
             "Xiaohongshu／WeChat Official Account／Douyin／WeChat Channels"
           ],
-          "recommend": "短名：計數列放得下；平台預覽內照平台原樣不翻譯。"
+          "recommend": "短名：計數列放得下；平台預覽內照平台原樣不翻譯。",
+          "resolved": true
         },
         {
           "q": "既有的混合類型作品怎麼顯示？",
-          "options": ["保留「混合」標籤，只出現在「全部」", "歸入文章"],
-          "recommend": "保留標籤：不改使用者資料，也不新增入口。"
+          "options": [
+            "保留「混合」標籤，只出現在「全部」",
+            "歸入文章"
+          ],
+          "recommend": "保留標籤：不改使用者資料，也不新增入口。",
+          "resolved": true
         }
       ],
-      "approvalNote": "使用者改由總監代為核准（docs/decisions.md 2026-11-21）"
+      "approvalNote": "使用者改由總監代為核准（docs/decisions.md 2026-11-21）",
+      "decisions": {
+        "貼圖與視頻作品怎麼存？": "Markdown＋front matter（推薦）。圖片與視頻照 QC-039 attach 複製到作品自己的 assets/，front matter 存相對路徑；外部掛載作品不寫入、不搬檔。",
+        "視頻封面幀從哪裡來？": "App 從播放器截圖後上傳成素材（推薦），不打包 ffmpeg。",
+        "公眾號貼圖張數上限？": "暫用 20，只提示不阻擋，寫進 PLATFORM_LIMITS 並標 reference。",
+        "視頻平台文案怎麼分？": "共用＋各平台可覆寫（推薦）。",
+        "長視頻（超過 1 小時）預設怎麼分析？": "低解析度全片（推薦）；仍須先顯示預估費用，使用者確認才送出。",
+        "分頁數量要不要設上限？": "不設上限（推薦）。另加：同時保持載入的編輯器最多 8 個，其餘分頁卸載成未載入狀態，草稿與游標先存起來，點選時再載入。",
+        "關閉未存分頁的選項？": "重試儲存／不儲存並關閉／取消（推薦），預設聚焦取消。",
+        "重開 App 時恢復分頁的方式？": "全部恢復、只載入作用中的分頁（推薦）。",
+        "英文介面裡的平台名稱？": "用短名，但小紅書用 RedNote（不用 RED）：RedNote／WeChat OA／Douyin／Channels；平台預覽內照平台原樣。",
+        "既有的混合類型作品怎麼顯示？": "保留「混合」標籤，只出現在「全部」（推薦）。"
+      },
+      "approvalCaveat": "總監核准時畫布無法讀取（artifact 網路錯誤），依 ledger 的畫板與狀態清單核准；施工時以畫布為準，畫布與 ledger 不一致時回報總監。畫布上的「待使用者核准」註記待網路恢復後由 qc-prototype 更新。"
     }
   ]
 }

@@ -1,5 +1,12 @@
 # Done
 
+## QC-044: 原型：貼圖／視頻創作與多分頁編輯
+
+**Priority:** P1 | **Assignee:** qc-prototype | **Tags:** M3, prototype | **Done:** 2026-11-21
+
+- PT-20261121-001，畫布第 41 版，9 張畫板（新建選類型、貼圖、視頻、多分頁、三語版面，及四張深色）。10 個待決問題由總監代為核准，決定記在 changes.json `decisions`。
+- 核准時畫布因網路錯誤讀不到，依 ledger 核准；施工以畫布為準。
+
 ## QC-042: 介面多語言（简体中文／繁體中文／English）
 
 **Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend | **Done:** 2026-11-21

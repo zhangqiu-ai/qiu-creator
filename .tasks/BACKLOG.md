@@ -1,13 +1,5 @@
 # Backlog
 
-## QC-044: 原型：貼圖／視頻創作與多分頁編輯
-
-**Priority:** P1 | **Assignee:** qc-prototype | **Tags:** M3, prototype
-
-依決策記錄 2026-11-21「補齊貼圖、視頻創作，作品編輯改成多分頁」畫 Mac 原型（淺色與深色）：新建選類型、貼圖編輯、視頻編輯、多分頁編輯，以及三種語言下的版面注意事項。列出後端需求（存放格式、API）。核准後才開 QC-045–047 施工。
-
-**Started:** 2026-11-21
-
 ## QC-045: 貼圖作品創作
 
 **Priority:** P1 | **Assignee:** qc-backend + qc-frontend | **Tags:** M3, backend, frontend
