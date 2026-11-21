@@ -5,6 +5,7 @@ import {
   BackupIdSchema,
   BackupSchema,
   type Backup,
+  type BackupFailureReason,
   type BackupKind,
   type ListBackupsResponse,
   type RestoreBackupResponse,
@@ -42,6 +43,29 @@ const PendingRestoreSchema = z.object({
 export type PendingRestore = z.infer<typeof PendingRestoreSchema>;
 
 const SidecarSchema = BackupSchema.omit({ id: true });
+
+/** A backup copy was made but did not pass `PRAGMA integrity_check`. */
+export class BackupIntegrityError extends Error {}
+
+/** Category of a backup failure for the interface (QC-043); the message stays the technical detail. */
+export function backupFailureReason(err: unknown): BackupFailureReason {
+  if (err instanceof BackupIntegrityError) return 'integrity_failed';
+  const code =
+    err instanceof Error && 'code' in err && typeof err.code === 'string' ? err.code : null;
+  if (code === null) return 'unknown';
+  if (['ENOSPC', 'EDQUOT', 'SQLITE_FULL'].includes(code)) return 'disk_full';
+  if (
+    ['EACCES', 'EPERM', 'EROFS', 'SQLITE_READONLY', 'SQLITE_PERM', 'SQLITE_CANTOPEN'].includes(code)
+  )
+    return 'permission_denied';
+  if (code.startsWith('SQLITE_CORRUPT') || code === 'SQLITE_NOTADB') return 'integrity_failed';
+  return 'io_error';
+}
+
+/** Untranslated technical text of a failure. */
+export function failureDetail(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 export function backupsDir(layout: Layout): string {
   return path.join(layout.home, 'backups');
@@ -172,6 +196,7 @@ export class BackupService {
   /** Backups run one at a time. */
   private chain: Promise<unknown> = Promise.resolve();
   private lastError: string | null = null;
+  private lastErrorReason: BackupFailureReason | null = null;
   private restoring = false;
   private stopped = false;
 
@@ -230,6 +255,7 @@ export class BackupService {
       last_daily_at: lastDaily?.created_at ?? null,
       next_daily_at: next.toISOString(),
       last_error: this.lastError,
+      last_error_reason: this.lastErrorReason,
     };
   }
 
@@ -248,16 +274,19 @@ export class BackupService {
     try {
       const backup = await this.create('daily');
       if (backup.integrity !== 'ok')
-        throw new Error(`backup ${backup.id} failed its integrity check`);
+        throw new BackupIntegrityError(`backup ${backup.id} failed its integrity check`);
       this.lastError = null;
+      this.lastErrorReason = null;
       return backup;
     } catch (err) {
       // Restoring or stopping is not a failure worth reporting.
       if (err instanceof ServiceError && err.code === 'restore_in_progress') return null;
       if (this.stopped || !this.db.open) return null;
-      this.lastError = err instanceof Error ? err.message : String(err);
+      this.lastError = failureDetail(err);
+      this.lastErrorReason = backupFailureReason(err);
       this.feed.record('system', 'database', 'backup.failed', {
         kind: 'daily',
+        reason: this.lastErrorReason,
         error: this.lastError,
       });
       return null;
@@ -361,21 +390,22 @@ export class BackupService {
     }
     // 409, not 5xx: the outcome is certain. Nothing was restored and the
     // database is unchanged, so the client can say so and offer to retry.
-    const refuse = (detail: string): ServiceError =>
+    const refuse = (err: unknown): ServiceError =>
       new ServiceError(
         409,
         'backup_failed',
         'could not make a sound backup of the current state; nothing was restored',
-        { detail },
+        { reason: backupFailureReason(err), detail: failureDetail(err) },
       );
     let safety: Backup;
     try {
       safety = await this.create('pre_restore');
     } catch (err) {
       if (err instanceof ServiceError) throw err;
-      throw refuse(err instanceof Error ? err.message : String(err));
+      throw refuse(err);
     }
-    if (safety.integrity !== 'ok') throw refuse(`backup ${safety.id} failed its integrity check`);
+    if (safety.integrity !== 'ok')
+      throw refuse(new BackupIntegrityError(`backup ${safety.id} failed its integrity check`));
     this.restoring = true;
     const marker = pendingFile(this.layout);
     try {

@@ -59,6 +59,8 @@ export class ProviderError extends Error {
     readonly code: AiFailureCode,
     message: string,
     readonly status?: number,
+    /** Untranslated technical detail (HTTP status, provider text), sanitized; null if none (QC-043). */
+    readonly detail: string | null = null,
   ) {
     super(message);
     this.name = 'ProviderError';
@@ -88,6 +90,7 @@ const READABLE: Readonly<Record<AiFailureCode, string>> = {
   invalid_output: '供應商回傳的結構化結果無法解析',
   file_processing_failed: '供應商無法處理上傳的視頻檔',
   source_unavailable: '素材檔案不存在或無法讀取',
+  credential_changed: '中轉站設定已變更，請手動重試',
   unknown: '未知錯誤',
 };
 
@@ -104,10 +107,14 @@ export function providerError(
   const base = READABLE[code];
   const clean = detail === undefined ? '' : sanitizeDetail(detail);
   const statusPart = status === undefined ? '' : ` (HTTP ${String(status)})`;
+  const technical = [status === undefined ? '' : `HTTP ${String(status)}`, clean]
+    .filter((p) => p !== '')
+    .join(': ');
   return new ProviderError(
     code,
     clean === '' ? `${base}${statusPart}` : `${base}${statusPart}：${clean}`,
     status,
+    technical === '' ? null : technical,
   );
 }
 

@@ -11,6 +11,7 @@ import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
 import { formatWhen } from './format.js';
 import { t } from './i18n.js';
+import { budgetWarningText, companyText, noticeText } from './server-text.js';
 import { Icon } from './Icon.js';
 
 /**
@@ -131,7 +132,7 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
           <span className="ln__v">
             {t('serviceSettings.aiProviderMeta', {
               use: PROVIDER_USE[p.provider],
-              company: p.company,
+              company: companyText(p),
             })}
           </span>
         </div>
@@ -299,10 +300,10 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
           <span className="ai-set__notice-title">
             <Icon name="alert" />
             {t(isNewApi ? 'serviceSettings.aiNoticeAgain' : 'serviceSettings.aiNoticeFirst', {
-              company: p.company,
+              company: companyText(p),
             })}
           </span>
-          <p className="ai-set__notice-text">{p.notice.text}</p>
+          <p className="ai-set__notice-text">{noticeText(p.notice)}</p>
           <button
             type="button"
             className="btn btn--primary btn--small"
@@ -358,7 +359,7 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
           }
         >
           <div className="form">
-            <p>{t('serviceSettings.aiWithdrawBody', { company: p.company })}</p>
+            <p>{t('serviceSettings.aiWithdrawBody', { company: companyText(p) })}</p>
             <p className="muted">{t('serviceSettings.aiWithdrawNote', { name: p.name })}</p>
           </div>
         </Dialog>
@@ -543,9 +544,9 @@ function BudgetCard({ store }: { store: AiSettingsStore }) {
                   amount: formatUsd(saved),
                 })}
           </span>
-          {budget?.over_budget === true && budget.warning !== null && (
+          {budget !== null && budgetWarningText(budget) !== null && (
             <span className="ai-budget__warn" role="status">
-              {budget.warning}
+              {budgetWarningText(budget)}
             </span>
           )}
           {error !== null && (

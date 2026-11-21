@@ -164,9 +164,11 @@ describe('New API gateway', () => {
     await ai.consent('new-api', b.notice.version, b.notice.credential_id);
 
     s.ai.start();
+    // QC-043: its own code, so the app can say it in the interface language.
     expect(await finished(s, queued.id)).toMatchObject({
       status: 'failed',
-      error_code: 'consent_required',
+      error_code: 'credential_changed',
+      error_detail: null,
     });
     expect(fake.for('new-api')).toHaveLength(0);
     await ai.retry(queued.id);
@@ -186,6 +188,8 @@ describe('New API gateway', () => {
     expect(failure.error).not.toContain(baseUrl);
     expect(failure.error).not.toContain(apiKey);
     expect(failure.error).not.toContain(jobRequest.input.prompt);
+    // The technical detail (QC-043) carries the status and nothing else.
+    expect(failure.error_detail).toBe('HTTP 400');
   });
 });
 

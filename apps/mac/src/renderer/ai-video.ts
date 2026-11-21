@@ -40,7 +40,7 @@ export interface VideoState {
   result: VideoUnderstandingResult | null;
   /** Latest succeeded analysis of this asset (for 沿用 and 查看上次結果). */
   previous: AiJobRecord | null;
-  failure: { code: AiFailureCode | null; message: string } | null;
+  failure: { code: AiFailureCode | null; message: string; detail?: string | null } | null;
 }
 
 /**
@@ -405,7 +405,11 @@ export class VideoSession {
         this.set({
           phase: 'failed',
           job,
-          failure: { code: job.error_code, message: job.error ?? t('ai.analyzeFailed') },
+          failure: {
+            code: job.error_code,
+            message: t('ai.analyzeFailed'),
+            detail: job.error_detail ?? null,
+          },
         });
         return;
       case 'cancelled':

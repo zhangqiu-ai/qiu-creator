@@ -65,7 +65,7 @@ describe('SQLite backups (QC-030)', () => {
     const { h, dir, client } = await host();
     await client.works.create({ title: '第一篇', markdown: '# 一\n' });
     const a = await client.backups.create();
-    expect(a).toMatchObject({ kind: 'manual', integrity: 'ok', schema_version: '0013' });
+    expect(a).toMatchObject({ kind: 'manual', integrity: 'ok', schema_version: '0014' });
     expect(a.size_bytes).toBeGreaterThan(0);
     const b = await client.backups.create();
     const list = await client.backups.list();
@@ -243,6 +243,9 @@ describe('SQLite backups (QC-030)', () => {
       const err = await apiError(client.backups.restore(backup.id));
       expect(err.status).toBe(409);
       expect(err.body?.error.code).toBe('backup_failed');
+      // QC-043: a reason for the interface sentence, the raw text as technical detail.
+      expect(err.body?.error.details).toMatchObject({ reason: 'permission_denied' });
+      expect(typeof err.body?.error.details?.['detail']).toBe('string');
     } finally {
       fs.chmodSync(backupsDir, 0o700);
     }

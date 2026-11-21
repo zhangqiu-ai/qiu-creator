@@ -421,4 +421,12 @@ export const migrations: readonly Migration[] = [
       CREATE INDEX assets_deleted_at ON assets (deleted_at) WHERE deleted_at IS NOT NULL;
     `,
   },
+  {
+    id: '0014',
+    name: 'ai_job_error_detail',
+    sql: /* sql */ `
+      -- QC-043: untranslated technical detail of an AI failure, apart from the 繁體 text.
+      ALTER TABLE ai_jobs ADD COLUMN error_detail TEXT;
+    `,
+  },
 ];

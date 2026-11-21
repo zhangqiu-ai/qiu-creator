@@ -35,6 +35,23 @@ export const BackupSchema = z.object({
 });
 export type Backup = z.infer<typeof BackupSchema>;
 
+/**
+ * Why a backup failed (QC-043), for a readable sentence in the interface
+ * language. The raw technical detail (an errno message) travels separately.
+ */
+export const BackupFailureReasonSchema = z.enum([
+  /** ENOSPC / EDQUOT. */
+  'disk_full',
+  /** EACCES / EPERM / EROFS. */
+  'permission_denied',
+  /** The copy was made but `PRAGMA integrity_check` failed. */
+  'integrity_failed',
+  /** Any other file-system error. */
+  'io_error',
+  'unknown',
+]);
+export type BackupFailureReason = z.infer<typeof BackupFailureReasonSchema>;
+
 export const ListBackupsResponseSchema = z.object({
   /** Newest first. */
   backups: z.array(BackupSchema),
@@ -45,8 +62,13 @@ export const ListBackupsResponseSchema = z.object({
   last_daily_at: TimestampSchema.nullable(),
   /** When the next daily backup is due (it runs at the first check after this time). */
   next_daily_at: TimestampSchema,
-  /** The last automatic backup failure since the service started, if the latest attempt failed. */
+  /**
+   * Technical detail (untranslated) of the last automatic backup failure since
+   * the service started, if the latest attempt failed.
+   */
   last_error: z.string().nullable(),
+  /** Category of `last_error`, null when there is none (QC-043). */
+  last_error_reason: BackupFailureReasonSchema.nullable().optional(),
 });
 export type ListBackupsResponse = z.infer<typeof ListBackupsResponseSchema>;
 
