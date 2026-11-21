@@ -13,6 +13,7 @@
 - 腳本與原始輸出：
   - `qc033-drill.mjs`、`qc033-drill-output.txt`
   - `qc033-sleepguard.mjs`、`qc033-sleepguard-output.txt`
+  - 2026-11-21 為了通過根目錄的 lint 與 prettier，兩支腳本做過格式化，空的 `catch` 補上註解、移除無用的初值。行為不變，輸出檔就是當時執行的原始輸出。
 - 結束後已關閉實例、刪除臨時目錄；7431 埠已釋放（`lsof` 為空）。
 
 ## 1. 原稿保護（寫入類，第二實例）

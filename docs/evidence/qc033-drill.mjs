@@ -42,7 +42,9 @@ async function health(timeoutMs = 15000) {
     try {
       const r = await fetch(`${BASE}/health`);
       if (r.ok) return true;
-    } catch {}
+    } catch {
+      // not listening yet; keep polling
+    }
     if (Date.now() > end) return false;
     await sleep(100);
   }
@@ -51,10 +53,10 @@ async function api(method, url, body, headers = {}) {
   let r;
   try {
     r = await fetch(`${BASE}/api/v1${url}`, {
-    method,
-    headers: { ...H, ...headers },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+      method,
+      headers: { ...H, ...headers },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
   } catch (e) {
     return { status: 0, json: { code: `network:${e.cause?.code ?? e.message}` } };
   }
@@ -62,7 +64,9 @@ async function api(method, url, body, headers = {}) {
   const text = await r.text();
   try {
     json = JSON.parse(text);
-  } catch {}
+  } catch {
+    // non-JSON body; keep json = null
+  }
   return { status: r.status, json };
 }
 const workDir = (id) => path.join(HOME, 'library', 'works', id);
@@ -78,7 +82,10 @@ function subscribe(lastEventId) {
   (async () => {
     try {
       const r = await fetch(`${BASE}/api/v1/events`, {
-        headers: { authorization: H.authorization, ...(lastEventId ? { 'last-event-id': String(lastEventId) } : {}) },
+        headers: {
+          authorization: H.authorization,
+          ...(lastEventId ? { 'last-event-id': String(lastEventId) } : {}),
+        },
         signal: ac.signal,
       });
       const dec = new TextDecoder();
@@ -97,17 +104,28 @@ function subscribe(lastEventId) {
           if (ev.event) events.push(ev);
         }
       }
-    } catch {}
+    } catch {
+      // stream aborted or reset (restore reload, close()); events so far are kept
+    }
   })();
   return { events, close: () => ac.abort() };
 }
 const pidAssertions = (pid) => {
-  let kids = [];
-  try { kids = execSync(`pgrep -P ${pid} caffeinate`, { encoding: 'utf8' }).trim().split('\n').filter(Boolean); } catch { return false; }
+  let kids;
+  try {
+    kids = execSync(`pgrep -P ${pid} caffeinate`, { encoding: 'utf8' })
+      .trim()
+      .split('\n')
+      .filter(Boolean);
+  } catch {
+    return false;
+  }
   const out = execSync('pmset -g assertions', { encoding: 'utf8' });
   return kids.some((k) => {
     const args = execSync(`ps -o args= -p ${k}`, { encoding: 'utf8' }).trim();
-    return args.includes(`-w ${pid}`) && args.includes('-i') && out.includes(`pid ${k}(caffeinate)`);
+    return (
+      args.includes(`-w ${pid}`) && args.includes('-i') && out.includes(`pid ${k}(caffeinate)`)
+    );
   });
 };
 
@@ -124,32 +142,72 @@ async function main() {
   const A = created.json;
   const r1 = A.current_revision_id;
   const p1 = await api('PATCH', `/works/${A.id}`, { base_revision: r1, markdown: '# A\n\nv2\n' });
-  check('PATCH with current base writes', p1.status === 200 && src(A.id) === '# A\n\nv2\n', `status ${p1.status}`);
+  check(
+    'PATCH with current base writes',
+    p1.status === 200 && src(A.id) === '# A\n\nv2\n',
+    `status ${p1.status}`,
+  );
   check('write-back leaves no temp files', leftovers(A.id) === 0, `leftovers ${leftovers(A.id)}`);
-  check('every revision has an immutable snapshot', snapshots(A.id) === 2, `snapshots ${snapshots(A.id)}`);
+  check(
+    'every revision has an immutable snapshot',
+    snapshots(A.id) === 2,
+    `snapshots ${snapshots(A.id)}`,
+  );
   const r2 = p1.json.current_revision_id;
-  const stale = await api('PATCH', `/works/${A.id}`, { base_revision: r1, markdown: 'stale overwrite' });
-  check('stale base_revision -> 409, file untouched', stale.status === 409 && src(A.id) === '# A\n\nv2\n', `status ${stale.status} code ${stale.json?.error?.code ?? stale.json?.code}`);
+  const stale = await api('PATCH', `/works/${A.id}`, {
+    base_revision: r1,
+    markdown: 'stale overwrite',
+  });
+  check(
+    'stale base_revision -> 409, file untouched',
+    stale.status === 409 && src(A.id) === '# A\n\nv2\n',
+    `status ${stale.status} code ${stale.json?.error?.code ?? stale.json?.code}`,
+  );
   fs.writeFileSync(path.join(workDir(A.id), 'source.md'), '# A\n\nedited outside\n');
-  const afterExt = await api('PATCH', `/works/${A.id}`, { base_revision: r2, markdown: 'would overwrite outside edit' });
+  const afterExt = await api('PATCH', `/works/${A.id}`, {
+    base_revision: r2,
+    markdown: 'would overwrite outside edit',
+  });
   const revs = (await api('GET', `/works/${A.id}/revisions`)).json.items;
-  check('outside edit + stale save -> 409, outside text kept and recorded', afterExt.status === 409 && src(A.id) === '# A\n\nedited outside\n' && revs.some((r) => r.source === 'external'), `status ${afterExt.status}; sources ${revs.map((r) => r.source).join(',')}`);
+  check(
+    'outside edit + stale save -> 409, outside text kept and recorded',
+    afterExt.status === 409 &&
+      src(A.id) === '# A\n\nedited outside\n' &&
+      revs.some((r) => r.source === 'external'),
+    `status ${afterExt.status}; sources ${revs.map((r) => r.source).join(',')}`,
+  );
   const cur = (await api('GET', `/works/${A.id}`)).json;
   const oldest = revs[revs.length - 1];
   const before = revs.length;
-  const rest = await api('POST', `/works/${A.id}/revisions/${oldest.revision_id}/restore`, { base_revision: cur.current_revision_id });
+  const rest = await api('POST', `/works/${A.id}/revisions/${oldest.revision_id}/restore`, {
+    base_revision: cur.current_revision_id,
+  });
   const revs2 = (await api('GET', `/works/${A.id}/revisions`)).json.items;
-  check('restoring history appends a new revision, keeps old ones', (rest.status === 200 || rest.status === 201) && revs2.length === before + 1 && revs2[0].source === 'restore' && src(A.id) === '# A\n\nv1\n', `status ${rest.status}; ${before} -> ${revs2.length}; top ${revs2[0]?.source}`);
+  check(
+    'restoring history appends a new revision, keeps old ones',
+    (rest.status === 200 || rest.status === 201) &&
+      revs2.length === before + 1 &&
+      revs2[0].source === 'restore' &&
+      src(A.id) === '# A\n\nv1\n',
+    `status ${rest.status}; ${before} -> ${revs2.length}; top ${revs2[0]?.source}`,
+  );
 
   // ---- 3. backup / restore drill ----
   const sse = subscribe();
   await sleep(300);
   const b1 = await api('POST', '/backups', {});
-  check('manual backup', (b1.status === 201 || b1.status === 200) && b1.json?.integrity === 'ok', `status ${b1.status} ${JSON.stringify(b1.json)}`);
+  check(
+    'manual backup',
+    (b1.status === 201 || b1.status === 200) && b1.json?.integrity === 'ok',
+    `status ${b1.status} ${JSON.stringify(b1.json)}`,
+  );
   const B1 = b1.json;
   const atB1 = src(A.id);
   const aAtB1 = (await api('GET', `/works/${A.id}`)).json;
-  await api('PATCH', `/works/${A.id}`, { base_revision: aAtB1.current_revision_id, markdown: '# A\n\nafter backup\n' });
+  await api('PATCH', `/works/${A.id}`, {
+    base_revision: aAtB1.current_revision_id,
+    markdown: '# A\n\nafter backup\n',
+  });
   const C = (await api('POST', '/works', { title: '演練 C', markdown: 'C\n' })).json;
   await sleep(300);
   const maxSeqBefore = Math.max(...sse.events.map((e) => e.id ?? 0));
@@ -158,16 +216,33 @@ async function main() {
   const during = await api('POST', '/works', { title: 'during restore', markdown: 'x' });
   const restore = await restoreP;
   console.log(t(), 'restore', restore.status, JSON.stringify(restore.json));
-  check('restore accepted (202) with pre_restore safety backup, in-process reload', restore.status === 202 && restore.json?.safety_backup?.kind === 'pre_restore' && restore.json?.reload === 'in_process', `status ${restore.status}`);
-  console.log(`write during restore -> ${during.status} ${during.json?.error?.code ?? during.json?.code ?? ''} (may be 201 if it won the race)`);
+  check(
+    'restore accepted (202) with pre_restore safety backup, in-process reload',
+    restore.status === 202 &&
+      restore.json?.safety_backup?.kind === 'pre_restore' &&
+      restore.json?.reload === 'in_process',
+    `status ${restore.status}`,
+  );
+  console.log(
+    `write during restore -> ${during.status} ${during.json?.error?.code ?? during.json?.code ?? ''} (may be 201 if it won the race)`,
+  );
   const writeDuring = await api('POST', '/works', { title: 'right after 202', markdown: 'x' });
-  console.log(`write right after 202 -> ${writeDuring.status} ${writeDuring.json?.error?.code ?? writeDuring.json?.code ?? ''}`);
-  results.push({ name: 'writes during restore', ok: true, detail: `concurrent ${during.status}; after-202 ${writeDuring.status} ${writeDuring.json?.error?.code ?? writeDuring.json?.code ?? ''}` });
+  console.log(
+    `write right after 202 -> ${writeDuring.status} ${writeDuring.json?.error?.code ?? writeDuring.json?.code ?? ''}`,
+  );
+  results.push({
+    name: 'writes during restore',
+    ok: true,
+    detail: `concurrent ${during.status}; after-202 ${writeDuring.status} ${writeDuring.json?.error?.code ?? writeDuring.json?.code ?? ''}`,
+  });
   // wait until works list served again
   let back = false;
   for (let i = 0; i < 200; i++) {
     const r = await api('GET', '/works?limit=200').catch(() => ({ status: 0 }));
-    if (r.status === 200) { back = true; break; }
+    if (r.status === 200) {
+      back = true;
+      break;
+    }
     await sleep(50);
   }
   console.log(`api back after ${Date.now() - tRestore} ms`);
@@ -180,7 +255,11 @@ async function main() {
   check('C gone from the database', !list.some((w) => w.id === C.id), `titles ${titles.join('|')}`);
   check('C folder kept on disk (not deleted)', fs.existsSync(workDir(C.id)));
   const bl = (await api('GET', '/backups')).json;
-  check('pre_restore backup listed', bl.backups.some((b) => b.kind === 'pre_restore'), bl.backups.map((b) => b.kind).join(','));
+  check(
+    'pre_restore backup listed',
+    bl.backups.some((b) => b.kind === 'pre_restore'),
+    bl.backups.map((b) => b.kind).join(','),
+  );
   await sleep(500);
   sse.close();
   const restoredEv = sse.events.find((e) => e.event === 'backup.restored');
@@ -190,40 +269,74 @@ async function main() {
   await sleep(800);
   sse2.close();
   const restored2 = sse2.events.find((e) => e.event === 'backup.restored');
-  check('reconnect with Last-Event-ID replays restore events, seq continues', restored2 !== undefined && restored2.id > maxSeqBefore, `first-stream started=${startedEv?.id} restored=${restoredEv?.id}; replay ${JSON.stringify(sse2.events.map((e) => [e.id, e.event]))}; maxBefore ${maxSeqBefore}`);
+  check(
+    'reconnect with Last-Event-ID replays restore events, seq continues',
+    restored2 !== undefined && restored2.id > maxSeqBefore,
+    `first-stream started=${startedEv?.id} restored=${restoredEv?.id}; replay ${JSON.stringify(sse2.events.map((e) => [e.id, e.event]))}; maxBefore ${maxSeqBefore}`,
+  );
   // undo: restore pre_restore
   const pre = bl.backups.find((b) => b.kind === 'pre_restore');
   const undo = await api('POST', `/backups/${pre.id}/restore`, { confirm: true });
-  for (let i = 0; i < 200; i++) { const r = await api('GET', '/works?limit=200').catch(() => ({ status: 0 })); if (r.status === 200) break; await sleep(50); }
+  for (let i = 0; i < 200; i++) {
+    const r = await api('GET', '/works?limit=200').catch(() => ({ status: 0 }));
+    if (r.status === 200) break;
+    await sleep(50);
+  }
   const list2 = (await api('GET', '/works?limit=200')).json.items;
   const aUndo = (await api('GET', `/works/${A.id}`)).json;
-  check('restoring the pre_restore backup brings back post-backup state', undo.status === 202 && list2.some((w) => w.id === C.id) && aUndo.markdown === '# A\n\nafter backup\n', `status ${undo.status}`);
+  check(
+    'restoring the pre_restore backup brings back post-backup state',
+    undo.status === 202 &&
+      list2.some((w) => w.id === C.id) &&
+      aUndo.markdown === '# A\n\nafter backup\n',
+    `status ${undo.status}`,
+  );
 
   // ---- kill -9 right after a restore was accepted ----
   const b2 = (await api('POST', '/backups', {})).json;
   const aB2 = (await api('GET', `/works/${A.id}`)).json;
-  await api('PATCH', `/works/${A.id}`, { base_revision: aB2.current_revision_id, markdown: '# A\n\nafter b2\n' });
+  await api('PATCH', `/works/${A.id}`, {
+    base_revision: aB2.current_revision_id,
+    markdown: '# A\n\nafter b2\n',
+  });
   const marker = path.join(HOME, 'data', 'restore-pending.json');
   const kp = api('POST', `/backups/${b2.id}/restore`, { confirm: true });
   // kill as soon as the marker exists
   let markerSeen = false;
-  for (let i = 0; i < 400; i++) { if (fs.existsSync(marker)) { markerSeen = true; break; } await sleep(2); }
+  for (let i = 0; i < 400; i++) {
+    if (fs.existsSync(marker)) {
+      markerSeen = true;
+      break;
+    }
+    await sleep(2);
+  }
   const oldPid = child.pid;
   child.kill('SIGKILL');
   await kp.catch(() => null);
   await sleep(300);
   const markerAfterKill = fs.existsSync(marker);
-  console.log(`marker seen ${markerSeen}; marker present after kill ${markerAfterKill}; killed ${oldPid}`);
+  console.log(
+    `marker seen ${markerSeen}; marker present after kill ${markerAfterKill}; killed ${oldPid}`,
+  );
   startServer();
   const up = await health();
   const aK = (await api('GET', `/works/${A.id}`)).json;
-  check('kill -9 during restore: restart applies or completes it, marker cleared', up && aK.markdown === atB1Of(b2) && !fs.existsSync(marker), `marker at kill ${markerAfterKill}; A=${JSON.stringify(aK.markdown)}`);
+  check(
+    'kill -9 during restore: restart applies or completes it, marker cleared',
+    up && aK.markdown === atB1Of(b2) && !fs.existsSync(marker),
+    `marker at kill ${markerAfterKill}; A=${JSON.stringify(aK.markdown)}`,
+  );
 
   // ---- 5. sleep guard during a slow tus upload ----
   const size = 3 * 1024 * 1024;
   const create = await fetch(`${BASE}/api/v1/assets/uploads/tus`, {
     method: 'POST',
-    headers: { authorization: H.authorization, 'tus-resumable': '1.0.0', 'upload-length': String(size), 'upload-metadata': `filename ${Buffer.from('drill.bin').toString('base64')}` },
+    headers: {
+      authorization: H.authorization,
+      'tus-resumable': '1.0.0',
+      'upload-length': String(size),
+      'upload-metadata': `filename ${Buffer.from('drill.bin').toString('base64')}`,
+    },
   });
   const loc = create.headers.get('location');
   check('tus upload created', create.status === 201 && loc !== null, `status ${create.status}`);
@@ -233,7 +346,16 @@ async function main() {
   const chunk = 256 * 1024;
   while (offset < size) {
     const body = randomBytes(Math.min(chunk, size - offset));
-    const r = await fetch(url, { method: 'PATCH', headers: { authorization: H.authorization, 'tus-resumable': '1.0.0', 'upload-offset': String(offset), 'content-type': 'application/offset+octet-stream' }, body });
+    const r = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        authorization: H.authorization,
+        'tus-resumable': '1.0.0',
+        'upload-offset': String(offset),
+        'content-type': 'application/offset+octet-stream',
+      },
+      body,
+    });
     offset = Number(r.headers.get('upload-offset'));
     if (pidAssertions(child.pid)) heldDuring = true;
     await sleep(700);
@@ -251,10 +373,16 @@ async function main() {
   console.log(`SUMMARY ${results.filter((r) => r.ok).length}/${results.length} pass`);
 }
 // A's content at backup b2 time was '# A\n\nafter backup\n' (state after undo)
-function atB1Of() { return '# A\n\nafter backup\n'; }
+function atB1Of() {
+  return '# A\n\nafter backup\n';
+}
 
 main().catch((e) => {
   console.error('DRILL ERROR', e);
-  try { child?.kill('SIGKILL'); } catch {}
+  try {
+    child?.kill('SIGKILL');
+  } catch {
+    // already gone
+  }
   process.exitCode = 1;
 });
