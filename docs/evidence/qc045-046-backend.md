@@ -1,6 +1,6 @@
 # QC-045／046 驗收記錄（後端）：貼圖與視頻作品
 
-日期：2026-11-21　分支：`feat/qc045-046-works-backend`（從 `origin/main` decf254 開）　worktree：`/Users/feature/code/qiu-creator-qc045b`
+日期：2026-11-21　分支：`feat/qc045-046-works-backend`（從 `origin/main` decf254 開，2026-11-21 rebase 到 be89e30，含 QC-043）　worktree：`/Users/feature/code/qiu-creator-qc045b`
 
 依據：原型 PT-20261121-001（已核准）在 `docs/design/prototype/changes.json` 的 `backendNeeds` 與 `decisions`。
 
@@ -92,23 +92,30 @@
 
 ## 4. 閘門
 
-在 HEAD `145f6d1` 上執行：
+rebase 到 be89e30（含 QC-043）後，在 HEAD `d228de5` 上重跑：
 
 | 閘門 | 結果 |
 | --- | --- |
 | `pnpm typecheck`（`pnpm -r typecheck` 加 e2e 的 tsc） | 通過 |
 | `pnpm -r lint` | 通過 |
-| `prettier --check`（本任務改動的檔案） | 通過 |
-| `pnpm -r --workspace-concurrency=1 --no-bail test` | **816 passed／0 failed／816 total** |
-| e2e（全部 spec，回歸用，本任務沒有改介面） | **8 passed／0 failed／8 total** |
+| `prettier --check`（本分支改動的檔案） | 通過 |
+| `pnpm -r --workspace-concurrency=1 --no-bail test` | **831 passed／0 failed／831 total** |
+| e2e（全部 spec，含 QC-043 的 `server-text`） | **9 passed／0 failed／9 total** |
 
-- 全倉測試：2026-11-21 07:56:35–07:57:16（PST），開始時 1 分鐘負載 3.78，持全倉鎖。
-- e2e：07:57:17–07:58:06，持 e2e 鎖。
+- 全倉測試：2026-11-21 08:02:05–08:02:34（PST），開始時 1 分鐘負載 13.40，持全倉鎖。
+- e2e：08:02:34–08:03:23，持 e2e 鎖。
 - 兩個鎖跑完都已釋放。
+- rebase 前（decf254 上）的結果是 816／0／816 與 8／0／8，已被這次取代。
+
+**衝突處理**：
+
+- 遷移照順序放：`0014_ai_job_error_detail`（QC-043），然後 `0015_typed_works_media`。
+- `backups.test.ts` 保留 QC-043 對 `details.reason` 的斷言，`schema_version` 改成 `0015`，沒有放寬。
+- `docs/architecture.md` 兩個遷移都列出。
 
 | 套件 | passed／total |
 | --- | --- |
-| contracts | 19／19 |
+| contracts | 21／21 |
 | design-tokens | 5／5 |
 | domain | 34／34 |
 | i18n | 29／29 |
@@ -116,8 +123,8 @@
 | api-client | 20／20 |
 | markdown-editor-web | 28／28 |
 | platform-preview | 12／12 |
-| mac-server | 388／388 |
-| apps/mac | 236／236 |
+| mac-server | 393／393 |
+| apps/mac | 244／244 |
 | agent-sdk | 6／6 |
 
 ## 5. NOT_VERIFIED 與給前端的注意事項
@@ -127,4 +134,4 @@
 - **新建作品必須帶 `title`**（第 2 節）。
 - `thumbnail.asset_id` 可能是 null，這時用 `path` 經 `/api/v1/works/:id/files/…` 或簽名網址取圖。
 - 平台版本在 `inherit: true` 時，`title`／`body`／`tags` 是算出來的共用文案；要編輯版本自己的文字，前端應先關掉沿用。
-- 範圍外發現：平台版本的 `warnings[].message` 仍是服務端產生的繁體文字（`checkVariantLimits`）。它已經有 `code`、`limit`、`actual`，介面可以自己組句，建議併入 QC-043 一類的後續處理。
+- 範圍外發現：平台版本的 `warnings[].message` 仍是服務端產生的繁體文字（`checkVariantLimits`）。它已經有 `code`、`limit`、`actual`，介面可以自己組句，總監已併入 QC-048。契約 `VariantWarningSchema` 的 `code`、`limit`、`actual` 都是必填；公眾號貼圖的 `limit` 是 20。
