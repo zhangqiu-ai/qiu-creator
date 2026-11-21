@@ -1,5 +1,12 @@
 # Done
 
+## QC-046: 視頻作品創作
+
+**Priority:** P1 | **Assignee:** qc-backend + qc-frontend | **Tags:** M3, backend, frontend | **Done:** 2026-11-21
+
+- 後端見 QC-045／046 後端合併。前端：新建視頻、選取或上傳視頻、播放器與重點時間點時間軸、8 格幀條與「用目前畫面」由 App 截圖當封面、抖音 3:4／視頻號 6:7 裁切、共用文案加平台覆寫（inherit）、抖音／視頻號預覽。Gemini 理解：預估費用＋勾選同意才送出、長視頻預設低解析度、超過 2 GB 或 3 小時事前阻擋、失敗重試、建議先看 diff 再採用（ai_accepted，可復原）、時間點「待核驗」「超出片長」。`qc-asset://` CORS 只放行本 App。順修 SSE 回音被當成別處修改的順序問題。
+- 全倉 885／0／885、e2e 18／18，全用假 Gemini。證據 `docs/evidence/qc046-video-work.md`。小修開為 QC-050。
+
 ## QC-049: sidebar.spec 不穩定與貼圖預覽橫向捲軸
 
 **Priority:** P3 | **Assignee:** qc-bugfix | **Tags:** M3, bug | **Done:** 2026-11-21

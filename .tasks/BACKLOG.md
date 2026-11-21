@@ -1,20 +1,12 @@
 # Backlog
 
-## QC-046: 視頻作品創作
+## QC-050: 視頻作品小修：用語與封面建議
 
-**Priority:** P1 | **Assignee:** qc-backend + qc-frontend | **Tags:** M3, backend, frontend
+**Priority:** P3 | **Assignee:** qc-frontend | **Tags:** M3, frontend
 
-依 QC-044 核准的原型實作視頻作品：選取或上傳視頻、封面、文案、Gemini 理解候選、抖音與視頻號版本與預覽。
-
-### Plan（前端，qc-frontend）
-
-- `work-session.ts`：草稿加 `video`；`acceptSuggestion` 以 `ai_job_id` 寫成 `ai_accepted` 版本，並回傳前一個版本供復原。
-- `ai-video.ts`：`VideoSession` 帶 `work_id`；`AiWorkbenchPage` 的確認框加 `requireAck`（勾選同意才送出）。
-- `variant-session.ts`：`setInherit`，讓抖音、視頻號沿用共用文案或改寫。
-- `frames.ts`：從播放器截圖；`upload-wait.ts`：上傳並等待素材；主程序 `qc-asset://` 只對本 App 的 origin 開 CORS。
-- `video-work.ts`：幀時間、←→、分析前的阻擋（上傳中、>2 GB、>3 小時）、長視頻、文案字數等純規則；`VideoWorkEditor.tsx` 放進 QC-047 的 `TabPane`。
-- 新建選單啟用視頻。三語文案 `videoWork`。
-- 測試：`video-work.test.ts`（真服務加假 Gemini），e2e `video-work.spec.ts`（fixture 加 `FakeGeminiVideo`）；證據 `docs/evidence/qc046-video-work.md`。
+- 繁中文案「影片」與專案用語「視頻」不一致（例如 Gemini 確認框「影片會傳到 Google 處理」）；全面檢查 `packages/i18n` 繁中與简中用語，依 GLOSSARY 統一。
+- 封面建議的時間點超出片長時（例如 0:12 而片長 0:08），「查看並採用」已停用但沒有標「超出片長」，比照重點時間點補上。
+- 時間軸上的封面標記（原型有）：需要記錄封面來自哪一秒，評估是否要後端欄位。
 
 ## QC-028: 畫布同步已實作的 M3 狀態與既有差異
 
