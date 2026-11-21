@@ -718,6 +718,298 @@
         "Resolved by director: 發布中心 hidden until M4; Agent API status lives in the service-dot popover.",
         "Resolved by director: theme defaults to follow system."
       ]
+    },
+    {
+      "id": "PT-20261121-001",
+      "title": "新建選類型、貼圖編輯、視頻作品、多分頁編輯、三語版面",
+      "date": "2026-11-21",
+      "status": "pending_user",
+      "model": "claude-opus-5-5",
+      "session": "qc-prototype",
+      "requestedBy": "使用者 via 開發總監",
+      "userRequest": "目前作品庫只能創建文章，我需要的是公眾號貼圖和視頻創作也要補齊……視頻創作就需要你自己去發散構思了。還有作品編輯界面目前只支持單個編輯，可以改成並行通過頂部標籤的方式來方便多個之間切換。（2026-11-21，見 docs/decisions.md）",
+      "tasks": ["QC-044"],
+      "approvedBy": null,
+      "approvedAt": null,
+      "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "baseCanvasVersion": "version id 1795274130-74a9",
+      "canvasVersion": "41 (version id 1795275033-35aa)",
+      "sharedStylesheets": [
+        "/_blob/ce383cde01b175413fc4b99a21feb132 (qc-v2.css)",
+        "/_blob/a801184fe6d1b75f3cf8e2f73e8e3dc4 (qc-v3.css: tabs, image grid, video)"
+      ],
+      "boards": [
+        {
+          "file": "NewType.dc.html",
+          "title": "v3 · 新建：選類型與作品庫縮圖",
+          "tweaks": {
+            "state": ["正常", "新建選單", "篩選貼圖", "篩選視頻", "視頻為空"],
+            "lang": ["繁中", "简中", "English"]
+          },
+          "states": [
+            "新建按鈕選單：文章／貼圖／視頻，↑↓ 選擇、1–3 直接選、↩ 建立、esc 關閉，⌘N 開啟",
+            "類型篩選含數量",
+            "卡片縮圖：貼圖用第一張圖＋張數、視頻用封面幀＋時長＋直式／橫式、無封面文章用文字摘要",
+            "某類型為空時的空狀態＋新建該類型"
+          ]
+        },
+        {
+          "file": "ImagePost.dc.html",
+          "title": "v3 · 貼圖編輯",
+          "tweaks": {
+            "state": [
+              "正常",
+              "新建空白",
+              "上傳中",
+              "上傳失敗",
+              "檔案遺失",
+              "超出上限",
+              "拖曳排序",
+              "封面設置"
+            ],
+            "lang": ["繁中", "简中", "English"]
+          },
+          "states": [
+            "圖片格 3:4，右下編號、封面標記，懸停：設為封面／移除",
+            "拖曳排序（插入線）、⌥←→ 鍵盤移動、⌫ 移除＋復原",
+            "＋ 格：從素材庫、上傳、⌘V、Finder 拖入；右側素材分頁點選或拖入",
+            "上傳中進度環、上傳失敗重試／移除、檔案遺失重新指定",
+            "各平台張數 chip；超出的圖片變淡加虛線＋「只提示，不阻擋儲存」",
+            "封面設置：從圖中選或另外上傳，3:4／1:1／2.35:1 裁切預覽",
+            "標題（各平台字數）、描述（字數）、話題、狀態、歷史、平台預覽入口與側邊模擬預覽"
+          ]
+        },
+        {
+          "file": "VideoWork.dc.html",
+          "title": "v3 · 視頻作品",
+          "tweaks": {
+            "state": [
+              "已分析",
+              "尚未選視頻",
+              "上傳中",
+              "未分析",
+              "分析中",
+              "分析失敗",
+              "長視頻",
+              "大檔案",
+              "建議待確認"
+            ]
+          },
+          "states": [
+            "播放器（直式視頻置中）、時間軸含重點時間點與封面標記，←→ 5 秒",
+            "封面：8 格幀條點選、用目前畫面、另外上傳；抖音 3:4、視頻號 6:7 裁切預覽",
+            "文案：共用／抖音／視頻號；平台可沿用共用或覆寫；標題各平台字數、簡介字數、話題數",
+            "AI 理解（Gemini）：上傳告知＋勾選同意＋預估費用 → 上傳／分析進度 → 摘要、重點時間點（點選跳轉）、標題／簡介／封面建議",
+            "建議先開 diff 確認框再採用，採用可復原；時間點標「待核驗」",
+            "長視頻：低解析度全片或只分析前 60 分鐘；大檔案（>2 GB）無法分析；上傳中鎖封面與分析；分析失敗重試",
+            "預覽分頁：抖音、視頻號模擬"
+          ]
+        },
+        {
+          "file": "EditorTabs.dc.html",
+          "title": "v3 · 多分頁編輯",
+          "tweaks": {
+            "state": ["正常", "分頁很多", "關閉未存", "重複開啟", "重開恢復", "拖曳排序"]
+          },
+          "states": [
+            "分頁列在側欄右側、作品標頭上方；AI 面板屬於分頁",
+            "分頁：類型圖示、標題截斷＋tooltip、未存點（懸停變關閉）、衝突紅三角、AI 候選星號",
+            "溢出：右緣漸隱＋可捲動＋「N ⌄」全部分頁選單（搜尋、狀態、⌘ 編號、關閉其他）",
+            "拖曳排序（插入線）",
+            "切換保留模式、草稿、游標、AI 面板開合；未載入的分頁以斜體顯示，點選才載入",
+            "重複開啟：聚焦既有分頁並閃一下＋提示",
+            "關閉未存：重試儲存／不儲存並關閉／取消（取消預設聚焦）；關閉後可「重新開啟」",
+            "重開恢復：提示「已恢復上次的 N 個分頁」＋全部關閉",
+            "快捷鍵：⌘1–8、⌘9 最後一個、⌘⇧[ ]、⌘W、分頁列 ←→"
+          ]
+        },
+        {
+          "file": "I18nNotes.dc.html",
+          "title": "v3 · 三語版面",
+          "states": ["分頁、選類型、描述計數與平台上限在繁中／简中／English 的寬度與換行"]
+        },
+        {
+          "file": "NewTypeDark.dc.html",
+          "title": "v3 · 新建（深色）"
+        },
+        {
+          "file": "ImagePostDark.dc.html",
+          "title": "v3 · 貼圖編輯（深色）"
+        },
+        {
+          "file": "VideoWorkDark.dc.html",
+          "title": "v3 · 視頻作品（深色）"
+        },
+        {
+          "file": "EditorTabsDark.dc.html",
+          "title": "v3 · 多分頁（深色）"
+        }
+      ],
+      "backendNeeds": {
+        "storage": [
+          "Image post and video works stay Markdown-first: library/works/<id>/source.md with YAML front matter (type, title, images: ordered relative paths, cover: path or {time_seconds}, video: path, tags); the body is the plain-text description. Media live in the work's assets/ folder as files. Revisions snapshot source.md; every write carries base_revision / If-Match and returns 409 on a stale base.",
+          "External (mounted) folders keep the same front matter in the user's .md; media are referenced in place, never moved.",
+          "Per-platform copy reuses PlatformVariant (title, body, tags, cover_asset_id) plus an 'inherit' flag so a variant can follow the shared copy."
+        ],
+        "api": [
+          "POST /api/v1/works {type: article|image|video, title?} — create by type.",
+          "PATCH /api/v1/works/:id {base_revision, title?, description?, tags?, images?: asset_id[] (full ordered list), cover?: {asset_id}|{time_seconds}, video_asset_id?} — one atomic, revisioned write; 409 on stale base.",
+          "GET /api/v1/works list items gain thumbnail {asset_id, kind, time_seconds?}, image_count, duration_seconds, orientation.",
+          "Cover frame: recommended client-side capture from the <video> element, uploaded as a normal image asset (no ffmpeg); alternative GET /api/v1/assets/:id/frame?t= needs ffmpeg in the server bundle.",
+          "PATCH /api/v1/works/:id/variants/:platform gains images?, cover?, inherit?.",
+          "Video understanding reuses the QC-023 AI job + estimate endpoints with the work's video asset; adopting a suggestion is a normal PATCH that creates an ai_accepted revision.",
+          "Missing media: list responses mark image/video refs as missing (existing MediaRef status) so the editor can show 檔案遺失.",
+          "Tabs are client-only (app preferences: ordered work ids, active id, per-tab mode); restore uses GET /api/v1/works?ids=… to fetch titles/state in one call."
+        ],
+        "limits": {
+          "source": "packages/contracts PLATFORM_LIMITS (reference values, warn-only)",
+          "xiaohongshu": {
+            "titleMaxChars": 20,
+            "bodyMaxChars": 1000,
+            "imagesMax": 18,
+            "tagsMax": 10
+          },
+          "wechat_mp": {
+            "titleMaxChars": 64,
+            "bodyMaxChars": 20000,
+            "imagesMax": null,
+            "imagePostImagesMax_proposed": 20,
+            "note": "公眾號貼圖張數不在 contracts；原型暫用 20，需確認後補進 PLATFORM_LIMITS"
+          },
+          "douyin": {
+            "titleMaxChars": 30,
+            "bodyMaxChars": 1000,
+            "imagesMax": 35,
+            "tagsMax": 5
+          },
+          "wechat_channels": {
+            "titleMaxChars": 16,
+            "bodyMaxChars": 1000,
+            "imagesMax": 9
+          },
+          "gemini_video": "GEMINI_VIDEO_LIMITS: 2 GB per file, ~1 h at default resolution, ~3 h at low"
+        }
+      },
+      "references": [
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-lumno-tab-switcher/case.md",
+          "kind": "product",
+          "borrowed": "Make the selected tab and the switch target explicit; define close and shortcut-conflict behaviour.",
+          "adaptation": "Fixed-position tabs with ⌘1–9 and ⌘⇧[ ] instead of an MRU switcher; the overflow menu lists every tab with its state."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-kaze-nondisruptive-browser/case.md",
+          "kind": "product",
+          "borrowed": "Name each tab by its task and show its running state; offer cleanup.",
+          "adaptation": "Tab badges for unsaved, conflict and AI candidates; 「關閉其他分頁」 keeps unsaved tabs."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-005-drag-sort/case.md",
+          "kind": "concept",
+          "borrowed": "Insertion line for drag reorder, with a keyboard alternative.",
+          "adaptation": "Image grid and tab bar both show an accent insertion line; images also move with ⌥←→."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-timeline-content-interactions/case.md",
+          "kind": "concept",
+          "borrowed": "Scrub a timeline to pick frames; keep changes near the content.",
+          "adaptation": "Cover picked from a frame strip or the current playhead; key moments sit on the scrubber."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/wechat-cover-multiple-crop-safe-area/case.md",
+          "kind": "concept",
+          "borrowed": "One cover serves several crops; check each crop's safe area.",
+          "adaptation": "Cover dialogs preview 3:4, 1:1, 2.35:1 (image post) and 3:4 / 6:7 (video)."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/baocut-watermark-preview-inspector/case.md",
+          "kind": "concept",
+          "borrowed": "Preview, inspector and timeline reference the same selection.",
+          "adaptation": "Clicking a key moment seeks the player and highlights its marker; cover marker shares the scrubber."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/screenkite-drop-assets-into-timeline/case.md",
+          "kind": "product",
+          "borrowed": "Drag files in with a visible drop point and button/keyboard alternatives.",
+          "adaptation": "Image grid accepts library and Finder drops; ＋ tile and ⌘⇧I give non-drag paths."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-017-waiting-states/case.md",
+          "kind": "concept",
+          "borrowed": "Progress for uploads, retry in place.",
+          "adaptation": "Per-image progress ring and failure overlay; video upload progress locks cover and AI only."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/agent-risk-confirmation-button-semantics/case.md",
+          "kind": "concept",
+          "borrowed": "Specific verbs, cancel as default focus.",
+          "adaptation": "Close-unsaved dialog: 「重試儲存」「不儲存並關閉」「取消」."
+        }
+      ],
+      "verified": [
+        "Static checks on all new artboards: tag balance, script syntax (node --check), data-props JSON — pass.",
+        "Colors only from approved tokens; overlays use white on ≥55% black or on #B42318."
+      ],
+      "notVerified": [
+        "NOT_VERIFIED: rendering and interactions in the live canvas (built-in browser cannot load claude.ai artifacts).",
+        "NOT_VERIFIED: dark boards rely on dc-import passing dark and on the shared stylesheets loading in the importer.",
+        "NOT_VERIFIED: HTML5 drag-and-drop, pointer seeking and document-level focus calls inside the canvas sandbox."
+      ],
+      "openQuestions": [
+        {
+          "q": "貼圖與視頻作品怎麼存？",
+          "options": ["Markdown＋front matter（source.md）", "JSON manifest＋另存描述"],
+          "recommend": "Markdown＋front matter：Finder 可讀，沿用現有 revision、409 與外部掛載。"
+        },
+        {
+          "q": "視頻封面幀從哪裡來？",
+          "options": ["App 從播放器截圖後上傳成素材", "服務端用 ffmpeg 擷取"],
+          "recommend": "App 截圖：不必把 ffmpeg 打包進服務，也避開授權問題。"
+        },
+        {
+          "q": "公眾號貼圖張數上限？",
+          "options": ["暫用 20，只提示", "不設上限"],
+          "recommend": "暫用 20 只提示，確認後寫進 PLATFORM_LIMITS。"
+        },
+        {
+          "q": "視頻平台文案怎麼分？",
+          "options": ["共用文案＋各平台可覆寫", "各平台完全獨立"],
+          "recommend": "共用＋覆寫：多數時候只寫一次，視頻號標題 16 字再單獨改短。"
+        },
+        {
+          "q": "長視頻（超過 1 小時）預設怎麼分析？",
+          "options": ["低解析度分析全片", "只分析前 60 分鐘"],
+          "recommend": "低解析度全片：較便宜，且不漏掉後段。"
+        },
+        {
+          "q": "分頁數量要不要設上限？",
+          "options": ["不設上限，溢出時捲動加全部分頁選單", "上限 10，自動關閉最舊"],
+          "recommend": "不設上限：自動關閉可能關掉還在用的作品。"
+        },
+        {
+          "q": "關閉未存分頁的選項？",
+          "options": ["重試儲存／不儲存並關閉／取消", "儲存／不儲存／取消"],
+          "recommend": "重試儲存：內容本來會自動儲存，未存只會出現在寫入失敗時。"
+        },
+        {
+          "q": "重開 App 時恢復分頁的方式？",
+          "options": ["全部恢復，只載入作用中的分頁", "全部恢復並立即載入", "不恢復"],
+          "recommend": "全部恢復、延後載入：開得快，分頁也都在。"
+        },
+        {
+          "q": "英文介面裡的平台名稱？",
+          "options": [
+            "RED／WeChat OA／Douyin／Channels",
+            "Xiaohongshu／WeChat Official Account／Douyin／WeChat Channels"
+          ],
+          "recommend": "短名：計數列放得下；平台預覽內照平台原樣不翻譯。"
+        },
+        {
+          "q": "既有的混合類型作品怎麼顯示？",
+          "options": ["保留「混合」標籤，只出現在「全部」", "歸入文章"],
+          "recommend": "保留標籤：不改使用者資料，也不新增入口。"
+        }
+      ]
     }
   ]
 }
