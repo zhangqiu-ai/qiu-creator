@@ -237,3 +237,39 @@ exit 0。升級前備份 id：**`20261121T144052039Z-manual`**。
 > **總監更正（2026-11-21 06:45）**：上面查的 `~/Library/Application Support/qiu-creator/` 是服務安裝目錄，不是 App 的 userData。App 的偏好檔實際在 `~/Library/Application Support/@qiu-creator/mac/preferences.json`。06:45 只讀了鍵名與 `language`：鍵為 `language`、`theme`，`language` 為 `zh-Hans`，檔案修改時間 06:43:21；此時使用者已從 /Applications 重開新版（pid 46004）。檔案原本就有 `theme`，表示是舊安裝。`zh-Hans` 應是使用者重開後自己在設定選的；若不是，代表遷移有誤，待使用者確認。
 
 > **使用者確認（2026-11-21）**：`zh-Hans` 是使用者重開後自己在設定選的。升級遷移沒有問題。
+
+## 升級到 31a1b23（2026-11-21，QC-043 伺服器文字跟隨介面語言＋遷移 0014）：成功
+
+總監轉述使用者「Yes, install it」（記在 QC-043 卡片上）。
+
+- 建置：乾淨 worktree，31a1b23，`git status` 為空；服務 commit `31a1b231f26788eb6bdd53578da09f7c4631f809`（不帶 `-dirty`）；.app ad-hoc 簽名 `codesign --verify --deep --strict` 通過。
+- 升級前檢查（2026-11-21 07:43:54；07:44:45 再查）：7420 只有 launchd 的服務（pid 38265）；7431 沒有監聽；`/health` 為 8355149；最新備份 `20261121T144052039Z-manual`；schema 最新 `0013`。
+- 乾跑（07:44:45）：備份 → 暫存 → 停服務換位 → `bootstrap`，`nothing was changed`。
+- `upgrade --yes`（07:44:49 → 07:44:56，約 7 秒）輸出：
+
+```
+backup 20261121T154449342Z-manual ok
+stage new service and app
+stop service and swap in the new build
+launchctl bootstrap
+upgraded 0.1.0 -> 0.1.0; previous build kept as server.prev; backup 20261121T154449342Z-manual
+```
+
+exit 0。升級前備份 id：**`20261121T154449342Z-manual`**。
+
+### 驗證
+
+| 項目 | 結果 |
+| --- | --- |
+| `/health` | commit `31a1b231f26788eb6bdd53578da09f7c4631f809`，built_at `2026-11-21T15:44:09.725Z` |
+| launchd | `state = running`，pid 20625 |
+| schema | 最新 `0014｜ai_job_error_detail`，其次 `0013｜asset_metadata_trash`（唯讀只查遷移表） |
+| `server.prev` | 在，commit `8355149`（上一版） |
+| `app.prev/qiu-creator.app` | 在 |
+| 日誌 | `mac-server.log` 的 error 等級（`level":50`）0 筆；`mac-server.err.log` 0 位元組 |
+| App 偏好檔 | `~/Library/Application Support/@qiu-creator/mac/preferences.json` 只讀 `language` 鍵：`zh-Hans`（總監上次預期遷移後是 `zh-Hant`；這個值是使用者的 App 寫的，本會話不判斷對錯，列出事實供總監核對） |
+| 使用者的 App | 有 1 個 qiu-creator 行程在執行；本會話沒有開啟、關閉或重開它 |
+
+### 提醒
+
+/Applications 已是新版 .app，執行中的 App 是舊行程：請使用者重新開啟 qiu-creator，才會載入新版介面。若有問題：`deploy/qc.sh rollback --yes`（舊版 schema 0013；舊版能否讀 0014 的資料庫未驗證，必要時從上面的備份還原）。
