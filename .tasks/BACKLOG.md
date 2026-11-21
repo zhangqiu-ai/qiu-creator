@@ -1,5 +1,31 @@
 # Backlog
 
+## QC-044: 原型：貼圖／視頻創作與多分頁編輯
+
+**Priority:** P1 | **Assignee:** qc-prototype | **Tags:** M3, prototype
+
+依決策記錄 2026-11-21「補齊貼圖、視頻創作，作品編輯改成多分頁」畫 Mac 原型（淺色與深色）：新建選類型、貼圖編輯、視頻編輯、多分頁編輯，以及三種語言下的版面注意事項。列出後端需求（存放格式、API）。核准後才開 QC-045–047 施工。
+
+**Started:** 2026-11-21
+
+## QC-045: 貼圖作品創作
+
+**Priority:** P1 | **Assignee:** qc-backend + qc-frontend | **Tags:** M3, backend, frontend
+
+依 QC-044 核准的原型實作貼圖作品：存放格式、API、編輯畫面、平台預覽。
+
+## QC-046: 視頻作品創作
+
+**Priority:** P1 | **Assignee:** qc-backend + qc-frontend | **Tags:** M3, backend, frontend
+
+依 QC-044 核准的原型實作視頻作品：選取或上傳視頻、封面、文案、Gemini 理解候選、抖音與視頻號版本與預覽。
+
+## QC-047: 作品編輯多分頁
+
+**Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend
+
+依 QC-044 核准的原型實作頂部分頁：多作品並行、狀態保留、未存提示、快捷鍵、重開恢復。
+
 ## QC-028: 畫布同步已實作的 M3 狀態與既有差異
 
 **Priority:** P3 | **Assignee:** qc-prototype | **Tags:** M3, prototype
