@@ -193,3 +193,43 @@ exit 0。升級前備份 id：**`20261120T004130225Z-manual`**（`.json`＋`.sql
 ### 提醒
 
 使用者的 App 仍是舊版行程，服務重啟時連線暫時中斷，/Applications 已是新版 .app：請**自行關閉並重新開啟** qiu-creator。沒有開 App 驗證 QC-037～QC-041 的介面。若新版有問題：`deploy/qc.sh rollback --yes`；回滾後舊版（0012）能否讀 0013 的資料庫未驗證，必要時從上面的升級前備份還原。
+
+## 升級到 8355149（2026-11-21，介面語言 QC-042）：成功
+
+總監轉述使用者「做好就直接發版安裝」（`docs/decisions.md` 2026-11-21）。
+
+- 建置：乾淨 worktree，8355149，`git status` 為空；服務 commit `8355149c4d8e202303ee08ba79033da7f8358081`（不帶 `-dirty`）；.app ad-hoc 簽名 `codesign --verify --deep --strict` 通過。
+  - 第一次建置時 PATH 沒有 pnpm（暫存的 shim 已被清掉），install 與 build 都沒跑；重建 shim 後重跑。打包完成前我用 `codesign --verify` 查過一次，得到 "code has no resources but signature indicates they must be present"：那是 electron-builder 還在簽名中途，等它結束後再驗就通過。
+- 升級前檢查（2026-11-21 06:37:24；06:40:42 再查）：7420 只有 launchd 的服務（pid 884）；7431 沒有監聽；`/health` 為 47bfc32；最新備份 `20261121T141716735Z-daily`；schema 最新 `0013`；`preferences.json` **不存在**。
+- 乾跑（06:40:42）：備份 → 暫存 → 停服務換位 → `bootstrap`，`nothing was changed`。
+- `upgrade --yes`（06:40:50 → 06:41:26，約 36 秒；前幾次約 2～4 秒，這次較久，原因未查）輸出：
+
+```
+backup 20261121T144052039Z-manual ok
+stage new service and app
+stop service and swap in the new build
+launchctl bootstrap
+upgraded 0.1.0 -> 0.1.0; previous build kept as server.prev; backup 20261121T144052039Z-manual
+```
+
+exit 0。升級前備份 id：**`20261121T144052039Z-manual`**。
+
+### 驗證
+
+| 項目 | 結果 |
+| --- | --- |
+| `/health` | commit `8355149c4d8e202303ee08ba79033da7f8358081`，built_at `2026-11-21T14:38:54.323Z` |
+| launchd | `state = running`，pid 38265 |
+| schema | 最新仍為 `0013｜asset_metadata_trash`（本版沒有新遷移；唯讀只查遷移表） |
+| `server.prev` | 在，commit `47bfc32`（上一版） |
+| `app.prev/qiu-creator.app` | 在 |
+| 日誌 | `level":50`（error）0 筆 |
+
+### QC-042 的兩項檢查
+
+- **打包內容**：`app.asar` 解開後只有 `dist/`、`dist-electron/`、`package.json`。`packages/i18n` 是 vite 內聯進渲染層的工作區套件，**不會**有獨立資料夾；實際確認方式是 `dist/assets/index-*.js` 內含 `zh-Hant` 與 `zh-Hans` 的字串（`packages/i18n/src` 的三種語言為 `en`、`zh-Hans`、`zh-Hant`）。我沒有逐條核對英文詞條，也沒有開 App 看介面。
+- **偏好設定遷移**：`~/Library/Application Support/qiu-creator/preferences.json` 升級前不存在，升級後**仍不存在**，因為新版 App 還沒跑過：**awaiting user reopen**。目前沒有任何 qiu-creator App 行程在執行（使用者的 App 已關閉）。使用者重新開啟後，該檔的 `language` 預期為 `zh-Hant`；本會話只會檢查 `language` 這一個鍵，不開、不關使用者的 App。
+
+### 提醒
+
+/Applications 已是新版 .app，請使用者重新開啟 qiu-creator。若有問題：`deploy/qc.sh rollback --yes`（舊版仍是 schema 0013，沒有新遷移，風險較低）。
