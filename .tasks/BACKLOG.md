@@ -1,5 +1,11 @@
 # Backlog
 
+## QC-043: 服務端產生的文字跟隨介面語言
+
+**Priority:** P3 | **Assignee:** qc-backend | **Tags:** M3, backend
+
+QC-042 遺留：AI 首次使用告知（`notice.text`）、本月預算提醒（`budget.warning`）、備份失敗細節、AI 任務錯誤細節由服務端產生，仍是繁體。改為回傳鍵與參數（或依語言提供告知版本），介面依語言組文案。另統一「字數」英文用語（編輯器 words、AI 面板 characters）。
+
 ## QC-028: 畫布同步已實作的 M3 狀態與既有差異
 
 **Priority:** P3 | **Assignee:** qc-prototype | **Tags:** M3, prototype

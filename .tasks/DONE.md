@@ -1,5 +1,13 @@
 # Done
 
+## QC-042: 介面多語言（简体中文／繁體中文／English）
+
+**Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend | **Done:** 2026-11-21
+
+- 新共用套件 `packages/i18n`（不依賴 Electron，約 1,230 鍵，三語缺鍵即 typecheck 失敗，`Intl` 格式化，用語表）。設定 → 外觀加語言卡（跟隨系統／简体／繁體／English），即時切換含原生選單、檔案面板標題、`<html lang>`，開窗前決定語言。
+- 錯誤改依錯誤碼顯示文案。舊安裝升級寫入 `zh-Hant`，新安裝跟隨系統。AST 檢查禁止介面元件寫死中文（只允許平台預覽的平台自身文字）。
+- 全倉 790／0／790、e2e 8／8。證據 `docs/evidence/qc042-i18n.md`。NOT_VERIFIED：實機改 macOS 語言後自動跟隨、打包版選單與首畫面、真實 preferences 遷移、素材庫／匯入／平台預覽／AI 工作台的英文逐頁截圖、VoiceOver。
+
 ## QC-039: 作品編輯插入素材與貼上圖片
 
 **Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, ui, api | **Done:** 2026-11-19
