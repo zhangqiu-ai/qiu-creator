@@ -1,5 +1,13 @@
 # Done
 
+## QC-049: sidebar.spec 不穩定與貼圖預覽橫向捲軸
+
+**Priority:** P3 | **Assignee:** qc-bugfix | **Tags:** M3, bug | **Done:** 2026-11-21
+
+- sidebar.spec 所有「動作後立刻讀」改成等待式斷言，期望值不變、未加逾時或重試；一般負載與加壓各連跑 30 次全過。原本那次失敗無法重現，NOT_VERIFIED。
+- 貼圖側欄 `.post__side` 寬 385 px，容納 340 px 手機模擬框加 padding 與捲軸，不再橫向溢出；新增 expectPreviewFits 回歸斷言（先紅後綠）。
+- 全倉 871／0／871、e2e 16／16。證據 `docs/evidence/qc049-sidebar-flake-preview-scroll.md`。
+
 ## QC-045: 貼圖作品創作
 
 **Priority:** P1 | **Assignee:** qc-backend + qc-frontend | **Tags:** M3, backend, frontend | **Done:** 2026-11-21

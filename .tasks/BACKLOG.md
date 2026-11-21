@@ -1,11 +1,5 @@
 # Backlog
 
-## QC-049: sidebar.spec 拖曳提示讀取不穩定
-
-**Priority:** P3 | **Assignee:** qc-bugfix | **Tags:** M3, bug
-
-QC-045 分支上 30 次失敗 1 次（main 30 次全過）：拖曳時用 `count()` 直接讀提示文字、沒有等待。改成等待式斷言，不放寬、不加重試，跑 30 次確認穩定。另：貼圖編輯器右側預覽面板底部出現橫向捲軸（qc045-en-2 截圖），一併檢查。
-
 ## QC-046: 視頻作品創作
 
 **Priority:** P1 | **Assignee:** qc-backend + qc-frontend | **Tags:** M3, backend, frontend
