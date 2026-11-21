@@ -1,5 +1,9 @@
 # Work Log
 
+## 2026-11-21 · QC-045／046 後端
+
+- 貼圖與視頻作品的存放（Markdown front matter，新依賴 yaml 2.9.1）、PATCH 原子寫入、列表縮圖、`?ids=`、平台版本 images／cover／inherit、AI 採用合併（遷移 0015；831／0／831，e2e 9／9）。前端編輯器待 qc-frontend 在 QC-047 之後接。
+
 ## 2026-11-21 · QC-043
 
 - 服務端文字跟隨介面語言合併（805／0／805，e2e 9／9，遷移 0014）。範圍外的匯入錯誤細節開為 QC-048。交 qc-release 升級。
