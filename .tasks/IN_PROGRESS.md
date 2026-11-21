@@ -6,6 +6,25 @@ QC-042 遺留：AI 首次使用告知（`notice.text`）、本月預算提醒（
 
 **Started:** 2026-11-21（使用者「把 QC-043 也做了」）
 
+### Plan
+
+- **契約**：只增不改。
+  - `notice` 加 `template`（`cloud_provider`／`relay`）與 `params`（`name`、`company`）。
+  - `AiJobRecord` 加 `error_detail`（技術細節，已去除金鑰）。
+  - 新增失敗碼 `credential_changed`。
+  - 備份失敗加 `reason`（`disk_full`／`permission_denied`／`integrity_failed`／`io_error`／`unknown`），放在列表的 `last_error_reason`、錯誤的 `details.reason` 和事件 `data.reason`。
+  - 預算提醒由介面用 `over_budget`、`projected_usd`／`spent_usd`、`budget_usd` 組文案。
+- **相容性**：舊欄位 `notice.text`、`budget.warning`、`job.error`、`last_error`／`detail` 都保留（給 Agent 與舊用戶端），介面不再顯示它們。
+- **i18n**：三語的告知（內容等價）、預算提醒、備份失敗類別、「技術細節」。英文字數一律用 characters。
+- **apps/mac**：共用 `TechnicalDetails` 摺疊元件，顯示原文並再去除一次金鑰。AI 失敗卡和備份三處改用類別句加技術細節。
+- **同意**：仍只綁版本與 `credential_id`，換語言不影響。
+- **測試**：
+  - 契約。
+  - 服務端各路徑回傳的碼與參數。
+  - 三語渲染、摺疊與去除金鑰。
+  - 換語言後不再要求同意。
+  - e2e：假供應商回 401，檢查英文與简体文案。
+
 ## QC-033: Mac 生產可用實機驗收
 
 **Priority:** P1 | **Assignee:** qc-test | **Tags:** M3

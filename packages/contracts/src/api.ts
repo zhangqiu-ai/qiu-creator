@@ -45,7 +45,8 @@ export const ErrorCodeSchema = z.enum([
   /**
    * A backup could not be made (QC-030). On restore (409): the safety backup of
    * the current state failed, so nothing was restored and nothing changed.
-   * On a manual backup (500): no copy was made.
+   * On a manual backup (500): no copy was made. `details.reason` is a
+   * `BackupFailureReason`, `details.detail` the untranslated technical text.
    */
   'backup_failed',
   /** The asset is used by works or platform variants; resend with `confirm: true` (409, QC-037). `details.references`. */

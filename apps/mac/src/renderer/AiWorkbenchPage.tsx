@@ -22,6 +22,8 @@ import { Dialog } from './Dialog.js';
 import { useChangeEvents } from './events.js';
 import { formatDuration } from './format.js';
 import { formatBytes, formatNumber, formatWhen, t } from './i18n.js';
+import { budgetWarningText, noticeText } from './server-text.js';
+import { TechnicalDetails } from './TechnicalDetails.js';
 import { Icon } from './Icon.js';
 
 function useStore<S>(store: { subscribe: (l: (s: S) => void) => () => void; snapshot: S }): S {
@@ -389,13 +391,9 @@ function ResultArea({
           {t('ai.analyzeFailed')}
         </span>
         <span className="aiw__failed-text">
-          {s.failure.code === null
-            ? s.failure.message
-            : t('ai.failureDetail', {
-                reason: FAILURE_LABEL[s.failure.code],
-                detail: s.failure.message,
-              })}
+          {s.failure.code === null ? s.failure.message : FAILURE_LABEL[s.failure.code]}
         </span>
+        <TechnicalDetails text={s.failure.detail} />
         <div className="aiw__row">
           {s.job !== null && (
             <button
@@ -578,10 +576,10 @@ function UsageCard({
           ? t('ai.usageSub')
           : t('ai.usageSubBudget', { budget: formatUsd(budget.budget_usd) })}
       </span>
-      {budget?.over_budget === true && budget.warning !== null && (
+      {budget !== null && budgetWarningText(budget) !== null && (
         <p className="aiw__over" role="status">
           <Icon name="alert" size={14} />
-          {budget.warning}
+          {budgetWarningText(budget)}
         </p>
       )}
       {usage !== null && usage.by_provider.length > 0 && (
@@ -851,7 +849,7 @@ function ConfirmDialog({ s, session }: { s: VideoState; session: VideoSession })
             <h3 id="aiw-notice" className="aiw-confirm__h">
               {t('ai.noticeHeading')}
             </h3>
-            <p>{s.gemini.notice.text}</p>
+            <p>{noticeText(s.gemini.notice)}</p>
           </section>
         )}
         <section className="aiw-confirm__sec" aria-labelledby="aiw-cost">
@@ -910,10 +908,10 @@ function ConfirmDialog({ s, session }: { s: VideoState; session: VideoSession })
               )}
             </span>
           </label>
-          {est?.budget.over_budget === true && est.budget.warning !== null && (
+          {est !== null && budgetWarningText(est.budget) !== null && (
             <p className="aiw__over" role="status">
               <Icon name="alert" size={14} />
-              {est.budget.warning}
+              {budgetWarningText(est.budget)}
             </p>
           )}
         </section>

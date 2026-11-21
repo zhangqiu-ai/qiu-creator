@@ -6,7 +6,11 @@ import {
   RestoreBackupRequestSchema,
   RestoreBackupResponseSchema,
 } from '@qiu-creator/contracts';
-import type { BackupService } from '../backups/backup-service.js';
+import {
+  backupFailureReason,
+  failureDetail,
+  type BackupService,
+} from '../backups/backup-service.js';
 import { ServiceError } from '../errors.js';
 import type { App } from '../http/app-type.js';
 
@@ -58,7 +62,8 @@ export function registerBackupRoutes(
         if (err instanceof ServiceError) throw err;
         // Disk full, permission problems...: a real server-side failure.
         throw new ServiceError(500, 'backup_failed', 'the backup could not be made', {
-          detail: err instanceof Error ? err.message : String(err),
+          reason: backupFailureReason(err),
+          detail: failureDetail(err),
         });
       }
       reply.code(201);

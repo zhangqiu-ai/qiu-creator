@@ -21,6 +21,14 @@ export const ai = defineMessages({
     failInvalidOutput: '結果格式無法解析',
     failFileProcessing: 'Gemini 處理影片失敗',
     failSourceUnavailable: '素材檔案找不到',
+    failCredentialChanged: '中轉站設定已變更，請手動重試',
+    relayCompany: '你設定的 New API 中轉站',
+    noticeCloudProvider:
+      '使用 {name} 時，你主動送出的內容（作品標題、正文、標籤，以及你選擇的圖片或視頻）會經網路傳送到 {company} 的伺服器處理。\n{company} 依其服務條款處理與保留這些資料；本 App 不會在你沒有操作時自動送出任何內容。\n費用由你的 API 金鑰帳戶支付，App 顯示的金額是依參考價格的估算。',
+    noticeRelay:
+      '你主動送出的作品文字會傳到你設定的 New API 中轉站，由中轉站轉送給模型供應商。\n中轉站和模型供應商可能依各自的設定及條款保留內容。費用依中轉站的計價為準。',
+    budgetWarning:
+      '本月 AI 費用估算 {spent} 美元，已超過你設定的提醒金額 {budget} 美元。任務仍會送出。',
     failUnknown: '未知錯誤',
 
     // 改寫 tab
@@ -201,6 +209,14 @@ export const ai = defineMessages({
     failInvalidOutput: '结果格式无法解析',
     failFileProcessing: 'Gemini 处理视频失败',
     failSourceUnavailable: '素材文件找不到',
+    failCredentialChanged: '中转站设置已更改，请手动重试',
+    relayCompany: '你设置的 New API 中转站',
+    noticeCloudProvider:
+      '使用 {name} 时，你主动发送的内容（作品标题、正文、标签，以及你选择的图片或视频）会经网络传送到 {company} 的服务器处理。\n{company} 依其服务条款处理与保留这些数据；本 App 不会在你没有操作时自动发送任何内容。\n费用由你的 API 密钥账户支付，App 显示的金额是依参考价格的估算。',
+    noticeRelay:
+      '你主动发送的作品文字会传到你设置的 New API 中转站，由中转站转发给模型供应商。\n中转站和模型供应商可能依各自的设置及条款保留内容。费用以中转站的计价为准。',
+    budgetWarning:
+      '本月 AI 费用估算 {spent} 美元，已超过你设置的提醒金额 {budget} 美元。任务仍会发送。',
     failUnknown: '未知错误',
 
     panelLabel: 'AI 改写',
@@ -371,6 +387,14 @@ export const ai = defineMessages({
     failInvalidOutput: 'Can’t read the result',
     failFileProcessing: 'Gemini couldn’t process the video',
     failSourceUnavailable: 'The asset file is missing',
+    failCredentialChanged: 'The New API relay settings changed; retry it yourself',
+    relayCompany: 'your New API relay',
+    noticeCloudProvider:
+      'When you use {name}, the content you choose to send (the work’s title, body and tags, and any images or videos you pick) goes over the internet to {company}’s servers for processing.\n{company} handles and keeps this data under its terms of service; this app never sends anything without your action.\nCosts are charged to your API key’s account; amounts shown in the app are estimates based on reference prices.',
+    noticeRelay:
+      'The work text you choose to send goes to the New API relay you set up, which forwards it to the model provider.\nThe relay and the model provider may keep content under their own settings and terms. Costs follow the relay’s pricing.',
+    budgetWarning:
+      'Estimated AI spend this month is ${spent}, over the ${budget} reminder you set. Jobs are still sent.',
     failUnknown: 'Unknown error',
 
     panelLabel: 'AI rewrite',
@@ -385,8 +409,8 @@ export const ai = defineMessages({
     generateFailed: 'Generation failed',
     generateFailedWith: 'Generation failed · {reason}',
     selection: {
-      one: 'Selected: {label} · {count} character',
-      other: 'Selected: {label} · {count} characters',
+      one: 'Selected: {label} · {count} word',
+      other: 'Selected: {label} · {count} words',
     },
     rewriteWays: 'Rewrite style',
     presetPolish: 'Polish',
@@ -398,7 +422,7 @@ export const ai = defineMessages({
     tonePlaceholder: 'Tone, e.g. light and spoken',
     generate: 'Generate',
     hunkCount: { one: '{count} change', other: '{count} changes' },
-    lengthChange: '{before} → {after} characters',
+    lengthChange: '{before} → {after} words',
     apply: 'Apply',
     applySome: 'Apply {checked}/{total}',
     insert: 'Insert',

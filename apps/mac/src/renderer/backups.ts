@@ -9,6 +9,7 @@ import type {
 import { intlLocale } from '@qiu-creator/i18n';
 import { formatBytes } from './format.js';
 import { currentLocale, formatTime as clockTime, t } from './i18n.js';
+import { backupReasonText } from './server-text.js';
 import { isRestoring } from './restoring.js';
 
 /**
@@ -105,6 +106,8 @@ export type RestorePhase =
       /** `request`: refused, nothing changed. `unknown`: no answer. `reload`: accepted but the service did not come back. */
       stage: 'request' | 'unknown' | 'reload';
       message: string;
+      /** The category sentence when the service gave a `details.reason` (QC-043). */
+      reason?: string | null;
       detail: string | null;
       safety: Backup | null;
     };
@@ -115,7 +118,7 @@ export interface BackupState {
   creating: boolean;
   /** The newest manual backup made from this window, for 「已備份」 feedback. */
   created: Backup | null;
-  createError: { message: string; detail: string | null } | null;
+  createError: { message: string; reason?: string | null; detail: string | null } | null;
   restore: RestorePhase;
   /** A restore started by someone else (another window, an Agent) is being applied. */
   externalRestore: boolean;
@@ -140,6 +143,13 @@ function detailOf(err: unknown): string | null {
     return err.message === '' ? null : err.message;
   }
   return err instanceof Error && err.message !== '' ? err.message : null;
+}
+
+/** The interface-language sentence for `details.reason` of a `backup_failed` error (QC-043). */
+export function reasonOf(err: unknown): string | null {
+  if (!(err instanceof ApiError) || err.code !== 'backup_failed') return null;
+  const reason = err.body?.error.details?.['reason'];
+  return reason === undefined ? null : backupReasonText(reason);
 }
 
 /** Why a restore request was refused, in the user's words. */
@@ -258,7 +268,11 @@ export class BackupSession {
       }
       this.set({
         creating: false,
-        createError: { message: createErrorText(err), detail: detailOf(err) },
+        createError: {
+          message: createErrorText(err),
+          reason: reasonOf(err),
+          detail: detailOf(err),
+        },
       });
     }
     await this.load();
@@ -281,7 +295,15 @@ export class BackupSession {
       }
       const { stage, message } = restoreErrorText(err);
       this.set({
-        restore: { phase: 'failed', backup, stage, message, detail: detailOf(err), safety: null },
+        restore: {
+          phase: 'failed',
+          backup,
+          stage,
+          message,
+          reason: reasonOf(err),
+          detail: detailOf(err),
+          safety: null,
+        },
       });
       void this.load();
       return;

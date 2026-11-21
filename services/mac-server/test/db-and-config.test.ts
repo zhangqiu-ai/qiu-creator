@@ -57,7 +57,12 @@ describe('database', () => {
          VALUES ('a1', 'image', 'library/assets/a1/x.png', ?, 'image/png', 3, 'upload', 't', 'x.png', 't')`,
       ).run('b'.repeat(64));
       const before = db.prepare("SELECT * FROM assets WHERE id = 'a1'").get();
-      expect(runMigrations(db, migrations)).toEqual(['0013']);
+      expect(
+        runMigrations(
+          db,
+          migrations.filter((m) => m.id <= '0013'),
+        ),
+      ).toEqual(['0013']);
       expect(db.prepare("SELECT * FROM assets WHERE id = 'a1'").get()).toEqual({
         ...(before as Record<string, unknown>),
         display_name: null,

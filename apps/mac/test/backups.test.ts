@@ -241,15 +241,29 @@ describe('BackupSession', () => {
 
   it('reports a failed manual backup with the service reason and still refreshes the list', async () => {
     svc.createResult = apiError(500, 'backup_failed', 'the backup could not be made', {
+      reason: 'disk_full',
       detail: 'ENOSPC: no space left on device',
     });
     await session.create();
+    // QC-043: the category is a sentence in the interface language; the errno text stays as is.
     expect(session.snapshot.createError).toEqual({
       message: '備份失敗，沒有產生副本',
+      reason: '磁碟空間不足。',
       detail: 'ENOSPC: no space left on device',
     });
     expect(session.snapshot.created).toBeNull();
     expect(svc.listCalls).toBe(1);
+
+    // An older service sends no reason: the detail is still shown, with no category sentence.
+    svc.createResult = apiError(500, 'backup_failed', 'the backup could not be made', {
+      detail: 'EIO: i/o error',
+    });
+    await session.create();
+    expect(session.snapshot.createError).toEqual({
+      message: '備份失敗，沒有產生副本',
+      reason: null,
+      detail: 'EIO: i/o error',
+    });
   });
 
   it('clears an old 立即備份 failure once a newer backup is made', async () => {

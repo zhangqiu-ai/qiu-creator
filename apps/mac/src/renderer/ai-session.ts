@@ -70,6 +70,9 @@ export const FAILURE_LABEL: Readonly<Record<AiFailureCode, string>> = {
   get file_processing_failed() {
     return t('ai.failFileProcessing');
   },
+  get credential_changed() {
+    return t('ai.failCredentialChanged');
+  },
   get source_unavailable() {
     return t('ai.failSourceUnavailable');
   },
@@ -220,7 +223,7 @@ export interface RewriteState {
   block: AiBlock | null;
   candidate: RewriteCandidate | null;
   picks: boolean[];
-  failure: { code: AiFailureCode | null; message: string } | null;
+  failure: { code: AiFailureCode | null; message: string; detail?: string | null } | null;
   /** Shown after 採用／插入 with 復原. */
   done: { label: string; revisionId: string; previousRevisionId: string } | null;
   /** One-line note in the idle state (no changes, could not accept, …). */
@@ -353,7 +356,11 @@ export class RewriteSession {
       case 'failed':
         this.set({
           phase: 'failed',
-          failure: { code: job.error_code, message: job.error ?? t('ai.generateFailed') },
+          failure: {
+            code: job.error_code,
+            message: t('ai.generateFailed'),
+            detail: job.error_detail ?? null,
+          },
         });
         return;
       case 'succeeded':
@@ -525,7 +532,7 @@ export interface TitleState {
   block: AiBlock | null;
   titles: Partial<Record<Platform, TextCandidate[]>>;
   picks: Partial<Record<Platform, number>>;
-  failure: { code: AiFailureCode | null; message: string } | null;
+  failure: { code: AiFailureCode | null; message: string; detail?: string | null } | null;
   writing: boolean;
   written: Partial<Record<Platform, WriteOutcome>> | null;
 }
@@ -655,7 +662,11 @@ export class TitleSession {
     if (job.status === 'failed') {
       this.set({
         phase: 'failed',
-        failure: { code: job.error_code, message: job.error ?? t('ai.generateFailed') },
+        failure: {
+          code: job.error_code,
+          message: t('ai.generateFailed'),
+          detail: job.error_detail ?? null,
+        },
       });
       return;
     }

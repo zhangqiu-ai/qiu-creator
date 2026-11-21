@@ -34,7 +34,29 @@ export const AI_DEFAULT_MODELS: Readonly<
  */
 export const AI_NOTICE_VERSION = 1;
 
-/** First-use notice: what is sent where. Shown before the user can enable a provider. */
+/**
+ * Which first-use notice applies (QC-043). Clients render it in the interface
+ * language from these; the wording is equivalent in every language, so a
+ * language switch is not a new notice version and needs no new consent.
+ */
+export const AiNoticeTemplateSchema = z.enum(['cloud_provider', 'relay']);
+export type AiNoticeTemplate = z.infer<typeof AiNoticeTemplateSchema>;
+
+export function aiNoticeTemplate(provider: AiProvider): {
+  template: AiNoticeTemplate;
+  params: { name: string; company: string };
+} {
+  const { name, company } = AI_PROVIDER_NAMES[provider];
+  return {
+    template: provider === 'new-api' ? 'relay' : 'cloud_provider',
+    params: { name, company },
+  };
+}
+
+/**
+ * First-use notice in 繁體中文: what is sent where. Kept for API clients and
+ * older apps; the Mac app renders `notice.template` in its own language.
+ */
 export function aiConsentNotice(provider: AiProvider): string {
   if (provider === 'new-api') {
     return [
@@ -111,7 +133,11 @@ export const AiProviderStatusSchema = z.object({
   /** The notice the user must confirm before anything is sent to this provider. */
   notice: z.object({
     version: z.number().int().positive(),
+    /** 繁體中文 text of the notice (see `aiConsentNotice`); clients should render `template`. */
     text: z.string(),
+    /** Which notice to render in the interface language, with its placeholders (QC-043). */
+    template: AiNoticeTemplateSchema.optional(),
+    params: z.object({ name: z.string(), company: z.string() }).optional(),
     /** Identifies the New API endpoint and key pairing this notice applies to. */
     credential_id: IdSchema.optional(),
   }),
@@ -242,6 +268,8 @@ export const AiFailureCodeSchema = z.enum([
   'file_processing_failed',
   /** The source asset is gone or unreadable when the job runs (QC-023). */
   'source_unavailable',
+  /** The New API endpoint or key changed after the job was queued; retry it by hand (QC-043). */
+  'credential_changed',
   'unknown',
 ]);
 export type AiFailureCode = z.infer<typeof AiFailureCodeSchema>;
@@ -278,7 +306,10 @@ export const AiBudgetStatusSchema = z.object({
   /** spent + this job's maximum estimate (null outside job submission). */
   projected_usd: z.number().nonnegative().nullable(),
   over_budget: z.boolean(),
-  /** Human-readable reminder when over budget; null otherwise. */
+  /**
+   * 繁體中文 reminder when over budget; null otherwise. Kept for API clients;
+   * the Mac app builds the reminder in its language from the numbers above.
+   */
   warning: z.string().nullable(),
 });
 export type AiBudgetStatus = z.infer<typeof AiBudgetStatusSchema>;
@@ -333,8 +364,17 @@ export const AiJobRecordSchema = z.object({
   attempts: z.number().int().nonnegative(),
   max_attempts: z.number().int().positive(),
   error_code: AiFailureCodeSchema.nullable(),
-  /** Readable reason, with request content and keys stripped. */
+  /**
+   * 繁體中文 reason plus detail, with request content and keys stripped. Kept
+   * for API clients; the Mac app shows `error_code` in its language instead.
+   */
   error: z.string().nullable(),
+  /**
+   * Technical detail of the failure, untranslated (provider HTTP status, its
+   * short error text, an errno), with keys and tokens stripped; null when there
+   * is none (QC-043).
+   */
+  error_detail: z.string().nullable().optional(),
   result: z.object({ text: z.string(), json: z.unknown().optional() }).nullable(),
   usage: AiUsageSchema.nullable(),
   /** From the provider-reported usage and the price table; an estimate. */

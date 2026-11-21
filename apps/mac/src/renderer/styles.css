@@ -2778,10 +2778,6 @@ kbd {
 .ai__failed-title {
   font-weight: 600;
 }
-.ai__failed-detail {
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
 .ai__row {
   display: flex;
   flex-wrap: wrap;
@@ -3633,12 +3629,31 @@ kbd {
 .backup__ok {
   color: var(--qc-ok);
 }
-.backup__detail {
+/* The category sentence of a failure, on its own line (QC-043). */
+.err-reason {
   display: block;
-  margin-top: 2px;
+}
+/* Untranslated technical detail of a failure, collapsed by default (QC-043). */
+.tech-details {
+  display: block;
+  margin-top: 4px;
   font-size: 11px;
   color: var(--qc-ink3);
+}
+.tech-details > summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.tech-details > summary:focus-visible {
+  outline: 2px solid var(--qc-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.tech-details__text {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
+  user-select: text;
 }
 .backup__notice {
   display: flex;

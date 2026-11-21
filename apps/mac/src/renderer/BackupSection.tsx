@@ -13,6 +13,8 @@ import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
 import { tildePath } from './format.js';
 import { t } from './i18n.js';
+import { backupReasonText } from './server-text.js';
+import { TechnicalDetails } from './TechnicalDetails.js';
 import { Icon } from './Icon.js';
 
 /** Rows shown before 「全部 N 份」 (PT-20261119-001 「v2 · 設定」: 3). */
@@ -87,9 +89,10 @@ export function BackupSection({
             {s.createError !== null && (
               <span className="ln__err" role="alert">
                 {s.createError.message}
-                {s.createError.detail !== null && (
-                  <span className="mono backup__detail">{s.createError.detail}</span>
+                {s.createError.reason != null && (
+                  <span className="err-reason">{s.createError.reason}</span>
                 )}
+                <TechnicalDetails text={s.createError.detail} />
               </span>
             )}
           </div>
@@ -134,7 +137,8 @@ export function BackupSection({
             {list?.last_error != null && (
               <span className="ln__err" role="alert">
                 {t('serviceSettings.backupDailyFailedLabel')}
-                <span className="mono backup__detail">{list.last_error}</span>
+                <span>{backupReasonText(list.last_error_reason)}</span>
+                <TechnicalDetails text={list.last_error} />
               </span>
             )}
           </div>
@@ -407,7 +411,8 @@ function RestoreNotice({
               })}
             </span>
           )}
-          {restore.detail !== null && <span className="mono backup__detail">{restore.detail}</span>}
+          {restore.reason != null && <span className="ln__v">{restore.reason}</span>}
+          <TechnicalDetails text={restore.detail} />
           <div className="backup__notice-actions">
             {restore.stage === 'reload' && (
               <button type="button" className="btn btn--small btn--primary" onClick={onRecheck}>

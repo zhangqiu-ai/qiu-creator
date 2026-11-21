@@ -16,6 +16,7 @@ import {
 } from './ai-session.js';
 import { Icon } from './Icon.js';
 import { t } from './i18n.js';
+import { TechnicalDetails } from './TechnicalDetails.js';
 
 /** What the 改寫 tab would rewrite: a range of the saved Markdown and its label. */
 export interface AiSelection {
@@ -178,7 +179,7 @@ function Failed({
   onRetry,
   onClose,
 }: {
-  failure: { code: keyof typeof FAILURE_LABEL | null; message: string };
+  failure: { code: keyof typeof FAILURE_LABEL | null; message: string; detail?: string | null };
   onRetry: () => void;
   onClose: () => void;
 }) {
@@ -189,9 +190,7 @@ function Failed({
           reason: failure.code === null ? failure.message : FAILURE_LABEL[failure.code],
         })}
       </span>
-      {failure.code !== null && failure.message !== '' && (
-        <span className="ai__failed-detail">{failure.message}</span>
-      )}
+      <TechnicalDetails text={failure.detail} />
       <div className="ai__row">
         <button type="button" className="btn btn--small" onClick={onRetry}>
           {t('common.retry')}

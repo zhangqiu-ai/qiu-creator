@@ -11,6 +11,7 @@ import {
   AiSettingsSchema,
   AiTextInputSchema,
   aiConsentNotice,
+  aiNoticeTemplate,
   costUsd,
   CreateAiJobRequestSchema,
   estimateTokens,
@@ -83,6 +84,7 @@ interface JobRow {
   usage: string | null;
   cost_estimate: number | null;
   error: string | null;
+  error_detail: string | null;
   created_at: string;
   updated_at: string;
   /** Null on legacy `ai_jobs` rows from before QC-021, which this service ignores. */
@@ -213,6 +215,7 @@ export class AiService {
       notice: {
         version: AI_NOTICE_VERSION,
         text: aiConsentNotice(provider),
+        ...aiNoticeTemplate(provider),
         ...(row?.credential_id ? { credential_id: row.credential_id } : {}),
       },
       consent:
@@ -643,6 +646,7 @@ export class AiService {
       this.db
         .prepare(
           `UPDATE ai_jobs SET status = 'queued', attempts = 0, error = NULL, error_code = NULL,
+             error_detail = NULL,
              run_after = ?, updated_at = ?, finished_at = NULL, credential_id = ? WHERE id = ?`,
         )
         .run(now, now, credentialId, id);
@@ -759,7 +763,7 @@ export class AiService {
           row.credential_id !== current.notice.credential_id ||
           credential.data.id !== row.credential_id
         ) {
-          throw providerError('consent_required', '中轉站設定已變更，請手動重試');
+          throw providerError('credential_changed');
         }
         apiKey = credential.data.api_key;
         baseUrl = credential.data.base_url;
@@ -838,23 +842,33 @@ export class AiService {
       });
     } catch (err) {
       if (this.isCancelled(row.id) || isAbort(err, controller.signal)) return;
-      const failure = err instanceof ProviderError ? err : providerError('unknown');
+      const failure =
+        err instanceof ProviderError
+          ? err
+          : providerError('unknown', err instanceof Error ? err.message : undefined);
       // Never let the key reach the stored message, whatever the provider echoed.
-      const message =
-        apiKey === null ? failure.message : failure.message.split(apiKey).join('[REDACTED]');
+      const scrub = (text: string): string =>
+        apiKey === null || apiKey === '' ? text : text.split(apiKey).join('[REDACTED]');
+      const message = scrub(failure.message);
+      const detail = failure.detail === null ? null : scrub(failure.detail);
       if (failure.retryable && row.attempts < row.max_attempts) {
         const delay = this.retryBaseMs * 2 ** (row.attempts - 1);
         const at = new Date(this.now().getTime() + delay).toISOString();
         this.db
           .prepare(
-            `UPDATE ai_jobs SET status = 'queued', run_after = ?, error = ?, error_code = ?, updated_at = ?
+            `UPDATE ai_jobs SET status = 'queued', run_after = ?, error = ?, error_code = ?,
+               error_detail = ?, updated_at = ?
              WHERE id = ? AND status = 'running'`,
           )
-          .run(at, message, failure.code, this.now().toISOString(), row.id);
+          .run(at, message, failure.code, detail, this.now().toISOString(), row.id);
         this.event(row.id, 'ai_job.queued', provider);
         return;
       }
-      this.finish(row.id, provider, 'failed', { error: message, error_code: failure.code });
+      this.finish(row.id, provider, 'failed', {
+        error: message,
+        error_code: failure.code,
+        error_detail: detail,
+      });
     } finally {
       this.controllers.delete(row.id);
     }
@@ -895,16 +909,31 @@ export class AiService {
     id: string,
     provider: AiProvider,
     status: 'succeeded' | 'failed' | 'cancelled',
-    fields: { result?: string; error: string | null; error_code: AiFailureCode | null },
+    fields: {
+      result?: string;
+      error: string | null;
+      error_code: AiFailureCode | null;
+      error_detail?: string | null;
+    },
   ): void {
     const now = this.now().toISOString();
     this.db.transaction(() => {
       const updated = this.db
         .prepare(
           `UPDATE ai_jobs SET status = ?, result = coalesce(?, result), error = ?, error_code = ?,
-             finished_at = ?, updated_at = ? WHERE id = ? AND status IN ('queued','running')`,
+             error_detail = ?, finished_at = ?, updated_at = ?
+           WHERE id = ? AND status IN ('queued','running')`,
         )
-        .run(status, fields.result ?? null, fields.error, fields.error_code, now, now, id);
+        .run(
+          status,
+          fields.result ?? null,
+          fields.error,
+          fields.error_code,
+          fields.error_detail ?? null,
+          now,
+          now,
+          id,
+        );
       if (updated.changes === 1) {
         this.event(id, `ai_job.${status}`, provider);
       }
@@ -974,6 +1003,7 @@ function toRecord(row: JobRow): AiJobRecord {
     max_attempts: row.max_attempts,
     error_code: row.error_code,
     error: row.error,
+    error_detail: row.error_detail,
     result: parseJson(row.result),
     usage: parseJson(row.usage),
     cost_usd: row.cost_estimate,

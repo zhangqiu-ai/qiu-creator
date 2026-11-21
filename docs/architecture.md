@@ -177,6 +177,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 `0011_change_log_system_entity`：`change_log.entity` 允許 `system`（備份事件，QC-030）。SQLite 無法修改 CHECK，所以重建資料表，保留 `seq` 與 AUTOINCREMENT 的最高值，SSE 的 id 不會倒退。
 
+`0014_ai_job_error_detail`（QC-043）：`ai_jobs` 增加 `error_detail`，存失敗的技術細節原文（HTTP 狀態、供應商的簡短錯誤文字），已去除金鑰；`error` 仍是繁體的說明。
+
 `0013_asset_metadata_trash`（QC-037）：`assets` 增加 `display_name`、`tags`（JSON 陣列）、`alt_text`、`note`、`revision`（預設 1）、`deleted_at` 與 `removal`（`trashed`／`unindexed`／`original_trashed`），並為 `deleted_at` 建部分索引。只加欄位，不重建資料表。
 
 `0010_ai_video_jobs`：`ai_jobs` 增加 `progress`（多步驟任務的公開進度）與 `remote_state`（可續傳上傳網址、遠端檔名，供重試續傳；不公開）。視頻分析的快取鍵存在 0001 就有的 `ai_jobs.cache_key`。
@@ -387,7 +389,15 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 **金鑰：** 存在 macOS Keychain（`@napi-rs/keyring`，服務名 `com.qiu-creator.creatorhub.ai`，帳號為供應商 id），不經過命令列參數。API 只能寫入與刪除，任何回應都不含金鑰；資料庫只記錄「何時存過」。金鑰只在任務執行前一刻讀取，傳給 adapter 後不保留。錯誤訊息會去掉看起來像金鑰或 Bearer 的字串，並把該次使用的金鑰全文替換成 `[REDACTED]`，長度上限 200 字。測試一律用記憶體實作，`KeychainSecretStore` 在測試執行器下會拒絕建立。
 
-**首次使用告知：** 每個供應商有一段告知文字（內容會送到哪家公司、費用由誰付），帶版本號。使用者以目前版本確認後才能建立任務；沒存金鑰回 409 `ai_key_missing`，沒確認回 409 `ai_consent_required`。告知改版（版本號提高）時要重新確認。撤回確認或刪除金鑰後，已排隊的任務在送出前會再檢查一次，直接失敗（`consent_required`／`missing_key`），不會送出。
+**首次使用告知：** 每個供應商有一段告知文字（內容會送到哪家公司、費用由誰付），帶版本號。使用者以目前版本確認後才能建立任務；沒存金鑰回 409 `ai_key_missing`，沒確認回 409 `ai_consent_required`。告知改版（版本號提高）時要重新確認。撤回確認或刪除金鑰後，已排隊的任務在送出前會再檢查一次，直接失敗（`consent_required`／`missing_key`），不會送出。New API 的中轉站設定在排隊後被更換，任務以 `credential_changed` 失敗，要手動重跑。
+
+**服務端文字與介面語言（QC-043）：** 服務端不讀介面語言，只回傳穩定的代碼與參數，介面用 `packages/i18n` 依目前語言組成文案。原本的繁體欄位保留給 API 用戶端與舊版 App，Mac App 不再顯示它們：
+
+- 告知：`notice.template`（`cloud_provider`／`relay`）與 `notice.params`（`name`、`company`）。三種語言的內容等價，確認只綁版本號與 `credential_id`，切換語言不算改版，不必重新確認。`notice.text` 保留繁體原文。
+- 預算提醒：介面用 `over_budget`、`projected_usd`（或 `spent_usd`）、`budget_usd` 組句；`budget.warning` 保留繁體。
+- AI 任務失敗：介面顯示 `error_code` 的類別句；`error_detail` 是技術細節原文，放在預設收起的「技術細節」裡，不翻譯；`error` 保留繁體。
+- 備份失敗：`reason`（`disk_full`／`permission_denied`／`integrity_failed`／`io_error`／`unknown`）出現在列表的 `last_error_reason`、錯誤回應的 `details.reason` 和 `backup.failed` 事件的 `data.reason`；`last_error`／`details.detail` 是技術細節原文。
+- 技術細節在服務端已去除金鑰與權杖，介面顯示前會再去除一次。
 
 **權限：** `/api/v1/ai/*` 全部只限主權杖，連讀取也是；Agent 權杖不能管理金鑰，也不能花錢呼叫 AI。
 
@@ -406,6 +416,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | `bad_request` | 400、404、422（模型名稱或參數錯） | 否 |
 | `invalid_output` | 結構化輸出無法解析成 JSON | 否 |
 | `missing_key`、`consent_required` | 排隊後金鑰被刪或告知被撤回 | 否 |
+| `credential_changed` | 排隊後 New API 中轉站設定被更換（QC-043） | 否 |
 
 - 自動重試最多 3 次，間隔 5 秒起指數退避。SDK 自帶的重試全部關閉，避免重複計費與重試次數失控。
 - 取消：排隊中直接取消；執行中會中止送往供應商的請求。重跑：失敗或已取消的任務重新排隊並重置次數。
@@ -417,7 +428,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 - 價格表 `AI_PRICE_TABLE` 標明「參考價格、可調」，取自各家官方價格頁（2026-11-17），單位為每百萬 token 美元；可在設定中逐模型覆寫。Google 已公告 Gemini 價格在 2026-12-01 與 2027-01-01 調整，屆時要更新或覆寫。
 - 送出前（`/ai/estimate`，以及建立任務的回應）：輸入 token 以字數粗估（中日韓字約 1 字 1 token，其他約 4 字 1 token），加上輸出上限，得出「最多」花費。
 - 完成後：依供應商回報的 token 用量與價格表計算，記在 `cost_usd`，一律標為估算。結構化輸出解析失敗時，已花的 token 仍計入。
-- 月度提醒：設定 `monthly_budget_usd` 後，本地月份的累計（含這次任務的最多估算）超過時，回應的 `budget.over_budget` 為 true，並帶中文提醒；任務照常送出。
+- 月度提醒：設定 `monthly_budget_usd` 後，本地月份的累計（含這次任務的最多估算）超過時，回應的 `budget.over_budget` 為 true，並帶中文提醒（Mac App 依介面語言自己組句，見上）；任務照常送出。
 - 沒有價格的模型照常執行，估算與成本為 `null`。
 
 **預設模型**（可在設定中改）：Gemini `gemini-3.8-flash`（文字與視頻）、Claude `claude-opus-5-5`、GPT `gpt-5.5`、New API `gpt-4o-mini`。
@@ -646,7 +657,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 - **種類與保留**：`daily`、`manual`、`pre_restore` 三種，各保留最新 14 份。每次新增備份後，刪掉同種類較舊的。分開保留，是為了避免多次手動備份把每日備份擠掉。
 - **每日**：
   - 服務啟動 1 分鐘後檢查一次，之後每小時檢查。最新的每日備份超過 24 小時就再做一份；MacBook 睡醒後的第一次檢查會補上。
-  - 失敗時記下 `last_error`，並發 `backup.failed` 事件。
+  - 失敗時記下 `last_error`（技術細節原文）與 `last_error_reason`（類別），並發 `backup.failed` 事件（`data.reason`、`data.error`）。
 - **還原**（`POST /api/v1/backups/:id/restore`）：
   1. 重新檢查目標備份：要能通過完整性檢查，而且不能含有這個版本不認識的 migration（也就是較新版本的備份），否則回 409 `backup_not_restorable`。
   2. 備份當前狀態（`pre_restore`）。這份必須通過檢查，否則不還原。
