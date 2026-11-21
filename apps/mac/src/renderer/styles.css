@@ -4992,3 +4992,46 @@ kbd {
   border-radius: 6px;
   background: var(--qc-sunken);
 }
+
+/* ---- 共用提示佇列 (QC-045 review): at most two, stacked, newest lowest ---- */
+.toast-stack {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 60;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(640px, calc(100vw - 48px));
+  pointer-events: none;
+}
+.toast-stack .toast {
+  position: static;
+  transform: none;
+  max-width: 100%;
+  pointer-events: auto;
+}
+
+/* ---- 素材抽屜：說明列固定在底部 (QC-045 review) ----
+ * The panel itself used to scroll, so the grid shrank under its content and
+ * the thumbnails ran over the hint bar. Now only the grid scrolls; the head,
+ * controls and hint bar keep their place. Article and image-post editors alike. */
+.panel.drawer {
+  overflow: hidden;
+}
+.drawer__head,
+.drawer__controls,
+.drawer__note {
+  flex: none;
+}
+.drawer__grid {
+  overflow-y: auto;
+}
+.drawer__foot {
+  flex: none;
+  position: relative;
+  z-index: 1;
+  background: var(--qc-bg);
+}

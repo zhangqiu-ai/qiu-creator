@@ -25,6 +25,7 @@ import { useChangeEvents, useEventStatus } from './events.js';
 import { countWords, SAVE_STATUS, WORK_STATUS } from './format.js';
 import { HistoryPanel } from './HistoryPanel.js';
 import { Icon } from './Icon.js';
+import { useToast } from './toasts.js';
 import { WorkMediaResolver } from './media.js';
 import { externalSource, useMounts } from './mounts.js';
 import { TagEditor } from './TagEditor.js';
@@ -568,6 +569,16 @@ function SessionEditor({
       doc.removeEventListener('scroll', onScroll, { capture: true });
     };
   }, [active]);
+  // Leaving the front: read the scroll position from the DOM before the pane is hidden
+  // (layout cleanups run before the parent's `hidden` is applied), in case the
+  // last scroll event has not fired yet.
+  useLayoutEffect(() => {
+    if (!active) return;
+    return () => {
+      const doc = docRef.current;
+      if (doc !== null) where.current.scrollTop = (sourceArea() ?? doc).scrollTop;
+    };
+  }, [active]);
   // Mode and panel are saved as they change, so a quit keeps them for the next launch.
   useEffect(() => {
     if (active) reportView();
@@ -683,6 +694,20 @@ function SessionEditor({
     if (conflict) setDialogOpen(true);
   }, [conflict]);
   const remoteN = state.remote === null ? undefined : numbers.get(state.remote.revisionId);
+  // Notices go through the shared queue (QC-045); a background tab shows none.
+  const shownNotice = notice ?? insertState.notice?.message ?? null;
+  useToast(
+    !active || shownNotice === null
+      ? null
+      : {
+          message: shownNotice,
+          tone: notice === null && insertState.notice?.tone === 'ok' ? 'ok' : 'bad',
+          onClose: () => {
+            setNotice(null);
+            insert?.dismissNotice();
+          },
+        },
+  );
 
   return (
     <>
@@ -1108,33 +1133,6 @@ function SessionEditor({
             if (insertBlocked === null) void insert?.insertFiles(imageFiles(files), where);
           }}
         />
-        {(insertState.notice !== null || notice !== null) && (
-          <div
-            className={
-              (insertState.notice?.tone ?? 'bad') === 'bad' && notice === null
-                ? 'toast toast--bad'
-                : 'toast'
-            }
-            role="status"
-          >
-            <Icon
-              name={insertState.notice?.tone === 'ok' && notice === null ? 'check' : 'alert'}
-              size={16}
-            />
-            <span className="toast__msg">{notice ?? insertState.notice?.message}</span>
-            <button
-              type="button"
-              className="btn btn--ghost btn--icon btn--small"
-              aria-label={t('editor.dismissNotice')}
-              onClick={() => {
-                setNotice(null);
-                insert?.dismissNotice();
-              }}
-            >
-              <Icon name="close" size={14} />
-            </button>
-          </div>
-        )}
       </main>
 
       {dialogOpen && (

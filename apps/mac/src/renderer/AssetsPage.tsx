@@ -53,6 +53,7 @@ import {
   shortHash,
   tildePath,
 } from './format.js';
+import { useToast } from './toasts.js';
 import { Icon } from './Icon.js';
 import { formatDateTime, formatNumber, t } from './i18n.js';
 
@@ -345,6 +346,32 @@ export function AssetsPage({
   const togglePick = (id: string) => {
     setPicks((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   };
+
+  // QC-045: through the shared queue, so it never covers another notice.
+  useToast(
+    toast === null
+      ? null
+      : {
+          message: toast.message,
+          tone: toast.tone === 'bad' ? 'bad' : 'ok',
+          closeLabel: t('assets.dismissNotice'),
+          actions:
+            toast.undo === null
+              ? []
+              : [
+                  {
+                    label: t('common.undo'),
+                    shortcut: 'Meta+Z',
+                    onClick: () => {
+                      if (toast.undo !== null) undo(toast.undo);
+                    },
+                  },
+                ],
+          onClose: () => {
+            setToast(null);
+          },
+        },
+  );
 
   return (
     <main
@@ -686,35 +713,6 @@ export function AssetsPage({
             if (t !== null) setToast(t);
           }}
         />
-      )}
-
-      {toast !== null && (
-        <div className={toast.tone === 'bad' ? 'toast toast--bad' : 'toast'} role="status">
-          <Icon name={toast.tone === 'bad' ? 'alert' : 'check'} size={16} />
-          <span className="toast__msg">{toast.message}</span>
-          {toast.undo !== null && (
-            <button
-              type="button"
-              className="btn btn--ghost btn--small toast__undo"
-              aria-keyshortcuts="Meta+Z"
-              onClick={() => {
-                if (toast.undo !== null) undo(toast.undo);
-              }}
-            >
-              {t('common.undo')}
-            </button>
-          )}
-          <button
-            type="button"
-            className="btn btn--ghost btn--icon btn--small"
-            aria-label={t('assets.dismissNotice')}
-            onClick={() => {
-              setToast(null);
-            }}
-          >
-            <Icon name="close" size={14} />
-          </button>
-        </div>
       )}
 
       {dragging && (

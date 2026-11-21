@@ -123,8 +123,8 @@ test('貼圖：新建選類型、加圖、上限提示、鍵盤排序、移除�
       await page.keyboard.press('Backspace');
       await expect(tiles(page)).toHaveCount(11);
       await expect.poll(order).toEqual([before[1], ...before.slice(2)]);
-      await editor(page)
-        .getByRole('status')
+      await page
+        .locator('[data-toast]')
         .filter({ hasText: '已移除第 2 張' })
         .getByRole('button', { name: '復原' })
         .click();
@@ -229,6 +229,35 @@ test('貼圖：檔案遺失後重新指定、作品庫類型篩選與縮圖、�
     await expect
       .poll(async () => (await backend.client.works.get(work.id)).media?.images[4]?.status)
       .toBe('present');
+  });
+
+  await test.step('兩則提示同時出現時上下堆疊，不重疊', async () => {
+    await nav(page).getByRole('button', { name: '作品庫', exact: true }).click();
+    await page
+      .getByRole('region', { name: '作品', exact: true })
+      .getByRole('button', { name: /一篇文章/ })
+      .click();
+    // Opening fetches the work first: wait for its tab before switching back.
+    await expect(page.getByRole('textbox', { name: '標題' })).toHaveValue('一篇文章');
+    await page.keyboard.press('Meta+1');
+    await expect(editor(page)).toBeVisible();
+    // The editor's notice (復原) and then a tab notice (關閉其他).
+    await tiles(page).first().focus();
+    await page.keyboard.press('Backspace');
+    await page.getByRole('button', { name: '全部分頁（2）' }).click();
+    await page.getByRole('button', { name: /關閉其他分頁/ }).click();
+    const toasts = page.locator('[data-toast]');
+    await expect(toasts).toHaveCount(2);
+    await expect(toasts.nth(0)).toContainText('已移除第 1 張');
+    await expect(toasts.nth(1)).toContainText('已關閉 1 個分頁');
+    const upper = await toasts.nth(0).boundingBox();
+    const lower = await toasts.nth(1).boundingBox();
+    if (upper === null || lower === null) throw new Error('toasts not rendered');
+    // Stacked, the newest lowest; no overlap.
+    expect(upper.y + upper.height).toBeLessThanOrEqual(lower.y);
+    await shot(page, 'zh-Hant-8-two-notices');
+    await toasts.nth(0).getByRole('button', { name: '復原' }).click();
+    await expect(tiles(page)).toHaveCount(10);
   });
 
   await test.step('平台預覽：警告依代碼組成三語文案（QC-048）', async () => {

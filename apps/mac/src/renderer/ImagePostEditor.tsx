@@ -33,6 +33,7 @@ import { SAVE_STATUS, WORK_STATUS } from './format.js';
 import { HistoryPanel } from './HistoryPanel.js';
 import { codeText, t, useLocale } from './i18n.js';
 import { Icon } from './Icon.js';
+import { useToast } from './toasts.js';
 import {
   coverAssetId,
   DESCRIPTION_LIMIT,
@@ -319,6 +320,13 @@ function PostEditor({
   useEffect(() => {
     if (active) reportView();
   }, [panel, active, reportView]);
+  // Leaving the front: read the scroll position before the pane is hidden (see EditorPage).
+  useLayoutEffect(() => {
+    if (!active) return;
+    return () => {
+      if (scrollRef.current !== null) scrollTop.current = scrollRef.current.scrollTop;
+    };
+  }, [active]);
   const wasActive = useRef(active);
   useEffect(() => {
     if (wasActive.current && !active) reportView();
@@ -432,6 +440,39 @@ function PostEditor({
         locale,
       }),
     [platform, draft.title, draft.markdown, draft.tags, shownCover, ids, locale, work.updated_at],
+  );
+
+  // Notices go through the shared queue (QC-045); a background tab shows none.
+  const shownNotice = undo?.label ?? notice ?? insertState.notice?.message ?? null;
+  useToast(
+    !active || shownNotice === null
+      ? null
+      : {
+          message: shownNotice,
+          tone:
+            undo !== null || (notice === null && insertState.notice?.tone === 'ok')
+              ? 'ok'
+              : notice !== null
+                ? 'neutral'
+                : 'bad',
+          actions:
+            undo === null
+              ? []
+              : [
+                  {
+                    label: t('imagePost.undo'),
+                    onClick: () => {
+                      setImages(undo.images, undo.cover);
+                      setUndo(null);
+                    },
+                  },
+                ],
+          onClose: () => {
+            setUndo(null);
+            setNotice(null);
+            insert?.dismissNotice();
+          },
+        },
   );
 
   const onTileKey = (e: ReactKeyboardEvent<HTMLElement>, id: string) => {
@@ -1011,47 +1052,6 @@ function PostEditor({
             if (imagesLocked === null) void insert?.insertFiles(files, 'end');
           }}
         />
-
-        {(undo !== null || notice !== null || insertState.notice !== null) && (
-          <div
-            className={
-              insertState.notice?.tone === 'bad' && undo === null ? 'toast toast--bad' : 'toast'
-            }
-            role="status"
-          >
-            <Icon
-              name={undo !== null || insertState.notice?.tone === 'ok' ? 'check' : 'alert'}
-              size={16}
-            />
-            <span className="toast__msg">
-              {undo?.label ?? notice ?? insertState.notice?.message}
-            </span>
-            {undo !== null && (
-              <button
-                type="button"
-                className="btn btn--ghost btn--small toast__undo"
-                onClick={() => {
-                  setImages(undo.images, undo.cover);
-                  setUndo(null);
-                }}
-              >
-                {t('imagePost.undo')}
-              </button>
-            )}
-            <button
-              type="button"
-              className="btn btn--ghost btn--icon btn--small"
-              aria-label={t('editor.dismissNotice')}
-              onClick={() => {
-                setUndo(null);
-                setNotice(null);
-                insert?.dismissNotice();
-              }}
-            >
-              <Icon name="close" size={14} />
-            </button>
-          </div>
-        )}
       </main>
 
       {state.status === 'conflict' && (
