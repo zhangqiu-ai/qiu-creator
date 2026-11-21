@@ -25,6 +25,7 @@ import { useChangeEvents, useRefreshOn } from './events.js';
 import { SAVE_STATUS, WORK_STATUS } from './format.js';
 import { t, useLocale } from './i18n.js';
 import { Icon } from './Icon.js';
+import { warningText } from './image-post.js';
 import { addTags } from './TagEditor.js';
 import { VariantSession, type VariantDraft } from './variant-session.js';
 
@@ -42,15 +43,25 @@ function imageAriaKey(isCover: boolean, over: boolean): MessageKey {
 }
 
 /** Warnings for a draft, computed live as the user types (never blocks saving). */
-export function draftWarnings(platform: Platform, draft: VariantDraft | null) {
+export function draftWarnings(
+  platform: Platform,
+  draft: VariantDraft | null,
+  /** Image posts count images against the image-post limit (QC-045). */
+  workType?: string,
+) {
   return draft === null
     ? []
-    : checkVariantLimits(platform, {
-        title: draft.title,
-        body: draft.body,
-        image_asset_ids: draft.image_asset_ids,
-        tags: draft.tags,
-      });
+    : checkVariantLimits(
+        platform,
+        {
+          title: draft.title,
+          body: draft.body,
+          image_asset_ids: draft.image_asset_ids,
+          tags: draft.tags,
+        },
+        PLATFORM_LIMITS,
+        workType,
+      );
 }
 
 /** Move `id` one step left (-1) or right (+1) in `ids`. */
@@ -235,6 +246,7 @@ function WorkPreview({
             <PlatformTab
               key={p}
               session={sessions.get(p)}
+              workType={work.type}
               selected={platform === p}
               onSelect={() => {
                 setPlatform(p);
@@ -263,16 +275,18 @@ function useSession(session: VariantSession | undefined) {
 
 function PlatformTab({
   session,
+  workType,
   selected,
   onSelect,
 }: {
   session: VariantSession | undefined;
+  workType: string;
   selected: boolean;
   onSelect: () => void;
 }) {
   const state = useSession(session);
   if (state === null) return null;
-  const warn = draftWarnings(state.platform, state.draft).length > 0;
+  const warn = draftWarnings(state.platform, state.draft, workType).length > 0;
   const unsaved = state.status === 'dirty' || state.status === 'saving';
   return (
     <button type="button" role="tab" className="pv-tab" aria-selected={selected} onClick={onSelect}>
@@ -328,7 +342,10 @@ function VariantEditor({
   const platform = state?.platform ?? 'xiaohongshu';
   const template = getTemplate(platform);
   const limits = PLATFORM_LIMITS[platform];
-  const warnings = useMemo(() => draftWarnings(platform, draft), [platform, draft]);
+  const warnings = useMemo(
+    () => draftWarnings(platform, draft, work.type),
+    [platform, draft, work.type],
+  );
 
   const model = useMemo(() => {
     if (draft === null) return null;
@@ -341,6 +358,7 @@ function VariantEditor({
       tags: draft.tags,
       coverUrl: cover === null ? null : thumbnailUrl(cover),
       imageUrls: ids.map(thumbnailUrl),
+      workType: work.type,
       dateLabel: formatShortDate(locale, new Date(state?.record?.updated_at ?? work.updated_at)),
       locale,
     });
@@ -481,6 +499,12 @@ function VariantEditor({
                 <Icon name="alert" />
                 {t('library.overLimitCount', { count: warnings.length })}
                 <span className="pv-wbar__note">{t('library.doesNotBlockSaving')}</span>
+                {/* QC-048: worded here from code, limit and actual, never the service's message. */}
+                <ul className="pv-wbar__list">
+                  {warnings.map((w) => (
+                    <li key={w.code}>{warningText(w)}</li>
+                  ))}
+                </ul>
               </div>
             )}
 

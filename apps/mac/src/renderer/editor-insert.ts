@@ -56,6 +56,13 @@ export interface InsertSessionOptions {
   workId: string;
   /** Put a block into the editor (MarkdownEditorHandle.insertBlock). */
   insert: (markdown: string, where: InsertWhere) => void;
+  /**
+   * Image posts (QC-045): what to do with an asset once it is in the library,
+   * instead of attaching it and inserting `![](src)`. `{ beforeBlock: n }`
+   * there means before the n-th image; `end`/`caret` append. Rejects with the
+   * same errors as an attach.
+   */
+  place?: (asset: AssetRecord, where: InsertWhere) => Promise<void>;
   bridge: InsertBridge | null;
   /** Object URLs for previews (injectable for tests). */
   createPreview?: (blob: Blob) => string | null;
@@ -159,8 +166,7 @@ export class InsertSession {
   /** A library asset: attach, then insert. Resolves true when it was inserted. */
   async insertAsset(asset: AssetRecord, where: InsertWhere): Promise<boolean> {
     try {
-      const res = await this.options.client.works.attachMedia(this.options.workId, asset.id);
-      this.options.insert(imageMarkdown(res.src, asset.alt_text ?? ''), where);
+      await this.placeAsset(asset, where);
       this.set({
         notice: { message: t('editor.insertedAsset', { name: displayOf(asset) }), tone: 'ok' },
       });
@@ -267,8 +273,7 @@ export class InsertSession {
     const p = this.state.pending.find((x) => x.key === key);
     if (p === undefined) return;
     try {
-      const res = await this.options.client.works.attachMedia(this.options.workId, asset.id);
-      this.options.insert(imageMarkdown(res.src, asset.alt_text ?? ''), p.where);
+      await this.placeAsset(asset, p.where);
       this.finish(key);
       this.set({
         notice: { message: t('editor.insertedAndLibrary', { name: p.name }), tone: 'ok' },
@@ -276,6 +281,15 @@ export class InsertSession {
     } catch (err) {
       this.update(key, { state: 'failed', error: attachErrorText(err) });
     }
+  }
+
+  private async placeAsset(asset: AssetRecord, where: InsertWhere): Promise<void> {
+    if (this.options.place !== undefined) {
+      await this.options.place(asset, where);
+      return;
+    }
+    const res = await this.options.client.works.attachMedia(this.options.workId, asset.id);
+    this.options.insert(imageMarkdown(res.src, asset.alt_text ?? ''), where);
   }
 
   /** 重試: upload again, or only the attach if the file already reached the library. */

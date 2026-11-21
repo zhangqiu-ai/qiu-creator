@@ -5,6 +5,7 @@ import { common } from './common.js';
 import { editor } from './editor.js';
 import { errors } from './errors.js';
 import { format } from './format.js';
+import { imagePost } from './imagePost.js';
 import { library } from './library.js';
 import { main } from './main.js';
 import { serviceSettings } from './serviceSettings.js';
@@ -29,6 +30,7 @@ export const catalog = {
   editor,
   library,
   tabs,
+  imagePost,
 } as const;
 
 type Areas = typeof catalog;

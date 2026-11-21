@@ -13,6 +13,16 @@ QC-043 範圍外發現：匯入任務的錯誤細節仍原樣顯示，沒有用�
 
 依 QC-044 核准的原型實作貼圖作品：存放格式、API、編輯畫面、平台預覽。
 
+### Plan（前端，qc-frontend）
+
+- `work-session.ts`：草稿加 `images`、`cover`。貼圖與視頻作品存檔時送 `description`，文章不變。
+- `editor-insert.ts`：`InsertSession` 加 `place`，加圖沿用 QC-039 的上傳、貼上、拖入流程。
+- `image-post.ts`：排序、移除、重新指定、平台上限的純規則；`ImagePostEditor.tsx`：圖片格、封面設置、標題與描述、側邊預覽、歷史，放進 QC-047 的 `TabPane`。
+- `LibraryPage.tsx`：新建選單、類型篩選加數量、卡片縮圖、類型空狀態。
+- `platform-preview`：`workType` 讓貼圖依 `imagesLimit` 計算。
+- QC-048 同分支：匯入錯誤細節放進 `TechnicalDetails`；平台版本警告由介面依代碼組句。
+- 測試：`image-post.test.ts`（含真服務的 WorkSession），e2e `image-post.spec.ts`；證據 `docs/evidence/qc045-image-post.md`。
+
 ## QC-046: 視頻作品創作
 
 **Priority:** P1 | **Assignee:** qc-backend + qc-frontend | **Tags:** M3, backend, frontend

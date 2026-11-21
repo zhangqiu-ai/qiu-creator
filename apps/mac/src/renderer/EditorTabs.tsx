@@ -13,6 +13,7 @@ import {
 import type { TabCommand } from '../shared/bridge.js';
 import { Dialog } from './Dialog.js';
 import { EditorPage, type EditorTabHandle } from './EditorPage.js';
+import { ImagePostEditor } from './ImagePostEditor.js';
 import { WORK_TYPE } from './format.js';
 import { t } from './i18n.js';
 import { Icon } from './Icon.js';
@@ -433,7 +434,23 @@ function TabPane({
       aria-labelledby={`tab-${id}`}
       hidden={!shown}
     >
-      {loaded.state === 'ready' ? (
+      {loaded.state === 'ready' && loaded.work.type === 'image' ? (
+        <ImagePostEditor
+          client={client}
+          work={loaded.work}
+          userHome={userHome}
+          active={active}
+          initialView={initialView}
+          initialDraft={initialDraft}
+          onTabStatus={onTabStatus}
+          onViewChange={onViewChange}
+          onHandle={onHandle}
+          onBack={onBack}
+          onPreview={() => {
+            onPreview(loaded.work);
+          }}
+        />
+      ) : loaded.state === 'ready' ? (
         <EditorPage
           client={client}
           work={loaded.work}

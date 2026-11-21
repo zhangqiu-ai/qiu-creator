@@ -164,10 +164,8 @@ export function jobRow(job: ImportJobRecord): TaskRow {
         label: t(blocked ? 'library.taskBlocked' : 'library.taskFailed'),
         tone: 'bad',
         group: 'fail',
-        reason:
-          job.error_code === null
-            ? (job.error ?? t('library.taskFailed'))
-            : importErrorText(job.error_code),
+        // Never the service's own text as the reason (QC-048): it goes under 技術細節.
+        reason: job.error_code === null ? t('library.taskFailed') : importErrorText(job.error_code),
         reasonDetail: job.error,
         // The service refuses to retry blocked addresses only by failing again; let the user decide.
         canRetry: true,
