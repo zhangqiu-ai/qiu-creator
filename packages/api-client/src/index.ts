@@ -236,9 +236,11 @@ export function createClient(options: CreatorHubClientOptions): CreatorHubClient
         const params = new URLSearchParams();
         for (const [key, value] of Object.entries(query) as [
           string,
-          string | number | undefined,
+          string | number | string[] | undefined,
         ][]) {
-          if (value !== undefined) params.set(key, String(value));
+          if (value === undefined) continue;
+          // `ids` travels as one comma-separated value (QC-045/046).
+          params.set(key, Array.isArray(value) ? value.join(',') : String(value));
         }
         const qs = params.toString();
         return request(ListWorksResponseSchema, 'GET', `/api/v1/works${qs ? `?${qs}` : ''}`);

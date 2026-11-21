@@ -99,7 +99,12 @@ export class WorkMediaAttacher {
   ): Promise<string> {
     const tmp = path.join(dir, `.attach-${randomUUID()}.tmp`);
     try {
-      await fs.promises.copyFile(source, tmp, fs.constants.COPYFILE_EXCL);
+      // A clone on APFS when possible (QC-046: videos), a plain copy otherwise.
+      await fs.promises.copyFile(
+        source,
+        tmp,
+        fs.constants.COPYFILE_EXCL | fs.constants.COPYFILE_FICLONE,
+      );
       if (hashFile(tmp) !== sha256) {
         throw new ServiceError(409, 'asset_file_missing', 'the asset file changed on disk');
       }
@@ -175,8 +180,21 @@ export function findSameContent(
   return null;
 }
 
-function hashFile(file: string): string {
-  return createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+/** sha256 of a file, read in 1 MiB chunks so a large video never sits in memory whole. */
+export function hashFile(file: string): string {
+  const hash = createHash('sha256');
+  const fd = fs.openSync(file, 'r');
+  try {
+    const buf = Buffer.allocUnsafe(1024 * 1024);
+    for (;;) {
+      const n = fs.readSync(fd, buf, 0, buf.length, null);
+      if (n === 0) break;
+      hash.update(buf.subarray(0, n));
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+  return hash.digest('hex');
 }
 
 function splitName(name: string): { stem: string; ext: string } {

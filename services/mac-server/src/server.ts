@@ -50,6 +50,7 @@ import { registerEventRoutes } from './routes/events.js';
 import { registerImportRoutes, registerTokenRoutes } from './routes/imports.js';
 import { registerMediaRoutes } from './routes/media.js';
 import { WorkMediaAttacher } from './media/attach.js';
+import { WorkComposer } from './works/work-composer.js';
 import { registerMountRoutes } from './routes/mounts.js';
 import { registerAiRoutes } from './routes/ai.js';
 import { registerAiTextRoutes } from './routes/ai-text.js';
@@ -224,6 +225,8 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   );
   const media = new WorkMediaService(works, assets, layout, signer, assets.limits);
   const variants = new VariantService(db, works, assets, media, feed);
+  const attacher = new WorkMediaAttacher(layout, works, assets);
+  const composer = new WorkComposer(db, works, attacher, assets);
   const assetLibrary = new AssetLibrary(db, layout, assets, feed, {
     ...options.assetLibrary,
     markdownReferrers: (asset) => media.markdownReferrers(asset),
@@ -448,14 +451,10 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
         },
       },
     },
-    (req, reply) => {
-      const { base_revision: bodyBase, ...fields } = req.body;
-      const current = works.get(req.params.id).current_revision_id;
-      const ifMatch = req.headers['if-match'];
-      const work = works.patch(req.params.id, {
-        ...fields,
-        baseRevision: resolveBaseRevision(bodyBase, ifMatch, current),
-      });
+    async (req, reply) => {
+      // Articles go straight to WorkService.patch; image and video works are
+      // composed from their front matter (QC-045/046).
+      const work = await composer.patch(req.params.id, req.body, req.headers['if-match']);
       reply.header('etag', revisionEtag(work.current_revision_id));
       return work;
     },
@@ -529,14 +528,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerImportRoutes(app, imports, idempotency);
   registerTokenRoutes(app, tokens);
   registerMountRoutes(app, mounts);
-  registerMediaRoutes(
-    app,
-    media,
-    assets,
-    signer,
-    tokens,
-    new WorkMediaAttacher(layout, works, assets),
-  );
+  registerMediaRoutes(app, media, assets, signer, tokens, attacher);
   registerVariantRoutes(app, variants);
   registerAiRoutes(app, ai, idempotency);
   registerAiTextRoutes(app, new TextAiService(ai, works, variants), ai, idempotency);

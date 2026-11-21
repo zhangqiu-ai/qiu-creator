@@ -429,4 +429,20 @@ export const migrations: readonly Migration[] = [
       ALTER TABLE ai_jobs ADD COLUMN error_detail TEXT;
     `,
   },
+  {
+    id: '0015',
+    name: 'typed_works_media',
+    sql: /* sql */ `
+      -- QC-045/046: image-post and video works keep their files in front matter.
+      -- media_index maps a front-matter path to the library asset it came from
+      -- (JSON object), so lists and thumbnails need no hashing.
+      ALTER TABLE works ADD COLUMN media_index TEXT NOT NULL DEFAULT '{}';
+      -- A platform variant can follow the work's shared copy, and a video's
+      -- variant can use a frame as cover.
+      ALTER TABLE platform_variants ADD COLUMN inherit INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE platform_variants ADD COLUMN cover_time_seconds REAL;
+      ALTER TABLE platform_variant_revisions ADD COLUMN inherit INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE platform_variant_revisions ADD COLUMN cover_time_seconds REAL;
+    `,
+  },
 ];

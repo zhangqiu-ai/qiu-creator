@@ -27,6 +27,20 @@ export interface PlatformLimits {
   tagsMax: number | null;
   /** Whether the body is shown as rendered Markdown (articles) or plain text (posts, captions). */
   bodyFormat: 'markdown' | 'plain';
+  /**
+   * Images in an image post when it differs from `imagesMax` (QC-045): 公眾號
+   * articles take any number, but its 貼圖 posts take 20. Reference value,
+   * warnings only.
+   */
+  imagePostImagesMax?: number | null;
+}
+
+/** Images allowed for a platform: the image-post limit for image works, else `imagesMax`. */
+export function imagesLimit(platform: Platform, workType: string): number | null {
+  const l = PLATFORM_LIMITS[platform];
+  return workType === 'image' && l.imagePostImagesMax !== undefined
+    ? l.imagePostImagesMax
+    : l.imagesMax;
 }
 
 export const PLATFORM_LIMITS: Readonly<Record<Platform, PlatformLimits>> = {
@@ -38,11 +52,13 @@ export const PLATFORM_LIMITS: Readonly<Record<Platform, PlatformLimits>> = {
     tagsMax: 10,
     bodyFormat: 'plain',
   },
-  // 微信公眾號：標題 64 字、正文 20000 字；圖片數不設限。
+  // 微信公眾號：標題 64 字、正文 20000 字；文章圖片數不設限。
+  // 貼圖（圖片消息）暫用 20 張，只提示（QC-045，原型 PT-20261121-001 的決定）。
   wechat_mp: {
     titleMaxChars: 64,
     bodyMaxChars: 20000,
     imagesMax: null,
+    imagePostImagesMax: 20,
     tagsMax: null,
     bodyFormat: 'markdown',
   },
@@ -94,8 +110,12 @@ export function checkVariantLimits(
   platform: Platform,
   v: { title: string; body: string; image_asset_ids: readonly string[]; tags: readonly string[] },
   limits: Readonly<Record<Platform, PlatformLimits>> = PLATFORM_LIMITS,
+  /** The work's type: image posts use `imagePostImagesMax` where a platform has one (QC-045). */
+  workType?: string,
 ): VariantWarning[] {
   const l = limits[platform];
+  const imagesMax =
+    workType === 'image' && l.imagePostImagesMax !== undefined ? l.imagePostImagesMax : l.imagesMax;
   const out: VariantWarning[] = [];
   const check = (
     code: VariantWarningCode,
@@ -117,7 +137,7 @@ export function checkVariantLimits(
   };
   check('title_too_long', 'title', l.titleMaxChars, charCount(v.title), '標題', '字');
   check('body_too_long', 'body', l.bodyMaxChars, charCount(v.body), '正文', '字');
-  check('too_many_images', 'image_asset_ids', l.imagesMax, v.image_asset_ids.length, '圖片', '張');
+  check('too_many_images', 'image_asset_ids', imagesMax, v.image_asset_ids.length, '圖片', '張');
   check('too_many_tags', 'tags', l.tagsMax, v.tags.length, '標籤', '個');
   return out;
 }
@@ -143,12 +163,35 @@ const VariantFieldsShape = {
   tags: TagsSchema,
 };
 
+/** A variant's cover: an image asset, or a frame of the work's video (QC-046). */
+export const VariantCoverSchema = z.union([
+  z.object({ asset_id: IdSchema }).strict(),
+  z
+    .object({
+      time_seconds: z
+        .number()
+        .nonnegative()
+        .max(24 * 60 * 60),
+    })
+    .strict(),
+]);
+export type VariantCover = z.infer<typeof VariantCoverSchema>;
+
 /** One platform version of a work, with its own revision counter. */
 export const PlatformVariantRecordSchema = z.object({
   id: IdSchema,
   work_id: IdSchema,
   platform: PlatformSchema,
   ...VariantFieldsShape,
+  /**
+   * Follows the work's shared copy (QC-045/046): `title`, `body` and `tags`
+   * shown here are the work's title, description (image and video works) and
+   * tags, not the variant's own saved text, which is kept for when it stops
+   * inheriting. Absent from older servers.
+   */
+  inherit: z.boolean().optional(),
+  /** `cover_asset_id` as an object, or a video frame; null when there is none. */
+  cover: VariantCoverSchema.nullable().optional(),
   /** Starts at 1 and increases by one per change; also the ETag (`"3"`). */
   revision: z.number().int().positive(),
   /** Work revision the latest draft was generated from (null if never drafted). */
@@ -180,6 +223,12 @@ export const PatchVariantRequestSchema = z
     cover_asset_id: VariantFieldsShape.cover_asset_id.optional(),
     image_asset_ids: VariantFieldsShape.image_asset_ids.optional(),
     tags: VariantFieldsShape.tags.optional(),
+    /** Same as `image_asset_ids` (QC-045/046 naming); send one of the two. */
+    images: VariantFieldsShape.image_asset_ids.optional(),
+    /** An image asset or a video frame; null removes it. Replaces `cover_asset_id`. */
+    cover: VariantCoverSchema.nullable().optional(),
+    /** Follow the work's shared title, description and tags (see the record). */
+    inherit: z.boolean().optional(),
   })
   .refine(
     (v) =>
@@ -187,9 +236,18 @@ export const PatchVariantRequestSchema = z
       v.body !== undefined ||
       v.cover_asset_id !== undefined ||
       v.image_asset_ids !== undefined ||
-      v.tags !== undefined,
+      v.tags !== undefined ||
+      v.images !== undefined ||
+      v.cover !== undefined ||
+      v.inherit !== undefined,
     { message: 'at least one editable field is required' },
-  );
+  )
+  .refine((v) => v.images === undefined || v.image_asset_ids === undefined, {
+    message: 'send images or image_asset_ids, not both',
+  })
+  .refine((v) => v.cover === undefined || v.cover_asset_id === undefined, {
+    message: 'send cover or cover_asset_id, not both',
+  });
 export type PatchVariantRequest = z.input<typeof PatchVariantRequestSchema>;
 
 /**
@@ -227,6 +285,9 @@ export const VariantRevisionSchema = z.object({
   revision: z.number().int().positive(),
   source: VariantRevisionSourceSchema,
   ...VariantFieldsShape,
+  /** Whether this revision followed the work's shared copy (QC-045/046). */
+  inherit: z.boolean().optional(),
+  cover: VariantCoverSchema.nullable().optional(),
   created_at: TimestampSchema,
 });
 export type VariantRevision = z.infer<typeof VariantRevisionSchema>;

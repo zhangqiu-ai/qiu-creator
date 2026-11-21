@@ -177,6 +177,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 `0011_change_log_system_entity`：`change_log.entity` 允許 `system`（備份事件，QC-030）。SQLite 無法修改 CHECK，所以重建資料表，保留 `seq` 與 AUTOINCREMENT 的最高值，SSE 的 id 不會倒退。
 
+`0015_typed_works_media`（QC-045/046）：`works` 增加 `media_index`（JSON：front matter 路徑對應的素材 id，列表與縮圖不必雜湊檔案）；`platform_variants` 與 `platform_variant_revisions` 增加 `inherit`（沿用共用文案）與 `cover_time_seconds`（以視頻某一幀為封面）。接在 `0014`（QC-043）之後。
+
 `0014_ai_job_error_detail`（QC-043）：`ai_jobs` 增加 `error_detail`，存失敗的技術細節原文（HTTP 狀態、供應商的簡短錯誤文字），已去除金鑰；`error` 仍是繁體的說明。
 
 `0013_asset_metadata_trash`（QC-037）：`assets` 增加 `display_name`、`tags`（JSON 陣列）、`alt_text`、`note`、`revision`（預設 1）、`deleted_at` 與 `removal`（`trashed`／`unindexed`／`original_trashed`），並為 `deleted_at` 建部分索引。只加欄位，不重建資料表。
@@ -192,10 +194,10 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | 方法 | 路徑 | 說明 |
 | --- | --- | --- |
 | GET | `/health` | 不需權杖；回 `version`、`commit`、`built_at`（從原始碼執行時後兩者為 null，QC-030） |
-| POST | `/api/v1/works` | 建立托管作品，回 201 與 `ETag` |
-| GET | `/api/v1/works` | 列表；`q`、`type`、`status`、`tag`、`limit`、`offset` |
+| POST | `/api/v1/works` | 建立托管作品，回 201 與 `ETag`；`type` 為 `image`／`video` 時寫入 front matter，可帶 `description`（QC-045/046） |
+| GET | `/api/v1/works` | 列表；`q`、`type`、`status`、`tag`、`limit`、`offset`；`ids=a,b,c` 依序取回指定作品並列出 `missing_ids`（分頁恢復）；貼圖與視頻作品另有 `thumbnail`、`image_count`、`duration_seconds`、`orientation`、`missing_media` |
 | GET | `/api/v1/works/:id` | 讀取（含 Markdown），回 `ETag: "<revision>"` |
-| PATCH | `/api/v1/works/:id` | 修改；需要 `base_revision` 或 `If-Match` |
+| PATCH | `/api/v1/works/:id` | 修改；需要 `base_revision` 或 `If-Match`。貼圖與視頻作品另可一次寫入 `description`、`images`（完整有序的素材 id）、`cover`（`{asset_id}` 或 `{time_seconds}`）、`video_asset_id`；帶 `ai_job_id` 時記為 `ai_accepted` 版本 |
 | GET | `/api/v1/works/:id/revisions` | 版本歷史 |
 | GET | `/api/v1/works/:id/revisions/:rid` | 單一歷史版本：標題與完整 Markdown 快照 |
 | POST | `/api/v1/works/:id/revisions/:rid/restore` | 恢復某版本：追加一個 `restore` revision；需要 `base_revision` 或 `If-Match` |
@@ -226,7 +228,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/works/:id/variants` | 作品的平台版本（依小紅書、公眾號、抖音、視頻號排序），每份帶 `warnings` |
 | POST | `/api/v1/works/:id/variants` | 從原文以規則產生草稿（不呼叫 AI）；已有版本的平台略過並列在 `skipped` |
 | GET | `/api/v1/works/:id/variants/:platform` | 單一平台版本，回 `ETag: "<revision>"` |
-| PATCH | `/api/v1/works/:id/variants/:platform` | 修改標題、正文、封面、圖片順序、標籤；需要 `base_revision` 或 `If-Match` |
+| PATCH | `/api/v1/works/:id/variants/:platform` | 修改標題、正文、封面、圖片順序、標籤；也接受 `images`、`cover`（含視頻幀）、`inherit`（QC-045/046）；需要 `base_revision` 或 `If-Match` |
 | POST | `/api/v1/works/:id/variants/:platform/draft` | 從目前原文重新產生草稿；不存在時建立（201），存在時需要 base，追加 `draft` 版本 |
 | DELETE | `/api/v1/works/:id/variants/:platform` | 刪除該平台版本（留墓碑、保留歷史，版本號不回頭）；需要 `If-Match` |
 | GET | `/api/v1/works/:id/variants/:platform/revisions[/:revision]` | 平台版本歷史（含完整內容） |
@@ -283,6 +285,52 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 - **託管與外部**：託管檔在 30 天內都留在原位。外部素材預設只解除索引；`move_original_to_trash` 用 macOS 內建的 `/usr/bin/trash`（與 Finder「移到垃圾桶」相同，可「放回原處」），失敗或找不到指令時回 500 `trash_failed`，資料庫不改。伺服器不會從垃圾桶取回檔案：使用者在 Finder 放回原處後再按恢復。測試注入假的 `SystemTrash`，測試執行器下預設的實作一律失敗，不會碰真實垃圾桶。
 - **永久刪除**：手動、清空，或刪除 30 天後由每小時一次的檢查自動執行。刪資料列後，作品連結由外鍵刪除、平台版本封面變 NULL，平台版本的 `image_asset_ids` 移除該 id（不產生新的版本，歷史保留原值）。託管檔與縮圖快取一併刪除；外部原檔永遠不動。刪除前若作品目前的 Markdown 還連到該檔，回應的 `markdown_referrers` 會列出（只提示，不阻擋）。
 - **權限**：讀取（列表、詳情、`references`）需要 `read`；所有變更只限 owner 權杖。
+
+## 貼圖與視頻作品（QC-045/046）
+
+**存放**：仍以 Markdown 為主，`library/works/<id>/source.md` 開頭是 YAML front matter，正文是描述（純文字）。
+
+```markdown
+---
+type: image
+title: 京都秋天
+images:
+  - assets/kyoto-2.png
+  - assets/kyoto-1.png
+cover: assets/kyoto-2.png      # 視頻作品可寫 cover: { time_seconds: 12.5 }
+video: assets/walk.mp4         # 視頻作品
+tags:
+  - 旅行
+---
+描述正文。
+```
+
+- 路徑相對於 Markdown 檔所在資料夾。圖片與視頻是作品自己 `assets/` 裡的檔案，照 QC-039 attach 從素材庫複製進來（相同內容沿用；APFS 上用 clone，不佔兩倍空間）。
+- 讀寫用 `packages/domain` 的 `parseWorkSource`／`writeWorkSource`（`yaml` 的文件模型）：App 寫回時，未知的鍵、註解與鍵的順序都保留。front matter 不是合法 YAML 時，`media.front_matter_invalid` 為 true，任何會改檔的寫入回 409 `front_matter_invalid`，檔案不動。
+- **文章不變**：`type` 不是 `image`／`video` 的作品不讀 front matter，也不會被寫入 front matter；它們的 PATCH 走原本的路徑，媒體欄位回 400。
+
+**寫入**（`PATCH /api/v1/works/:id`，`WorkComposer`）：一次寫入就是一個版本，與文章相同的歷史快照與原子替換。
+
+1. 檢查版本：沒帶回 428，過期回 409。
+2. `images`、`cover.asset_id`、`video_asset_id` 指到的素材複製進 `assets/`；類型不符回 400，在最近刪除回 409 `asset_in_trash`。
+3. 組出新的 Markdown，以同一個版本提交；期間若有別的寫入，這次回 409，並刪掉這次才複製進來的檔案。
+4. 被移出 `images` 的檔案留在 `assets/`，不刪（歷史版本還會用到）。
+
+**外部掛載的作品**：front matter 寫在使用者自己的 `.md`。
+
+- 發現時，front matter 的 `type` 為 `image`／`video` 才當成該類型，標題與標籤取自 front matter；其他維持文章。
+- 媒體就地引用，不搬也不複製。PATCH 只接受同一個掛載資料夾裡已索引的檔案，其餘回 409 `attach_external_unsupported`。
+- 改描述、標題、標籤只寫它自己的 `.md`。
+
+**讀取**：`GET /api/v1/works/:id` 對貼圖與視頻作品多回 `description` 與 `media`（`images`、`cover`、`video`）。每個檔案帶 `asset_id`、`status`（`present`／`missing`）、寬高與長度。`asset_id` 先查 `works.media_index`，查不到（例如還原舊版本）就以內容比對一次並記住。列表多回卡片欄位；`thumbnail` 依序取封面、第一張圖、視頻。
+
+**AI**：視頻理解沿用 QC-023 的估算與任務。採用建議時，用一般的 PATCH 加 `ai_job_id`，產生 `ai_accepted` 版本。該任務必須已成功，而且屬於這個作品或分析的正是它的視頻，否則回 409 `ai_job_not_acceptable`。
+
+**平台版本**：
+
+- 草稿取自 front matter：標題、描述、標籤、圖片與封面（含視頻幀）。
+- `inherit: true` 時，讀取到的標題、正文與標籤就是作品目前的共用文案，作品改了會跟著變，不必寫新版本。版本自己的文字保留，關掉沿用時恢復。
+- 公眾號貼圖的圖片參考上限是 20 張（`PLATFORM_LIMITS.wechat_mp.imagePostImagesMax`），只提示。
 
 ## 版本恢復（QC-010）
 

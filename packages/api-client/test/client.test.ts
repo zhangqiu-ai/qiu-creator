@@ -40,6 +40,15 @@ describe('createClient', () => {
     );
   });
 
+  it('sends ids as one comma-separated value (QC-045/046)', async () => {
+    const a = '11111111-1111-4111-8111-111111111111';
+    const b = '22222222-2222-4222-8222-222222222222';
+    const f = fakeFetch(200, { items: [], total: 0, limit: 0, offset: 0, missing_ids: [a] });
+    const client = createClient({ baseUrl: 'http://mac', token: 't', fetch: f.fetch });
+    expect((await client.works.list({ ids: [a, b] })).missing_ids).toEqual([a]);
+    expect(f.calls[0]?.url).toBe(`http://mac/api/v1/works?ids=${a}%2C${b}`);
+  });
+
   it('sends If-Match as a strong ETag on patch', async () => {
     const f = fakeFetch(409, {
       error: {
