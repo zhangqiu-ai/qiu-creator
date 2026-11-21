@@ -1,15 +1,25 @@
 import { Icon, type IconName } from './Icon.js';
 import type { ServiceTone } from './sidebar-prefs.js';
+import type { MessageKey } from '@qiu-creator/i18n';
+import { t } from './i18n.js';
 
 export type SettingsCategory = 'appearance' | 'service' | 'backup' | 'ai' | 'folders' | 'about';
 
+const cat = (key: SettingsCategory, label: MessageKey, icon: IconName) => ({
+  key,
+  get label() {
+    return t(label);
+  },
+  icon,
+});
+
 export const CATEGORIES: readonly { key: SettingsCategory; label: string; icon: IconName }[] = [
-  { key: 'appearance', label: '外觀', icon: 'appearance' },
-  { key: 'service', label: '本機服務', icon: 'server' },
-  { key: 'backup', label: '備份與還原', icon: 'history' },
-  { key: 'ai', label: 'AI 服務', icon: 'spark' },
-  { key: 'folders', label: '資料夾', icon: 'folder' },
-  { key: 'about', label: '關於', icon: 'info' },
+  cat('appearance', 'settings.catAppearance', 'appearance'),
+  cat('service', 'settings.catService', 'server'),
+  cat('backup', 'settings.catBackup', 'history'),
+  cat('ai', 'settings.catAi', 'spark'),
+  cat('folders', 'settings.catFolders', 'folder'),
+  cat('about', 'settings.catAbout', 'info'),
 ];
 
 /** The heading each category scrolls to (and that the sections already label themselves with). */
@@ -69,7 +79,7 @@ export function SettingsNav({
   onPick: (cat: SettingsCategory) => void;
 }) {
   return (
-    <nav className="set-nav" aria-label="設定分類">
+    <nav className="set-nav" aria-label={t('settings.categories')}>
       {CATEGORIES.map((c) => (
         <button
           key={c.key}
@@ -86,7 +96,13 @@ export function SettingsNav({
             <span
               className={`set-nav__dot set-nav__dot--${tone}`}
               role="img"
-              aria-label={tone === 'ok' ? '服務正常' : tone === 'bad' ? '服務異常' : '還原中'}
+              aria-label={
+                tone === 'ok'
+                  ? t('settings.dotOk')
+                  : tone === 'bad'
+                    ? t('settings.dotBad')
+                    : t('settings.dotRestoring')
+              }
             />
           )}
         </button>

@@ -1,27 +1,36 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
-import { isRestoring, RESTORING_TEXT } from './restoring.js';
+import { isRestoring, restoringText } from './restoring.js';
 import type { ImportJobRecord } from '@qiu-creator/contracts';
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
 import { useRefreshOn, useUploads } from './events.js';
+import { t } from './i18n.js';
 import { Icon, type IconName } from './Icon.js';
 import {
   countRows,
   filterRows,
-  METHOD_LABEL,
+  methodLabel,
   taskRows,
   type TaskFilter,
   type TaskRow,
 } from './tasks.js';
 import { TokensPanel } from './TokensPanel.js';
 
-const FILTERS: readonly { key: TaskFilter; label: string }[] = [
-  { key: 'all', label: '全部' },
-  { key: 'run', label: '進行中' },
-  { key: 'fail', label: '失敗' },
-  { key: 'done', label: '完成' },
-];
+const FILTERS: readonly TaskFilter[] = ['all', 'run', 'fail', 'done'];
+
+function filterLabel(filter: TaskFilter): string {
+  switch (filter) {
+    case 'all':
+      return t('library.all');
+    case 'run':
+      return t('library.taskRunning');
+    case 'fail':
+      return t('library.taskFailed');
+    case 'done':
+      return t('common.done');
+  }
+}
 
 const METHOD_ICON: Readonly<Record<TaskRow['method'], IconName>> = {
   url: 'link',
@@ -86,10 +95,10 @@ export function ImportsPage({
           key: row.key,
           message:
             err instanceof ApiError && err.code === 'job_not_retryable'
-              ? '這個任務目前不能重試'
+              ? t('library.notRetryable')
               : isRestoring(err)
-                ? RESTORING_TEXT
-                : '重試失敗，請稍後再試',
+                ? restoringText()
+                : t('library.retryFailed'),
         });
         load();
       });
@@ -100,21 +109,21 @@ export function ImportsPage({
   };
 
   return (
-    <main className="page" aria-label="匯入任務">
+    <main className="page" aria-label={t('library.imports')}>
       <header className="page__header">
-        <h1 className="page__title">匯入任務</h1>
-        <div className="seg" role="group" aria-label="狀態">
+        <h1 className="page__title">{t('library.imports')}</h1>
+        <div className="seg" role="group" aria-label={t('library.status')}>
           {FILTERS.map((f) => (
             <button
-              key={f.key}
+              key={f}
               type="button"
-              aria-pressed={filter === f.key}
+              aria-pressed={filter === f}
               onClick={() => {
-                setFilter(f.key);
+                setFilter(f);
               }}
             >
-              {f.label}
-              <span className="seg__n">{counts[f.key]}</span>
+              {filterLabel(f)}
+              <span className="seg__n">{counts[f]}</span>
             </button>
           ))}
         </div>
@@ -127,26 +136,26 @@ export function ImportsPage({
           }}
         >
           <Icon name="link" />
-          貼上 URL
+          {t('library.pasteUrl')}
         </button>
         <button type="button" className="btn btn--primary" onClick={pick}>
           <Icon name="upload" />
-          上傳
+          {t('library.upload')}
         </button>
       </header>
 
       <div className="imports">
         <section
           className="card imports__list"
-          aria-label="任務"
+          aria-label={t('library.tasks')}
           aria-busy={jobs === null && !failed}
         >
           {failed && (
             <div className="banner banner--bad" role="alert">
               <Icon name="offline" />
-              <span className="banner__text">無法載入服務端的匯入任務</span>
+              <span className="banner__text">{t('library.importsLoadFailed')}</span>
               <button type="button" className="btn btn--small" onClick={load}>
-                重試
+                {t('common.retry')}
               </button>
             </div>
           )}
@@ -163,10 +172,10 @@ export function ImportsPage({
             rows.length === 0 ? (
               <div className="imports__empty">
                 <Icon name="imports" size={28} />
-                <span className="state-card__title">無任務</span>
+                <span className="state-card__title">{t('library.noTasks')}</span>
                 <div className="state-card__actions">
                   <button type="button" className="btn btn--primary" onClick={pick}>
-                    上傳
+                    {t('library.upload')}
                   </button>
                   <button
                     type="button"
@@ -175,13 +184,13 @@ export function ImportsPage({
                       setUrlOpen(true);
                     }}
                   >
-                    貼上 URL
+                    {t('library.pasteUrl')}
                   </button>
                 </div>
               </div>
             ) : (
               <div className="imports__empty">
-                <span className="muted">這個分類沒有任務</span>
+                <span className="muted">{t('library.noTasksInFilter')}</span>
               </div>
             )
           ) : (
@@ -249,7 +258,7 @@ function TaskRowView({
   const pct = row.progress === null ? null : Math.round(row.progress * 100);
   return (
     <li className="trow">
-      <span className="trow__icon" role="img" aria-label={METHOD_LABEL[row.method]}>
+      <span className="trow__icon" role="img" aria-label={methodLabel(row.method)}>
         <Icon name={METHOD_ICON[row.method]} size={14} />
       </span>
       <div className="trow__main">
@@ -258,7 +267,7 @@ function TaskRowView({
           {row.size !== null && <span className="faint trow__size">{row.size}</span>}
         </div>
         <div className="trow__line trow__sub">
-          <span>{METHOD_LABEL[row.method]}</span>
+          <span>{methodLabel(row.method)}</span>
           <span aria-hidden="true">·</span>
           <span className={row.method === 'url' ? 'mono trow__origin' : 'trow__origin'}>
             {row.origin}
@@ -269,7 +278,7 @@ function TaskRowView({
             {row.reason}
           </div>
         )}
-        {row.reused && <div className="faint">內容與既有素材相同，沿用原素材，沒有重複儲存</div>}
+        {row.reused && <div className="faint">{t('library.reusedNote')}</div>}
         {error !== null && (
           <div className="trow__reason" role="alert">
             {error}
@@ -281,7 +290,7 @@ function TaskRowView({
           <Chip tone={row.tone}>{row.label}</Chip>
           {row.running && pct !== null && <span className="trow__pct">{pct}%</span>}
         </span>
-        {(row.running || (row.label === '已取消' && pct !== null)) && (
+        {(row.running || (row.cancelled && pct !== null)) && (
           <div
             className={pct === null ? 'bar bar--indeterminate' : 'bar'}
             role="progressbar"
@@ -298,25 +307,25 @@ function TaskRowView({
         {row.canRetry && (
           <button type="button" className="btn btn--small" onClick={onRetry}>
             <Icon name="retry" size={14} />
-            {row.label === '已取消' ? '繼續' : '重試'}
+            {row.cancelled ? t('library.resume') : t('common.retry')}
           </button>
         )}
         {row.canCancel && (
           <button type="button" className="btn btn--ghost btn--small" onClick={onCancel}>
-            取消
+            {t('common.cancel')}
           </button>
         )}
         {row.group === 'done' && row.assetId !== null && (
           <button type="button" className="btn btn--ghost btn--small" onClick={onOpen}>
-            {row.reused ? '沿用原素材' : '開啟'}
+            {row.reused ? t('library.openReusedAsset') : t('common.open')}
           </button>
         )}
         {row.canDismiss && (
           <button
             type="button"
             className="btn btn--ghost btn--icon btn--small"
-            aria-label={`從列表移除 ${row.name}`}
-            title="從列表移除"
+            aria-label={t('library.dismissRow', { name: row.name })}
+            title={t('library.dismiss')}
             onClick={onDismiss}
           >
             <Icon name="close" size={14} />
@@ -334,18 +343,18 @@ function newKey(): string {
 /** The service refuses literal private addresses and bad schemes before queuing a job. */
 export function urlRejectedText(err: ApiError): string {
   const reason = err.body?.error.details?.['reason'];
-  if (reason === 'blocked_address') return '內網或本機位址，已阻擋。只能匯入公開網址。';
-  return '這個網址不能匯入';
+  if (reason === 'blocked_address') return t('library.urlBlocked');
+  return t('library.urlNotImportable');
 }
 
 export function validateImportUrl(value: string): string | null {
   const trimmed = value.trim();
-  if (trimmed === '') return '請輸入網址';
+  if (trimmed === '') return t('library.urlRequired');
   try {
     const url = new URL(trimmed);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '只支援 http 或 https 網址';
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return t('library.urlSchemeOnly');
   } catch {
-    return '網址格式不正確';
+    return t('library.urlMalformed');
   }
   return null;
 }
@@ -387,14 +396,14 @@ function UrlImportDialog({
         if (err instanceof ApiError && err.code === 'url_rejected') {
           setError(urlRejectedText(err));
         } else if (err instanceof ApiError && err.code === 'validation_error') {
-          setError('網址或檔名格式不正確');
+          setError(t('library.urlOrNameInvalid'));
         } else if (err instanceof ApiError && err.code === 'idempotency_key_reused') {
           key.current = newKey();
-          setError('內容已變更，請再按一次匯入');
+          setError(t('library.importKeyReused'));
         } else if (isRestoring(err)) {
-          setError(RESTORING_TEXT);
+          setError(restoringText());
         } else {
-          setError('無法建立匯入任務，請確認本機服務是否運行');
+          setError(t('library.importCreateFailed'));
         }
       });
   };
@@ -408,23 +417,23 @@ function UrlImportDialog({
 
   return (
     <Dialog
-      title="從 URL 匯入"
+      title={t('library.importFromUrl')}
       onClose={onClose}
       footer={
         <>
-          <span className="faint dialog__hint">只下載公開網址；內網與本機位址會被阻擋</span>
+          <span className="faint dialog__hint">{t('library.importUrlHint')}</span>
           <button type="button" className="btn btn--ghost dialog__primary" onClick={onClose}>
-            取消
+            {t('common.cancel')}
           </button>
           <button type="button" className="btn btn--primary" disabled={busy} onClick={submit}>
-            匯入
+            {t('library.import')}
           </button>
         </>
       }
     >
       <div className="form">
         <label className="field">
-          <span className="field__label">網址</span>
+          <span className="field__label">{t('library.url')}</span>
           <input
             data-autofocus
             className="input mono"
@@ -442,7 +451,7 @@ function UrlImportDialog({
         </label>
         <label className="field">
           <span className="field__label">
-            檔名 <span className="faint">（選填）</span>
+            {t('library.filename')} <span className="faint">{t('library.optional')}</span>
           </span>
           <input
             className="input"

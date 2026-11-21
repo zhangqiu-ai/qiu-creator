@@ -1,3 +1,4 @@
+import { SOURCE_LOCALE, translate, type Locale, type MessageKey } from '@qiu-creator/i18n';
 import type { Nodes, Root, Table } from 'mdast';
 import { fromMarkdown } from 'mdast-util-from-markdown';
 import { frontmatterFromMarkdown } from 'mdast-util-frontmatter';
@@ -13,15 +14,20 @@ import { gfm } from 'micromark-extension-gfm';
 export type LossyReason =
   'html' | 'footnote' | 'reference_link' | 'table_edge_case' | 'math' | 'directive' | 'parse_error';
 
-export const LOSSY_REASON_LABELS: Readonly<Record<LossyReason, string>> = {
-  html: 'HTML',
-  footnote: '腳註',
-  reference_link: '參照式連結',
-  table_edge_case: '特殊表格',
-  math: '數學公式',
-  directive: '指令區塊',
-  parse_error: '無法解析',
+const LOSSY_REASON_KEYS: Readonly<Record<LossyReason, MessageKey>> = {
+  html: 'editor.lossyHtml',
+  footnote: 'editor.lossyFootnote',
+  reference_link: 'editor.lossyReferenceLink',
+  table_edge_case: 'editor.lossyTableEdgeCase',
+  math: 'editor.lossyMath',
+  directive: 'editor.lossyDirective',
+  parse_error: 'editor.lossyParseError',
 };
+
+/** What to call one reason in the interface (QC-042: in the given language). */
+export function lossyReasonLabel(reason: LossyReason, locale: Locale = SOURCE_LOCALE): string {
+  return translate(locale, LOSSY_REASON_KEYS[reason]);
+}
 
 /** Parse Markdown with the same syntax extensions the editor understands. */
 export function parseMarkdown(markdown: string): Root {

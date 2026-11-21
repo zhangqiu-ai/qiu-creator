@@ -6,7 +6,7 @@ import {
   isRestoring,
   noteServiceResponse,
   onRestoringSeen,
-  RESTORING_TEXT,
+  restoringText,
   serviceErrorText,
 } from '../src/renderer/restoring.js';
 
@@ -27,8 +27,10 @@ describe('503 restoring (QC-031)', () => {
     expect(isRestoring(apiError(503, 'restoring'))).toBe(true);
     expect(isRestoring(apiError(409, 'restoring'))).toBe(false);
     expect(isRestoring(apiError(503, 'internal_error'))).toBe(false);
-    expect(serviceErrorText(apiError(503, 'restoring'))).toBe(RESTORING_TEXT);
-    expect(serviceErrorText(apiError(400, 'validation_error'))).toBe('server text');
+    expect(serviceErrorText(apiError(503, 'restoring'))).toBe(restoringText());
+    // QC-042: worded by the error code, never the service's own message.
+    expect(serviceErrorText(apiError(400, 'validation_error'))).toBe('輸入的內容不正確');
+    expect(serviceErrorText(apiError(500, 'something_new'))).toBe('發生錯誤，請稍後再試');
     expect(serviceErrorText(new TypeError('fetch failed'))).toBe('無法連線到服務');
   });
 

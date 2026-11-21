@@ -6,7 +6,9 @@ import type {
   HealthResponse,
   ListBackupsResponse,
 } from '@qiu-creator/contracts';
+import { intlLocale } from '@qiu-creator/i18n';
 import { formatBytes } from './format.js';
+import { currentLocale, formatTime as clockTime, t } from './i18n.js';
 import { isRestoring } from './restoring.js';
 
 /**
@@ -17,16 +19,26 @@ import { isRestoring } from './restoring.js';
  */
 
 export const KIND_LABEL: Readonly<Record<BackupKind, string>> = {
-  daily: '每日',
-  manual: '手動',
-  pre_restore: '還原前',
+  get daily() {
+    return t('serviceSettings.backupKindDaily');
+  },
+  get manual() {
+    return t('serviceSettings.backupKindManual');
+  },
+  get pre_restore() {
+    return t('serviceSettings.backupKindPreRestore');
+  },
 };
 
-const clock = new Intl.DateTimeFormat('zh-TW', {
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-});
+/** 11/14 or 2025/11/14 (Nov 14 / Nov 14, 2025 in English), through Intl. */
+function stampDate(d: Date, now: Date): string {
+  const locale = currentLocale();
+  return new Intl.DateTimeFormat(intlLocale(locale), {
+    year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric',
+    month: locale === 'en' ? 'short' : 'numeric',
+    day: 'numeric',
+  }).format(d);
+}
 
 /** 「今天 03:00」「昨天 03:00」「11/14 03:00」「2025/11/14 03:00」: backups need the time of day. */
 export function formatStamp(iso: string, now: Date = new Date()): string {
@@ -34,14 +46,11 @@ export function formatStamp(iso: string, now: Date = new Date()): string {
   if (Number.isNaN(d.getTime())) return iso;
   const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const days = Math.round((day(now) - day(d)) / 86_400_000);
-  const hm = clock.format(d);
-  if (days === 0) return `今天 ${hm}`;
-  if (days === 1) return `昨天 ${hm}`;
-  if (days === -1) return `明天 ${hm}`;
-  const md = `${String(d.getMonth() + 1)}/${String(d.getDate())}`;
-  return d.getFullYear() === now.getFullYear()
-    ? `${md} ${hm}`
-    : `${String(d.getFullYear())}/${md} ${hm}`;
+  const time = clockTime(d);
+  if (days === 0) return t('serviceSettings.stampToday', { time });
+  if (days === 1) return t('serviceSettings.stampYesterday', { time });
+  if (days === -1) return t('serviceSettings.stampTomorrow', { time });
+  return t('serviceSettings.stampOn', { date: stampDate(d, now), time });
 }
 
 /**
@@ -51,7 +60,7 @@ export function formatStamp(iso: string, now: Date = new Date()): string {
  */
 export function nextDailyLabel(nextIso: string, now: Date = new Date()): string {
   const next = Date.parse(nextIso);
-  if (!Number.isNaN(next) && next <= now.getTime()) return '即將執行';
+  if (!Number.isNaN(next) && next <= now.getTime()) return t('serviceSettings.backupRunningSoon');
   return formatStamp(nextIso, now);
 }
 
@@ -71,9 +80,13 @@ export function versionLabel(
   const parts = [health.version];
   if (commit !== '') parts.push(commit.slice(0, 7));
   if (builtAt !== '') {
-    parts.push(`建置於 ${Number.isNaN(Date.parse(builtAt)) ? builtAt : formatTime(builtAt)}`);
+    parts.push(
+      t('serviceSettings.builtAt', {
+        when: Number.isNaN(Date.parse(builtAt)) ? builtAt : formatTime(builtAt),
+      }),
+    );
   }
-  if (commit === '' && builtAt === '') parts.push('從原始碼執行');
+  if (commit === '' && builtAt === '') parts.push(t('serviceSettings.ranFromSource'));
   return parts.join(' · ');
 }
 
@@ -132,31 +145,35 @@ function detailOf(err: unknown): string | null {
 /** Why a restore request was refused, in the user's words. */
 export function restoreErrorText(err: unknown): { stage: 'request' | 'unknown'; message: string } {
   if (!(err instanceof ApiError)) {
-    return { stage: 'unknown', message: '沒有收到服務的回應，無法確定是否已還原' };
+    return { stage: 'unknown', message: t('serviceSettings.restoreErrNoAnswer') };
   }
   switch (err.code) {
     case 'backup_not_restorable':
       return {
         stage: 'request',
-        message: '這份備份未通過完整性檢查，或來自較新的版本，不能還原；資料沒有變更',
+        message: t('serviceSettings.restoreErrNotRestorable'),
       };
     case 'backup_failed':
       // 409 on restore: the safety backup failed, so the restore never started.
-      return { stage: 'request', message: '無法先備份目前的資料，所以沒有還原；資料沒有變更' };
+      return { stage: 'request', message: t('serviceSettings.restoreErrSafetyFailed') };
     case 'restore_in_progress':
-      return { stage: 'request', message: '已經有一個還原正在進行' };
+      return { stage: 'request', message: t('serviceSettings.restoreErrInProgress') };
     case 'not_found':
-      return { stage: 'request', message: '找不到這份備份，可能已被清理；資料沒有變更' };
+      return { stage: 'request', message: t('serviceSettings.restoreErrNotFound') };
     default:
       return err.status >= 500
-        ? { stage: 'unknown', message: '服務在還原時出錯，無法確定是否已還原' }
-        : { stage: 'request', message: '服務拒絕了這次還原；資料沒有變更' };
+        ? { stage: 'unknown', message: t('serviceSettings.restoreErrServerError') }
+        : { stage: 'request', message: t('serviceSettings.restoreErrRefused') };
   }
 }
 
 export function createErrorText(err: unknown): string {
-  if (err instanceof ApiError && err.code === 'backup_failed') return '備份失敗，沒有產生副本';
-  return err instanceof ApiError ? '備份失敗' : '備份失敗：沒有收到服務的回應';
+  if (err instanceof ApiError && err.code === 'backup_failed') {
+    return t('serviceSettings.createErrNoCopy');
+  }
+  return err instanceof ApiError
+    ? t('errors.backup_failed')
+    : t('serviceSettings.createErrNoAnswer');
 }
 
 /** The service is already switching to a restored database: wait, it is not a failure. */
@@ -222,7 +239,7 @@ export class BackupSession {
       if (seq === this.loadSeq) this.set({ list, loadError: null });
     } catch (err) {
       if (seq === this.loadSeq) {
-        this.set({ loadError: detailOf(err) ?? '無法載入備份清單' });
+        this.set({ loadError: detailOf(err) ?? t('serviceSettings.backupListFailed') });
       }
     }
   }
@@ -435,8 +452,10 @@ export class BackupSession {
           backup: now.backup,
           stage: 'reload',
           message: up
-            ? '服務沒有確認還原完成'
-            : `服務在 ${String(Math.round(this.reloadTimeoutMs / 1000))} 秒內沒有回來`,
+            ? t('serviceSettings.restoreNoConfirm')
+            : t('serviceSettings.restoreNoReturn', {
+                count: Math.round(this.reloadTimeoutMs / 1000),
+              }),
           detail: null,
           safety: now.safety,
         },

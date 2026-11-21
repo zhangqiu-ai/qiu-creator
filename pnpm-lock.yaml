@@ -223,6 +223,9 @@ importers:
       '@qiu-creator/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens
+      '@qiu-creator/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@qiu-creator/markdown-editor-web':
         specifier: workspace:*
         version: link:../../packages/markdown-editor-web
@@ -299,6 +302,8 @@ importers:
 
   packages/domain: {}
 
+  packages/i18n: {}
+
   packages/installer:
     devDependencies:
       tsx:
@@ -310,6 +315,9 @@ importers:
       '@mdxeditor/editor':
         specifier: ^4.5.0
         version: 4.5.0(@codemirror/language@6.13.1)(@lezer/highlight@1.2.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@7.2.0)(typescript@5.9.3)(yjs@13.6.33)
+      '@qiu-creator/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       mdast-util-from-markdown:
         specifier: ^2.1.0
         version: 2.1.0(supports-color@7.2.0)
@@ -350,6 +358,9 @@ importers:
       '@qiu-creator/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@qiu-creator/i18n':
+        specifier: workspace:*
+        version: link:../i18n
     devDependencies:
       '@types/react':
         specifier: ^19.3.0

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 're
 import { thumbnailUrl } from '../shared/bridge.js';
 import type { PendingInsert } from './editor-insert.js';
 import { assetName } from './format.js';
+import { t } from './i18n.js';
 import { Icon, type IconName } from './Icon.js';
 
 /**
@@ -80,7 +81,7 @@ export function InsertMenu({
         }}
       >
         <Icon name="image" />
-        插入
+        {t('editor.insert')}
         <Icon name="chevronDown" size={14} />
       </button>
       {open && (
@@ -88,7 +89,7 @@ export function InsertMenu({
           ref={menu}
           className="pop insert-menu__pop"
           role="menu"
-          aria-label="插入"
+          aria-label={t('editor.insert')}
           onKeyDown={onKey}
         >
           <button
@@ -101,7 +102,7 @@ export function InsertMenu({
             }}
           >
             <Icon name="assets" size={16} />
-            從素材庫
+            {t('editor.insertFromLibrary')}
             <kbd>⌘⇧I</kbd>
           </button>
           <button
@@ -114,14 +115,14 @@ export function InsertMenu({
             }}
           >
             <Icon name="upload" size={16} />
-            上傳圖片…
+            {t('editor.uploadImage')}
             <kbd>⌘⇧U</kbd>
           </button>
           <div className="pop__sep" />
           <div className="pop__hint">
-            <span>⌘V 貼上剪貼簿圖片</span>
-            <span>從 Finder 或素材抽屜拖進文中</span>
-            <span>空行輸入 / 叫出指令</span>
+            <span>{t('editor.hintPaste')}</span>
+            <span>{t('editor.hintDrag')}</span>
+            <span>{t('editor.hintSlash')}</span>
           </div>
         </div>
       )}
@@ -156,7 +157,7 @@ export function SlashMenu({
   return (
     <div className="pop slash" style={{ left: at.x, top: at.y }}>
       <label className="visually-hidden" htmlFor="slash-input">
-        斜線指令
+        {t('editor.slashInputLabel')}
       </label>
       <input
         id="slash-input"
@@ -196,7 +197,7 @@ export function SlashMenu({
           }
         }}
       />
-      <div id="slash-list" role="listbox" aria-label="插入指令">
+      <div id="slash-list" role="listbox" aria-label={t('editor.slashListLabel')}>
         {shown.map((c, i) => (
           <div
             key={c.key}
@@ -216,13 +217,13 @@ export function SlashMenu({
             <span className="pop__item-hint">{c.hint}</span>
           </div>
         ))}
-        {shown.length === 0 && <div className="pop__empty">沒有符合的指令</div>}
+        {shown.length === 0 && <div className="pop__empty">{t('editor.slashEmpty')}</div>}
       </div>
       <div className="pop__sep" />
       <div className="pop__keys">
-        <span>↑↓ 選擇</span>
-        <span>↩ 插入</span>
-        <span>esc 關閉</span>
+        <span>{t('editor.keySelect')}</span>
+        <span>{t('editor.keyInsert')}</span>
+        <span>{t('editor.keyClose')}</span>
       </div>
     </div>
   );
@@ -306,9 +307,9 @@ export function AssetDrawer({
   };
 
   return (
-    <aside className="panel drawer" aria-label="素材抽屜" id="asset-drawer">
+    <aside className="panel drawer" aria-label={t('editor.drawerLabel')} id="asset-drawer">
       <div className="drawer__head">
-        <span className="drawer__title">素材</span>
+        <span className="drawer__title">{t('editor.assets')}</span>
         <button
           type="button"
           className="btn btn--ghost btn--small drawer__close"
@@ -316,16 +317,16 @@ export function AssetDrawer({
           onClick={onClose}
         >
           <Icon name="spark" size={14} />
-          回到 AI
+          {t('editor.backToAi')}
         </button>
       </div>
       <div className="drawer__controls">
         <label className="search drawer__search">
           <Icon name="search" />
-          <span className="visually-hidden">搜尋素材</span>
+          <span className="visually-hidden">{t('editor.searchAssets')}</span>
           <input
             type="search"
-            placeholder="搜尋素材"
+            placeholder={t('editor.searchAssets')}
             autoFocus
             value={query}
             onChange={(e) => {
@@ -339,11 +340,11 @@ export function AssetDrawer({
           />
           <kbd>⌘⇧I</kbd>
         </label>
-        <div className="seg" role="group" aria-label="範圍">
+        <div className="seg" role="group" aria-label={t('editor.scopeLabel')}>
           {(
             [
-              ['images', '全部圖片'],
-              ['work', '本作品'],
+              ['images', 'editor.scopeAllImages'],
+              ['work', 'editor.scopeThisWork'],
             ] as const
           ).map(([k, label]) => (
             <button
@@ -354,7 +355,7 @@ export function AssetDrawer({
                 setScope(k);
               }}
             >
-              {label}
+              {t(label)}
             </button>
           ))}
         </div>
@@ -368,24 +369,24 @@ export function AssetDrawer({
         ref={grid}
         className="drawer__grid"
         role="listbox"
-        aria-label="素材"
+        aria-label={t('editor.assets')}
         tabIndex={0}
         onKeyDown={onKey}
       >
         {failed ? (
           <div className="drawer__empty" role="alert">
-            無法載入素材
+            {t('editor.drawerLoadFailed')}
             <button type="button" className="btn btn--small" onClick={load}>
-              重試
+              {t('common.retry')}
             </button>
           </div>
         ) : items === null ? (
           <div className="drawer__empty" aria-busy="true">
-            載入中…
+            {t('common.loading')}
           </div>
         ) : items.length === 0 ? (
           <div className="drawer__empty">
-            {scope === 'work' ? '這篇作品還沒有圖片' : '沒有符合的圖片'}
+            {t(scope === 'work' ? 'editor.drawerEmptyWork' : 'editor.drawerEmptySearch')}
           </div>
         ) : (
           items.map((a, i) => (
@@ -395,7 +396,7 @@ export function AssetDrawer({
               role="option"
               aria-selected={i === selected}
               className="drawer__tile"
-              aria-label={`插入 ${nameOf(a)}`}
+              aria-label={t('editor.insertAsset', { name: nameOf(a) })}
               disabled={disabledReason !== null}
               draggable={disabledReason === null}
               onDragStart={(e) => {
@@ -421,9 +422,9 @@ export function AssetDrawer({
         )}
       </div>
       <div className="drawer__foot">
-        <span>點選插入游標處</span>
-        <span>拖進文中指定位置</span>
-        <span>方向鍵 ＋ ↩</span>
+        <span>{t('editor.footClickInsert')}</span>
+        <span>{t('editor.footDrag')}</span>
+        <span>{t('editor.footKeys')}</span>
       </div>
     </aside>
   );
@@ -441,14 +442,16 @@ export function PendingInserts({
 }) {
   if (pending.length === 0) return null;
   return (
-    <div className="pending" aria-label="插入中的圖片">
+    <div className="pending" aria-label={t('editor.pendingLabel')}>
       {pending.map((p) =>
         p.state === 'failed' ? (
           <div key={p.key} className="pending__card pending__card--bad" role="alert">
             <Icon name="alert" size={18} />
             <div className="pending__main">
-              <span className="pending__title">上傳失敗 · {p.error}</span>
-              <span className="pending__sub">{p.name} · 圖片暫存在此視窗</span>
+              <span className="pending__title">
+                {t('editor.uploadFailedWhy', { error: p.error ?? t('editor.uploadFailed') })}
+              </span>
+              <span className="pending__sub">{t('editor.pendingSub', { name: p.name })}</span>
             </div>
             <button
               type="button"
@@ -457,7 +460,7 @@ export function PendingInserts({
                 onRetry(p.key);
               }}
             >
-              重試
+              {t('common.retry')}
             </button>
             <button
               type="button"
@@ -466,11 +469,16 @@ export function PendingInserts({
                 onRemove(p.key);
               }}
             >
-              移除
+              {t('common.remove')}
             </button>
           </div>
         ) : (
-          <div key={p.key} className="pending__card" role="status" aria-label={`上傳中 ${p.name}`}>
+          <div
+            key={p.key}
+            className="pending__card"
+            role="status"
+            aria-label={t('editor.uploadingLabel', { name: p.name })}
+          >
             <span className="pending__thumb">
               {p.preview !== null && <img src={p.preview} alt="" />}
             </span>
@@ -479,7 +487,7 @@ export function PendingInserts({
                 <span className="pending__title">{p.name}</span>
                 <span className="pending__pct">
                   {p.state === 'attaching'
-                    ? '插入中'
+                    ? t('editor.attaching')
                     : p.progress === null
                       ? ''
                       : `${String(p.progress)}%`}
@@ -499,7 +507,7 @@ export function PendingInserts({
                   onRemove(p.key);
                 }}
               >
-                取消
+                {t('common.cancel')}
               </button>
             )}
           </div>

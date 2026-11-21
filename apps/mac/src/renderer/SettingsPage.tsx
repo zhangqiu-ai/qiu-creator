@@ -1,5 +1,5 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
-import { isRestoring, RESTORING_TEXT } from './restoring.js';
+import { isRestoring, restoringText } from './restoring.js';
 import type { HealthResponse, Mount, MountStatus } from '@qiu-creator/contracts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AiSettingsSection } from './AiSettingsSection.js';
@@ -18,29 +18,47 @@ import { useRefreshOn } from './events.js';
 import type { EventStreamStatus } from '../shared/bridge.js';
 import type { ServiceSummary } from './sidebar-prefs.js';
 import { formatWhen, type ChipTone } from './format.js';
+import { t } from './i18n.js';
 import { Icon } from './Icon.js';
 
 const MOUNT_STATUS: Readonly<Record<MountStatus, { label: string; tone: ChipTone }>> = {
-  active: { label: '監控中', tone: 'ok' },
-  unavailable: { label: '找不到資料夾', tone: 'bad' },
-  removed: { label: '已卸載', tone: 'neutral' },
+  active: {
+    get label() {
+      return t('serviceSettings.mountActive');
+    },
+    tone: 'ok',
+  },
+  unavailable: {
+    get label() {
+      return t('serviceSettings.mountMissing');
+    },
+    tone: 'bad',
+  },
+  removed: {
+    get label() {
+      return t('serviceSettings.mountRemoved');
+    },
+    tone: 'neutral',
+  },
 };
 
 /** The service's `mount_rejected` messages, in the user's words. */
 export function mountErrorText(err: unknown): string {
-  if (isRestoring(err)) return RESTORING_TEXT;
-  if (!(err instanceof ApiError)) return '無法掛載，請確認本機服務是否運行';
+  if (isRestoring(err)) return restoringText();
+  if (!(err instanceof ApiError)) return t('serviceSettings.mountErrServiceDown');
   const message = err.message;
   if (err.code !== 'mount_rejected') {
-    return err.code === 'validation_error' ? '路徑格式不正確' : '無法掛載這個資料夾';
+    return err.code === 'validation_error'
+      ? t('serviceSettings.mountErrBadPath')
+      : t('errors.mount_rejected');
   }
-  if (message.includes('already mounted')) return '這個資料夾已經掛載';
-  if (message.includes('not a readable folder')) return '無法讀取這個資料夾';
-  if (message.includes('filesystem root')) return '不能掛載整個磁碟';
-  if (message.includes('home folder')) return '請選擇特定資料夾，不能掛載整個使用者目錄';
-  if (message.includes('CreatorHub data folder')) return '不能掛載托管目錄，或包含托管目錄的資料夾';
-  if (message.includes('overlaps')) return '和已掛載的資料夾重疊';
-  return '無法掛載這個資料夾';
+  if (message.includes('already mounted')) return t('serviceSettings.mountErrAlready');
+  if (message.includes('not a readable folder')) return t('serviceSettings.mountErrUnreadable');
+  if (message.includes('filesystem root')) return t('serviceSettings.mountErrRoot');
+  if (message.includes('home folder')) return t('serviceSettings.mountErrHome');
+  if (message.includes('CreatorHub data folder')) return t('serviceSettings.mountErrManaged');
+  if (message.includes('overlaps')) return t('serviceSettings.mountErrOverlap');
+  return t('errors.mount_rejected');
 }
 
 /** Active and unavailable mounts first, then removed ones. */
@@ -174,7 +192,10 @@ export function SettingsPage({
       })
       .catch((err: unknown) => {
         setBusyId(null);
-        setRowError({ id: m.id, message: isRestoring(err) ? RESTORING_TEXT : '重新掃描失敗' });
+        setRowError({
+          id: m.id,
+          message: isRestoring(err) ? restoringText() : t('serviceSettings.mountRescanFailed'),
+        });
       });
   };
 
@@ -183,9 +204,9 @@ export function SettingsPage({
   const live = active(mounts);
 
   return (
-    <main className="page" aria-label="設定">
+    <main className="page" aria-label={t('serviceSettings.title')}>
       <header className="page__header">
-        <h1 className="page__title">設定</h1>
+        <h1 className="page__title">{t('serviceSettings.title')}</h1>
       </header>
       <div className="settings-layout">
         <SettingsNav
@@ -199,52 +220,52 @@ export function SettingsPage({
 
             <section className="settings__sec" aria-labelledby="set-service">
               <h2 id="set-service" className="settings__h" tabIndex={-1}>
-                本機服務
+                {t('serviceSettings.serviceTitle')}
               </h2>
-              <p className="settings__sub">由系統常駐管理（launchd），關閉視窗不會停止服務。</p>
+              <p className="settings__sub">{t('serviceSettings.serviceSub')}</p>
               <div className="card">
                 <div className="ln">
                   <div className="ln__main">
-                    <span className="ln__k">狀態</span>
+                    <span className="ln__k">{t('serviceSettings.statusLabel')}</span>
                     <span className="ln__v mono">{address}</span>
                   </div>
                   <span role="status">
                     {health === null ? (
-                      <Chip>檢查中</Chip>
+                      <Chip>{t('serviceSettings.statusChecking')}</Chip>
                     ) : up ? (
-                      <Chip tone="ok">執行中</Chip>
+                      <Chip tone="ok">{t('serviceSettings.statusRunning')}</Chip>
                     ) : (
-                      <Chip tone="bad">未回應</Chip>
+                      <Chip tone="bad">{t('serviceSettings.statusDown')}</Chip>
                     )}
                   </span>
                   <button type="button" className="btn btn--ghost btn--small" onClick={checkHealth}>
                     <Icon name="refresh" size={14} />
-                    重新檢查
+                    {t('common.recheck')}
                   </button>
                 </div>
                 <div className="ln">
-                  <span className="ln__k ln__main">即時更新</span>
+                  <span className="ln__k ln__main">{t('serviceSettings.liveUpdates')}</span>
                   <span role="status">
                     {eventStatus === 'open' ? (
-                      <Chip tone="ok">已連線</Chip>
+                      <Chip tone="ok">{t('serviceSettings.liveConnected')}</Chip>
                     ) : eventStatus === 'reconnecting' ? (
-                      <Chip tone="warn">重新連線中</Chip>
+                      <Chip tone="warn">{t('serviceSettings.liveReconnecting')}</Chip>
                     ) : (
-                      <Chip>連線中</Chip>
+                      <Chip>{t('serviceSettings.liveConnecting')}</Chip>
                     )}
                   </span>
                 </div>
                 <div className="ln">
                   <div className="ln__main">
-                    <span className="ln__k">開機自動啟動</span>
-                    <span className="ln__v faint">安裝時已設定由 launchd 在登入後啟動</span>
+                    <span className="ln__k">{t('serviceSettings.startAtLogin')}</span>
+                    <span className="ln__v faint">{t('serviceSettings.startAtLoginHint')}</span>
                   </div>
                 </div>
                 <div className="ln">
                   <div className="ln__main">
-                    <span className="ln__k">防止睡眠</span>
+                    <span className="ln__k">{t('serviceSettings.preventSleep')}</span>
                     <span className="ln__v faint settings__wrap">
-                      匯入、上傳與 AI 任務進行時，服務會自動防止閒置睡眠；任務結束後恢復
+                      {t('serviceSettings.preventSleepHint')}
                     </span>
                   </div>
                 </div>
@@ -257,12 +278,12 @@ export function SettingsPage({
 
             <section className="settings__sec" aria-labelledby="set-folders">
               <h2 id="set-folders" className="settings__h" tabIndex={-1}>
-                資料夾
+                {t('serviceSettings.foldersTitle')}
               </h2>
               <div className="card">
                 <div className="ln">
                   <div className="ln__main">
-                    <span className="ln__k">托管目錄</span>
+                    <span className="ln__k">{t('serviceSettings.managedFolder')}</span>
                     <span className="ln__v mono">{home ?? '—'}</span>
                   </div>
                   <button
@@ -273,15 +294,15 @@ export function SettingsPage({
                       void window.creatorhub?.reveal({ kind: 'home' });
                     }}
                   >
-                    在 Finder 顯示
+                    {t('common.revealInFinder')}
                   </button>
                 </div>
 
                 {mountsFailed ? (
                   <div className="ln">
-                    <span className="ln__main muted">無法載入外部掛載</span>
+                    <span className="ln__main muted">{t('serviceSettings.mountsLoadFailed')}</span>
                     <button type="button" className="btn btn--small" onClick={loadMounts}>
-                      重試
+                      {t('common.retry')}
                     </button>
                   </div>
                 ) : mounts === null ? (
@@ -298,12 +319,13 @@ export function SettingsPage({
                           {m.root_path}
                         </span>
                         <span className="ln__v faint">
-                          {m.work_count} 篇作品
-                          {m.last_scan_at !== null && ` · ${formatWhen(m.last_scan_at)} 掃描`}
+                          {t('serviceSettings.mountWorkCount', { count: m.work_count })}
+                          {m.last_scan_at !== null &&
+                            ` · ${t('serviceSettings.mountScannedAt', { when: formatWhen(m.last_scan_at) })}`}
                         </span>
                         {m.status === 'unavailable' && (
                           <span className="ln__err" role="status">
-                            資料夾目前無法讀取（可能被移動、改名或外接磁碟未連接）。作品保留在庫中，資料夾回來後重新掃描即可恢復。
+                            {t('serviceSettings.mountUnavailableHint')}
                           </span>
                         )}
                         {rowError?.id === m.id && (
@@ -322,7 +344,7 @@ export function SettingsPage({
                             mountPath(m.root_path);
                           }}
                         >
-                          重新掛載
+                          {t('serviceSettings.mountRemount')}
                         </button>
                       ) : (
                         <div className="ln__actions">
@@ -335,7 +357,9 @@ export function SettingsPage({
                             }}
                           >
                             <Icon name="refresh" size={14} />
-                            {busyId === m.id ? '已排入' : '重新掃描'}
+                            {busyId === m.id
+                              ? t('serviceSettings.mountRescanQueued')
+                              : t('serviceSettings.mountRescan')}
                           </button>
                           <button
                             type="button"
@@ -345,7 +369,7 @@ export function SettingsPage({
                               void window.creatorhub?.reveal({ kind: 'mount', id: m.id });
                             }}
                           >
-                            在 Finder 顯示
+                            {t('common.revealInFinder')}
                           </button>
                           <button
                             type="button"
@@ -354,7 +378,7 @@ export function SettingsPage({
                               setRemoving(m);
                             }}
                           >
-                            卸載
+                            {t('serviceSettings.mountUnlink')}
                           </button>
                         </div>
                       )}
@@ -364,11 +388,11 @@ export function SettingsPage({
 
                 <div className="ln">
                   <div className="ln__main">
-                    <span className="ln__k">外部掛載</span>
+                    <span className="ln__k">{t('serviceSettings.mountsTitle')}</span>
                     <span className="ln__v faint">
                       {live === 0
-                        ? '把現有的寫作資料夾加進作品庫；原檔留在原處，不會被移動'
-                        : `${live} 個資料夾 · 原檔不移動`}
+                        ? t('serviceSettings.mountsEmptyHint')
+                        : t('serviceSettings.mountsCount', { count: live })}
                     </span>
                     {addError !== null && (
                       <span className="ln__err" role="alert">
@@ -378,7 +402,7 @@ export function SettingsPage({
                   </div>
                   <button type="button" className="btn" disabled={adding} onClick={addMount}>
                     <Icon name="plus" size={14} />
-                    {adding ? '掛載中…' : '掛載資料夾'}
+                    {adding ? t('serviceSettings.mountAdding') : t('serviceSettings.mountAdd')}
                   </button>
                 </div>
               </div>
@@ -386,7 +410,7 @@ export function SettingsPage({
 
             <section className="settings__sec" aria-labelledby="set-about">
               <h2 id="set-about" className="settings__h" tabIndex={-1}>
-                關於
+                {t('serviceSettings.aboutTitle')}
               </h2>
               <div className="card">
                 <div className="ln">
@@ -394,7 +418,7 @@ export function SettingsPage({
                   <span className="ln__v mono">qiu-creator</span>
                 </div>
                 <div className="ln">
-                  <span className="ln__k ln__main">服務版本</span>
+                  <span className="ln__k ln__main">{t('serviceSettings.serviceVersion')}</span>
                   <span
                     className="ln__v mono"
                     title={up ? (health.commit ?? undefined) : undefined}
@@ -410,7 +434,7 @@ export function SettingsPage({
 
       {removing !== null && (
         <Dialog
-          title={`卸載「${removing.name}」？`}
+          title={t('serviceSettings.unlinkTitle', { name: removing.name })}
           onClose={() => {
             setRemoving(null);
           }}
@@ -424,7 +448,7 @@ export function SettingsPage({
                   setRemoving(null);
                 }}
               >
-                取消
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -438,21 +462,22 @@ export function SettingsPage({
                     .catch((err: unknown) => {
                       setRowError({
                         id: target.id,
-                        message: isRestoring(err) ? RESTORING_TEXT : '卸載失敗',
+                        message: isRestoring(err)
+                          ? restoringText()
+                          : t('serviceSettings.mountUnlinkFailed'),
                       });
                     });
                 }}
               >
-                卸載
+                {t('serviceSettings.mountUnlink')}
               </button>
             </>
           }
         >
           <div className="form">
-            <p>停止監控這個資料夾。磁碟上的檔案不會被移動或刪除。</p>
+            <p>{t('serviceSettings.unlinkBody')}</p>
             <p className="muted">
-              它的 {removing.work_count}{' '}
-              篇作品仍留在作品庫，標示為「已卸載」；之後重新掛載同一個資料夾，作品與版本記錄會接回來。
+              {t('serviceSettings.unlinkNote', { count: removing.work_count })}
             </p>
           </div>
         </Dialog>

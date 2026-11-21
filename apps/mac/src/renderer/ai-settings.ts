@@ -1,5 +1,6 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
-import { isRestoring, RESTORING_TEXT } from './restoring.js';
+import { codeText, t } from './i18n.js';
+import { isRestoring, restoringText } from './restoring.js';
 import {
   AI_DEFAULT_MODELS,
   AI_PRICE_TABLE,
@@ -12,10 +13,18 @@ import {
 export const SETTINGS_ORDER: readonly AiProvider[] = ['gemini', 'anthropic', 'openai', 'new-api'];
 
 export const PROVIDER_USE: Readonly<Record<AiProvider, string>> = {
-  gemini: '視頻理解 · 改寫 · 標題',
-  anthropic: '改寫 · 標題',
-  openai: '改寫 · 標題',
-  'new-api': '改寫 · 標題',
+  get gemini() {
+    return t('serviceSettings.aiUseGemini');
+  },
+  get anthropic() {
+    return t('serviceSettings.aiUseText');
+  },
+  get openai() {
+    return t('serviceSettings.aiUseText');
+  },
+  get 'new-api'() {
+    return t('serviceSettings.aiUseText');
+  },
 };
 
 const MODEL_PREFIX: Readonly<Record<Exclude<AiProvider, 'new-api'>, string>> = {
@@ -53,13 +62,13 @@ export interface AiSettingsState {
 }
 
 function messageOf(err: unknown): string {
-  if (isRestoring(err)) return RESTORING_TEXT;
+  if (isRestoring(err)) return restoringText();
   if (err instanceof ApiError) {
-    if (err.status === 400) return '格式不正確';
-    if (err.code === 'ai_consent_required') return '使用告知已變更，請重新確認';
-    return err.message;
+    if (err.status === 400) return t('serviceSettings.aiBadFormat');
+    if (err.code === 'ai_consent_required') return t('serviceSettings.aiConsentChanged');
+    return codeText(err.code);
   }
-  return '無法連線到服務';
+  return t('common.cannotConnect');
 }
 
 /**
@@ -136,7 +145,7 @@ export class AiSettingsStore {
   async saveKey(provider: AiProvider, apiKey: string, baseUrl?: string): Promise<boolean> {
     const key = apiKey.trim();
     if (key === '') {
-      this.set({ error: { target: provider, message: '請輸入金鑰' } });
+      this.set({ error: { target: provider, message: t('serviceSettings.aiKeyRequired') } });
       return false;
     }
     this.set({ busy: provider, error: null });
@@ -148,7 +157,9 @@ export class AiSettingsStore {
       const message =
         provider === 'new-api'
           ? newApiSaveError(err)
-          : `無法儲存金鑰：${redactKey(messageOf(err), key)}`;
+          : t('serviceSettings.aiKeySaveFailed', {
+              reason: redactKey(messageOf(err), key),
+            });
       this.set({ busy: null, error: { target: provider, message } });
       return false;
     }
@@ -200,7 +211,7 @@ export class AiSettingsStore {
   /** 每月提醒金額: null turns the reminder off. */
   setBudget(usd: number | null): Promise<boolean> {
     if (usd !== null && (!Number.isFinite(usd) || usd < 0)) {
-      this.set({ error: { target: 'budget', message: '請輸入 0 以上的金額' } });
+      this.set({ error: { target: 'budget', message: t('serviceSettings.aiBudgetInvalid') } });
       return Promise.resolve(false);
     }
     return this.run('budget', async () => {
@@ -212,9 +223,11 @@ export class AiSettingsStore {
 }
 
 function newApiSaveError(err: unknown): string {
-  if (isRestoring(err)) return RESTORING_TEXT;
-  if (err instanceof ApiError && err.status === 400) return '請檢查 Base URL 與 API 金鑰格式';
-  return '無法儲存 New API 的 Base URL 與金鑰';
+  if (isRestoring(err)) return restoringText();
+  if (err instanceof ApiError && err.status === 400) {
+    return t('serviceSettings.aiNewApiSaveBadFormat');
+  }
+  return t('serviceSettings.aiNewApiSaveFailed');
 }
 
 /** Remove every occurrence of the key (and its longer fragments) from a message. */

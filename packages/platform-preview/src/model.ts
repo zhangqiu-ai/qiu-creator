@@ -5,7 +5,36 @@ import {
   type Platform,
   type VariantWarning,
 } from '@qiu-creator/contracts';
+import { SOURCE_LOCALE, translate, type Locale, type MessageKey } from '@qiu-creator/i18n';
 import { getTemplate, type PreviewTemplate } from './templates.js';
+
+/**
+ * Platform names for our own labels (QC-042). The simulated platforms' own
+ * interface text stays untranslated in `./templates.ts`; everything we write
+ * around the simulation comes from the catalog.
+ */
+export const PLATFORM_NAME_KEY: Readonly<Record<Platform, MessageKey>> = {
+  xiaohongshu: 'library.platformXiaohongshu',
+  wechat_mp: 'library.platformWechatMp',
+  douyin: 'library.platformDouyin',
+  wechat_channels: 'library.platformWechatChannels',
+};
+
+/** Short platform names, for tabs and inline labels. */
+export const PLATFORM_SHORT_KEY: Readonly<Record<Platform, MessageKey>> = {
+  xiaohongshu: 'library.shortXiaohongshu',
+  wechat_mp: 'library.shortWechatMp',
+  douyin: 'library.shortDouyin',
+  wechat_channels: 'library.shortWechatChannels',
+};
+
+export function platformName(locale: Locale, platform: Platform): string {
+  return translate(locale, PLATFORM_NAME_KEY[platform]);
+}
+
+export function platformShortName(locale: Locale, platform: Platform): string {
+  return translate(locale, PLATFORM_SHORT_KEY[platform]);
+}
 
 /**
  * Platform-neutral view model for a simulated post. Pure TypeScript: the Mac
@@ -28,6 +57,8 @@ export interface PreviewSource {
   author?: string;
   /** Date line, already formatted for display. */
   dateLabel?: string;
+  /** Language for the labels we write ourselves (the placeholder author name). */
+  locale?: Locale;
 }
 
 export type PreviewBlock =
@@ -149,7 +180,7 @@ export function buildPreviewModel(source: PreviewSource): PreviewModel {
   return {
     platform: source.platform,
     template,
-    author: source.author ?? '我的帳號',
+    author: source.author ?? translate(source.locale ?? SOURCE_LOCALE, 'library.previewAuthor'),
     dateLabel: source.dateLabel ?? '',
     title: {
       shown: truncate(source.title, limits.titleMaxChars),

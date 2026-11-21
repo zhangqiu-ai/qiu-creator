@@ -1906,7 +1906,9 @@ kbd {
   margin: 0 0 2px;
   color: var(--qc-ink3);
 }
-.settings__wrap {
+/* Wraps instead of truncating (English runs longer, QC-042); beats .ln__v's nowrap. */
+.settings__wrap,
+.ln__v.settings__wrap {
   white-space: normal;
 }
 @media (max-width: 999px) {
@@ -1919,10 +1921,47 @@ kbd {
   }
 }
 /* 外觀: three theme cards, a radio group. */
+.settings__sub-h {
+  margin: 4px 0 -4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--qc-ink2);
+}
 .theme-cards {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+}
+/* 語言 (QC-042): four cards in the same style; two per row when the column is narrow. */
+.theme-cards--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 899px) {
+  .theme-cards--four {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.theme-mini.lang-mini {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--qc-sunken);
+  color: var(--qc-ink);
+}
+.lang-mini__sample {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1;
+}
+.lang-mini .icon {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  color: var(--qc-ink3);
+}
+.theme-card__name,
+.theme-card__note {
+  overflow-wrap: anywhere;
 }
 .theme-card {
   display: flex;

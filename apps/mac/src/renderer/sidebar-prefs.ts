@@ -1,5 +1,6 @@
 import type { HealthResponse } from '@qiu-creator/contracts';
 import type { EventStreamStatus } from '../shared/bridge.js';
+import { t } from './i18n.js';
 
 /**
  * Sidebar v2 (PT-20261119-001 「v2 · 側欄狀態」, QC-041): width, collapsed
@@ -83,8 +84,8 @@ export function widthForKey(width: number, key: string): number | null {
 
 /** 「最小 200」「最大 320」 while dragging against a limit, else null. */
 export function limitLabel(width: number): string | null {
-  if (width <= SIDEBAR_MIN) return `最小 ${String(SIDEBAR_MIN)}`;
-  if (width >= SIDEBAR_MAX) return `最大 ${String(SIDEBAR_MAX)}`;
+  if (width <= SIDEBAR_MIN) return t('shell.widthMin', { width: String(SIDEBAR_MIN) });
+  if (width >= SIDEBAR_MAX) return t('shell.widthMax', { width: String(SIDEBAR_MAX) });
   return null;
 }
 
@@ -111,8 +112,12 @@ export function serviceSummary(input: {
   restoring: boolean;
 }): ServiceSummary {
   const realtime =
-    input.events === 'open' ? '已連線' : input.events === 'reconnecting' ? '已中斷' : '連線中';
-  const agentApi = input.serviceUp ? '可用' : '無法使用';
+    input.events === 'open'
+      ? t('shell.realtimeOpen')
+      : input.events === 'reconnecting'
+        ? t('shell.realtimeDropped')
+        : t('shell.realtimeConnecting');
+  const agentApi = input.serviceUp ? t('shell.agentApiUp') : t('shell.agentApiDown');
   const commit = input.health?.commit ?? null;
   const version =
     input.health === null
@@ -121,13 +126,13 @@ export function serviceSummary(input: {
         ? input.health.version
         : `${input.health.version} · ${commit.slice(0, 7)}`;
   if (input.restoring) {
-    return { tone: 'restoring', title: '還原中', realtime, agentApi, version };
+    return { tone: 'restoring', title: t('shell.statusRestoring'), realtime, agentApi, version };
   }
   if (!input.serviceUp) {
-    return { tone: 'bad', title: '本機服務未回應', realtime, agentApi, version };
+    return { tone: 'bad', title: t('shell.statusServiceDown'), realtime, agentApi, version };
   }
   if (input.events === 'reconnecting') {
-    return { tone: 'bad', title: '即時更新已中斷', realtime, agentApi, version };
+    return { tone: 'bad', title: t('shell.statusRealtimeDown'), realtime, agentApi, version };
   }
-  return { tone: 'ok', title: '一切正常', realtime, agentApi, version };
+  return { tone: 'ok', title: t('shell.statusOk'), realtime, agentApi, version };
 }

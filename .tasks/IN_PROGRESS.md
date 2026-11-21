@@ -6,6 +6,27 @@
 
 **Started:** 2026-11-21
 
+### Plan
+
+分支 `feat/qc042-i18n`（從 origin/main `273bea8`，含 3e4c0aa）。預設語言照總監決定 (C)：舊安裝升級寫入 `zh-Hant`，新安裝跟隨系統。
+
+| 檔案 | 用途 |
+| --- | --- |
+| `packages/i18n/`（新） | 不綁 Electron 的共用套件：`locale.ts` 系統語言對應、`define.ts` 三語目錄型別（缺鍵 typecheck 失敗）、`translator.ts` 佔位符與英文複數、`format.ts` `Intl` 日期／數字／大小／相對時間、`catalog/*.ts` 各區文案（common、errors、shell、settings、main、format、assets、ai、serviceSettings、editor、library）、`GLOSSARY.md` 三語用語表；測試：鍵完整、非空、佔位符一致、英文無中文、简体無繁體字、系統語言對應、格式化 |
+| `apps/mac/src/main/language.ts`、`menu.ts`（新） | 主程序語言狀態（偏好＋`app.getPreferredSystemLanguages()`）、原生選單範本（切換時重建） |
+| `apps/mac/src/main/preferences.ts` | 偏好加 `language`；`migrateLanguage` 升級時寫入 `zh-Hant`，保留其他鍵 |
+| `apps/mac/src/main/main.ts`、`uploads.ts` | 開窗前套用語言與選單；IPC `getLanguage`／`setLanguage`／`languageChanged`；系統語言變更通知與聚焦時重查；檔案選擇器與上傳錯誤文案 |
+| `apps/mac/src/shared/bridge.ts`、`preload/preload.ts` | `LanguageState` 與橋接 |
+| `apps/mac/src/renderer/i18n.ts`（新） | `t`、`useLocale`、`setLocale`（含 `<html lang>`）、`errorText`／`codeText`（錯誤碼對應文案）、`Intl` 格式化 |
+| `apps/mac/src/renderer/main.tsx`、`App.tsx` | 首次渲染前套用語言；根元件訂閱語言，原地重繪不丟草稿 |
+| `apps/mac/src/renderer/AppearanceSection.tsx`、`theme.ts`、`styles.css` | 外觀加「語言」四張卡（沿用主題卡樣式） |
+| 其餘 renderer 頁面與 `format.ts`、`Sidebar.tsx`、`SettingsNav.tsx` 等 | 文案改為目錄鍵 |
+| `packages/markdown-editor-web`、`packages/platform-preview` | 編輯器工具列與預覽外框文案依語言；平台自身介面文字不翻 |
+| `apps/mac/test/no-hardcoded-chinese.test.ts`（新） | 掃描 app 與 UI 套件字串、模板、JSX 文字，有中文即失敗（僅允許平台介面文字檔） |
+| `apps/mac/test/language.test.ts`（新） | 升級遷移兩條路徑、語言控制器、選單三語 |
+| `e2e/fixtures/desktop.ts`、`e2e/specs/i18n.spec.ts`（新） | 既有 e2e 固定繁體；新 e2e 即時切三語並檢查側欄、設定頁、原生選單，拍 10 張截圖 |
+| `docs/dependencies.md`、`docs/architecture.md`、`docs/evidence/qc042-i18n.md` | 新套件記錄（未引入第三方庫）、架構說明、驗收記錄 |
+
 ## QC-033: Mac 生產可用實機驗收
 
 **Priority:** P1 | **Assignee:** qc-test | **Tags:** M3

@@ -20,7 +20,8 @@ import {
 import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
 import { useChangeEvents } from './events.js';
-import { formatBytes, formatDuration, formatWhen } from './format.js';
+import { formatDuration } from './format.js';
+import { formatBytes, formatNumber, formatWhen, t } from './i18n.js';
 import { Icon } from './Icon.js';
 
 function useStore<S>(store: { subscribe: (l: (s: S) => void) => () => void; snapshot: S }): S {
@@ -58,7 +59,7 @@ export function AiWorkbenchPage(props: AiWorkbenchPageProps) {
       v.dispose();
     };
   }, [client]);
-  if (video === null) return <main className="page" aria-label="AI 工作台" aria-busy="true" />;
+  if (video === null) return <main className="page" aria-label={t('ai.page')} aria-busy="true" />;
   return <Workbench {...props} video={video} />;
 }
 
@@ -92,12 +93,12 @@ function Workbench({
   };
 
   return (
-    <main className="page" aria-label="AI 工作台">
+    <main className="page" aria-label={t('ai.page')}>
       <header className="page__header">
-        <h1 className="page__title">AI 工作台</h1>
+        <h1 className="page__title">{t('ai.page')}</h1>
       </header>
       <div className="aiw">
-        <section className="aiw__setup" aria-label="任務設定">
+        <section className="aiw__setup" aria-label={t('ai.setupLabel')}>
           <VideoCard
             asset={s.asset}
             onPick={() => {
@@ -105,10 +106,10 @@ function Workbench({
             }}
           />
           <fieldset className="aiw__fs">
-            <legend className="aiw__h">任務</legend>
+            <legend className="aiw__h">{t('ai.taskLegend')}</legend>
             <span className="aiw__opt aiw__opt--static">
               <Icon name="video" size={14} />
-              視頻理解：摘要、時間點、標題、簡介、封面
+              {t('ai.taskVideo')}
             </span>
           </fieldset>
           <ModelPicker session={video} s={s} />
@@ -127,15 +128,24 @@ function Workbench({
             }}
           >
             <Icon name="spark" />
-            {s.phase === 'running' ? '分析中' : s.result !== null ? '重新分析' : '分析'}
+            {s.phase === 'running'
+              ? t('ai.phaseAnalyzing')
+              : s.result !== null
+                ? t('ai.reanalyze')
+                : t('ai.analyze')}
           </button>
           {s.estimate !== null && (
             <span className="aiw__est">
-              {formatDuration(s.estimate.duration_seconds)}
-              {s.estimate.duration_source === 'size_guess' && '（依大小推估）'} ·{' '}
-              {formatBytes(s.estimate.size_bytes)} · 最多{' '}
-              {formatUsd(s.estimate.estimate.max_cost_usd)}
-              （估算）
+              {t(
+                s.estimate.duration_source === 'size_guess'
+                  ? 'ai.estimateLineGuess'
+                  : 'ai.estimateLine',
+                {
+                  duration: formatDuration(s.estimate.duration_seconds),
+                  size: formatBytes(s.estimate.size_bytes),
+                  cost: formatUsd(s.estimate.estimate.max_cost_usd),
+                },
+              )}
             </span>
           )}
           {s.estimateError !== null && (
@@ -145,7 +155,7 @@ function Workbench({
           )}
         </section>
 
-        <section className="card aiw__result" aria-label="分析結果">
+        <section className="card aiw__result" aria-label={t('ai.resultLabel')}>
           <ResultArea
             s={s}
             session={video}
@@ -240,7 +250,7 @@ function VideoCard({ asset, onPick }: { asset: AssetRecord | null; onPick: () =>
       {asset === null ? (
         <span className="aiw__video-empty">
           <Icon name="video" />
-          尚未選擇視頻
+          {t('ai.noVideo')}
         </span>
       ) : (
         <>
@@ -254,7 +264,7 @@ function VideoCard({ asset, onPick }: { asset: AssetRecord | null; onPick: () =>
         </>
       )}
       <button type="button" className="btn btn--small aiw__pick" onClick={onPick}>
-        {asset === null ? '選擇視頻' : '更換'}
+        {asset === null ? t('ai.chooseVideo') : t('ai.changeVideo')}
       </button>
     </div>
   );
@@ -264,13 +274,13 @@ function ModelPicker({ session, s }: { session: VideoSession; s: VideoState }) {
   const options = modelOptions('gemini', s.model);
   return (
     <fieldset className="aiw__fs">
-      <legend className="aiw__h">模型</legend>
+      <legend className="aiw__h">{t('ai.modelLegend')}</legend>
       <label className="aiw__opt">
         <input type="radio" name="aiw-model" checked readOnly />
         Gemini
         <select
           className="select aiw__model"
-          aria-label="Gemini 模型"
+          aria-label={t('ai.geminiModel')}
           value={s.model ?? ''}
           disabled={s.phase === 'running'}
           onChange={(e) => {
@@ -283,13 +293,13 @@ function ModelPicker({ session, s }: { session: VideoSession; s: VideoState }) {
             </option>
           ))}
         </select>
-        <span className="aiw__where">雲端</span>
+        <span className="aiw__where">{t('ai.cloud')}</span>
       </label>
       {(
         [
-          [AI_PROVIDER_NAMES.anthropic.name, '不支援視頻'],
-          [AI_PROVIDER_NAMES.openai.name, '不支援視頻'],
-          ['本地模型', '延後提供'],
+          [AI_PROVIDER_NAMES.anthropic.name, t('ai.noVideoSupport')],
+          [AI_PROVIDER_NAMES.openai.name, t('ai.noVideoSupport')],
+          [t('ai.localModel'), t('ai.comingLater')],
         ] as const
       ).map(([name, why]) => (
         <label key={name} className="aiw__opt aiw__opt--off">
@@ -319,13 +329,13 @@ function ResultArea({
     return (
       <div className="aiw__empty">
         <Icon name="key" size={28} />
-        <span className="aiw__empty-title">未設定 Gemini 金鑰</span>
+        <span className="aiw__empty-title">{t('ai.noGeminiKey')}</span>
         <div className="aiw__row">
           <button type="button" className="btn btn--primary" onClick={onOpenSettings}>
-            前往設定
+            {t('ai.goToSettings')}
           </button>
-          <button type="button" className="btn" disabled title="本地模型延後提供">
-            改用本地模型
+          <button type="button" className="btn" disabled title={t('ai.localModelLater')}>
+            {t('ai.useLocalModel')}
           </button>
         </div>
       </div>
@@ -335,10 +345,10 @@ function ResultArea({
     return (
       <div className="aiw__empty">
         <Icon name="video" size={28} />
-        <span className="aiw__empty-title">選擇素材庫的視頻來分析</span>
-        <span className="faint">Gemini 會產生摘要、重要時間點、標題、簡介與封面建議。</span>
+        <span className="aiw__empty-title">{t('ai.pickAssetVideo')}</span>
+        <span className="faint">{t('ai.pickAssetHint')}</span>
         <button type="button" className="btn btn--primary" onClick={onPick}>
-          選擇視頻
+          {t('ai.chooseVideo')}
         </button>
       </div>
     );
@@ -365,7 +375,7 @@ function ResultArea({
               void session.cancel();
             }}
           >
-            取消
+            {t('common.cancel')}
           </button>
         </div>
       </div>
@@ -376,12 +386,15 @@ function ResultArea({
       <div className="aiw__failed" role="alert">
         <span className="aiw__failed-title">
           <Icon name="alert" />
-          分析失敗
+          {t('ai.analyzeFailed')}
         </span>
         <span className="aiw__failed-text">
           {s.failure.code === null
             ? s.failure.message
-            : `${FAILURE_LABEL[s.failure.code]}：${s.failure.message}`}
+            : t('ai.failureDetail', {
+                reason: FAILURE_LABEL[s.failure.code],
+                detail: s.failure.message,
+              })}
         </span>
         <div className="aiw__row">
           {s.job !== null && (
@@ -392,7 +405,7 @@ function ResultArea({
                 void session.retry();
               }}
             >
-              重試
+              {t('common.retry')}
             </button>
           )}
           {s.previous !== null && (
@@ -403,7 +416,7 @@ function ResultArea({
                 session.showPrevious();
               }}
             >
-              查看上次結果
+              {t('ai.showLastResult')}
             </button>
           )}
         </div>
@@ -422,8 +435,8 @@ function ResultArea({
     return (
       <div className="aiw__empty">
         <Icon name="spark" size={28} />
-        <span className="aiw__empty-title">尚未分析這支視頻</span>
-        <span className="faint">按「分析」後會先顯示大小、時長與估算費用，確認後才上傳。</span>
+        <span className="aiw__empty-title">{t('ai.notAnalyzed')}</span>
+        <span className="faint">{t('ai.notAnalyzedHint')}</span>
       </div>
     );
   }
@@ -432,13 +445,17 @@ function ResultArea({
   return (
     <div className="aiw__done">
       <div className="aiw__row aiw__done-head">
-        <h2 className="aiw__title">摘要</h2>
+        <h2 className="aiw__title">{t('ai.summary')}</h2>
         <Chip>
-          Gemini · {formatWhen(s.shown.finished_at ?? s.shown.updated_at)}
-          {s.shown.cost_usd !== null && ` · ${formatUsd(s.shown.cost_usd)}（估算）`}
+          {s.shown.cost_usd === null
+            ? t('ai.resultMeta', { when: formatWhen(s.shown.finished_at ?? s.shown.updated_at) })
+            : t('ai.resultMetaCost', {
+                when: formatWhen(s.shown.finished_at ?? s.shown.updated_at),
+                cost: formatUsd(s.shown.cost_usd),
+              })}
         </Chip>
         <span className="aiw__verify">
-          <Chip tone="warn">待核驗</Chip>
+          <Chip tone="warn">{t('ai.needsVerification')}</Chip>
         </span>
       </div>
       <p className="aiw__disclaimer faint">{r.disclaimer}</p>
@@ -446,13 +463,13 @@ function ResultArea({
 
       {r.key_moments.length > 0 && (
         <div className="aiw__block">
-          <h3 className="aiw__h">時間點</h3>
+          <h3 className="aiw__h">{t('ai.keyMoments')}</h3>
           {r.key_moments.map((m, i) => (
             <button
               key={`${String(m.time_seconds)}:${String(i)}`}
               type="button"
               className="aiw__chap"
-              title="在素材檢視器從這裡播放"
+              title={t('ai.playFromHere')}
               onClick={() => {
                 onOpenAsset(asset.id, m.time_seconds);
               }}
@@ -462,7 +479,7 @@ function ResultArea({
                 <span>{m.label}</span>
                 {m.description !== '' && <span className="faint">{m.description}</span>}
               </span>
-              {m.within_duration === false && <Chip tone="warn">超出片長</Chip>}
+              {m.within_duration === false && <Chip tone="warn">{t('ai.beyondDuration')}</Chip>}
             </button>
           ))}
         </div>
@@ -470,8 +487,8 @@ function ResultArea({
 
       {r.cover_suggestions.length > 0 && (
         <div className="aiw__block">
-          <h3 className="aiw__h">封面建議</h3>
-          <div className="aiw__frames" role="group" aria-label="封面建議">
+          <h3 className="aiw__h">{t('ai.coverSuggestions')}</h3>
+          <div className="aiw__frames" role="group" aria-label={t('ai.coverSuggestions')}>
             {r.cover_suggestions.map((m, i) => (
               <button
                 key={`${String(m.time_seconds)}:${String(i)}`}
@@ -484,8 +501,9 @@ function ResultArea({
               >
                 <VideoFrame className="aiw__frame-img" assetId={asset.id} at={m.time_seconds} />
                 <span className="mono aiw__frame-ts">
-                  {formatDuration(m.time_seconds)}
-                  {m.within_duration === false && ' · 超出片長'}
+                  {m.within_duration === false
+                    ? t('ai.tsBeyond', { time: formatDuration(m.time_seconds) })
+                    : formatDuration(m.time_seconds)}
                 </span>
                 {m.label !== '' && <span className="aiw__frame-label">{m.label}</span>}
               </button>
@@ -494,8 +512,8 @@ function ResultArea({
         </div>
       )}
 
-      <Suggestions title="標題建議" items={r.title_suggestions} />
-      <Suggestions title="簡介建議" items={r.description_suggestions} />
+      <Suggestions title={t('ai.titleSuggestions')} items={r.title_suggestions} />
+      <Suggestions title={t('ai.descriptionSuggestions')} items={r.description_suggestions} />
     </div>
   );
 }
@@ -506,14 +524,14 @@ function Suggestions({ title, items }: { title: string; items: readonly string[]
   return (
     <div className="aiw__block">
       <h3 className="aiw__h">{title}</h3>
-      {items.map((t, i) => (
-        <div key={`${String(i)}:${t}`} className="aiw__cand">
-          <span className="aiw__cand-text">{t}</span>
+      {items.map((text, i) => (
+        <div key={`${String(i)}:${text}`} className="aiw__cand">
+          <span className="aiw__cand-text">{text}</span>
           <button
             type="button"
             className="btn btn--ghost btn--small"
             onClick={() => {
-              void window.creatorhub?.copyText(t).then(() => {
+              void window.creatorhub?.copyText(text).then(() => {
                 setCopied(i);
               });
             }}
@@ -521,12 +539,12 @@ function Suggestions({ title, items }: { title: string; items: readonly string[]
             {copied === i ? (
               <>
                 <Icon name="check" size={14} />
-                已複製
+                {t('common.copied')}
               </>
             ) : (
               <>
                 <Icon name="copy" size={14} />
-                複製
+                {t('common.copy')}
               </>
             )}
           </button>
@@ -551,13 +569,14 @@ function UsageCard({
     <section className="card aiw__usage" aria-labelledby="aiw-use">
       <div className="aiw__row aiw__usage-head">
         <h2 id="aiw-use" className="aiw__title">
-          用量
+          {t('ai.usage')}
         </h2>
         <span className="aiw__total">{formatUsd(budget?.spent_usd ?? null)}</span>
       </div>
       <span className="aiw__usage-sub faint">
-        本月 · 估算
-        {budget?.budget_usd != null && ` · 提醒 ${formatUsd(budget.budget_usd)}`}
+        {budget?.budget_usd == null
+          ? t('ai.usageSub')
+          : t('ai.usageSubBudget', { budget: formatUsd(budget.budget_usd) })}
       </span>
       {budget?.over_budget === true && budget.warning !== null && (
         <p className="aiw__over" role="status">
@@ -570,24 +589,24 @@ function UsageCard({
           {usage.by_provider.map((p) => (
             <span key={p.provider} className="aiw__prov">
               <span>{AI_PROVIDER_NAMES[p.provider].name}</span>
-              <span className="faint">{p.jobs} 次</span>
+              <span className="faint">{t('ai.jobCount', { count: p.jobs })}</span>
               <span className="aiw__num">{formatUsd(p.cost_usd)}</span>
             </span>
           ))}
         </div>
       )}
-      <h3 className="aiw__h aiw__recent">最近任務</h3>
+      <h3 className="aiw__h aiw__recent">{t('ai.recentJobs')}</h3>
       {activity.failed ? (
         <div className="aiw__row">
-          <span className="muted">無法載入</span>
+          <span className="muted">{t('ai.loadFailed')}</span>
           <button type="button" className="btn btn--small" onClick={onRetry}>
-            重試
+            {t('common.retry')}
           </button>
         </div>
       ) : activity.jobs === null ? (
         <div className="skel skel--line" />
       ) : activity.jobs.length === 0 ? (
-        <span className="faint">還沒有 AI 任務</span>
+        <span className="faint">{t('ai.noJobs')}</span>
       ) : (
         <ol className="aiw__jobs">
           {activity.jobs.map((job) => {
@@ -603,11 +622,11 @@ function UsageCard({
                 </span>
                 <span className="aiw__job-s">
                   {job.status === 'failed' ? (
-                    <Chip tone="bad">失敗</Chip>
+                    <Chip tone="bad">{t('ai.statusFailed')}</Chip>
                   ) : job.status === 'cancelled' ? (
-                    <Chip>已取消</Chip>
+                    <Chip>{t('ai.statusCancelled')}</Chip>
                   ) : job.status === 'succeeded' ? null : (
-                    <Chip tone="accent">進行中</Chip>
+                    <Chip tone="accent">{t('ai.statusRunning')}</Chip>
                   )}
                 </span>
               </>
@@ -671,13 +690,13 @@ function VideoPicker({
     };
   }, [client, q]);
   return (
-    <Dialog title="選擇視頻" onClose={onClose} width={640}>
+    <Dialog title={t('ai.chooseVideo')} onClose={onClose} width={640}>
       <div className="aiw-pick">
         <input
           className="input"
           type="search"
-          placeholder="搜尋檔名"
-          aria-label="搜尋視頻"
+          placeholder={t('ai.searchFilename')}
+          aria-label={t('ai.searchVideo')}
           data-autofocus
           value={q}
           onChange={(e) => {
@@ -685,13 +704,13 @@ function VideoPicker({
           }}
         />
         {failed ? (
-          <p className="muted">無法載入素材</p>
+          <p className="muted">{t('ai.assetsLoadFailed')}</p>
         ) : items === null ? (
           <div className="skel skel--line" />
         ) : items.length === 0 ? (
           <div className="aiw__empty aiw__empty--small">
             <span className="aiw__empty-title">
-              {q.trim() === '' ? '素材庫還沒有視頻' : '沒有符合的視頻'}
+              {q.trim() === '' ? t('ai.noVideosInLibrary') : t('ai.noMatchingVideos')}
             </span>
             {q.trim() === '' && (
               <button
@@ -702,7 +721,7 @@ function VideoPicker({
                   onOpenAssets();
                 }}
               >
-                前往素材庫
+                {t('ai.goToAssets')}
               </button>
             )}
           </div>
@@ -736,7 +755,7 @@ function ReuseDialog({ s, session }: { s: VideoState; session: VideoSession }) {
   const max = s.estimate?.estimate.max_cost_usd ?? null;
   return (
     <Dialog
-      title="已分析過此影片"
+      title={t('ai.reuseTitle')}
       width={420}
       onClose={() => {
         session.closeDialog();
@@ -750,7 +769,7 @@ function ReuseDialog({ s, session }: { s: VideoState; session: VideoSession }) {
               session.rerun();
             }}
           >
-            重新分析
+            {t('ai.reanalyze')}
           </button>
           <button
             type="button"
@@ -760,7 +779,7 @@ function ReuseDialog({ s, session }: { s: VideoState; session: VideoSession }) {
               void session.reuse();
             }}
           >
-            沿用結果
+            {t('ai.reuseKeep')}
           </button>
         </>
       }
@@ -773,10 +792,9 @@ function ReuseDialog({ s, session }: { s: VideoState; session: VideoSession }) {
             {prev.cost_usd !== null && <Chip>{formatUsd(prev.cost_usd)}</Chip>}
           </div>
         )}
-        <p>沿用不會送出任何內容，也不收費。</p>
+        <p>{t('ai.reuseFree')}</p>
         <p className="aiw__warn-text">
-          重新分析會再次上傳並計費
-          {max !== null && `（估算最多 ${formatUsd(max)}）`}。
+          {max === null ? t('ai.reuseRerun') : t('ai.reuseRerunCost', { max: formatUsd(max) })}
         </p>
       </div>
     </Dialog>
@@ -793,7 +811,7 @@ function ConfirmDialog({ s, session }: { s: VideoState; session: VideoSession })
     asset.duration !== null && asset.duration > GEMINI_VIDEO_LIMITS.maxDurationSeconds.default;
   return (
     <Dialog
-      title={`上傳至 ${s.gemini?.company ?? 'Google'} Gemini`}
+      title={t('ai.confirmTitle', { company: s.gemini?.company ?? 'Google' })}
       width={480}
       onClose={() => {
         session.closeDialog();
@@ -807,7 +825,7 @@ function ConfirmDialog({ s, session }: { s: VideoState; session: VideoSession })
               session.closeDialog();
             }}
           >
-            取消
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -821,24 +839,24 @@ function ConfirmDialog({ s, session }: { s: VideoState; session: VideoSession })
               });
             }}
           >
-            {needsConsent ? '同意並上傳分析' : '上傳並分析'}
+            {needsConsent ? t('ai.consentAndUpload') : t('ai.uploadAndAnalyze')}
           </button>
         </>
       }
     >
       <div className="form aiw-confirm">
-        <p>影片會傳到 Google 處理，並產生費用{s.reanalyze && '（重新分析會再次計費）'}。</p>
+        <p>{s.reanalyze ? t('ai.confirmIntroRerun') : t('ai.confirmIntro')}</p>
         {needsConsent && s.gemini !== null && (
           <section className="aiw-confirm__sec aiw-confirm__notice" aria-labelledby="aiw-notice">
             <h3 id="aiw-notice" className="aiw-confirm__h">
-              1 · 使用告知（首次使用 Gemini）
+              {t('ai.noticeHeading')}
             </h3>
             <p>{s.gemini.notice.text}</p>
           </section>
         )}
         <section className="aiw-confirm__sec" aria-labelledby="aiw-cost">
           <h3 id="aiw-cost" className="aiw-confirm__h">
-            {needsConsent ? '2 · ' : ''}這次的費用（估算）
+            {needsConsent ? t('ai.costHeadingNumbered') : t('ai.costHeading')}
           </h3>
           <div className="aiw-confirm__file">
             <VideoThumb asset={asset} />
@@ -847,28 +865,33 @@ function ConfirmDialog({ s, session }: { s: VideoState; session: VideoSession })
           </div>
           {est === null ? (
             <p className="aiw__err" role="alert">
-              {s.estimateError ?? '正在重新估算…'}
+              {s.estimateError ?? t('ai.reestimating')}
             </p>
           ) : (
             <dl className="aiw-confirm__facts">
-              <dt>時長</dt>
+              <dt>{t('ai.duration')}</dt>
               <dd>
-                {formatDuration(est.duration_seconds)}
-                {est.duration_source === 'size_guess' && '（依大小推估）'}
+                {est.duration_source === 'size_guess'
+                  ? t('ai.durationGuess', { duration: formatDuration(est.duration_seconds) })
+                  : formatDuration(est.duration_seconds)}
               </dd>
-              <dt>模型</dt>
+              <dt>{t('ai.modelLegend')}</dt>
               <dd className="mono">{est.model}</dd>
-              <dt>輸入</dt>
-              <dd>約 {est.estimate.input_tokens.toLocaleString('en-US')} tokens（估算）</dd>
-              <dt>最多花費</dt>
+              <dt>{t('ai.input')}</dt>
+              <dd>{t('ai.inputTokens', { tokens: formatNumber(est.estimate.input_tokens) })}</dd>
+              <dt>{t('ai.maxCost')}</dt>
               <dd>
-                <strong>{formatUsd(est.estimate.max_cost_usd)}</strong>（估算）
+                <strong>{formatUsd(est.estimate.max_cost_usd)}</strong>
+                {t('ai.estimatedSuffix')}
               </dd>
-              <dt>本月累計</dt>
+              <dt>{t('ai.monthToDate')}</dt>
               <dd>
-                {formatUsd(est.budget.spent_usd)}
-                {est.budget.budget_usd !== null && ` / 提醒 ${formatUsd(est.budget.budget_usd)}`}
-                （估算）
+                {est.budget.budget_usd === null
+                  ? t('ai.spentLine', { spent: formatUsd(est.budget.spent_usd) })
+                  : t('ai.spentLineBudget', {
+                      spent: formatUsd(est.budget.spent_usd),
+                      budget: formatUsd(est.budget.budget_usd),
+                    })}
               </dd>
             </dl>
           )}
@@ -881,11 +904,9 @@ function ConfirmDialog({ s, session }: { s: VideoState; session: VideoSession })
               }}
             />
             <span>
-              低解析度（較省、可分析到約 3 小時）
+              {t('ai.lowResolution')}
               {s.autoLow && tooLongForDefault && (
-                <span className="aiw-confirm__why">
-                  已自動勾選：影片超過 1 小時，預設解析度無法分析
-                </span>
+                <span className="aiw-confirm__why">{t('ai.autoLowWhy')}</span>
               )}
             </span>
           </label>

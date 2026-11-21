@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Chip } from './Chip.js';
 import { conflictHunks, mergeHunks, type Hunk, type Side } from './conflict.js';
 import { formatWhen } from './format.js';
+import { t } from './i18n.js';
 import { Icon } from './Icon.js';
 import type { WorkSession } from './work-session.js';
 
@@ -100,8 +101,8 @@ export function ConflictDialog({
       const title = session.snapshot.draft.title;
       const copy = await session.keepBoth();
       setOutcomes([
-        { title, note: `伺服器版本 ${r(serverN)}`.trim() },
-        { title: copy.title, note: '新副本' },
+        { title, note: t('editor.outcomeServer', { rev: r(serverN) }).trim() },
+        { title: copy.title, note: t('editor.outcomeCopy') },
       ]);
       setMode('done');
     } catch {
@@ -121,7 +122,10 @@ export function ConflictDialog({
         setOutcomes([
           {
             title: session.snapshot.draft.title,
-            note: `合併結果${serverN === undefined ? '' : ` · r${serverN} 可恢復`}`,
+            note:
+              serverN === undefined
+                ? t('editor.outcomeMerged')
+                : t('editor.outcomeMergedRestorable', { rev: `r${String(serverN)}` }),
           },
         ]);
         setMode('done');
@@ -151,18 +155,21 @@ export function ConflictDialog({
             <Icon name={done ? 'check' : 'alert'} size={18} />
           </span>
           <h2 id="cf-title" className="dialog__title">
-            {done ? '已解決' : '版本衝突'}
+            {t(done ? 'editor.resolved' : 'editor.conflictTitle')}
           </h2>
           {!done && server !== null && (
             <span className="faint">
-              你的修改基於 {r(baseN) || '舊版本'}，伺服器已是 {r(serverN) || '新版本'}
+              {t('editor.conflictBasis', {
+                base: r(baseN) || t('editor.oldVersion'),
+                server: r(serverN) || t('editor.newVersion'),
+              })}
             </span>
           )}
           {!done && (
             <span className="dialog__kept">
               <Chip tone="accent">
                 <Icon name="check" size={12} />
-                你的修改已保留
+                {t('editor.yoursKept')}
               </Chip>
             </span>
           )}
@@ -171,7 +178,7 @@ export function ConflictDialog({
         <div className="dialog__body">
           {loadFailed ? (
             <div className="state-card" role="alert">
-              <span className="state-card__title">無法讀取伺服器版本</span>
+              <span className="state-card__title">{t('editor.serverLoadFailed')}</span>
             </div>
           ) : server === null ? (
             <div className="state-card" aria-busy="true" />
@@ -179,23 +186,23 @@ export function ConflictDialog({
             <div className="panes">
               <div className="pane">
                 <div className="pane__head">
-                  <span className="pane__title">你的修改</span>
-                  <Chip tone="accent">此視窗</Chip>
-                  <span className="pane__rev">基於 {r(baseN)}</span>
+                  <span className="pane__title">{t('editor.paneMine')}</span>
+                  <Chip tone="accent">{t('editor.paneThisWindow')}</Chip>
+                  <span className="pane__rev">{t('editor.paneBasedOn', { rev: r(baseN) })}</span>
                 </div>
                 {hunks.map((h) => (
                   <p key={h.index} className="pane__text">
                     {h.mine.length > 0 ? (
                       <mark className="mark mark--mine">{lines(h.mine)}</mark>
                     ) : (
-                      <span className="faint">（無）</span>
+                      <span className="faint">{t('editor.paneNone')}</span>
                     )}
                   </p>
                 ))}
               </div>
               <div className="pane">
                 <div className="pane__head">
-                  <span className="pane__title">伺服器上的版本</span>
+                  <span className="pane__title">{t('editor.paneServer')}</span>
                   <Chip tone="warn">{formatWhen(server.updated_at)}</Chip>
                   <span className="pane__rev">{r(serverN)}</span>
                 </div>
@@ -204,7 +211,7 @@ export function ConflictDialog({
                     {h.server.length > 0 ? (
                       <mark className="mark mark--server">{lines(h.server)}</mark>
                     ) : (
-                      <span className="faint">（無）</span>
+                      <span className="faint">{t('editor.paneNone')}</span>
                     )}
                   </p>
                 ))}
@@ -214,10 +221,11 @@ export function ConflictDialog({
             <div className="diffview">
               <div className="diffview__legend">
                 <span>
-                  <del className="del">刪除</del> 伺服器 {r(serverN)}
+                  <del className="del">{t('editor.diffRemoved')}</del>{' '}
+                  {t('editor.diffServerSide', { rev: r(serverN) })}
                 </span>
                 <span>
-                  <ins className="ins">新增</ins> 你的修改
+                  <ins className="ins">{t('editor.diffAdded')}</ins> {t('editor.diffMineSide')}
                 </span>
               </div>
               {hunks.map((h) => (
@@ -234,14 +242,18 @@ export function ConflictDialog({
                   <span className="merge__no">{h.index + 1}</span>
                   <span className="merge__texts">
                     <mark className="mark mark--mine">
-                      {h.mine.length > 0 ? lines(h.mine) : '（無）'}
+                      {h.mine.length > 0 ? lines(h.mine) : t('editor.paneNone')}
                     </mark>
                     <span className="faint">/</span>
                     <mark className="mark mark--server">
-                      {h.server.length > 0 ? lines(h.server) : '（無）'}
+                      {h.server.length > 0 ? lines(h.server) : t('editor.paneNone')}
                     </mark>
                   </span>
-                  <div className="seg" role="group" aria-label={`第 ${h.index + 1} 處`}>
+                  <div
+                    className="seg"
+                    role="group"
+                    aria-label={t('editor.hunkLabel', { n: h.index + 1 })}
+                  >
                     {(['mine', 'server'] as const).map((side) => (
                       <button
                         key={side}
@@ -254,14 +266,14 @@ export function ConflictDialog({
                           setEdited(null);
                         }}
                       >
-                        {side === 'mine' ? '我的' : '伺服器'}
+                        {t(side === 'mine' ? 'editor.pickMine' : 'editor.pickServer')}
                       </button>
                     ))}
                   </div>
                 </div>
               ))}
               <label htmlFor="merged" className="merge__label">
-                結果
+                {t('editor.mergeResult')}
               </label>
               <textarea
                 id="merged"
@@ -290,7 +302,7 @@ export function ConflictDialog({
         {actionFailed && (
           <div className="banner banner--bad" role="alert">
             <Icon name="alert" />
-            <span className="banner__text">服務未回應，你的修改仍保留</span>
+            <span className="banner__text">{t('editor.mergeActionFailed')}</span>
           </div>
         )}
 
@@ -307,7 +319,7 @@ export function ConflictDialog({
                 }}
               >
                 <Icon name="diff" />
-                查看差異
+                {t('editor.viewDiff')}
               </button>
               <button
                 type="button"
@@ -316,7 +328,7 @@ export function ConflictDialog({
                 onClick={() => void keepBoth()}
               >
                 <Icon name="copy" />
-                保留雙方
+                {t('editor.keepBoth')}
               </button>
               <button
                 type="button"
@@ -327,7 +339,7 @@ export function ConflictDialog({
                 }}
               >
                 <Icon name="merge" />
-                手動合併
+                {t('editor.manualMerge')}
               </button>
             </>
           )}
@@ -340,7 +352,7 @@ export function ConflictDialog({
                   setMode('choose');
                 }}
               >
-                返回
+                {t('common.back')}
               </button>
               <button
                 type="button"
@@ -348,13 +360,13 @@ export function ConflictDialog({
                 disabled={busy}
                 onClick={() => void finishMerge()}
               >
-                完成合併
+                {t('editor.finishMerge')}
               </button>
             </>
           )}
           {done && (
             <button type="button" className="btn btn--primary dialog__primary" onClick={onClose}>
-              返回編輯
+              {t('editor.backToEditing')}
             </button>
           )}
         </footer>

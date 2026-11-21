@@ -8,6 +8,7 @@ import {
   type MarkdownRange,
 } from '@qiu-creator/markdown-editor-web';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { codeText, t, useLocale } from './i18n.js';
 import { AiPanel, type AiSelection } from './AiPanel.js';
 import { AiProviders, RewriteSession, TitleSession } from './ai-session.js';
 import { Chip } from './Chip.js';
@@ -19,7 +20,12 @@ import { Icon } from './Icon.js';
 import { WorkMediaResolver } from './media.js';
 import { externalSource, useMounts } from './mounts.js';
 import { TagEditor } from './TagEditor.js';
-import { WorkSession, type RemoteChange } from './work-session.js';
+import {
+  WorkSession,
+  type ReadOnlyReason,
+  type RemoteChange,
+  type SaveError,
+} from './work-session.js';
 import { imageFiles, InsertSession, type InsertState, type InsertWhere } from './editor-insert.js';
 import {
   ASSET_DRAG_TYPE,
@@ -104,11 +110,35 @@ function caretPoint(source: HTMLTextAreaElement | null): { x: number; y: number 
 }
 
 const REMOTE_LABEL: Readonly<Record<RemoteChange['source'], string>> = {
-  external: '外部編輯器',
-  edit: '其他視窗或 Agent',
-  restore: '其他視窗恢復版本',
-  other: '其他來源',
+  get external() {
+    return t('editor.remoteExternal');
+  },
+  get edit() {
+    return t('editor.remoteEdit');
+  },
+  get restore() {
+    return t('editor.remoteRestore');
+  },
+  get other() {
+    return t('editor.remoteOther');
+  },
 };
+
+/** What to do about a read-only work, plus the promise that unsaved edits are kept. */
+function readOnlyHint(reason: ReadOnlyReason, session: WorkSession): string {
+  const hint = t(
+    reason === 'missing' ? 'editor.readOnlyMissingHint' : 'editor.readOnlyUnmountedHint',
+  );
+  return session.hasUnsavedChanges() ? t('editor.readOnlyHintKept', { hint }) : hint;
+}
+
+/** Why the last save failed, in the user's words (never the service's own message). */
+function saveErrorText(error: SaveError | null): string {
+  if (error === null) return t('editor.saveFailed');
+  if (error.kind === 'title_blank') return t('editor.titleRequired');
+  if (error.kind === 'offline') return t('editor.saveOffline');
+  return codeText(error.code);
+}
 
 export interface EditorPageProps {
   client: CreatorHubClient;
@@ -158,6 +188,7 @@ function SessionEditor({
   onOpenSettings,
   session,
 }: EditorPageProps & { session: WorkSession }) {
+  const locale = useLocale();
   const state = useSyncExternalStore(
     useCallback((cb) => session.subscribe(cb), [session]),
     () => session.snapshot,
@@ -271,16 +302,17 @@ function SessionEditor({
       selectionRange.end > selectionRange.start
         ? selectionRange
         : null;
-    if (range === null) return { range: null, label: '全文', words: countWords(md) };
+    if (range === null)
+      return { range: null, label: t('editor.selectionAll'), words: countWords(md) };
     const n = blockNumbers(md, range);
     const label =
       n === null
-        ? '全文'
+        ? t('editor.selectionAll')
         : n.first === n.last
-          ? `第 ${String(n.first)} 段`
-          : `第 ${String(n.first)}–${String(n.last)} 段`;
+          ? t('editor.selectionParagraph', { n: n.first })
+          : t('editor.selectionParagraphs', { first: n.first, last: n.last });
     return { range, label, words: countWords(md.slice(range.start, range.end)) };
-  }, [selectionRange, state.draft.markdown]);
+  }, [selectionRange, state.draft.markdown, locale]);
 
   const mounts = useMounts(client);
   const source = externalSource(work, mounts, userHome);
@@ -391,9 +423,9 @@ function SessionEditor({
   const readOnly = state.readOnly !== null;
   // External works keep their images in their own folder; nothing is copied into it (QC-039).
   const insertBlocked: string | null = readOnly
-    ? '唯讀時不能插入'
+    ? t('editor.insertBlockedReadOnly')
     : work.storage_mode === 'external'
-      ? '外部掛載的作品請把圖片放進作品所在的資料夾'
+      ? t('editor.insertBlockedExternal')
       : null;
   const openDrawer = () => {
     setHistoryOpen(false);
@@ -402,14 +434,14 @@ function SessionEditor({
   const slashCommands: SlashCommand[] = [
     {
       key: 'library',
-      label: '從素材庫插入圖片',
+      label: t('editor.slashLibrary'),
       hint: '⌘⇧I',
       icon: 'assets',
       run: openDrawer,
     },
     {
       key: 'upload',
-      label: '上傳圖片…',
+      label: t('editor.uploadImage'),
       hint: '⌘⇧U',
       icon: 'upload',
       run: () => {
@@ -418,7 +450,7 @@ function SessionEditor({
     },
     {
       key: 'divider',
-      label: '分隔線',
+      label: t('editor.slashDivider'),
       hint: '---',
       icon: 'lines',
       run: () => {
@@ -437,7 +469,9 @@ function SessionEditor({
   };
   const dragKind = (types: readonly string[]): 'asset' | 'files' | null =>
     types.includes(ASSET_DRAG_TYPE) ? 'asset' : types.includes('Files') ? 'files' : null;
-  const save = readOnly ? { label: '唯讀', tone: 'neutral' as const } : SAVE_STATUS[state.status];
+  const save = readOnly
+    ? { label: t('editor.readOnlyChip'), tone: 'neutral' as const }
+    : SAVE_STATUS[state.status];
   const rev = numbers.get(state.baseRevision);
   const words = useMemo(() => countWords(state.draft.markdown), [state.draft.markdown]);
   const conflict = state.status === 'conflict';
@@ -446,24 +480,23 @@ function SessionEditor({
   useEffect(() => {
     if (conflict) setDialogOpen(true);
   }, [conflict]);
-  const offline = state.status === 'error' && state.errorMessage === '無法連線到服務';
   const remoteN = state.remote === null ? undefined : numbers.get(state.remote.revisionId);
 
   return (
     <>
-      <main className="page editor" aria-label="編輯作品" inert={dialogOpen}>
+      <main className="page editor" aria-label={t('editor.pageLabel')} inert={dialogOpen}>
         <header className="editor__bar">
           <button
             type="button"
             className="btn btn--ghost btn--icon"
-            aria-label="返回作品庫"
+            aria-label={t('editor.backToLibrary')}
             onClick={onBack}
           >
             <Icon name="back" />
           </button>
           <input
             className="editor__title"
-            aria-label="標題"
+            aria-label={t('editor.titleLabel')}
             readOnly={readOnly}
             value={state.draft.title}
             onChange={(e) => {
@@ -483,7 +516,7 @@ function SessionEditor({
                 source.label
               ) : (
                 <>
-                  外部掛載 · <span className="mono">{source.folder}</span>
+                  {t('format.sourceExternal')} · <span className="mono">{source.folder}</span>
                 </>
               )}
             </span>
@@ -502,13 +535,13 @@ function SessionEditor({
                 void session.save();
               }}
             >
-              重試
+              {t('common.retry')}
             </button>
           )}
           {rev !== undefined && <Chip>r{rev}</Chip>}
-          <span className="editor__words">{words} 字</span>
+          <span className="editor__words">{t('editor.wordCount', { count: words })}</span>
           <div className="editor__actions">
-            <div className="seg" role="group" aria-label="編輯模式">
+            <div className="seg" role="group" aria-label={t('editor.modeGroup')}>
               {(['visual', 'source'] as const).map((m) => (
                 <button
                   key={m}
@@ -519,7 +552,7 @@ function SessionEditor({
                     editor.current?.requestMode(m);
                   }}
                 >
-                  {m === 'visual' ? '視覺' : '原始碼'}
+                  {t(m === 'visual' ? 'editor.modeVisual' : 'editor.modeSource')}
                 </button>
               ))}
             </div>
@@ -541,7 +574,7 @@ function SessionEditor({
                 }}
               >
                 <Icon name="phone" />
-                預覽
+                {t('editor.preview')}
               </button>
             )}
             <button
@@ -554,14 +587,14 @@ function SessionEditor({
               }}
             >
               <Icon name="history" />
-              歷史
+              {t('editor.history')}
             </button>
           </div>
         </header>
 
         <div className="editor__meta">
           <label className="meta-field">
-            <span className="faint">狀態</span>
+            <span className="faint">{t('editor.statusLabel')}</span>
             <select
               className="select"
               value={state.draft.status}
@@ -591,15 +624,14 @@ function SessionEditor({
             <Icon name="alert" />
             <span className="banner__text banner__text--wrap">
               <span>
-                {state.readOnly === 'missing' ? '找不到原檔，唯讀' : '資料夾已卸載，唯讀'}
+                {t(
+                  state.readOnly === 'missing'
+                    ? 'editor.readOnlyMissing'
+                    : 'editor.readOnlyUnmounted',
+                )}
               </span>
               {source?.file != null && <span className="mono banner__path">{source.file}</span>}
-              <span className="banner__hint">
-                {state.readOnly === 'missing'
-                  ? '放回原處後自動恢復'
-                  : '在設定重新掛載這個資料夾後恢復'}
-                {session.hasUnsavedChanges() && '；這個視窗的修改會保留，恢復後再儲存'}
-              </span>
+              <span className="banner__hint">{readOnlyHint(state.readOnly, session)}</span>
             </span>
             {state.readOnly === 'missing' && work.mount_id != null && (
               <button
@@ -611,7 +643,7 @@ function SessionEditor({
                   }
                 }}
               >
-                在 Finder 顯示資料夾
+                {t('editor.revealFolder')}
               </button>
             )}
           </div>
@@ -621,7 +653,7 @@ function SessionEditor({
           <div className="banner banner--warn" role="alert">
             <Icon name="alert" />
             <span className="banner__text">
-              檔案已在外部修改 · {REMOTE_LABEL[state.remote.source]}
+              {t('editor.remoteChanged', { source: REMOTE_LABEL[state.remote.source] })}
               {remoteN !== undefined && ` · r${remoteN}`}
             </span>
             <button
@@ -631,7 +663,7 @@ function SessionEditor({
                 session.compareRemote();
               }}
             >
-              比對並合併
+              {t('editor.compareMerge')}
             </button>
             <button
               type="button"
@@ -640,7 +672,7 @@ function SessionEditor({
                 session.reloadFromServer().catch(() => undefined);
               }}
             >
-              捨棄我的修改並重新載入
+              {t('editor.discardReload')}
             </button>
           </div>
         )}
@@ -648,9 +680,7 @@ function SessionEditor({
         {state.status === 'error' && (
           <div className="banner banner--bad" role="alert">
             <Icon name="alert" />
-            <span className="banner__text">
-              {offline ? '服務未回應，修改保留在此視窗' : (state.errorMessage ?? '儲存失敗')}
-            </span>
+            <span className="banner__text">{saveErrorText(state.error)}</span>
             <button
               type="button"
               className="btn"
@@ -658,7 +688,7 @@ function SessionEditor({
                 void session.save();
               }}
             >
-              重試
+              {t('common.retry')}
             </button>
           </div>
         )}
@@ -667,7 +697,7 @@ function SessionEditor({
           <section
             ref={docRef}
             className={readOnly ? 'editor__doc editor__doc--readonly' : 'editor__doc'}
-            aria-label="正文"
+            aria-label={t('editor.docLabel')}
             onKeyDownCapture={(e) => {
               // `/` on an empty line opens the insert menu instead of typing a slash.
               if (
@@ -727,13 +757,19 @@ function SessionEditor({
               );
               if (step !== 0) doc.scrollTop += step;
               const frame = dropFrame(doc);
-              const t = dropTarget(e.clientY);
+              const target = dropTarget(e.clientY);
               const n = [...e.dataTransfer.items].filter((i) => i.kind === 'file').length;
+              const dragged = draggedAsset.current;
               const label =
                 kind === 'asset'
-                  ? `放開以插入「${draggedAsset.current === null ? '素材' : (draggedAsset.current.display_name ?? draggedAsset.current.original_name ?? '素材')}」`
-                  : `放開以插入 ${String(Math.max(n, 1))} 個檔案 · 同時加入素材庫`;
-              setDrop({ frame, y: t.y, label, where: t.where });
+                  ? t('editor.dropInsertAsset', {
+                      name:
+                        dragged === null
+                          ? t('editor.assets')
+                          : (dragged.display_name ?? dragged.original_name ?? t('editor.assets')),
+                    })
+                  : t('editor.dropInsertFiles', { count: Math.max(n, 1) });
+              setDrop({ frame, y: target.y, label, where: target.where });
             }}
             onScroll={(e) => {
               // Keep the frame on the visible area while the content scrolls under it.
@@ -762,7 +798,7 @@ function SessionEditor({
               const files = [...e.dataTransfer.files];
               const images = imageFiles(files);
               if (images.length < files.length) {
-                setNotice('目前只能插入圖片；其他檔案請到素材庫上傳');
+                setNotice(t('editor.onlyImages'));
               }
               void insert?.insertFiles(images, where);
             }}
@@ -792,6 +828,7 @@ function SessionEditor({
                 session.setComposing(composing);
               }}
               onSelectionChange={setSelectionRange}
+              locale={locale}
             />
           </section>
 
@@ -884,7 +921,7 @@ function SessionEditor({
             <button
               type="button"
               className="btn btn--ghost btn--icon btn--small"
-              aria-label="關閉提示"
+              aria-label={t('editor.dismissNotice')}
               onClick={() => {
                 setNotice(null);
                 insert?.dismissNotice();

@@ -1,4 +1,5 @@
 import type { AiProviderStatus, Platform, RewriteMode } from '@qiu-creator/contracts';
+import type { MessageKey } from '@qiu-creator/i18n';
 import { getTemplate } from '@qiu-creator/platform-preview';
 import { useCallback, useEffect, useState, useSyncExternalStore, type KeyboardEvent } from 'react';
 import {
@@ -14,6 +15,7 @@ import {
   type WriteOutcome,
 } from './ai-session.js';
 import { Icon } from './Icon.js';
+import { t } from './i18n.js';
 
 /** What the 改寫 tab would rewrite: a range of the saved Markdown and its label. */
 export interface AiSelection {
@@ -24,11 +26,15 @@ export interface AiSelection {
   words: number;
 }
 
-const PRESETS: readonly { mode: Exclude<RewriteMode, 'custom'>; label: string }[] = [
-  { mode: 'polish', label: '潤色' },
-  { mode: 'shorten', label: '縮寫' },
-  { mode: 'expand', label: '擴寫' },
-  { mode: 'tone', label: '語氣' },
+/**
+ * The rewrite styles. `mode` is what the service is sent, `label` only what
+ * the button shows, so translating a label changes nothing that is sent.
+ */
+const PRESETS: readonly { mode: Exclude<RewriteMode, 'custom'>; label: MessageKey }[] = [
+  { mode: 'polish', label: 'ai.presetPolish' },
+  { mode: 'shorten', label: 'ai.presetShorten' },
+  { mode: 'expand', label: 'ai.presetExpand' },
+  { mode: 'tone', label: 'ai.presetTone' },
 ];
 
 export interface AiPanelProps {
@@ -78,7 +84,7 @@ export function AiPanel(props: AiPanelProps) {
     };
   }, [providers, rw.block, tt.block]);
   return (
-    <aside className="panel ai" aria-label="AI 改寫" id="ai-panel">
+    <aside className="panel ai" aria-label={t('ai.panelLabel')} id="ai-panel">
       <div className="ai__tabs">
         <div className="ai__tab-list" role="tablist" aria-label="AI">
           <button
@@ -90,7 +96,7 @@ export function AiPanel(props: AiPanelProps) {
               setTab('rewrite');
             }}
           >
-            改寫
+            {t('ai.tabRewrite')}
           </button>
           <button
             type="button"
@@ -101,13 +107,13 @@ export function AiPanel(props: AiPanelProps) {
               setTab('title');
             }}
           >
-            標題
+            {t('ai.tabTitle')}
           </button>
         </div>
         {canChoose ? (
           <select
             className="input ai__provider ai__provider-select"
-            aria-label="文字 AI 供應商"
+            aria-label={t('ai.providerLabel')}
             value={selected?.provider ?? ''}
             disabled={rw.phase === 'loading' || rw.phase === 'busy' || tt.phase === 'loading'}
             onChange={(event) => {
@@ -120,19 +126,19 @@ export function AiPanel(props: AiPanelProps) {
           >
             {selected === undefined && (
               <option value="" disabled>
-                選擇供應商
+                {t('ai.providerPick')}
               </option>
             )}
             {options.map((item) => (
               <option key={item.provider} value={item.provider}>
-                {item.name} · 雲端
+                {t('ai.providerCloud', { name: item.name })}
               </option>
             ))}
           </select>
         ) : provider !== null ? (
           <span className="chip chip--neutral ai__provider">
             <Icon name="spark" size={12} />
-            {provider.name} · 雲端
+            {t('ai.providerCloud', { name: provider.name })}
           </span>
         ) : null}
       </div>
@@ -147,7 +153,7 @@ function BlockNotice({ block, onOpenSettings }: { block: AiBlock; onOpenSettings
       <Icon name="key" />
       <span className="ai__notice-text">{AI_BLOCK_LABEL[block]}</span>
       <button type="button" className="btn btn--small" onClick={onOpenSettings}>
-        前往設定
+        {t('ai.goToSettings')}
       </button>
     </div>
   );
@@ -155,13 +161,13 @@ function BlockNotice({ block, onOpenSettings }: { block: AiBlock; onOpenSettings
 
 function Generating({ onStop }: { onStop: () => void }) {
   return (
-    <div className="ai__box" role="status" aria-label="生成中">
+    <div className="ai__box" role="status" aria-label={t('ai.generating')}>
       <div className="skel ai__skel" style={{ width: '90%' }} />
       <div className="skel ai__skel" style={{ width: '75%' }} />
       <div className="skel ai__skel" style={{ width: '82%' }} />
       <div className="skel ai__skel" style={{ width: '60%' }} />
       <button type="button" className="btn btn--ghost btn--small ai__stop" onClick={onStop}>
-        停止
+        {t('ai.stop')}
       </button>
     </div>
   );
@@ -179,17 +185,19 @@ function Failed({
   return (
     <div className="ai__failed" role="alert">
       <span className="ai__failed-title">
-        生成失敗 · {failure.code === null ? failure.message : FAILURE_LABEL[failure.code]}
+        {t('ai.generateFailedWith', {
+          reason: failure.code === null ? failure.message : FAILURE_LABEL[failure.code],
+        })}
       </span>
       {failure.code !== null && failure.message !== '' && (
         <span className="ai__failed-detail">{failure.message}</span>
       )}
       <div className="ai__row">
         <button type="button" className="btn btn--small" onClick={onRetry}>
-          重試
+          {t('common.retry')}
         </button>
         <button type="button" className="btn btn--ghost btn--small" onClick={onClose}>
-          關閉
+          {t('common.close')}
         </button>
       </div>
     </div>
@@ -267,16 +275,16 @@ function RewriteTab({
             }}
           >
             <Icon name="undo" />
-            復原
+            {t('common.undo')}
           </button>
         </div>
       )}
       <div className="ai__sel">
         <Icon name="lines" size={13} />
-        選取：{selection.label} · {selection.words} 字
+        {t('ai.selection', { label: selection.label, count: selection.words })}
       </div>
       <div className="ai__compose">
-        <div className="ai__presets" role="group" aria-label="改寫方式">
+        <div className="ai__presets" role="group" aria-label={t('ai.rewriteWays')}>
           {PRESETS.map((p) => (
             <button
               key={p.mode}
@@ -287,18 +295,26 @@ function RewriteTab({
                 setPreset((cur) => (cur === p.mode ? null : p.mode));
               }}
             >
-              {p.label}
+              {t(p.label)}
             </button>
           ))}
         </div>
         <label className="ai__prompt">
           <span className="visually-hidden">
-            {preset === 'tone' ? '語氣' : preset === null ? '改寫指令' : '補充指令'}
+            {preset === 'tone'
+              ? t('ai.presetTone')
+              : preset === null
+                ? t('ai.instruction')
+                : t('ai.extraInstruction')}
           </span>
           <input
             type="text"
             placeholder={
-              preset === 'tone' ? '語氣，例如：輕鬆口語' : preset === null ? '改寫指令' : '補充指令'
+              preset === 'tone'
+                ? t('ai.tonePlaceholder')
+                : preset === null
+                  ? t('ai.instruction')
+                  : t('ai.extraInstruction')
             }
             value={prompt}
             onChange={(e) => {
@@ -320,7 +336,7 @@ function RewriteTab({
           <button
             type="button"
             className="btn btn--primary btn--icon ai__send"
-            aria-label="生成"
+            aria-label={t('ai.generate')}
             disabled={sendDisabled}
             onClick={send}
           >
@@ -350,10 +366,10 @@ function RewriteTab({
       {pending && c !== null && (
         <div className="ai__cand">
           <div className="ai__meta">
-            <span>{c.hunks} 處修改</span>
+            <span>{t('ai.hunkCount', { count: c.hunks })}</span>
             {lengths !== null && (
               <span className="ai__nums">
-                {lengths.before} → {lengths.after} 字
+                {t('ai.lengthChange', { before: lengths.before, after: lengths.after })}
               </span>
             )}
           </div>
@@ -390,7 +406,7 @@ function RewriteTab({
               }}
             >
               <Icon name="check" />
-              {checked === c.hunks ? '採用' : `採用 ${String(checked)}/${String(c.hunks)}`}
+              {checked === c.hunks ? t('ai.apply') : t('ai.applySome', { checked, total: c.hunks })}
               <kbd>⌘↩</kbd>
             </button>
             <button
@@ -401,7 +417,7 @@ function RewriteTab({
                 void rewrite.insert();
               }}
             >
-              插入
+              {t('ai.insert')}
             </button>
             <button
               type="button"
@@ -412,7 +428,7 @@ function RewriteTab({
               }}
             >
               <Icon name="retry" />
-              重試
+              {t('common.retry')}
             </button>
             <button
               type="button"
@@ -423,14 +439,15 @@ function RewriteTab({
                 rewrite.discard();
               }}
             >
-              捨棄<kbd>esc</kbd>
+              {t('ai.discard')}
+              <kbd>esc</kbd>
             </button>
           </div>
         </div>
       )}
       {s.phase === 'idle' && (
         <div className="ai__empty">
-          <span>{s.notice ?? '無候選'}</span>
+          <span>{s.notice ?? t('ai.noCandidates')}</span>
           <button
             type="button"
             className="btn"
@@ -438,7 +455,7 @@ function RewriteTab({
             onClick={send}
           >
             <Icon name="spark" />
-            {selection.range === null ? '改寫全文' : '改寫選取段落'}
+            {selection.range === null ? t('ai.rewriteAll') : t('ai.rewriteSelection')}
           </button>
         </div>
       )}
@@ -447,10 +464,18 @@ function RewriteTab({
 }
 
 const OUTCOME_LABEL: Readonly<Record<WriteOutcome, string>> = {
-  updated: '已寫入',
-  created: '已新建並寫入',
-  conflict: '已在別處修改，未寫入',
-  error: '寫入失敗',
+  get updated() {
+    return t('ai.outcomeUpdated');
+  },
+  get created() {
+    return t('ai.outcomeCreated');
+  },
+  get conflict() {
+    return t('ai.outcomeConflict');
+  },
+  get error() {
+    return t('ai.outcomeError');
+  },
 };
 
 function writtenSummary(written: Partial<Record<Platform, WriteOutcome>>) {
@@ -495,7 +520,9 @@ function TitleTab({ titles, readOnly, onOpenSettings }: AiPanelProps) {
             <fieldset key={platform} className="ai__pl">
               <legend className="ai__pl-name">
                 {name}
-                {limit !== null && <span className="ai__pl-limit">上限 {limit}</span>}
+                {limit !== null && (
+                  <span className="ai__pl-limit">{t('ai.titleLimitLabel', { limit })}</span>
+                )}
               </legend>
               {list.map((cand, i) => {
                 const len = titleLength(cand.text);
@@ -537,7 +564,7 @@ function TitleTab({ titles, readOnly, onOpenSettings }: AiPanelProps) {
               void titles.write();
             }}
           >
-            寫入平台版本
+            {t('ai.writeVariants')}
           </button>
           <button
             type="button"
@@ -548,19 +575,23 @@ function TitleTab({ titles, readOnly, onOpenSettings }: AiPanelProps) {
             }}
           >
             <Icon name="retry" />
-            重試
+            {t('common.retry')}
           </button>
           {summary !== null && summary.ok > 0 && (
             <span className="chip chip--ok ai__written" role="status">
-              已寫入 {summary.ok} 個版本
-              {summary.created.length > 0 && `（新建：${summary.created.join('、')}）`}
+              {summary.created.length === 0
+                ? t('ai.titleWritten', { count: summary.ok })
+                : t('ai.titleWrittenNew', {
+                    count: summary.ok,
+                    names: summary.created.join(t('common.listSeparator')),
+                  })}
             </span>
           )}
         </div>
       )}
       {s.phase === 'idle' && (
         <div className="ai__empty">
-          <span>無候選</span>
+          <span>{t('ai.noCandidates')}</span>
           <button
             type="button"
             className="btn"
@@ -570,7 +601,7 @@ function TitleTab({ titles, readOnly, onOpenSettings }: AiPanelProps) {
             }}
           >
             <Icon name="spark" />
-            生成標題候選
+            {t('ai.generateTitles')}
           </button>
         </div>
       )}

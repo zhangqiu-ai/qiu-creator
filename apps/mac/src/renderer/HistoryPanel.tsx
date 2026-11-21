@@ -3,6 +3,7 @@ import type { Revision, RevisionDetail } from '@qiu-creator/contracts';
 import { useEffect, useMemo, useState } from 'react';
 import { conflictHunks } from './conflict.js';
 import { formatWhen, REVISION_SOURCE_LABEL } from './format.js';
+import { t } from './i18n.js';
 import { Icon } from './Icon.js';
 import type { RestoreResult } from './work-session.js';
 
@@ -83,17 +84,23 @@ export function HistoryPanel({
         setBusy(false);
         setConfirming(false);
         if (result === 'restored') {
-          setMessage({ tone: 'ok', text: `已恢復 r${selN ?? ''} 為 r${nextN}` });
+          setMessage({
+            tone: 'ok',
+            text: t('editor.restoredMessage', {
+              rev: selN === undefined ? '' : String(selN),
+              next: nextN,
+            }),
+          });
           setSelected(null);
         } else if (result === 'conflict') {
-          setMessage({ tone: 'bad', text: '作品剛在其他地方更新，請先處理上方提示再恢復' });
+          setMessage({ tone: 'bad', text: t('editor.restoreConflict') });
         } else {
-          setMessage({ tone: 'bad', text: '有未儲存、衝突或唯讀狀態，暫時不能恢復' });
+          setMessage({ tone: 'bad', text: t('editor.restoreBlocked') });
         }
       })
       .catch(() => {
         setBusy(false);
-        setMessage({ tone: 'bad', text: '恢復失敗，請確認本機服務是否運行' });
+        setMessage({ tone: 'bad', text: t('editor.restoreFailed') });
       });
   };
 
@@ -101,7 +108,7 @@ export function HistoryPanel({
     <aside
       id="history-panel"
       className="panel"
-      aria-label="版本歷史"
+      aria-label={t('editor.historyTitle')}
       onKeyDown={(e) => {
         if (e.key === 'Escape' && !e.nativeEvent.isComposing) {
           if (confirming) setConfirming(false);
@@ -110,12 +117,12 @@ export function HistoryPanel({
       }}
     >
       <div className="panel__head">
-        <span className="panel__title">版本歷史</span>
+        <span className="panel__title">{t('editor.historyTitle')}</span>
         <span className="faint">{revisions.length}</span>
         <button
           type="button"
           className="btn btn--ghost btn--icon panel__close"
-          aria-label="關閉歷史"
+          aria-label={t('editor.closeHistory')}
           onClick={onClose}
         >
           <Icon name="close" />
@@ -137,7 +144,9 @@ export function HistoryPanel({
               <span className="mono rev__n">r{numbers.get(r.revision_id)}</span>
               <span className="rev__src">
                 {REVISION_SOURCE_LABEL[r.source]}
-                {r.revision_id === currentRevision && <span className="rev__cur">目前</span>}
+                {r.revision_id === currentRevision && (
+                  <span className="rev__cur">{t('editor.revCurrent')}</span>
+                )}
               </span>
               <time className="rev__when" dateTime={r.created_at}>
                 {formatWhen(r.created_at)}
@@ -161,23 +170,26 @@ export function HistoryPanel({
             </span>
             {!isCurrent && detail !== null && (
               <span className="rev-detail__stat">
-                {hunks.length === 0 && !titleChanged ? '內容相同' : `${hunks.length} 處不同`}
+                {hunks.length === 0 && !titleChanged
+                  ? t('editor.diffSame')
+                  : t('editor.diffCount', { count: hunks.length })}
               </span>
             )}
           </div>
           {loadFailed ? (
             <p className="rev-msg rev-msg--bad" role="alert">
-              無法讀取這個版本
+              {t('editor.revLoadFailed')}
             </p>
           ) : detail === null ? (
             <span className="skel skel--line" aria-busy="true" />
           ) : isCurrent ? (
-            <div className="rev-detail__same">即目前版本</div>
+            <div className="rev-detail__same">{t('editor.revIsCurrent')}</div>
           ) : (
-            <div className="diffview rev-detail__diff" aria-label="與目前版本的差異">
+            <div className="diffview rev-detail__diff" aria-label={t('editor.diffWithCurrent')}>
               {titleChanged && (
                 <p className="diffview__hunk">
-                  標題：<del className="del">{currentTitle}</del>
+                  {t('editor.titleChanged')}
+                  <del className="del">{currentTitle}</del>
                   <ins className="ins">{detail.title}</ins>
                 </p>
               )}
@@ -190,11 +202,14 @@ export function HistoryPanel({
             </div>
           )}
           {confirming ? (
-            <div className="rev-confirm" role="alertdialog" aria-label="確認恢復">
+            <div className="rev-confirm" role="alertdialog" aria-label={t('editor.confirmRestore')}>
               <span className="rev-confirm__title">
-                恢復 r{selN} 為新版本 r{nextN}
+                {t('editor.restoreAsNew', {
+                  rev: selN === undefined ? '' : String(selN),
+                  next: nextN,
+                })}
               </span>
-              <span className="faint">歷史版本全部保留</span>
+              <span className="faint">{t('editor.historyKept')}</span>
               <div className="rev-detail__actions">
                 <button
                   type="button"
@@ -203,7 +218,7 @@ export function HistoryPanel({
                   autoFocus
                   onClick={restore}
                 >
-                  確認恢復
+                  {t('editor.confirmRestore')}
                 </button>
                 <button
                   type="button"
@@ -212,7 +227,7 @@ export function HistoryPanel({
                     setConfirming(false);
                   }}
                 >
-                  取消
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>
@@ -222,12 +237,12 @@ export function HistoryPanel({
                 type="button"
                 className="btn btn--primary"
                 disabled={isCurrent || readOnly || detail === null}
-                title={readOnly ? '原檔不在，暫時不能恢復' : undefined}
+                title={readOnly ? t('editor.restoreDisabled') : undefined}
                 onClick={() => {
                   setConfirming(true);
                 }}
               >
-                恢復此版本
+                {t('editor.restoreThis')}
               </button>
               <button
                 type="button"
@@ -236,7 +251,7 @@ export function HistoryPanel({
                   setSelected(null);
                 }}
               >
-                取消
+                {t('common.cancel')}
               </button>
             </div>
           )}

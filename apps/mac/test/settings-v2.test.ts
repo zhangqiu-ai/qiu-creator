@@ -25,19 +25,19 @@ function tmpFile(): string {
 describe('外觀 preference (QC-038)', () => {
   it('defaults to following the system', () => {
     expect(DEFAULT_PREFERENCES.theme).toBe('system');
-    expect(readPreferences(tmpFile())).toEqual({ theme: 'system' });
+    expect(readPreferences(tmpFile())).toEqual({ theme: 'system', language: 'system' });
     expect(THEME_OPTIONS.map((o) => o.label)).toEqual(['淺色', '深色', '跟隨系統']);
   });
 
   it('remembers the choice and ignores damaged or unknown values', () => {
     const file = tmpFile();
-    writePreferences(file, { theme: 'dark' });
-    expect(readPreferences(file)).toEqual({ theme: 'dark' });
+    writePreferences(file, { theme: 'dark', language: 'en' });
+    expect(readPreferences(file)).toEqual({ theme: 'dark', language: 'en' });
     expect(fs.readdirSync(path.dirname(file))).toEqual(['preferences.json']);
-    fs.writeFileSync(file, '{"theme":"sepia"}');
-    expect(readPreferences(file)).toEqual({ theme: 'system' });
+    fs.writeFileSync(file, '{"theme":"sepia","language":"fr"}');
+    expect(readPreferences(file)).toEqual({ theme: 'system', language: 'system' });
     fs.writeFileSync(file, 'not json');
-    expect(readPreferences(file)).toEqual({ theme: 'system' });
+    expect(readPreferences(file)).toEqual({ theme: 'system', language: 'system' });
     expect(isThemeSource('light')).toBe(true);
     expect(isThemeSource('Light')).toBe(false);
     expect(isThemeSource(null)).toBe(false);

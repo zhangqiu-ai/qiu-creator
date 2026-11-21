@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Icon } from './Icon.js';
+import { t } from './i18n.js';
 
 /** Trim, drop empties and duplicates, keep order; the service caps tags at 64 × 64 characters. */
 export function addTags(current: readonly string[], input: string): string[] {
@@ -31,17 +32,17 @@ export function TagEditor({
     if (next.length !== tags.length) onChange(next);
   };
   return (
-    <div className="tags" role="group" aria-label="標籤">
-      {tags.map((t) => (
-        <span key={t} className="tag">
-          #{t}
+    <div className="tags" role="group" aria-label={t('assets.tags')}>
+      {tags.map((tag) => (
+        <span key={tag} className="tag">
+          #{tag}
           {!disabled && (
             <button
               type="button"
               className="tag__remove"
-              aria-label={`移除標籤 ${t}`}
+              aria-label={t('assets.removeTag', { tag })}
               onClick={() => {
-                onChange(tags.filter((x) => x !== t));
+                onChange(tags.filter((x) => x !== tag));
               }}
             >
               <Icon name="close" size={11} />
@@ -52,8 +53,8 @@ export function TagEditor({
       {!disabled && (
         <input
           className="tags__input"
-          aria-label="新增標籤"
-          placeholder={tags.length === 0 ? '加標籤' : '＋'}
+          aria-label={t('assets.newTag')}
+          placeholder={tags.length === 0 ? t('assets.addTags') : '＋'}
           value={text}
           onChange={(e) => {
             setText(e.target.value);

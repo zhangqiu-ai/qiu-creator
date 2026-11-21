@@ -24,10 +24,18 @@ import {
   toolbarPlugin,
   type RealmPlugin,
 } from '@mdxeditor/editor';
+import { SOURCE_LOCALE, translate, type Locale } from '@qiu-creator/i18n';
 
-export const CODE_BLOCK_LANGUAGES: Readonly<Record<string, string>> = {
-  '': '純文字',
-  txt: '純文字',
+/** Code-block languages the editor offers; 純文字 is the only interface text (QC-042). */
+export function codeBlockLanguages(
+  locale: Locale = SOURCE_LOCALE,
+): Readonly<Record<string, string>> {
+  const plain = translate(locale, 'editor.plainText');
+  return { '': plain, txt: plain, ...LANGUAGE_NAMES };
+}
+
+/** Language names, which are proper names and the same in every language. */
+const LANGUAGE_NAMES: Readonly<Record<string, string>> = {
   md: 'Markdown',
   js: 'JavaScript',
   ts: 'TypeScript',
@@ -62,6 +70,8 @@ function Toolbar() {
 export interface EditorPluginOptions {
   /** Include the formatting toolbar (off in headless tests). */
   toolbar?: boolean;
+  /** Interface language for the parts the plugins name themselves. */
+  locale?: Locale;
   /**
    * Map an image `src` as written in the Markdown to a URL the view can load.
    * Display only: the Markdown keeps the original `src`.
@@ -88,7 +98,7 @@ export function createEditorPlugins(options: EditorPluginOptions = {}): RealmPlu
     tablePlugin({ tablePipeAlign: false }),
     frontmatterPlugin(),
     codeBlockPlugin({ defaultCodeBlockLanguage: '' }),
-    codeMirrorPlugin({ codeBlockLanguages: CODE_BLOCK_LANGUAGES }),
+    codeMirrorPlugin({ codeBlockLanguages: codeBlockLanguages(options.locale) }),
     markdownShortcutPlugin(),
   ];
   if (options.toolbar !== false) {

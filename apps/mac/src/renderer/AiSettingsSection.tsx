@@ -10,6 +10,7 @@ import { AiSettingsStore, formatUsd, keyState, modelOptions, PROVIDER_USE } from
 import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
 import { formatWhen } from './format.js';
+import { t } from './i18n.js';
 import { Icon } from './Icon.js';
 
 /**
@@ -36,22 +37,22 @@ export function AiSettingsSection({
   return (
     <section className="settings__sec" aria-labelledby="set-ai">
       <h2 id="set-ai" className="settings__h" ref={headingRef} tabIndex={-1}>
-        AI 服務
+        {t('serviceSettings.aiTitle')}
       </h2>
-      <p className="settings__sub">金鑰只存在這台 Mac 的鑰匙圈。</p>
+      <p className="settings__sub">{t('serviceSettings.aiSub')}</p>
       <div className="card">
         <div className="ln ln--dim">
           <div className="ln__main">
             <label className="ln__k" htmlFor="sw-local">
-              僅本地模型
+              {t('serviceSettings.aiLocalOnly')}
             </label>
-            <span className="ln__v">本地模型延後提供</span>
+            <span className="ln__v">{t('serviceSettings.aiLocalLater')}</span>
           </div>
           <input id="sw-local" className="sw" type="checkbox" role="switch" disabled />
         </div>
         {s.loadFailed ? (
           <div className="ln">
-            <span className="ln__main muted">無法載入 AI 設定</span>
+            <span className="ln__main muted">{t('serviceSettings.aiLoadFailed')}</span>
             <button
               type="button"
               className="btn btn--small"
@@ -59,7 +60,7 @@ export function AiSettingsSection({
                 void store.load();
               }}
             >
-              重試
+              {t('common.retry')}
             </button>
           </div>
         ) : s.providers === null ? (
@@ -71,16 +72,14 @@ export function AiSettingsSection({
         )}
         <div className="ln ln--dim">
           <div className="ln__main">
-            <span className="ln__k">本地模型</span>
-            <span className="ln__v">延後提供</span>
+            <span className="ln__k">{t('serviceSettings.aiLocalModels')}</span>
+            <span className="ln__v">{t('serviceSettings.aiLater')}</span>
           </div>
-          <Chip>未啟用</Chip>
+          <Chip>{t('serviceSettings.aiNotEnabled')}</Chip>
         </div>
       </div>
       <BudgetCard store={store} />
-      <p className="settings__note faint">
-        金鑰只存在這台 Mac 的鑰匙圈，存好後不會再顯示，也不會傳到 iPhone／iPad。
-      </p>
+      <p className="settings__note faint">{t('serviceSettings.aiNote')}</p>
     </section>
   );
 }
@@ -111,11 +110,11 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
     if (busy) return;
     const url = isNewApi ? baseUrl.trim() : undefined;
     if (url === '') {
-      setBaseUrlError('請輸入 New API Base URL');
+      setBaseUrlError(t('serviceSettings.aiBaseUrlRequired'));
       return;
     }
     if (url !== undefined && !SetAiKeyRequestSchema.shape.base_url.safeParse(url).success) {
-      setBaseUrlError('請輸入以 /v1 結尾的 HTTPS 網址');
+      setBaseUrlError(t('serviceSettings.aiBaseUrlInvalid'));
       return;
     }
     clearCredentials();
@@ -130,19 +129,22 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
         <div className="ln__main">
           <span className="ln__k">{p.name}</span>
           <span className="ln__v">
-            {PROVIDER_USE[p.provider]} · 送到 {p.company}
+            {t('serviceSettings.aiProviderMeta', {
+              use: PROVIDER_USE[p.provider],
+              company: p.company,
+            })}
           </span>
         </div>
         <span role="status">
           {state === 'ready' ? (
             <Chip tone="ok">
               <Icon name="key" size={12} />
-              鑰匙圈 · 已啟用
+              {t('serviceSettings.aiKeychainReady')}
             </Chip>
           ) : state === 'needs_consent' ? (
-            <Chip tone="warn">待確認告知</Chip>
+            <Chip tone="warn">{t('serviceSettings.aiNeedsConsent')}</Chip>
           ) : (
-            <Chip>未設定</Chip>
+            <Chip>{t('serviceSettings.aiKeyNone')}</Chip>
           )}
         </span>
         <button
@@ -156,7 +158,7 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
             clearCredentials();
           }}
         >
-          {p.key_configured ? '更換' : '新增'}
+          {p.key_configured ? t('serviceSettings.aiReplace') : t('serviceSettings.add')}
         </button>
       </div>
 
@@ -193,7 +195,7 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
                 }}
               />
               <span className="ai-set__hint faint" id={`${baseUrlId}-hint`}>
-                輸入中轉站提供的 HTTPS 網址，路徑須以 /v1 結尾。儲存後不會再顯示。
+                {t('serviceSettings.aiBaseUrlHint')}
               </span>
               {baseUrlError !== null && (
                 <span className="ln__err" id={`${baseUrlId}-error`} role="alert">
@@ -204,7 +206,7 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
           )}
           <div className="field ai-set__key">
             <label className={isNewApi ? 'field__label' : 'visually-hidden'} htmlFor={inputId}>
-              {p.name} API 金鑰
+              {t('serviceSettings.aiKeyLabel', { name: p.name })}
             </label>
             <input
               id={inputId}
@@ -212,7 +214,7 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
               type="password"
               autoComplete="off"
               spellCheck={false}
-              placeholder={`${p.name} API 金鑰`}
+              placeholder={t('serviceSettings.aiKeyLabel', { name: p.name })}
               disabled={busy}
               value={key}
               onChange={(e) => {
@@ -225,7 +227,7 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
             className="btn btn--primary btn--small"
             disabled={busy || key.trim() === ''}
           >
-            存到鑰匙圈
+            {t('serviceSettings.aiSaveToKeychain')}
           </button>
           <button
             type="button"
@@ -235,7 +237,7 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
               setEditing(false);
             }}
           >
-            取消
+            {t('common.cancel')}
           </button>
         </form>
       )}
@@ -244,9 +246,11 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
         <div className={`ln ai-set__detail${isNewApi ? ' ai-set__detail--new-api' : ''}`}>
           <div className="ln__main">
             <span className="ln__v">
-              已設定
-              {p.key_updated_at !== null && ` · ${formatWhen(p.key_updated_at)}存入`}
-              {p.consent !== null && ` · ${formatWhen(p.consent.at)}確認告知`}
+              {t('serviceSettings.aiKeySet')}
+              {p.key_updated_at !== null &&
+                ` · ${t('serviceSettings.aiKeyStoredAt', { when: formatWhen(p.key_updated_at) })}`}
+              {p.consent !== null &&
+                ` · ${t('serviceSettings.aiConsentAt', { when: formatWhen(p.consent.at) })}`}
             </span>
             <div className="ai-set__models">
               {p.provider === 'new-api' ? (
@@ -269,7 +273,7 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
                   setConfirmWithdraw(true);
                 }}
               >
-                撤回確認
+                {t('serviceSettings.aiWithdraw')}
               </button>
             )}
             <button
@@ -280,17 +284,23 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
                 setConfirmDelete(true);
               }}
             >
-              刪除金鑰
+              {t('serviceSettings.aiDeleteKey')}
             </button>
           </div>
         </div>
       )}
 
       {state === 'needs_consent' && (
-        <div className="ai-set__notice" role="group" aria-label={`${p.name} 使用告知`}>
+        <div
+          className="ai-set__notice"
+          role="group"
+          aria-label={t('serviceSettings.aiNoticeLabel', { name: p.name })}
+        >
           <span className="ai-set__notice-title">
             <Icon name="alert" />
-            {isNewApi ? '使用前請確認' : '首次使用前請確認'}：內容會送到 {p.company}
+            {t(isNewApi ? 'serviceSettings.aiNoticeAgain' : 'serviceSettings.aiNoticeFirst', {
+              company: p.company,
+            })}
           </span>
           <p className="ai-set__notice-text">{p.notice.text}</p>
           <button
@@ -305,7 +315,7 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
               );
             }}
           >
-            我已了解，啟用
+            {t('serviceSettings.aiConsentAction')}
           </button>
         </div>
       )}
@@ -318,7 +328,7 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
 
       {confirmWithdraw && (
         <Dialog
-          title={`撤回 ${p.name} 的使用確認？`}
+          title={t('serviceSettings.aiWithdrawTitle', { name: p.name })}
           onClose={() => {
             setConfirmWithdraw(false);
           }}
@@ -332,7 +342,7 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
                   setConfirmWithdraw(false);
                 }}
               >
-                取消
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -342,21 +352,21 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
                   void store.withdrawConsent(p.provider);
                 }}
               >
-                撤回
+                {t('serviceSettings.aiWithdrawAction')}
               </button>
             </>
           }
         >
           <div className="form">
-            <p>撤回後就不能再把內容送到 {p.company}，直到再次確認告知。金鑰仍留在鑰匙圈。</p>
-            <p className="muted">已排隊、尚未送出的 {p.name} 任務會直接失敗，不會送出。</p>
+            <p>{t('serviceSettings.aiWithdrawBody', { company: p.company })}</p>
+            <p className="muted">{t('serviceSettings.aiWithdrawNote', { name: p.name })}</p>
           </div>
         </Dialog>
       )}
 
       {confirmDelete && (
         <Dialog
-          title={`刪除 ${p.name} 金鑰？`}
+          title={t('serviceSettings.aiDeleteTitle', { name: p.name })}
           onClose={() => {
             setConfirmDelete(false);
           }}
@@ -370,7 +380,7 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
                   setConfirmDelete(false);
                 }}
               >
-                取消
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -380,7 +390,7 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
                   void store.deleteKey(p.provider);
                 }}
               >
-                刪除
+                {t('common.delete')}
               </button>
             </>
           }
@@ -388,10 +398,10 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
           <div className="form">
             <p>
               {isNewApi
-                ? '從鑰匙圈移除 Base URL 和金鑰。之後使用 New API 需要重新輸入兩項資料。'
-                : `從鑰匙圈移除這個金鑰。之後使用 ${p.name} 需要重新輸入。`}
+                ? t('serviceSettings.aiDeleteBodyNewApi')
+                : t('serviceSettings.aiDeleteBody', { name: p.name })}
             </p>
-            <p className="muted">已排隊、尚未送出的任務會直接失敗，不會送出。</p>
+            <p className="muted">{t('serviceSettings.aiDeleteNote')}</p>
           </div>
         </Dialog>
       )}
@@ -431,7 +441,7 @@ function NewApiModelForm({
       }}
     >
       <label className="field__label" htmlFor={modelId}>
-        New API 文字模型 ID
+        {t('serviceSettings.aiNewApiModelLabel')}
       </label>
       <div className="ai-set__model-controls">
         <input
@@ -449,15 +459,15 @@ function NewApiModelForm({
           }}
         />
         <button type="submit" className="btn btn--small" disabled={busy || value.trim() === model}>
-          儲存模型
+          {t('serviceSettings.aiSaveModel')}
         </button>
       </div>
       <span className="ai-set__hint faint" id={`${modelId}-hint`}>
-        建議先用 {defaultModel}。若中轉站使用別名，請輸入它提供的模型 ID。
+        {t('serviceSettings.aiNewApiModelHint', { model: defaultModel })}
       </span>
       {invalid && (
         <span className="ln__err" id={`${modelId}-error`} role="alert">
-          請輸入 1 到 100 個英文字母、數字或 . _ : / -。
+          {t('serviceSettings.aiModelInvalid')}
         </span>
       )}
     </form>
@@ -477,7 +487,9 @@ function ModelSelect({
   const options = modelOptions(p.provider, current);
   return (
     <label className="ai-set__model">
-      <span className="faint">{kind === 'text' ? '文字模型' : '視頻模型'}</span>
+      <span className="faint">
+        {kind === 'text' ? t('serviceSettings.aiTextModel') : t('serviceSettings.aiVideoModel')}
+      </span>
       <select
         className="select"
         value={current ?? ''}
@@ -519,11 +531,17 @@ function BudgetCard({ store }: { store: AiSettingsStore }) {
       >
         <div className="ln__main">
           <label className="ln__k" htmlFor="ai-budget">
-            每月提醒金額
+            {t('serviceSettings.aiBudgetLabel')}
           </label>
           <span className="ln__v">
-            本月 {formatUsd(budget?.spent_usd ?? null)}（估算）
-            {saved === null ? ' · 未設定提醒' : ` · 超過 ${formatUsd(saved)} 時提醒，不會擋下任務`}
+            {saved === null
+              ? t('serviceSettings.aiBudgetNoReminder', {
+                  spent: formatUsd(budget?.spent_usd ?? null),
+                })
+              : t('serviceSettings.aiBudgetReminder', {
+                  spent: formatUsd(budget?.spent_usd ?? null),
+                  amount: formatUsd(saved),
+                })}
           </span>
           {budget?.over_budget === true && budget.warning !== null && (
             <span className="ai-budget__warn" role="status">
@@ -542,7 +560,7 @@ function BudgetCard({ store }: { store: AiSettingsStore }) {
             id="ai-budget"
             className="input ai-budget__input"
             inputMode="decimal"
-            placeholder="未設定"
+            placeholder={t('serviceSettings.aiBudgetPlaceholder')}
             value={value}
             onChange={(e) => {
               setValue(e.target.value);
@@ -550,7 +568,7 @@ function BudgetCard({ store }: { store: AiSettingsStore }) {
           />
         </span>
         <button type="submit" className="btn btn--small" disabled={busy || !changed}>
-          儲存
+          {t('common.save')}
         </button>
         {saved !== null && (
           <button
@@ -561,7 +579,7 @@ function BudgetCard({ store }: { store: AiSettingsStore }) {
               void store.setBudget(null);
             }}
           >
-            清除
+            {t('serviceSettings.aiClear')}
           </button>
         )}
       </form>

@@ -1,6 +1,7 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
 import type { AssetRecord, AssetReferences, MarkdownReferrer } from '@qiu-creator/contracts';
 import { assetName } from './format.js';
+import { t } from './i18n.js';
 
 /**
  * 素材庫 v2 (PT-20261119-001 「v2 · 素材庫：刪除與編輯」, QC-037): names,
@@ -81,22 +82,20 @@ export function deleteImpact(refsList: readonly AssetReferences[]): DeleteImpact
 
 /** The dialog sentence for an impact, exact about what will happen. */
 export function deleteImpactText(impact: DeleteImpact): string {
-  const names = (ws: readonly { title: string }[]) => ws.map((w) => `「${w.title}」`).join('、');
+  const names = (ws: readonly { title: string }[]) =>
+    ws.map((w) => t('common.quoted', { text: w.title })).join(t('common.listSeparator'));
   if (impact.breaking.length === 0) {
-    const these = impact.safe.length === 1 ? '這件作品' : '這些作品';
-    return `文章中的圖片是獨立複本，不受影響；${these}的素材清單會移除此項，30 天內恢復即補回。`;
+    return impact.safe.length === 1 ? t('assets.impactSafeOne') : t('assets.impactSafeMany');
   }
-  const lost = `${names(impact.breaking)} 會顯示為缺圖，30 天內恢復即自動補回。`;
+  const works = names(impact.breaking);
   return impact.safe.length === 0
-    ? lost
-    : `${lost}${names(impact.safe)} 中的圖片是獨立複本，不受影響。`;
+    ? t('assets.impactBreaking', { works })
+    : t('assets.impactBreakingAndSafe', { works, safe: names(impact.safe) });
 }
 
 /** The toast after a confirmed delete. */
 export function deletedToast(impact: DeleteImpact): string {
-  return impact.breaking.length === 0
-    ? '已移到最近刪除 · 文章中的圖片不受影響'
-    : '已移到最近刪除 · 部分作品顯示為缺圖';
+  return impact.breaking.length === 0 ? t('assets.toastSafe') : t('assets.toastBreaking');
 }
 
 /** The references in a 409 `asset_in_use` answer for a batch (`details.assets`). */
@@ -130,22 +129,22 @@ export function inUseReferences(err: unknown): AssetReferences | null {
 
 /** Error codes of the asset routes, in the user's words. */
 export function assetErrorText(err: unknown): string {
-  if (!(err instanceof ApiError)) return '沒有收到服務的回應';
+  if (!(err instanceof ApiError)) return t('assets.errNoResponse');
   switch (err.code) {
     case 'trash_failed':
-      return '無法移到系統垃圾桶，原檔未變動';
+      return t('assets.errTrashFailed');
     case 'asset_file_missing':
-      return '原檔不在原來的位置；如果它在系統垃圾桶，請先在 Finder「放回原處」再恢復';
+      return t('assets.errFileMissing');
     case 'asset_in_trash':
-      return '這個素材已在最近刪除';
+      return t('assets.errInTrash');
     case 'not_found':
-      return '找不到這個素材，可能已被刪除';
+      return t('assets.errNotFound');
     case 'restoring':
-      return '服務正在還原資料庫，請稍候再試';
+      return t('common.restoringText');
     case 'validation_error':
-      return '內容格式不正確';
+      return t('assets.errValidation');
     default:
-      return '操作失敗，請稍後再試';
+      return t('assets.errFailed');
   }
 }
 
@@ -194,10 +193,18 @@ export function rebaseEdits(
 }
 
 export const FIELD_LABEL: Readonly<Record<EditableField, string>> = {
-  display_name: '名稱',
-  tags: '標籤',
-  alt_text: '替代文字',
-  note: '備註',
+  get display_name() {
+    return t('assets.name');
+  },
+  get tags() {
+    return t('assets.tags');
+  },
+  get alt_text() {
+    return t('assets.altText');
+  },
+  get note() {
+    return t('assets.note');
+  },
 };
 
 export type SaveStatus = 'saved' | 'pending' | 'saving' | 'error' | 'conflict';

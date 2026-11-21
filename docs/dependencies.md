@@ -142,6 +142,15 @@
 
 QC-010：mac-server 用同一組 mdast 套件與版本，從 Markdown 找出圖片與影音引用（`src/media/markdown-refs.ts`），讓伺服器與編輯器對「什麼算圖片」的判斷一致。沒有新增任何套件。
 
+### 介面多語言：自建 `@qiu-creator/i18n`，不用 i18next（QC-042）
+
+- 沒有新增第三方套件。`packages/i18n` 是工作區內的套件，約兩百行核心程式加上文案目錄，只用標準的 `Intl`（`PluralRules`、`NumberFormat`、`DateTimeFormat`、`RelativeTimeFormat`）。
+- 選自建的原因：
+  - 型別：每區以繁體物件定義鍵，简体與 English 缺鍵或多鍵都會 typecheck 失敗；`t()` 的鍵是字面型別聯集，打錯鍵會編譯失敗。i18next 要額外的型別擴充設定才做得到，而且做不到三語同鍵的檢查。
+  - 需求簡單：只需要佔位符、英文單複數與 `Intl` 格式化，不需要命名空間載入、後端、語言偵測外掛。
+  - 第二期 React Native 直接沿用：純 TS，不依賴 DOM 或 Electron。
+- 替代方案：i18next + react-i18next（MIT，生態成熟、有 ICU 外掛；但要另外維護型別擴充，多兩個執行期依賴）；FormatJS／react-intl（ICU MessageFormat 完整，但較重，訊息語法對這個專案過度）。日後需要更複雜的語法（性別、選擇）時再評估遷移，目錄的結構可直接轉成 i18next JSON。
+
 ## 開發依賴：Mac App 與共用前端套件（QC-002）
 
 | 套件 | 版本 | 授權 | 用在 | 用途 | 替代方案 |

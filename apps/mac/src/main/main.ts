@@ -9,12 +9,15 @@ import {
   clipboard,
   dialog,
   ipcMain,
+  Menu,
   nativeTheme,
   protocol,
   session,
   shell,
+  systemPreferences,
   type IpcMainInvokeEvent,
 } from 'electron';
+import { isLanguagePreference } from '@qiu-creator/i18n';
 import {
   ASSET_SCHEME,
   IPC,
@@ -32,7 +35,14 @@ import {
 import { abbreviateHome, assetServicePath, forwardableRange, resolveInsideHome } from './assets.js';
 import { readConnection, resolveConfig } from './config.js';
 import { contentSecurityPolicy } from './csp.js';
-import { isThemeSource, readPreferences, writePreferences } from './preferences.js';
+import { LanguageController } from './language.js';
+import { menuTemplate } from './menu.js';
+import {
+  isThemeSource,
+  migrateLanguage,
+  readPreferences,
+  writePreferences,
+} from './preferences.js';
 import { EventRelay } from './event-relay.js';
 import { PasteFiles } from './paste-files.js';
 import { performProxyRequest } from './proxy.js';
@@ -88,6 +98,7 @@ pasteFiles.clearAll();
 
 const uploads = new UploadManager({
   connection,
+  t: (key, params) => language().t(key, params),
   onChange: (items) => {
     broadcast(IPC.uploadsChanged, items);
     pasteFiles.settle(items);
@@ -200,8 +211,8 @@ function registerIpc(): void {
   handle(IPC.pickAndUpload, async () => {
     const win = BrowserWindow.getFocusedWindow();
     const options = {
-      title: '上傳素材',
-      buttonLabel: '上傳',
+      title: language().t('main.pickUploadTitle'),
+      buttonLabel: language().t('main.pickUploadButton'),
       properties: ['openFile', 'multiSelections'] as ('openFile' | 'multiSelections')[],
     };
     const result =
@@ -248,8 +259,8 @@ function registerIpc(): void {
   handle(IPC.pickFolder, async () => {
     const win = BrowserWindow.getFocusedWindow();
     const options = {
-      title: '掛載資料夾',
-      buttonLabel: '掛載',
+      title: language().t('main.pickFolderTitle'),
+      buttonLabel: language().t('main.pickFolderButton'),
       properties: ['openDirectory', 'createDirectory'] as ('openDirectory' | 'createDirectory')[],
     };
     const result =
@@ -268,6 +279,15 @@ function registerIpc(): void {
     writePreferences(preferencesFile(), { ...readPreferences(preferencesFile()), theme });
     // Drives prefers-color-scheme in every window and the native controls.
     nativeTheme.themeSource = theme;
+  });
+  handle(IPC.getLanguage, () => language().current);
+  handle(IPC.setLanguage, (preference) => {
+    if (!isLanguagePreference(preference)) throw new Error('invalid language');
+    writePreferences(preferencesFile(), {
+      ...readPreferences(preferencesFile()),
+      language: preference,
+    });
+    return language().setPreference(preference);
   });
   handle(IPC.copyText, async (text) => {
     if (typeof text !== 'string' || text.length > 10_000) throw new Error('invalid text');
@@ -391,6 +411,34 @@ function preferencesFile(): string {
   return path.join(app.getPath('userData'), 'preferences.json');
 }
 
+/**
+ * 語言 (QC-042). Read from the preferences before the first window opens;
+ * every change rebuilds the menu and tells each window, which re-renders in
+ * place (no reload, nothing unsaved is lost).
+ */
+let languageController: LanguageController | null = null;
+function language(): LanguageController {
+  if (languageController === null) {
+    // An upgrade from before 語言 keeps 繁體中文; a new install follows the system.
+    migrateLanguage(preferencesFile());
+    languageController = new LanguageController(readPreferences(preferencesFile()).language, () =>
+      app.getPreferredSystemLanguages(),
+    );
+    languageController.onChange((state) => {
+      applyMenu();
+      broadcast(IPC.languageChanged, state);
+    });
+  }
+  return languageController;
+}
+
+function applyMenu(): void {
+  const t = language().t;
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate(menuTemplate(t, 'qiu-creator', { devTools: !app.isPackaged })),
+  );
+}
+
 void app.whenReady().then(() => {
   // The packaged app gets its icon from the bundle; a dev run shows the same one in the Dock.
   if (!app.isPackaged) {
@@ -399,6 +447,16 @@ void app.whenReady().then(() => {
   }
   // The saved 外觀 applies before the first window paints (QC-038).
   nativeTheme.themeSource = readPreferences(preferencesFile()).theme;
+  // …and the saved 語言, so the menu and the first frame are already in it (QC-042).
+  applyMenu();
+  // Following the system: macOS posts this when the preferred languages change;
+  // focusing the app re-checks too, in case the notification was missed.
+  systemPreferences.subscribeNotification('AppleLanguagePreferencesChangedNotification', () => {
+    language().refresh();
+  });
+  app.on('browser-window-focus', () => {
+    language().refresh();
+  });
   hardenSession();
   registerAssetProtocol();
   registerIpc();

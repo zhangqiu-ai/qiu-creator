@@ -54,23 +54,38 @@ import {
   tildePath,
 } from './format.js';
 import { Icon } from './Icon.js';
+import { formatDateTime, formatNumber, t } from './i18n.js';
 
 type KindFilter = 'all' | AssetKind;
 const KIND_FILTERS: readonly KindFilter[] = ['all', 'image', 'video', 'audio', 'markdown', 'other'];
 const PAGE_SIZE = 100;
 
 const ORIGIN_LABEL: Readonly<Record<AssetOrigin, string>> = {
-  upload: '上傳',
-  url: 'URL 匯入',
-  folder: '資料夾匯入',
+  get upload() {
+    return t('assets.originUpload');
+  },
+  get url() {
+    return t('assets.originUrl');
+  },
+  get folder() {
+    return t('assets.originFolder');
+  },
   api: 'Agent API',
-  manual: '手動',
+  get manual() {
+    return t('assets.originManual');
+  },
 };
 
 const ROLE_LABEL: Readonly<Record<WorkAssetRole, string>> = {
-  cover: '封面',
-  body: '正文',
-  video: '影片',
+  get cover() {
+    return t('assets.roleCover');
+  },
+  get body() {
+    return t('assets.roleBody');
+  },
+  get video() {
+    return t('assets.roleVideo');
+  },
 };
 
 export interface AssetGroup {
@@ -101,26 +116,18 @@ export function groupAssets(
   return groups;
 }
 
-const dateTime = new Intl.DateTimeFormat('zh-TW', {
-  year: 'numeric',
-  month: 'numeric',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-});
-
 interface Listing {
   items: AssetRecord[];
   total: number;
 }
 
 type Scope = 'active' | 'unreferenced' | 'trash';
-const SCOPES: readonly { key: Scope; label: string }[] = [
-  { key: 'active', label: '全部' },
-  { key: 'unreferenced', label: '未引用' },
-  { key: 'trash', label: '最近刪除' },
-];
+const SCOPES: readonly Scope[] = ['active', 'unreferenced', 'trash'];
+
+function scopeLabel(scope: Scope): string {
+  if (scope === 'active') return t('assets.all');
+  return scope === 'unreferenced' ? t('assets.scopeUnreferenced') : t('assets.scopeTrash');
+}
 
 interface Toast {
   message: string;
@@ -259,7 +266,7 @@ export function AssetsPage({
   const picked = items.filter((a) => picks.includes(a.id));
 
   const queued = (count: number) => {
-    if (count > 0) setQueuedNote(`已加入 ${count} 個上傳`);
+    if (count > 0) setQueuedNote(t('assets.queued', { count }));
   };
   const pick = () => {
     void window.creatorhub?.pickAndUpload().then(queued);
@@ -287,7 +294,7 @@ export function AssetsPage({
       .trash(asset.id)
       .then(() => {
         afterRemoval([asset.id]);
-        setToast({ message: '已移到最近刪除', undo: [asset.id] });
+        setToast({ message: t('assets.movedToTrash'), undo: [asset.id] });
       })
       .catch((err: unknown) => {
         const refs = inUseReferences(err);
@@ -342,7 +349,7 @@ export function AssetsPage({
   return (
     <main
       className="page page--split"
-      aria-label="素材庫"
+      aria-label={t('assets.title')}
       onDragOver={(e) => {
         if ([...e.dataTransfer.types].includes('Files')) {
           e.preventDefault();
@@ -356,11 +363,11 @@ export function AssetsPage({
     >
       <div className="page__main">
         <header className="page__header">
-          <h1 className="page__title">素材庫</h1>
-          <span className="page__count">{listing === null ? '' : listing.total}</span>
+          <h1 className="page__title">{t('assets.title')}</h1>
+          <span className="page__count">{listing === null ? '' : formatNumber(listing.total)}</span>
           {picks.length > 0 ? (
-            <div className="batchbar" role="toolbar" aria-label="批次操作">
-              <span className="batchbar__count">已選 {picks.length}</span>
+            <div className="batchbar" role="toolbar" aria-label={t('assets.batchActions')}>
+              <span className="batchbar__count">{t('assets.picked', { count: picks.length })}</span>
               <button
                 type="button"
                 className="btn btn--ghost btn--small"
@@ -369,7 +376,7 @@ export function AssetsPage({
                 }}
               >
                 <Icon name="tag" size={14} />
-                加標籤
+                {t('assets.addTags')}
               </button>
               <button
                 type="button"
@@ -379,7 +386,7 @@ export function AssetsPage({
                 }}
               >
                 <Icon name="trash" size={14} />
-                移到最近刪除
+                {t('assets.moveToTrash')}
               </button>
               <button
                 type="button"
@@ -388,17 +395,18 @@ export function AssetsPage({
                   setPicks([]);
                 }}
               >
-                取消<kbd>esc</kbd>
+                {t('common.cancel')}
+                <kbd>esc</kbd>
               </button>
             </div>
           ) : (
             <>
               <label className="search">
                 <Icon name="search" />
-                <span className="visually-hidden">搜尋素材</span>
+                <span className="visually-hidden">{t('assets.searchAssets')}</span>
                 <input
                   type="search"
-                  placeholder="搜尋名稱"
+                  placeholder={t('assets.searchPlaceholder')}
                   value={query}
                   onChange={(e) => {
                     setQuery(e.target.value);
@@ -409,28 +417,28 @@ export function AssetsPage({
                   }}
                 />
               </label>
-              <div className="seg" role="group" aria-label="範圍">
+              <div className="seg" role="group" aria-label={t('assets.scopeGroup')}>
                 {SCOPES.map((s) => (
                   <button
-                    key={s.key}
+                    key={s}
                     type="button"
-                    aria-pressed={scope === s.key}
+                    aria-pressed={scope === s}
                     onClick={() => {
-                      setScope(s.key);
+                      setScope(s);
                       setPicks([]);
                       setSelectedId(null);
                     }}
                   >
-                    {s.label}
-                    {s.key === 'trash' && trashTotal > 0 && (
-                      <span className="seg__n">{trashTotal}</span>
+                    {scopeLabel(s)}
+                    {s === 'trash' && trashTotal > 0 && (
+                      <span className="seg__n">{formatNumber(trashTotal)}</span>
                     )}
                   </button>
                 ))}
               </div>
               <button type="button" className="btn btn--primary" onClick={pick}>
                 <Icon name="upload" />
-                上傳
+                {t('assets.upload')}
               </button>
             </>
           )}
@@ -441,12 +449,12 @@ export function AssetsPage({
             <Icon name="check" />
             <span>{queuedNote}</span>
             <button type="button" className="btn btn--ghost btn--small" onClick={onOpenImports}>
-              查看匯入任務
+              {t('assets.viewImports')}
             </button>
             <button
               type="button"
               className="btn btn--ghost btn--icon btn--small"
-              aria-label="關閉提示"
+              aria-label={t('assets.dismissNotice')}
               onClick={() => {
                 setQueuedNote(null);
               }}
@@ -474,9 +482,13 @@ export function AssetsPage({
             onToast={setToast}
           />
         ) : (
-          <section className="page__body" aria-label="素材" aria-busy={listing === null && !failed}>
+          <section
+            className="page__body"
+            aria-label={t('assets.grid')}
+            aria-busy={listing === null && !failed}
+          >
             <div className="asset-toolbar">
-              <div className="seg" role="group" aria-label="類型">
+              <div className="seg" role="group" aria-label={t('assets.kindGroup')}>
                 {KIND_FILTERS.map((k) => (
                   <button
                     key={k}
@@ -486,22 +498,22 @@ export function AssetsPage({
                       setKind(k);
                     }}
                   >
-                    {k === 'all' ? '全部' : ASSET_KIND[k].label}
+                    {k === 'all' ? t('assets.all') : ASSET_KIND[k].label}
                   </button>
                 ))}
               </div>
-              <span className="asset-toolbar__hint faint">⌘ 點選多選 · ⌘⌫ 刪除</span>
+              <span className="asset-toolbar__hint faint">{t('assets.multiHint')}</span>
             </div>
             {failed ? (
               <div className="state-card" role="alert">
                 <Icon name="offline" size={28} />
-                <span className="state-card__title">無法載入素材</span>
+                <span className="state-card__title">{t('assets.loadFailed')}</span>
                 <button type="button" className="btn btn--primary" onClick={load}>
-                  重試
+                  {t('common.retry')}
                 </button>
               </div>
             ) : listing === null ? (
-              <div className="asset-grid" aria-label="載入中">
+              <div className="asset-grid" aria-label={t('assets.loading')}>
                 {Array.from({ length: 12 }, (_, i) => (
                   <div key={i} className="atile atile--skeleton" aria-hidden="true">
                     <span className="skel atile__thumb" />
@@ -514,7 +526,9 @@ export function AssetsPage({
                 <div className="state-card">
                   <Icon name="search" size={28} />
                   <span className="state-card__title">
-                    {scope === 'unreferenced' ? '沒有未引用的素材' : '沒有符合的素材'}
+                    {scope === 'unreferenced'
+                      ? t('assets.emptyUnreferenced')
+                      : t('assets.emptyFiltered')}
                   </span>
                   <button
                     type="button"
@@ -526,20 +540,20 @@ export function AssetsPage({
                       setScope('active');
                     }}
                   >
-                    清除篩選
+                    {t('assets.clearFilters')}
                   </button>
                 </div>
               ) : (
                 <div className="state-card state-card--dashed">
                   <Icon name="assets" size={32} />
-                  <span className="state-card__title">還沒有素材</span>
-                  <span className="muted">把檔案拖進這裡，或從下方上傳</span>
+                  <span className="state-card__title">{t('assets.emptyTitle')}</span>
+                  <span className="muted">{t('assets.emptyHint')}</span>
                   <div className="state-card__actions">
                     <button type="button" className="btn btn--primary" onClick={pick}>
-                      上傳
+                      {t('assets.upload')}
                     </button>
                     <button type="button" className="btn" onClick={onOpenSettings}>
-                      掛載資料夾
+                      {t('assets.linkFolder')}
                     </button>
                   </div>
                 </div>
@@ -554,7 +568,9 @@ export function AssetsPage({
                       <div className="asset-section__head">
                         <Icon name={g.mount === null ? 'library' : 'folder'} />
                         <h2 id={headId} className="asset-section__title">
-                          {g.mount === null ? '托管' : `外部掛載 · ${g.mount.name}`}
+                          {g.mount === null
+                            ? t('assets.managed')
+                            : t('assets.groupExternal', { name: g.mount.name })}
                         </h2>
                         <span className="mono faint">
                           {g.mount === null
@@ -565,11 +581,11 @@ export function AssetsPage({
                         </span>
                         <span className="asset-section__chip">
                           {g.mount === null ? (
-                            <Chip>刪除後可恢復</Chip>
+                            <Chip>{t('assets.chipRestorable')}</Chip>
                           ) : offline ? (
-                            <Chip tone="bad">找不到資料夾</Chip>
+                            <Chip tone="bad">{t('assets.chipMissingFolder')}</Chip>
                           ) : (
-                            <Chip tone="warn">原檔不移動</Chip>
+                            <Chip tone="warn">{t('assets.chipOriginalStays')}</Chip>
                           )}
                         </span>
                       </div>
@@ -600,7 +616,7 @@ export function AssetsPage({
                 {listing.total > items.length && (
                   <div className="asset-more">
                     <span className="faint">
-                      顯示 {items.length} / {listing.total}
+                      {t('assets.showing', { shown: items.length, total: listing.total })}
                     </span>
                     {limit.current < 200 && (
                       <button
@@ -611,7 +627,7 @@ export function AssetsPage({
                           load();
                         }}
                       >
-                        載入更多
+                        {t('assets.loadMore')}
                       </button>
                     )}
                   </div>
@@ -685,13 +701,13 @@ export function AssetsPage({
                 if (toast.undo !== null) undo(toast.undo);
               }}
             >
-              復原
+              {t('common.undo')}
             </button>
           )}
           <button
             type="button"
             className="btn btn--ghost btn--icon btn--small"
-            aria-label="關閉提示"
+            aria-label={t('assets.dismissNotice')}
             onClick={() => {
               setToast(null);
             }}
@@ -704,7 +720,7 @@ export function AssetsPage({
       {dragging && (
         <div className="dropzone" aria-hidden="true">
           <Icon name="upload" size={28} />
-          <span>放開即上傳</span>
+          <span>{t('assets.dropToUpload')}</span>
         </div>
       )}
     </main>
@@ -765,7 +781,9 @@ function MediaPreview({ asset, startAt }: { asset: AssetRecord; startAt: number 
         <Thumb asset={asset} size={36} />
         {failed && (
           <span className="viewer__preview-note" role="status">
-            {asset.kind === 'image' ? '無法顯示原圖' : '這個格式無法在 App 內播放'}
+            {asset.kind === 'image'
+              ? t('assets.previewImageFailed')
+              : t('assets.previewFormatFailed')}
           </span>
         )}
       </div>
@@ -829,7 +847,7 @@ function AssetTile({
         type="button"
         className="atile"
         aria-pressed={selected}
-        aria-label={`${name}，${ASSET_KIND[asset.kind].label}`}
+        aria-label={t('assets.tileLabel', { name, kind: ASSET_KIND[asset.kind].label })}
         onClick={(e) => {
           onSelect(e);
         }}
@@ -845,7 +863,7 @@ function AssetTile({
       <input
         type="checkbox"
         className="atile__check"
-        aria-label={`選取 ${name}`}
+        aria-label={t('assets.selectAsset', { name })}
         checked={picked}
         onChange={onTogglePick}
       />
@@ -854,10 +872,9 @@ function AssetTile({
 }
 
 function metadataNote(asset: AssetRecord): string | null {
-  if (asset.metadata_status === 'pending') return '正在讀取媒體資訊…';
-  if (asset.metadata_status === 'unavailable')
-    return '這台 Mac 沒有可用的媒體分析工具，部分資訊無法讀取。';
-  if (asset.metadata_status === 'failed') return '讀取媒體資訊失敗。';
+  if (asset.metadata_status === 'pending') return t('assets.metaPending');
+  if (asset.metadata_status === 'unavailable') return t('assets.metaUnavailable');
+  if (asset.metadata_status === 'failed') return t('assets.metaFailed');
   return null;
 }
 
@@ -892,13 +909,13 @@ function AssetRefs({
 
   return (
     <div className="viewer__refs">
-      <span className="faint">引用</span>
+      <span className="faint">{t('assets.refsLabel')}</span>
       {failed ? (
-        <span className="muted">無法載入引用</span>
+        <span className="muted">{t('assets.refsFailed')}</span>
       ) : refs === null ? (
         <span className="skel skel--line" aria-busy="true" />
       ) : refs.length === 0 ? (
-        <span className="muted">未引用</span>
+        <span className="muted">{t('assets.refsNone')}</span>
       ) : (
         <ul className="refs">
           {refs.map((r) => (
@@ -923,11 +940,36 @@ function AssetRefs({
 }
 
 const SAVE_LABEL: Readonly<Record<SaveStatus, { label: string; tone: ChipTone }>> = {
-  saved: { label: '已儲存', tone: 'ok' },
-  pending: { label: '未儲存', tone: 'neutral' },
-  saving: { label: '儲存中', tone: 'neutral' },
-  error: { label: '儲存失敗', tone: 'bad' },
-  conflict: { label: '有衝突', tone: 'warn' },
+  saved: {
+    get label() {
+      return t('format.saveSaved');
+    },
+    tone: 'ok',
+  },
+  pending: {
+    get label() {
+      return t('format.saveDirty');
+    },
+    tone: 'neutral',
+  },
+  saving: {
+    get label() {
+      return t('format.saveSaving');
+    },
+    tone: 'neutral',
+  },
+  error: {
+    get label() {
+      return t('format.saveError');
+    },
+    tone: 'bad',
+  },
+  conflict: {
+    get label() {
+      return t('assets.saveConflict');
+    },
+    tone: 'warn',
+  },
 };
 
 function useEditor(editor: AssetEditor): EditorState {
@@ -1036,12 +1078,12 @@ function InspectorBody({
   const external = isExternal(current);
 
   return (
-    <aside className="viewer inspector" aria-label="素材資訊">
+    <aside className="viewer inspector" aria-label={t('assets.inspector')}>
       <div className="inspector__scroll">
         <MediaPreview key={`${asset.id}:${String(startAt)}`} asset={asset} startAt={startAt} />
         <div className="inspector__name">
           <label className="visually-hidden" htmlFor="asset-name">
-            名稱
+            {t('assets.name')}
           </label>
           <input
             id="asset-name"
@@ -1062,7 +1104,7 @@ function InspectorBody({
           <button
             type="button"
             className="btn btn--ghost btn--icon btn--small"
-            aria-label="關閉素材資訊"
+            aria-label={t('assets.closeInspector')}
             onClick={onClose}
           >
             <Icon name="close" />
@@ -1070,7 +1112,11 @@ function InspectorBody({
         </div>
         <div className="viewer__chips">
           <Chip>{ASSET_KIND[current.kind].label}</Chip>
-          {external ? <Chip tone="warn">外部掛載</Chip> : <Chip>托管</Chip>}
+          {external ? (
+            <Chip tone="warn">{t('format.sourceExternal')}</Chip>
+          ) : (
+            <Chip>{t('assets.managed')}</Chip>
+          )}
           <span className="inspector__save" role="status">
             <Chip tone={save.tone}>{save.label}</Chip>
           </span>
@@ -1083,8 +1129,11 @@ function InspectorBody({
         {state.conflict !== null && (
           <div className="inspector__conflict" role="alert">
             <span>
-              {state.conflict.fields.map((f) => FIELD_LABEL[f]).join('、')}
-              已在別處被修改。要保留哪一份？
+              {t('assets.conflictFields', {
+                fields: state.conflict.fields
+                  .map((f) => FIELD_LABEL[f])
+                  .join(t('common.listSeparator')),
+              })}
             </span>
             <div className="inspector__conflict-actions">
               <button
@@ -1095,7 +1144,7 @@ function InspectorBody({
                   setNameDraft(displayName(state.conflict?.theirs ?? current));
                 }}
               >
-                用最新的
+                {t('assets.useTheirs')}
               </button>
               <button
                 type="button"
@@ -1104,7 +1153,7 @@ function InspectorBody({
                   void editor.resolve('mine');
                 }}
               >
-                用我的
+                {t('assets.useMine')}
               </button>
             </div>
           </div>
@@ -1115,7 +1164,7 @@ function InspectorBody({
           </p>
         )}
         <div className="field-block">
-          <span className="field-block__label">標籤</span>
+          <span className="field-block__label">{t('assets.tags')}</span>
           <TagEditor
             tags={editor.value('tags') ?? []}
             disabled={state.status === 'conflict'}
@@ -1127,12 +1176,12 @@ function InspectorBody({
         </div>
         <div className="field-block">
           <label className="field-block__label" htmlFor="asset-alt">
-            替代文字
+            {t('assets.altText')}
           </label>
           <input
             id="asset-alt"
             className="input"
-            placeholder="插入文章時的圖片說明"
+            placeholder={t('assets.altPlaceholder')}
             value={editor.value('alt_text') ?? ''}
             onChange={(e) => {
               editor.change('alt_text', e.target.value === '' ? null : e.target.value);
@@ -1144,12 +1193,12 @@ function InspectorBody({
         </div>
         <div className="field-block">
           <label className="field-block__label" htmlFor="asset-note">
-            備註
+            {t('assets.note')}
           </label>
           <textarea
             id="asset-note"
             className="input inspector__note"
-            placeholder="只給自己看"
+            placeholder={t('assets.notePlaceholder')}
             value={editor.value('note') ?? ''}
             onChange={(e) => {
               editor.change('note', e.target.value === '' ? null : e.target.value);
@@ -1161,21 +1210,21 @@ function InspectorBody({
         </div>
         <AssetRefs client={client} assetId={asset.id} onOpenWork={onOpenWork} />
         <details className="inspector__details">
-          <summary>檔案資訊</summary>
+          <summary>{t('assets.fileInfo')}</summary>
           <dl className="kv">
-            <dt>檔名</dt>
+            <dt>{t('assets.fileName')}</dt>
             <dd className="mono">{assetName(current)}</dd>
-            <dt>尺寸</dt>
+            <dt>{t('assets.dimensions')}</dt>
             <dd>{dims ?? '—'}</dd>
             {timed && (
               <>
-                <dt>時長</dt>
+                <dt>{t('assets.duration')}</dt>
                 <dd>{current.duration === null ? '—' : formatDuration(current.duration)}</dd>
               </>
             )}
-            <dt>編碼</dt>
+            <dt>{t('assets.codec')}</dt>
             <dd>{current.codec ?? current.mime_type}</dd>
-            <dt>大小</dt>
+            <dt>{t('assets.size')}</dt>
             <dd>{formatBytes(current.bytes)}</dd>
             <dt>SHA-256</dt>
             <dd className="mono kv__hash">
@@ -1183,7 +1232,7 @@ function InspectorBody({
               <button
                 type="button"
                 className="btn btn--ghost btn--icon btn--tiny"
-                aria-label="複製雜湊"
+                aria-label={t('assets.copyHash')}
                 onClick={() => {
                   void window.creatorhub?.copyText(current.sha256).then(() => {
                     setCopied(true);
@@ -1194,11 +1243,11 @@ function InspectorBody({
               </button>
               {copied && (
                 <span className="visually-hidden" role="status">
-                  已複製
+                  {t('common.copied')}
                 </span>
               )}
             </dd>
-            <dt>位置</dt>
+            <dt>{t('assets.location')}</dt>
             <dd className="mono">
               {external
                 ? mount === null
@@ -1208,10 +1257,10 @@ function InspectorBody({
                   ? current.path
                   : `${home}/${current.path}`}
             </dd>
-            <dt>來源</dt>
+            <dt>{t('assets.origin')}</dt>
             <dd>{ORIGIN_LABEL[current.origin]}</dd>
-            <dt>加入</dt>
-            <dd>{dateTime.format(new Date(current.created_at))}</dd>
+            <dt>{t('assets.added')}</dt>
+            <dd>{formatDateTime(new Date(current.created_at))}</dd>
           </dl>
         </details>
         <span className="visually-hidden">{name}</span>
@@ -1226,11 +1275,12 @@ function InspectorBody({
             });
           }}
         >
-          <Icon name="folder" size={14} />在 Finder 顯示
+          <Icon name="folder" size={14} />
+          {t('common.revealInFinder')}
         </button>
         {revealFailed && (
           <span className="viewer__error" role="alert">
-            找不到檔案
+            {t('assets.revealFailed')}
           </span>
         )}
         <button
@@ -1241,7 +1291,7 @@ function InspectorBody({
             void editor.flush().then(onDelete);
           }}
         >
-          {external ? '移出素材庫…' : '移到最近刪除'}
+          {external ? t('assets.removeFromLibrary') : t('assets.moveToTrash')}
         </button>
       </div>
     </aside>
@@ -1252,7 +1302,7 @@ function MultiInspector({ assets }: { assets: readonly AssetRecord[] }) {
   const bytes = assets.reduce((n, a) => n + a.bytes, 0);
   const external = assets.filter(isExternal).length;
   return (
-    <aside className="viewer inspector" aria-label="素材資訊">
+    <aside className="viewer inspector" aria-label={t('assets.inspector')}>
       <div className="inspector__scroll">
         <div className="inspector__picks">
           {assets.slice(0, 6).map((a) => (
@@ -1261,14 +1311,14 @@ function MultiInspector({ assets }: { assets: readonly AssetRecord[] }) {
             </span>
           ))}
         </div>
-        <h2 className="inspector__title">已選 {assets.length} 個素材</h2>
+        <h2 className="inspector__title">{t('assets.pickedAssets', { count: assets.length })}</h2>
         <dl className="kv">
-          <dt>大小</dt>
+          <dt>{t('assets.size')}</dt>
           <dd>{formatBytes(bytes)}</dd>
-          <dt>外部掛載</dt>
-          <dd>{external === 0 ? '無' : `${String(external)} 個`}</dd>
+          <dt>{t('format.sourceExternal')}</dt>
+          <dd>{external === 0 ? t('assets.none') : t('assets.countItems', { count: external })}</dd>
         </dl>
-        <p className="faint">批次：加標籤、移到最近刪除。名稱、替代文字與備註請逐一編輯。</p>
+        <p className="faint">{t('assets.multiHintFields')}</p>
       </div>
     </aside>
   );
@@ -1303,27 +1353,27 @@ function TrashView({
   return (
     <section
       className="page__body trash"
-      aria-label="最近刪除"
+      aria-label={t('assets.scopeTrash')}
       aria-busy={listing === null && !failed}
     >
       <div className="trash__head">
         <Icon name="history" size={16} />
-        <span className="muted">30 天後自動永久刪除；恢復時回到原位置，作品引用一併復原。</span>
+        <span className="muted">{t('assets.trashHint')}</span>
         <button
           type="button"
           className="btn btn--ghost btn--danger btn--small trash__empty"
           disabled={items.length === 0}
           onClick={onEmpty}
         >
-          清空
+          {t('assets.emptyTrash')}
         </button>
       </div>
       {failed ? (
         <div className="state-card" role="alert">
           <Icon name="offline" size={28} />
-          <span className="state-card__title">無法載入最近刪除</span>
+          <span className="state-card__title">{t('assets.trashLoadFailed')}</span>
           <button type="button" className="btn btn--primary" onClick={onReload}>
-            重試
+            {t('common.retry')}
           </button>
         </div>
       ) : listing === null ? (
@@ -1335,10 +1385,10 @@ function TrashView({
       ) : items.length === 0 ? (
         <div className="state-card">
           <Icon name="trash" size={28} />
-          <span className="state-card__title">最近刪除是空的</span>
+          <span className="state-card__title">{t('assets.trashEmpty')}</span>
         </div>
       ) : (
-        <ul className="card trash__list" aria-label="已刪除的素材">
+        <ul className="card trash__list" aria-label={t('assets.trashList')}>
           {items.map((a) => {
             const left = daysLeft(a.purge_at);
             return (
@@ -1358,13 +1408,19 @@ function TrashView({
                   )}
                 </div>
                 <span className="faint trash__when">
-                  {a.deleted_at == null ? '' : `${formatStamp(a.deleted_at)} 刪除`}
+                  {a.deleted_at == null
+                    ? ''
+                    : t('assets.deletedWhen', { when: formatStamp(a.deleted_at) })}
                 </span>
                 {a.removal === 'trashed' && left !== null ? (
-                  <Chip tone={left <= 7 ? 'warn' : 'neutral'}>{`${String(left)} 天`}</Chip>
+                  <Chip tone={left <= 7 ? 'warn' : 'neutral'}>
+                    {t('assets.daysLeft', { count: left })}
+                  </Chip>
                 ) : (
                   <Chip tone="warn">
-                    {a.removal === 'original_trashed' ? '原檔在垃圾桶' : '已移出'}
+                    {a.removal === 'original_trashed'
+                      ? t('assets.originalInTrash')
+                      : t('assets.removedChip')}
                   </Chip>
                 )}
                 <div className="trash__actions">
@@ -1379,7 +1435,7 @@ function TrashView({
                         .restore(a.id)
                         .then(() => {
                           setBusy(null);
-                          onToast({ message: '已恢復到原位置', undo: null });
+                          onToast({ message: t('assets.restored'), undo: null });
                           onReload();
                         })
                         .catch((err: unknown) => {
@@ -1389,7 +1445,7 @@ function TrashView({
                     }}
                   >
                     <Icon name="undo" size={14} />
-                    恢復
+                    {t('common.restore')}
                   </button>
                   <button
                     type="button"
@@ -1398,7 +1454,7 @@ function TrashView({
                       onPurge(a);
                     }}
                   >
-                    永久刪除
+                    {t('assets.purge')}
                   </button>
                 </div>
               </li>
@@ -1484,7 +1540,7 @@ function AssetDialogs({
       data-autofocus
       onClick={onClose}
     >
-      取消
+      {t('common.cancel')}
     </button>
   );
   const errorLine =
@@ -1499,7 +1555,7 @@ function AssetDialogs({
     const impact = deleteImpact([dialog.refs]);
     return (
       <Dialog
-        title="移到最近刪除？"
+        title={t('assets.confirmTrashTitle')}
         onClose={onClose}
         footer={
           <>
@@ -1517,20 +1573,24 @@ function AssetDialogs({
                 });
               }}
             >
-              移到最近刪除
+              {t('assets.moveToTrash')}
             </button>
           </>
         }
       >
         <div className="form">
           <p>
-            「{displayName(dialog.asset)}」被 {works.length} 件作品引用。{deleteImpactText(impact)}
+            {t('assets.referencedBy', {
+              name: displayName(dialog.asset),
+              count: works.length,
+              impact: deleteImpactText(impact),
+            })}
           </p>
           {impact.breaking.length > 0 && impact.safe.length > 0 ? (
             <>
-              <span className="dialog__group dialog__group--bad">會顯示為缺圖</span>
+              <span className="dialog__group dialog__group--bad">{t('assets.groupBreaking')}</span>
               <WorkList refs={impact.breaking} onOpenWork={onOpenWork} />
-              <span className="dialog__group">圖片是獨立複本，不受影響</span>
+              <span className="dialog__group">{t('assets.groupSafe')}</span>
               <WorkList refs={impact.safe} onOpenWork={onOpenWork} />
             </>
           ) : (
@@ -1545,7 +1605,7 @@ function AssetDialogs({
   if (dialog.kind === 'external') {
     return (
       <Dialog
-        title="移出素材庫？"
+        title={t('assets.externalTitle')}
         onClose={onClose}
         footer={
           <>
@@ -1562,14 +1622,16 @@ function AssetDialogs({
                   }),
                   () => {
                     onDone([dialog.asset.id], {
-                      message: moveOriginal ? '原檔已移到系統垃圾桶' : '已移出素材庫，原檔未動',
+                      message: moveOriginal
+                        ? t('assets.externalTrashed')
+                        : t('assets.externalKept'),
                       undo: null,
                     });
                   },
                 );
               }}
             >
-              {moveOriginal ? '移到垃圾桶' : '移出'}
+              {moveOriginal ? t('assets.moveToSystemTrash') : t('assets.removeOnly')}
             </button>
           </>
         }
@@ -1579,7 +1641,7 @@ function AssetDialogs({
             {assetLocation(dialog.asset, home, mounts, userHome)}
           </p>
           <fieldset className="optcards">
-            <legend className="visually-hidden">原檔處理</legend>
+            <legend className="visually-hidden">{t('assets.originalLegend')}</legend>
             <label className="optcard">
               <input
                 type="radio"
@@ -1590,8 +1652,8 @@ function AssetDialogs({
                 }}
               />
               <span>
-                <span className="optcard__title">只從素材庫移除</span>
-                <span className="faint">原檔留在外部資料夾</span>
+                <span className="optcard__title">{t('assets.optRemoveOnlyTitle')}</span>
+                <span className="faint">{t('assets.optRemoveOnlyHint')}</span>
               </span>
             </label>
             <label className="optcard">
@@ -1604,8 +1666,8 @@ function AssetDialogs({
                 }}
               />
               <span>
-                <span className="optcard__title">原檔也移到系統垃圾桶</span>
-                <span className="faint">可從 Finder 垃圾桶還原</span>
+                <span className="optcard__title">{t('assets.optTrashTitle')}</span>
+                <span className="faint">{t('assets.optTrashHint')}</span>
               </span>
             </label>
           </fieldset>
@@ -1621,7 +1683,7 @@ function AssetDialogs({
     const managed = chosen.length - external;
     return (
       <Dialog
-        title={`移除 ${String(dialog.ids.length)} 個素材？`}
+        title={t('assets.batchTitle', { count: dialog.ids.length })}
         onClose={onClose}
         footer={
           <>
@@ -1642,12 +1704,10 @@ function AssetDialogs({
                     onDone(dialog.ids, {
                       message:
                         batchRefs === null
-                          ? `已移除 ${String(dialog.ids.length)} 個素材`
-                          : `已移除 ${String(dialog.ids.length)} 個素材 · ${
-                              batchRefs.impact.breaking.length === 0
-                                ? '文章中的圖片不受影響'
-                                : '部分作品顯示為缺圖'
-                            }`,
+                          ? t('assets.batchRemoved', { count: dialog.ids.length })
+                          : batchRefs.impact.breaking.length === 0
+                            ? t('assets.batchRemovedSafe', { count: dialog.ids.length })
+                            : t('assets.batchRemovedBreaking', { count: dialog.ids.length }),
                       undo: chosen.filter((a) => !isExternal(a)).map((a) => a.id),
                     });
                   })
@@ -1662,21 +1722,28 @@ function AssetDialogs({
                   });
               }}
             >
-              {batchRefs === null ? '移除' : '仍要移除'}
+              {batchRefs === null ? t('common.remove') : t('assets.stillRemove')}
             </button>
           </>
         }
       >
         <div className="form">
           <dl className="kv">
-            <dt>移到最近刪除</dt>
-            <dd>{managed} 個</dd>
-            <dt>外部掛載</dt>
-            <dd>{external === 0 ? '無' : `${String(external)} 個，只從素材庫移除，原檔不動`}</dd>
+            <dt>{t('assets.moveToTrash')}</dt>
+            <dd>{t('assets.countItems', { count: managed })}</dd>
+            <dt>{t('format.sourceExternal')}</dt>
+            <dd>
+              {external === 0
+                ? t('assets.none')
+                : t('assets.batchExternalNote', { count: external })}
+            </dd>
           </dl>
           {batchRefs !== null && (
             <p className="dialog__warn" role="alert">
-              其中 {batchRefs.count} 個被作品引用。{deleteImpactText(batchRefs.impact)}
+              {t('assets.batchRefWarn', {
+                count: batchRefs.count,
+                impact: deleteImpactText(batchRefs.impact),
+              })}
             </p>
           )}
           {errorLine}
@@ -1692,7 +1759,7 @@ function AssetDialogs({
       .filter((t) => t !== '');
     return (
       <Dialog
-        title={`為 ${String(dialog.ids.length)} 個素材加標籤`}
+        title={t('assets.tagsTitle', { count: dialog.ids.length })}
         onClose={onClose}
         footer={
           <>
@@ -1704,20 +1771,20 @@ function AssetDialogs({
               onClick={() => {
                 run(client.assets.batch({ action: 'add_tags', ids: dialog.ids, tags }), () => {
                   onDone([], {
-                    message: `已為 ${String(dialog.ids.length)} 個素材加上標籤`,
+                    message: t('assets.tagsAdded', { count: dialog.ids.length }),
                     undo: null,
                   });
                 });
               }}
             >
-              加上
+              {t('assets.tagsApply')}
             </button>
           </>
         }
       >
         <div className="form">
           <label className="field-block">
-            <span className="field-block__label">標籤（用逗號或空白分開）</span>
+            <span className="field-block__label">{t('assets.tagsField')}</span>
             <input
               className="input"
               value={tagText}
@@ -1735,7 +1802,7 @@ function AssetDialogs({
   if (dialog.kind === 'purge') {
     return (
       <Dialog
-        title="永久刪除這個素材？"
+        title={t('assets.purgeTitle')}
         onClose={onClose}
         footer={
           <>
@@ -1754,8 +1821,10 @@ function AssetDialogs({
                     onDone([dialog.asset.id], {
                       message:
                         broken.length === 0
-                          ? '已永久刪除'
-                          : `已永久刪除；${broken.join('、')} 的正文仍連到這個檔案，會顯示為缺圖`,
+                          ? t('assets.purged')
+                          : t('assets.purgedBroken', {
+                              works: broken.join(t('common.listSeparator')),
+                            }),
                       undo: null,
                       tone: broken.length === 0 ? 'ok' : 'bad',
                     });
@@ -1766,13 +1835,13 @@ function AssetDialogs({
                   });
               }}
             >
-              永久刪除
+              {t('assets.purge')}
             </button>
           </>
         }
       >
         <div className="form">
-          <p>「{displayName(dialog.asset)}」的檔案會從磁碟刪除，無法復原。</p>
+          <p>{t('assets.purgeBody', { name: displayName(dialog.asset) })}</p>
           {errorLine}
         </div>
       </Dialog>
@@ -1781,7 +1850,7 @@ function AssetDialogs({
 
   return (
     <Dialog
-      title={`永久刪除 ${String(dialog.count)} 個素材？`}
+      title={t('assets.emptyTrashTitle', { count: dialog.count })}
       onClose={onClose}
       footer={
         <>
@@ -1802,8 +1871,10 @@ function AssetDialogs({
                     {
                       message:
                         broken.length === 0
-                          ? `已清空最近刪除（${String(res.purged.length)} 個）`
-                          : `已清空；${broken.join('、')} 的正文仍連到被刪的檔案，會顯示為缺圖`,
+                          ? t('assets.emptied', { count: res.purged.length })
+                          : t('assets.emptiedBroken', {
+                              works: broken.join(t('common.listSeparator')),
+                            }),
                       undo: null,
                       tone: broken.length === 0 ? 'ok' : 'bad',
                     },
@@ -1815,13 +1886,13 @@ function AssetDialogs({
                 });
             }}
           >
-            永久刪除
+            {t('assets.purge')}
           </button>
         </>
       }
     >
       <div className="form">
-        <p>最近刪除裡的檔案會從磁碟刪除，無法復原。</p>
+        <p>{t('assets.emptyTrashBody')}</p>
         {errorLine}
       </div>
     </Dialog>
