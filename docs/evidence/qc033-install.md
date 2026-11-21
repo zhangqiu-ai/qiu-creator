@@ -233,3 +233,5 @@ exit 0。升級前備份 id：**`20261121T144052039Z-manual`**。
 ### 提醒
 
 /Applications 已是新版 .app，請使用者重新開啟 qiu-creator。若有問題：`deploy/qc.sh rollback --yes`（舊版仍是 schema 0013，沒有新遷移，風險較低）。
+
+> **總監更正（2026-11-21 06:45）**：上面查的 `~/Library/Application Support/qiu-creator/` 是服務安裝目錄，不是 App 的 userData。App 的偏好檔實際在 `~/Library/Application Support/@qiu-creator/mac/preferences.json`。06:45 只讀了鍵名與 `language`：鍵為 `language`、`theme`，`language` 為 `zh-Hans`，檔案修改時間 06:43:21；此時使用者已從 /Applications 重開新版（pid 46004）。檔案原本就有 `theme`，表示是舊安裝。`zh-Hans` 應是使用者重開後自己在設定選的；若不是，代表遷移有誤，待使用者確認。
