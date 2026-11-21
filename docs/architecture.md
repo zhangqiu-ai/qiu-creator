@@ -594,6 +594,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
   - 只有作用中的分頁處理 ⌘S、⌘P 等快捷鍵（`active`）。
   - 分頁回到前景時，AI 供應商重新讀取，因為使用者可能剛在設定改過金鑰或告知。
   - 分頁框架不綁文章：`TabKind` 是作品類型，QC-045／046 的貼圖、視頻編輯器放進 `TabPane` 即可。
+- **切換語言**：MDXEditor 只在建立時讀 `translation`，所以 `markdown-editor-web` 的 `liveTranslationPlugin` 在每次 render 的 `update` 裡寫入新的 translation。已開的編輯器原地換文字，不重建。
 - **卸載與重新載入**：卸載前 `EditorPage` 回報模式、游標（Markdown 位移）、捲動位置與側欄面板。重新載入時：
   - 原始碼模式還原精確游標。
   - 視覺模式還原到游標所在段落的開頭（`MarkdownEditorHandle.restoreSelection`）。

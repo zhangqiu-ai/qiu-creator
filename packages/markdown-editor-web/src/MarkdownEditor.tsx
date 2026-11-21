@@ -17,7 +17,7 @@ import {
   restoreFinalNewline,
   type LossyReason,
 } from './lossy.js';
-import { createEditorPlugins, TO_MARKDOWN_OPTIONS } from './plugins.js';
+import { createEditorPlugins, liveTranslationPlugin, TO_MARKDOWN_OPTIONS } from './plugins.js';
 import { blockEndAt, boundaryBeforeBlock, insertBlockAt } from './insert.js';
 import {
   expandToBlocks,
@@ -389,9 +389,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const resolveImageRef = useRef(props.resolveImage);
     resolveImageRef.current = props.resolveImage;
     const hasResolver = props.resolveImage !== undefined;
+    const translation = useMemo(() => editorTranslation(locale), [locale]);
     const plugins = useMemo(
-      () =>
-        createEditorPlugins({
+      () => [
+        ...createEditorPlugins({
           locale,
           ...(hasResolver
             ? {
@@ -400,9 +401,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               }
             : {}),
         }),
-      [hasResolver, locale],
+        // A new language reaches an open editor through `update`, without a remount.
+        liveTranslationPlugin({ translation }),
+      ],
+      [hasResolver, locale, translation],
     );
-    const translation = useMemo(() => editorTranslation(locale), [locale]);
     const label = props.label ?? translate(locale, 'editor.sourceLabel');
 
     return (

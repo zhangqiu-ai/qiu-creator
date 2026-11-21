@@ -189,6 +189,8 @@ test('開多個作品、切換保留狀態、重複開啟、快捷鍵與選單',
     await expect(menu).toBeHidden();
     expect(await selectedTitles(page)).toEqual(['乙篇草稿']);
 
+    // 甲's edit is autosaved by now, so nothing is left unsaved.
+    await expect(tabBar(page).locator('.tab--unsaved')).toHaveCount(0);
     await page.getByRole('button', { name: '全部分頁（3）' }).click();
     await page.getByRole('button', { name: /關閉其他分頁/ }).click();
     // 甲's edit was autosaved, so 關閉其他 closes it as well.
@@ -297,6 +299,56 @@ test('最多同時載入 8 個編輯器；重開 App 恢復全部分頁，只載
     .getByRole('button', { name: '全部關閉' })
     .click();
   await expect(tabBar(p2)).toBeHidden();
+});
+
+test('切換語言：兩個分頁的編輯器工具列都換成新語言，草稿與游標不變', async ({ desktop }) => {
+  const { page, backend } = desktop;
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const a = await backend.client.works.create({ title: '語言甲', markdown: `${PARAGRAPH}\n` });
+  const b = await backend.client.works.create({ title: '語言乙', markdown: `${PARAGRAPH}\n` });
+  await openFromLibrary(page, '語言甲');
+  await openFromLibrary(page, '語言乙');
+  const pane = (title: string) => page.locator(`.tab-pane:has(input[value="${title}"])`);
+  // A draft in each tab: typed at the end of the visual text.
+  for (const title of ['語言甲', '語言乙']) {
+    await tab(page, title).click();
+    await pane(title).locator('.qc-md-editor__content p').last().click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(title === '語言甲' ? 'AAA' : 'BBB');
+  }
+  for (const title of ['語言甲', '語言乙']) {
+    await expect(pane(title).locator('.qc-md-editor__content')).toContainText(
+      title === '語言甲' ? 'AAA' : 'BBB',
+    );
+    // The block type menu names the caret's block: 內文 (paragraph).
+    await expect(pane(title).locator('.editor__doc [role="toolbar"]')).toContainText('內文');
+  }
+
+  await page.evaluate("window.creatorhub.setLanguage('en')");
+  await expect(tabBar(page, 'Open works')).toBeVisible();
+  // Both editors, the one in front and the one in the background, are relabelled in place.
+  for (const title of ['語言甲', '語言乙']) {
+    const toolbar = pane(title).locator('.editor__doc [role="toolbar"]');
+    await expect(toolbar).toContainText('Paragraph');
+    await expect(toolbar).not.toContainText('內文');
+    await expect(pane(title).locator('.qc-md-editor__content')).toContainText(
+      title === '語言甲' ? 'AAA' : 'BBB',
+    );
+  }
+  // Still the same draft and caret: typing continues where it was.
+  await page.keyboard.type('C');
+  await expect(pane('語言乙').locator('.qc-md-editor__content p').last()).toHaveText(/BBBC$/);
+  await page.keyboard.press('Meta+1');
+  await expect(pane('語言甲').getByRole('textbox', { name: 'Title' })).toHaveValue('語言甲');
+  await expect(pane('語言甲').locator('.qc-md-editor__content p').last()).toHaveText(/AAA$/);
+  // The drafts reach the service as typed: nothing was lost or rewritten by the switch.
+  await expect
+    .poll(async () => (await backend.client.works.get(a.id)).markdown)
+    .toBe(`${PARAGRAPH}AAA\n`);
+  await expect
+    .poll(async () => (await backend.client.works.get(b.id)).markdown)
+    .toBe(`${PARAGRAPH}BBBC\n`);
+  await page.evaluate("window.creatorhub.setLanguage('zh-Hant')");
 });
 
 test('截圖：三種語言與深色', async ({ desktop }) => {

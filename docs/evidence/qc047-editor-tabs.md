@@ -46,6 +46,17 @@
 - **多語言**：文案在 `packages/i18n` 的新區 `tabs`（29 個鍵），選單項目在 `main` 區，三種語言都有。英文的單複數用 `{one, other}`。沒有寫死的中文，`no-hardcoded-chinese` 測試通過。
 - **可放不同類型的編輯器**：分頁的 `kind` 就是作品類型。QC-045／046 的貼圖、視頻編輯器只要放進 `TabPane`，就能用同一套分頁、保留與恢復機制。
 
+## 審查後修正：切換語言時已開的編輯器內部文字沒有更新
+
+- **現象**：總監審查時指出，English 截圖的編輯器工具列仍顯示繁體「段落樣式」。
+- **原因**：MDXEditor 只在建立時讀一次 `translation`。之後每次 render，它只會呼叫各 plugin 的 `update`，而 core plugin 的 `update` 不包含 translation。分頁讓編輯器常駐不卸載，所以開著分頁時切換語言，工具列、對話框、tooltip、placeholder 都停在舊語言。QC-042 時也一樣，只是當時多半是先切語言、再開作品，不容易看到。
+- **修正**：`markdown-editor-web` 加 `liveTranslationPlugin`。它在 `update` 裡把新的 translation 寫入 MDXEditor 的 `translation$`，所以已開的編輯器原地換文字，不重建。草稿、游標、復原歷史、捲動、模式都不受影響，也不會送出變更。程式碼區塊的語言名稱原本就由 codeMirror plugin 的 `update` 更新。
+- **測試**：
+  - 單元測試 `editor.test.tsx`：以 zh-Hant 開啟後改用 en 重新 render，工具列換成 English，編輯區是同一個 DOM 節點，沒有觸發 onChange，內容不變。拿掉這個 plugin 時，這個測試會失敗。
+  - e2e「切換語言」：開兩個分頁，各自在視覺模式打字、留下草稿，然後切到 English。前景和背景分頁的工具列都變成 Paragraph、不再有「內文」，兩邊草稿都還在。接著繼續打字，字接在原本游標處。最後兩篇送到服務端的內容就是打的字。
+- **截圖**：全部重拍。English 截圖的工具列現在顯示 Block style。
+- **測試的等待**：e2e 第一個案例在「關閉其他」前，先等甲篇的自動儲存完成。追查後確認，那個案例從打字到這一步只花約 0.7 秒，還沒到 800ms 的自動儲存。依設計，未存的分頁在「關閉其他」時會保留，所以先等儲存是正確寫法，不是放寬斷言。
+
 ## 為了分頁做的行為調整（請留意）
 
 - 分頁回到前景時重新讀取 AI 供應商。以前離開編輯頁就會卸載編輯器，回來時面板重新載入；現在編輯器不卸載，若不重讀，在設定改過金鑰或告知後，回來仍會看到舊狀態。這是 `new-api.spec` 抓到的回歸，已修正，斷言沒有改。
@@ -66,24 +77,24 @@
 | `apps/mac/src/main/menu.ts`、`main.ts` | 分頁選單項目與 IPC |
 | `apps/mac/src/main/preferences.ts` | `tabs` 偏好 |
 | `apps/mac/src/shared/bridge.ts`、`preload/preload.ts` | `getTabs`、`setTabs`、`onTabCommand` |
-| `packages/markdown-editor-web/src/MarkdownEditor.tsx` | `restoreSelection` |
+| `packages/markdown-editor-web/src/MarkdownEditor.tsx`、`plugins.tsx` | `restoreSelection`；`liveTranslationPlugin`，切換語言時原地更新編輯器內部文字 |
 | `packages/i18n/src/catalog/tabs.ts`、`main.ts`、`index.ts` | 三語文案 |
 | `apps/mac/test/tabs.test.ts` | 模型、偏好、選單單元測試（21 個） |
-| `e2e/specs/editor-tabs.spec.ts`、`e2e/fixtures/desktop.ts` | e2e 4 個；fixture 加 `relaunch()` |
+| `e2e/specs/editor-tabs.spec.ts`、`e2e/fixtures/desktop.ts` | e2e 5 個；fixture 加 `relaunch()` |
 | `docs/architecture.md` | 「編輯器多分頁（QC-047）」一節 |
 
 ## 驗證
 
-- **rebase 到 `9ee4009` 之後重跑**（rebase 沒有衝突）：
+- **rebase 到 `9ee4009` 並修正語言問題後重跑**（rebase 沒有衝突）：
   - **typecheck**（全部套件加 e2e）、`pnpm -r lint`：通過。
   - **根目錄 `eslint .` 與 `format:check`**：不通過的只有 main 上本來就有的檔案：
-    - `docs/evidence/qc033-drill.mjs`、`qc033-sleepguard.mjs`：7 個 lint 錯誤，format 也不通過。
-    - `docs/design/prototype/changes.json`：format 不通過。
-    - 這個分支沒有動這些檔案，也不在範圍內。
-  - **全倉測試**：852 passed／0 failed／852 total。2026-11-21 08:09:57–08:10:38，負載 5.90→14.66，持有 `qc-fullsuite.lock`。各套件：
+    - `docs/evidence/qc033-drill.mjs`、`qc033-sleepguard.mjs`。
+    - `docs/design/prototype/changes.json`。
+    - 總監已交給測試專員處理。
+  - **全倉測試**：853 passed／0 failed／853 total。2026-11-21 08:21:11–08:21:38，負載 2.68→11.07，持有 `qc-fullsuite.lock`。各套件：
     - contracts 21、design-tokens 5、domain 34、i18n 29、installer 39、api-client 20。
-    - markdown-editor-web 28、platform-preview 12、mac-server 393、apps/mac 265（其中 QC-047 新增 21）、agent-sdk 6。
-  - **e2e**：13 passed／0 failed／13 total，其中 QC-047 新增 4 個。
+    - markdown-editor-web 29（新增 1）、platform-preview 12、mac-server 393、apps/mac 265（QC-047 新增 21）、agent-sdk 6。
+  - **e2e**：14 passed／0 failed／14 total（08:20，負載約 3），其中 QC-047 新增 5 個。
 - rebase 前的第一次全跑，`new-api.spec` 抓到「回到前景要重讀 AI 供應商」的回歸，已修正。
 - 單元測試：`apps/mac/test/tabs.test.ts` 共 21 個，涵蓋：
   - 開啟、重複開啟加閃一下、⌘1–9、上下一個。
@@ -106,7 +117,8 @@
      - `preferences.json` 寫入 9 個分頁與模式。
      - 重開 App 後恢復 9 個、只載入 1 個，原始碼模式還原，有提示；點選其他分頁會載入。
      - ⌘9 可用，「全部關閉」可用。
-  4. 截圖：三種語言、深色、全部分頁選單、關閉未存對話框。
+  4. 切換語言：兩個分頁的工具列都換成新語言，草稿與游標不變。
+  5. 截圖：三種語言、深色、全部分頁選單、關閉未存對話框。
 
 ## 截圖
 

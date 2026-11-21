@@ -23,6 +23,30 @@ describe('MarkdownEditor', () => {
     m.unmount();
   });
 
+  it('relabels its toolbar when the language changes, without reloading the document (QC-047)', async () => {
+    const onChange = vi.fn();
+    const ref = createRef<MarkdownEditorHandle>();
+    const original = fixture('structure.md');
+    const m = await mount(
+      <MarkdownEditor ref={ref} markdown={original} onChange={onChange} locale="zh-Hant" />,
+    );
+    const content = m.container.querySelector('.qc-md-editor__content');
+    expect(m.container.textContent).toContain('段落樣式');
+    await act(async () => {
+      m.root.render(
+        <MarkdownEditor ref={ref} markdown={original} onChange={onChange} locale="en" />,
+      );
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(m.container.textContent).toContain('Block style');
+    expect(m.container.textContent).not.toContain('段落樣式');
+    // The same editing surface: not rebuilt, nothing reported as changed.
+    expect(m.container.querySelector('.qc-md-editor__content')).toBe(content);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(ref.current?.getMarkdown()).toBe(original);
+    m.unmount();
+  });
+
   it('opens lossy documents in source mode and keeps their text byte-for-byte', async () => {
     const onChange = vi.fn();
     const ref = createRef<MarkdownEditorHandle>();

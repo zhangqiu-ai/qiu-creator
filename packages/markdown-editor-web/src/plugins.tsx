@@ -19,9 +19,11 @@ import {
   listsPlugin,
   markdownShortcutPlugin,
   quotePlugin,
+  realmPlugin,
   tablePlugin,
   thematicBreakPlugin,
   toolbarPlugin,
+  translation$,
   type RealmPlugin,
 } from '@mdxeditor/editor';
 import { SOURCE_LOCALE, translate, type Locale } from '@qiu-creator/i18n';
@@ -66,6 +68,26 @@ function Toolbar() {
     </>
   );
 }
+
+/**
+ * MDXEditor reads its `translation` prop only when it is created; its own
+ * plugins re-apply their options on every render through `update`. This one
+ * does the same for the translation, so switching the interface language
+ * relabels the toolbar, dialogs, tooltips and placeholders of an editor that
+ * stays open (QC-047: tabs keep editors mounted), with no remount: the
+ * document, caret, undo history and scroll stay as they are.
+ */
+export const liveTranslationPlugin = realmPlugin<{
+  translation: (
+    key: string,
+    defaultValue: string,
+    interpolations?: Record<string, unknown>,
+  ) => string;
+}>({
+  update(realm, params) {
+    if (params !== undefined) realm.pub(translation$, params.translation);
+  },
+});
 
 export interface EditorPluginOptions {
   /** Include the formatting toolbar (off in headless tests). */
