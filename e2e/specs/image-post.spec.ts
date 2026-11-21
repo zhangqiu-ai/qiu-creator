@@ -20,6 +20,27 @@ async function shot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: path.join(dir, `qc045-${name}.png`) });
 }
 
+/**
+ * The simulated phone is a fixed 340 px wide. The side panel must be wide enough for it: no
+ * horizontal scrollbar, and the phone's right edge inside the panel (QC-049).
+ */
+async function expectPreviewFits(page: Page): Promise<void> {
+  const measure = `(() => {
+    const side = document.querySelector('.tab-pane:not([hidden]) .post__side');
+    const phone = side.querySelector('.pp-phone');
+    const sideRect = side.getBoundingClientRect();
+    // The visible part of the panel: without the vertical scrollbar.
+    const visibleRight = sideRect.left + side.clientLeft + side.clientWidth;
+    return {
+      scrollsSideways: side.scrollWidth > side.clientWidth,
+      phoneClipped: phone.getBoundingClientRect().right > visibleRight,
+    };
+  })()`;
+  await expect
+    .poll(() => page.evaluate<{ scrollsSideways: boolean; phoneClipped: boolean }>(measure))
+    .toEqual({ scrollsSideways: false, phoneClipped: false });
+}
+
 function nav(page: Page): Locator {
   return page.getByRole('navigation', { name: '主導航' });
 }
@@ -172,6 +193,7 @@ test('貼圖：新建選類型、加圖、上限提示、鍵盤排序、移除�
       const side = editor(page).getByRole('complementary', { name: '預覽與素材' });
       await side.getByRole('button', { name: '小紅書' }).click();
       await expect(side.getByRole('img', { name: /小紅書/ })).toBeVisible();
+      await expectPreviewFits(page);
       await shot(page, 'zh-Hant-2-editor');
       await side.getByRole('button', { name: '視頻號' }).click();
       await expect(side.getByRole('img', { name: /視頻號/ })).toBeVisible();
