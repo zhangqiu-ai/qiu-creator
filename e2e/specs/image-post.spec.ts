@@ -95,9 +95,10 @@ test('貼圖：新建選類型、加圖、上限提示、鍵盤排序、移除�
       await page.keyboard.press('Meta+n');
       const menu = page.getByRole('menu', { name: '新建作品' });
       await expect(menu.getByRole('menuitem')).toHaveCount(3);
+      // QC-046 enabled video works.
       await expect(menu.getByRole('menuitem', { name: /視頻/ })).toHaveAttribute(
         'aria-disabled',
-        'true',
+        'false',
       );
       await expect(menu.getByRole('menuitem', { name: /文章/ })).toBeFocused();
       await shot(page, 'zh-Hant-1-new-menu');
@@ -309,7 +310,7 @@ test('貼圖：檔案遺失後重新指定、作品庫類型篩選與縮圖、�
     await expect(card).toContainText('10 張');
     await types.getByRole('button', { name: /視頻/ }).click();
     await expect(page.getByText('還沒有視頻')).toBeVisible();
-    await expect(page.getByRole('button', { name: '新建視頻' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: '新建視頻' })).toBeEnabled();
     await types.getByRole('button', { name: /全部/ }).click();
     await shot(page, 'zh-Hant-4-library');
   });

@@ -74,3 +74,20 @@ export function isAppUrl(url: string, devServerUrl: string | null): boolean {
   if (devServerUrl !== null) return url.startsWith(devServerUrl);
   return url.startsWith(`${APP_ORIGIN}/`);
 }
+
+/**
+ * The CORS origin to allow on `qc-asset://` responses (QC-046): this app's
+ * renderer (built, or the dev server), never anything else. Null otherwise.
+ */
+export function rendererOrigin(origin: string | null, devServerUrl: string | null): string | null {
+  if (origin === null) return null;
+  if (origin === APP_ORIGIN) return origin;
+  if (devServerUrl !== null) {
+    try {
+      if (new URL(devServerUrl).origin === origin) return origin;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}

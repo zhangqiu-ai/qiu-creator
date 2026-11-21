@@ -4202,7 +4202,8 @@ kbd {
   border-radius: 6px;
   background: var(--qc-sunken);
 }
-.drawer__thumb img {
+.drawer__thumb img,
+.drawer__thumb video {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -5041,4 +5042,325 @@ kbd {
   position: relative;
   z-index: 1;
   background: var(--qc-bg);
+}
+
+/* ---- 視頻作品 (PT-20261121-001 「v3 · 視頻作品」, QC-046) ---- */
+.vw__chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+.vw__facts {
+  display: inline-flex;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--qc-ink3);
+  font-variant-numeric: tabular-nums;
+}
+.vw__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 36px 20px;
+  border: 1.5px dashed var(--qc-line);
+  border-radius: 12px;
+  color: var(--qc-ink3);
+  text-align: center;
+}
+.vw__empty .bar {
+  width: min(360px, 80%);
+}
+.vw__row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.vw__player {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #111;
+  outline-offset: 2px;
+}
+.vw__player:focus-visible {
+  outline: 2px solid var(--qc-accent);
+}
+.vw__player .post__hint {
+  color: #bbb;
+}
+.vw__video {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  border-radius: 8px;
+  background: #000;
+}
+.vw__video--portrait {
+  width: auto;
+  max-width: 100%;
+  height: 420px;
+}
+.vw__scrub {
+  position: relative;
+  align-self: stretch;
+  height: 18px;
+}
+.vw__scrub-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.3);
+}
+.vw__scrub-head {
+  position: absolute;
+  top: 3px;
+  width: 2px;
+  height: 12px;
+  margin-left: -1px;
+  background: #fff;
+}
+.vw__mark {
+  position: absolute;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  padding: 0;
+  border: 2px solid #111;
+  border-radius: 50%;
+  background: var(--qc-warn);
+  cursor: pointer;
+}
+.vw__strip {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px;
+}
+.vw__frame {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--qc-line);
+  border-radius: 6px;
+  background: var(--qc-sunken);
+  cursor: pointer;
+}
+.vw__frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.vw__frame span {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.vw__frame:hover {
+  border-color: var(--qc-accent);
+}
+.vw__crops {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  margin-top: 8px;
+}
+.vw__crop-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vw__crop-empty {
+  padding: 6px;
+  font-size: 11px;
+  color: var(--qc-ink3);
+  text-align: center;
+}
+.vw__own {
+  margin-left: 4px;
+  font-size: 10.5px;
+  color: var(--qc-accent);
+}
+.vw__platform {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vw__inherit {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--qc-sunken);
+}
+.vw__inherit > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-weight: 600;
+}
+.vw__inherit .post__hint {
+  font-weight: 400;
+}
+.vw__platform .input[readonly] {
+  color: var(--qc-ink3);
+  background: var(--qc-sunken);
+}
+.vw__side {
+  display: flex;
+  flex-direction: column;
+  /* Same rule as .post__side (QC-049): room for the 340px phone, padding, scrollbar and border. */
+  flex-basis: calc(340px + 2 * 14px + 16px + 1px);
+}
+.vw__ai {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+}
+.vw__ai-intro,
+.vw__ai-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--qc-ink3);
+}
+.vw__ai-note {
+  padding: 14px 16px 0;
+}
+.vw__ai .vw__ai-note {
+  padding: 0;
+}
+.vw__ai-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 14px 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--qc-warn-soft);
+  color: var(--qc-warn);
+  font-size: 13px;
+}
+.vw__ai .vw__ai-block {
+  margin: 0;
+}
+.vw__ai-start,
+.vw__ai-run {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.vw__ai-run .bar {
+  align-self: stretch;
+}
+.vw__results {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.vw__res {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vw__res p {
+  margin: 0;
+  line-height: 1.7;
+}
+.vw__res-h {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--qc-ink3);
+}
+.vw__moments {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vw__moments li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.vw__moment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--qc-accent);
+  font: inherit;
+  cursor: pointer;
+}
+.vw__moment:disabled {
+  color: var(--qc-ink3);
+  cursor: default;
+}
+.vw__moment-label {
+  color: var(--qc-ink);
+  font-weight: 600;
+}
+.vw__moment-desc {
+  flex-basis: 100%;
+  padding-left: 6px;
+  font-size: 12px;
+  color: var(--qc-ink3);
+}
+.vw__sugg {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--qc-line);
+  border-radius: 8px;
+}
+.vw__sugg-text {
+  flex: 1;
+  min-width: 0;
+}
+.vw__diff {
+  line-height: 1.8;
+}
+.vw__adopt-covers {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.aiw-confirm__ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--qc-sunken);
+  font-weight: 500;
 }

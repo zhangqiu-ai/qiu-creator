@@ -32,6 +32,7 @@ import {
   appFilePath,
   appResponseHeaders,
   isAppUrl,
+  rendererOrigin,
 } from './app-protocol.js';
 import { abbreviateHome, assetServicePath, forwardableRange, resolveInsideHome } from './assets.js';
 import { readConnection, resolveConfig } from './config.js';
@@ -60,7 +61,11 @@ const devServerUrl = process.env['VITE_DEV_SERVER_URL'] ?? null;
 const config = resolveConfig(process.env, app.isPackaged);
 
 protocol.registerSchemesAsPrivileged([
-  { scheme: ASSET_SCHEME, privileges: { standard: true, secure: true, stream: true } },
+  // corsEnabled (QC-046): the video editor draws a frame of a `crossorigin` video onto a canvas.
+  {
+    scheme: ASSET_SCHEME,
+    privileges: { standard: true, secure: true, stream: true, corsEnabled: true },
+  },
   // The built renderer (QC-031): a secure origin of its own, so 'self' and module scripts work.
   { scheme: APP_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
@@ -337,6 +342,12 @@ function registerAssetProtocol(): void {
       for (const name of PASS_HEADERS) {
         const value = res.headers.get(name);
         if (value !== null) out.set(name, value);
+      }
+      // Only this app's own renderer may read the bytes (a cover frame grabbed from the player).
+      const origin = rendererOrigin(request.headers.get('origin'), devServerUrl);
+      if (origin !== null) {
+        out.set('access-control-allow-origin', origin);
+        out.set('vary', 'origin');
       }
       if (!res.ok) return new Response(null, { status: res.status, headers: out });
       return new Response(res.body, { status: res.status, headers: out });

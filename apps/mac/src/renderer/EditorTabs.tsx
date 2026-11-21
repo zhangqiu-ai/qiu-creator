@@ -14,6 +14,7 @@ import type { TabCommand } from '../shared/bridge.js';
 import { Dialog } from './Dialog.js';
 import { EditorPage, type EditorTabHandle } from './EditorPage.js';
 import { ImagePostEditor } from './ImagePostEditor.js';
+import { VideoWorkEditor } from './VideoWorkEditor.js';
 import { WORK_TYPE } from './format.js';
 import { t } from './i18n.js';
 import { Icon } from './Icon.js';
@@ -444,6 +445,23 @@ function TabPane({
           onPreview={() => {
             onPreview(loaded.work);
           }}
+        />
+      ) : loaded.state === 'ready' && loaded.work.type === 'video' ? (
+        <VideoWorkEditor
+          client={client}
+          work={loaded.work}
+          userHome={userHome}
+          active={active}
+          initialView={initialView}
+          initialDraft={initialDraft}
+          onTabStatus={onTabStatus}
+          onViewChange={onViewChange}
+          onHandle={onHandle}
+          onBack={onBack}
+          onPreview={() => {
+            onPreview(loaded.work);
+          }}
+          onOpenSettings={onOpenSettings}
         />
       ) : loaded.state === 'ready' ? (
         <EditorPage

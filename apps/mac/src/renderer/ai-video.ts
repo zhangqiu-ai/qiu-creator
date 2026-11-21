@@ -158,6 +158,8 @@ export class VideoSession {
   constructor(
     private readonly client: CreatorHubClient,
     private readonly pollMs = 3000,
+    /** The work the analysis belongs to (QC-046): its suggestions can then be adopted there. */
+    private readonly workId: string | null = null,
   ) {}
 
   get snapshot(): VideoState {
@@ -342,6 +344,7 @@ export class VideoSession {
         ...(this.state.model === null ? {} : { model: this.state.model }),
         resolution: this.state.resolution,
         reanalyze: this.state.reanalyze,
+        ...(this.workId === null ? {} : { work_id: this.workId }),
       });
       if (res.cached) {
         this.show(res.job);
