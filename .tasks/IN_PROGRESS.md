@@ -6,6 +6,8 @@ QC-042 遺留：AI 首次使用告知（`notice.text`）、本月預算提醒（
 
 **Started:** 2026-11-21（使用者「把 QC-043 也做了」）
 
+**發版：** 使用者 2026-11-21 同意合併後直接升級本機安裝（「Yes, install it」），不再另問。
+
 ## QC-033: Mac 生產可用實機驗收
 
 **Priority:** P1 | **Assignee:** qc-test | **Tags:** M3
