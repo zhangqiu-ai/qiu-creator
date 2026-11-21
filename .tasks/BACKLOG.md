@@ -5,6 +5,7 @@
 **Priority:** P3 | **Assignee:** qc-frontend | **Tags:** M3, frontend
 
 QC-043 範圍外發現：匯入任務的錯誤細節仍原樣顯示，沒有用共用的「技術細節」收起元件，介面也沒再去一次金鑰。照 QC-043 的做法補齊，三語文案。
+- 另併入（QC-045／046 後端範圍外發現）：平台版本 `warnings[].message` 仍是服務端繁體字串，介面改依 `code`、`limit`、`actual` 組三語文案。
 
 ## QC-045: 貼圖作品創作
 
