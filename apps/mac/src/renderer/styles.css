@@ -4929,6 +4929,13 @@ kbd {
 .post__side {
   display: flex;
   flex-direction: column;
+  /*
+   * The simulated phone is a fixed 340px wide (.pp-phone), and the panel scrolls vertically
+   * (the phone is 720px tall). The panel must hold the phone, .post__preview's 14px padding on
+   * both sides, the vertical scrollbar and the 1px border, or it scrolls sideways too (QC-049).
+   * Capped by .panel's max-width.
+   */
+  flex-basis: calc(340px + 2 * 14px + 16px + 1px);
 }
 .post__preview {
   display: flex;

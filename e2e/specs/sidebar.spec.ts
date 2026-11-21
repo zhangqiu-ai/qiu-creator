@@ -23,8 +23,12 @@ async function navWidth(page: Page): Promise<number> {
   return Math.round(b.width);
 }
 
-/** Drag the resize handle by dx; returns the limit label shown just before release. */
-async function dragHandle(page: Page, dx: number): Promise<string | null> {
+/**
+ * Drag the resize handle by dx and release it. `limit` is the label the sidebar must show at the
+ * end of the drag. It is drawn by React after the last pointer move, so it is waited for, never
+ * read once (QC-049).
+ */
+async function dragHandle(page: Page, dx: number, limit: string): Promise<void> {
   const handle = page.getByRole('separator', { name: '調整側欄寬度' });
   const b = await handle.boundingBox();
   if (b === null) throw new Error('no handle');
@@ -34,10 +38,13 @@ async function dragHandle(page: Page, dx: number): Promise<string | null> {
   await page.mouse.down();
   await page.mouse.move(x + dx / 2, y, { steps: 4 });
   await page.mouse.move(x + dx, y, { steps: 4 });
-  const tip = page.locator('.sb__handle-tip');
-  const label = (await tip.count()) > 0 ? await tip.textContent() : null;
+  await expect(page.locator('.sb__handle-tip')).toHaveText(limit);
   await page.mouse.up();
-  return label;
+}
+
+/** Wait for the sidebar to be `width` px wide: every layout change here is applied after a render. */
+async function expectNavWidth(page: Page, width: number): Promise<void> {
+  await expect.poll(() => navWidth(page)).toBe(width);
 }
 
 test('側欄：分組、調寬上下限、收起圖示列、記住狀態與服務狀態點', async ({ desktop }) => {
@@ -63,28 +70,28 @@ test('側欄：分組、調寬上下限、收起圖示列、記住狀態與服�
     const settings = await nav.getByRole('button', { name: '設定', exact: true }).boundingBox();
     const ai = await nav.getByRole('button', { name: 'AI 工作台', exact: true }).boundingBox();
     expect(settings?.y ?? 0).toBeGreaterThan((ai?.y ?? 0) + 300);
-    expect(await navWidth(page)).toBe(232);
+    await expectNavWidth(page, 232);
     await shot(page, '01-expanded-light');
   });
 
   await test.step('拖曳調寬：最小 200、最大 320、雙擊復原、方向鍵', async () => {
-    expect(await dragHandle(page, -120)).toBe('最小 200');
-    expect(await navWidth(page)).toBe(200);
-    expect(await dragHandle(page, 400)).toBe('最大 320');
-    expect(await navWidth(page)).toBe(320);
+    await dragHandle(page, -120, '最小 200');
+    await expectNavWidth(page, 200);
+    await dragHandle(page, 400, '最大 320');
+    await expectNavWidth(page, 320);
     await shot(page, '02-max-320');
     await page.getByRole('separator', { name: '調整側欄寬度' }).dblclick();
-    expect(await navWidth(page)).toBe(232);
+    await expectNavWidth(page, 232);
     const handle = page.getByRole('separator', { name: '調整側欄寬度' });
     await handle.focus();
     await page.keyboard.press('ArrowRight');
     await expect(handle).toHaveAttribute('aria-valuenow', '248');
-    expect(await navWidth(page)).toBe(248);
+    await expectNavWidth(page, 248);
   });
 
   await test.step('⌃⌘S 收起成 56 圖示列，聚焦時顯示名稱', async () => {
     await page.keyboard.press('Control+Meta+s');
-    expect(await navWidth(page)).toBe(56);
+    await expectNavWidth(page, 56);
     await expect(nav.getByRole('button', { name: '展開側欄' })).toBeVisible();
     const library = nav.getByRole('button', { name: '作品庫', exact: true });
     await expect(library).toBeVisible();
@@ -92,7 +99,7 @@ test('側欄：分組、調寬上下限、收起圖示列、記住狀態與服�
     await library.focus();
     await page.keyboard.press('Tab');
     await page.keyboard.press('Shift+Tab');
-    expect(await library.getAttribute('data-tip')).toBe('作品庫');
+    await expect(library).toHaveAttribute('data-tip', '作品庫');
     // Page-side code as a string: the e2e project has no DOM types. Poll past the 0.12 s fade.
     await expect
       .poll(() =>
@@ -105,21 +112,21 @@ test('側欄：分組、調寬上下限、收起圖示列、記住狀態與服�
   await test.step('重新載入後仍是收起；展開後回到 248', async () => {
     await page.reload();
     await expect(nav.getByRole('button', { name: '作品庫', exact: true })).toBeVisible();
-    expect(await navWidth(page)).toBe(56);
+    await expectNavWidth(page, 56);
     await nav.getByRole('button', { name: '展開側欄' }).click();
-    expect(await navWidth(page)).toBe(248);
+    await expectNavWidth(page, 248);
     await page.reload();
     await expect(nav.getByRole('button', { name: '作品庫', exact: true })).toBeVisible();
-    expect(await navWidth(page)).toBe(248);
+    await expectNavWidth(page, 248);
     await page.getByRole('separator', { name: '調整側欄寬度' }).dblclick();
   });
 
   await test.step('窄視窗固定為圖示列', async () => {
     await page.setViewportSize({ width: 860, height: 800 });
-    await expect.poll(() => navWidth(page)).toBe(56);
+    await expectNavWidth(page, 56);
     await expect(nav.getByRole('button', { name: '展開側欄' })).toBeDisabled();
     await page.setViewportSize({ width: 1440, height: 900 });
-    await expect.poll(() => navWidth(page)).toBe(232);
+    await expectNavWidth(page, 232);
   });
 
   await test.step('服務狀態點：正常為綠，聚焦顯示詳情', async () => {
@@ -144,11 +151,11 @@ test('側欄：分組、調寬上下限、收起圖示列、記住狀態與服�
     await page.keyboard.press('Control+Meta+s');
     await nav.getByRole('button', { name: '素材庫', exact: true }).hover();
     // The rail never scrolls (no scrollbar), so the tooltips reaching past it are not clipped.
-    expect(
-      await page.evaluate<string>(
-        "getComputedStyle(document.querySelector('.sb__scroll')).overflowX",
-      ),
-    ).toBe('visible');
+    await expect
+      .poll(() =>
+        page.evaluate<string>("getComputedStyle(document.querySelector('.sb__scroll')).overflowX"),
+      )
+      .toBe('visible');
     await shot(page, '06-rail-dark');
     await page.keyboard.press('Control+Meta+s');
   });
