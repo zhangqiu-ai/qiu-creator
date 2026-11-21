@@ -1,6 +1,6 @@
 # QC-033 合蓋、電源與重開機（使用者操作，qc-test 讀紀錄）
 
-- 版本：bf3aaf8。
+- 版本：U2 是 bf3aaf8；U1 開機時是 47bfc32（依 `qc033-install.md`，2026-11-19 升級），06:41 再升級到 8355149。
 - 時間來源：`pmset -g log`，時區 -0800。
 - 服務：launchd `com.qiu-creator.mac-server`。
 
