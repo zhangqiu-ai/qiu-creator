@@ -14,8 +14,16 @@ import {
   type RevisionSource,
   type Work,
   type WorkDetail,
+  type WorkListItem,
 } from '@qiu-creator/contracts';
-import { checkRevision, isPathInside, resolveInside, sha256Hex } from '@qiu-creator/domain';
+import {
+  checkRevision,
+  isPathInside,
+  parseWorkSource,
+  resolveInside,
+  sha256Hex,
+  writeWorkSource,
+} from '@qiu-creator/domain';
 import type { Db } from '../db/database.js';
 import { notFound, ServiceError } from '../errors.js';
 import type { ChangeFeed } from '../events/change-feed.js';
@@ -26,6 +34,7 @@ import {
   type AtomicFsOps,
 } from '../fs/atomic.js';
 import type { Layout } from '../layout.js';
+import { isTypedWork, TypedWorkMedia, type WorkLocation } from './typed-media.js';
 
 interface WorkRow {
   id: string;
@@ -41,6 +50,8 @@ interface WorkRow {
   updated_at: string;
   mount_id: string | null;
   external_state: string | null;
+  /** JSON object: front-matter path → library asset id (QC-045/046). */
+  media_index: string;
 }
 
 interface RevisionRow {
@@ -64,6 +75,32 @@ export interface PatchWorkInput {
   type?: Work['type'] | undefined;
   status?: Work['status'] | undefined;
   tags?: string[] | undefined;
+  /** Adopting an AI job's result (validated by the caller): an `ai_accepted` revision. */
+  aiJobId?: string | undefined;
+}
+
+/** A write of an image or video work, built by `WorkComposer` (QC-045/046). */
+export interface TypedWorkWrite {
+  markdown: string;
+  title?: string | undefined;
+  type?: Work['type'] | undefined;
+  status?: Work['status'] | undefined;
+  tags?: string[] | undefined;
+  aiJobId?: string | undefined;
+  /** Fields the client changed, for the `work.updated` event. */
+  fields: string[];
+  /** Front-matter paths this write learned the asset of. */
+  mediaIndex: Record<string, string>;
+}
+
+/** What `WorkComposer` needs to build a typed write. */
+export interface TypedWorkState {
+  location: WorkLocation;
+  type: Work['type'];
+  title: string;
+  tags: string[];
+  markdown: string;
+  currentRevision: string;
 }
 
 /** See `WorkService.mediaContext`. Paths in `baseDir`/`allowedPrefix` use `/`. */
@@ -110,10 +147,30 @@ export class WorkService {
     private readonly layout: Layout,
     private readonly fsOps: AtomicFsOps = nodeFsOps,
     private readonly feed?: ChangeFeed,
-  ) {}
+  ) {
+    this.typed = new TypedWorkMedia(db, layout);
+  }
+
+  private readonly typed: TypedWorkMedia;
 
   create(input: CreateWorkRequest): WorkDetail {
     const req = CreateWorkRequestSchema.parse(input);
+    if (req.description !== undefined && !isTypedWork(req.type)) {
+      throw new ServiceError(400, 'validation_error', 'description is for image and video works');
+    }
+    if (req.description !== undefined && req.markdown !== '') {
+      throw new ServiceError(400, 'validation_error', 'send markdown or description, not both');
+    }
+    if (isTypedWork(req.type) && req.markdown === '') {
+      // QC-045/046: a new image or video work starts as front matter plus its description.
+      req.markdown = writeWorkSource('', {
+        type: req.type,
+        title: req.title,
+        ...(req.type === 'image' ? { images: [] } : {}),
+        tags: req.tags,
+        body: req.description ?? '',
+      });
+    }
     const id = randomUUID();
     const revisionId = randomUUID();
     const now = new Date().toISOString();
@@ -168,13 +225,21 @@ export class WorkService {
 
   get(id: string): WorkDetail {
     const row = this.reconcileExternalChange(this.requireRow(id));
-    return { ...toWork(row), markdown: this.readCurrent(row) };
+    const markdown = this.readCurrent(row);
+    if (!isTypedWork(row.type)) return { ...toWork(row), markdown };
+    return { ...toWork(row), markdown, ...this.typed.describe(location(row), markdown) };
   }
 
   list(query: ListWorksQuery = {}): ListWorksResponse {
-    const q = ListWorksQuerySchema.parse(query);
+    const q = ListWorksQuerySchema.parse(
+      query.ids === undefined ? query : { ...query, ids: query.ids.join(',') },
+    );
     const where: string[] = [];
     const params: (string | number)[] = [];
+    if (q.ids !== undefined) {
+      where.push(`w.id IN (${q.ids.map(() => '?').join(', ')})`);
+      params.push(...q.ids);
+    }
     if (q.type) {
       where.push('w.type = ?');
       params.push(q.type);
@@ -200,6 +265,26 @@ export class WorkService {
       }
     }
     const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    if (q.ids !== undefined) {
+      // Restoring tabs (QC-045/046): exactly these works, in the order asked, no paging.
+      const found = new Map(
+        this.db
+          .prepare<(string | number)[], WorkRow>(`SELECT w.* FROM works w ${whereSql}`)
+          .all(...params)
+          .map((r) => [r.id, r]),
+      );
+      const rows = q.ids.flatMap((wid) => {
+        const r = found.get(wid);
+        return r === undefined ? [] : [r];
+      });
+      return {
+        items: rows.map((r) => this.listItem(r)),
+        total: rows.length,
+        limit: rows.length,
+        offset: 0,
+        missing_ids: q.ids.filter((wid) => !found.has(wid)),
+      };
+    }
     const total = this.db
       .prepare<(string | number)[], { n: number }>(`SELECT count(*) AS n FROM works w ${whereSql}`)
       .get(...params);
@@ -208,7 +293,66 @@ export class WorkService {
         `SELECT w.* FROM works w ${whereSql} ORDER BY w.updated_at DESC, w.id LIMIT ? OFFSET ?`,
       )
       .all(...params, q.limit, q.offset);
-    return { items: rows.map(toWork), total: total?.n ?? 0, limit: q.limit, offset: q.offset };
+    return {
+      items: rows.map((r) => this.listItem(r)),
+      total: total?.n ?? 0,
+      limit: q.limit,
+      offset: q.offset,
+    };
+  }
+
+  /** A list row; image and video works add their card fields (QC-045/046). */
+  private listItem(row: WorkRow): WorkListItem {
+    const work = toWork(row);
+    if (!isTypedWork(row.type)) return work;
+    let markdown: string;
+    try {
+      markdown = this.readCurrent(row);
+    } catch {
+      return work;
+    }
+    return { ...work, ...this.typed.summary(location(row), markdown) };
+  }
+
+  /** Current state of an image or video work for a write, after the revision check. */
+  typedState(id: string, baseRevision: string | null): TypedWorkState {
+    const row = this.checkedRow(id, baseRevision, 'edit a work');
+    return {
+      location: location(row),
+      type: WorkSchema.shape.type.parse(row.type),
+      title: row.title,
+      tags: parseTags(row.tags),
+      markdown: this.readCurrent(row),
+      currentRevision: row.current_revision_id,
+    };
+  }
+
+  /** Front-matter path → root folder and root-relative path (see `TypedWorkMedia.locate`). */
+  locateMedia(state: TypedWorkState, reference: string): { root: string; rel: string } | null {
+    return this.typed.locate(state.location, reference);
+  }
+
+  /**
+   * Commit a write built from `typedState` (QC-045/046). The revision is
+   * checked again here: anything committed since the state was read makes
+   * this 409, and nothing is written.
+   */
+  commitTyped(id: string, baseRevision: string, write: TypedWorkWrite): WorkDetail {
+    const row = this.checkedRow(id, baseRevision, 'edit a work');
+    return this.commitRevision(row, {
+      markdown: write.markdown,
+      title: write.title,
+      type: write.type,
+      status: write.status,
+      tags: write.tags === undefined ? undefined : [...new Set(write.tags)],
+      source: write.aiJobId === undefined ? 'edit' : 'ai_accepted',
+      ...(write.aiJobId === undefined ? {} : { aiJobId: write.aiJobId }),
+      mediaIndex: write.mediaIndex,
+      event: {
+        fields: write.fields,
+        ...(write.aiJobId === undefined ? {} : { ai_job_id: write.aiJobId }),
+      },
+    });
   }
 
   patch(id: string, input: PatchWorkInput): WorkDetail {
@@ -223,8 +367,12 @@ export class WorkService {
       status: input.status,
       // Order kept, duplicates dropped: tags are a set.
       tags: input.tags === undefined ? undefined : [...new Set(input.tags)],
-      source: 'edit',
-      event: { fields },
+      source: input.aiJobId === undefined ? 'edit' : 'ai_accepted',
+      ...(input.aiJobId === undefined ? {} : { aiJobId: input.aiJobId }),
+      event: {
+        fields,
+        ...(input.aiJobId === undefined ? {} : { ai_job_id: input.aiJobId }),
+      },
     });
   }
 
@@ -320,6 +468,8 @@ export class WorkService {
       source: RevisionSource;
       event: Record<string, unknown>;
       aiJobId?: string;
+      /** Front-matter paths → library asset ids to remember (QC-045/046). */
+      mediaIndex?: Record<string, string>;
     },
   ): WorkDetail {
     const id = row.id;
@@ -358,6 +508,11 @@ export class WorkService {
             current_revision: this.requireRow(id).current_revision_id,
             base_revision: row.current_revision_id,
           });
+        }
+        if (change.mediaIndex !== undefined && Object.keys(change.mediaIndex).length > 0) {
+          this.db
+            .prepare('UPDATE works SET media_index = json_patch(media_index, ?) WHERE id = ?')
+            .run(JSON.stringify(change.mediaIndex), id);
         }
         this.insertRevision({
           revision_id: revisionId,
@@ -503,7 +658,20 @@ export class WorkService {
     const revisionId = randomUUID();
     const now = new Date().toISOString();
     const snapshotRel = this.layout.snapshotRel(id, revisionId);
-    const title = titleFromMarkdown(content, rel);
+    // QC-045/046: a note whose front matter says image or video is that type, titled from it.
+    const front = parseWorkSource(content).frontMatter;
+    const type = front?.type === 'image' || front?.type === 'video' ? front.type : 'article';
+    const title =
+      type !== 'article' && front?.title != null
+        ? front.title.trim().slice(0, 500)
+        : titleFromMarkdown(content, rel);
+    // Only tags the contract accepts (1–64 characters, at most 64 of them).
+    const tags =
+      type === 'article'
+        ? []
+        : [...new Set((front?.tags ?? []).map((t) => t.trim()))]
+            .filter((t) => t !== '' && t.length <= 64)
+            .slice(0, 64);
     fs.mkdirSync(path.dirname(this.layout.abs(snapshotRel)), { recursive: true });
     writeNewFileSync(this.layout.abs(snapshotRel), content);
     this.db.transaction(() => {
@@ -511,9 +679,20 @@ export class WorkService {
         .prepare(
           `INSERT INTO works (id, title, type, status, tags, source, storage_mode, source_path,
              current_revision_id, created_at, updated_at, mount_id, external_state)
-           VALUES (?, ?, 'article', 'drafting', '[]', ?, 'external', ?, ?, ?, ?, ?, 'present')`,
+           VALUES (?, ?, ?, 'drafting', ?, ?, 'external', ?, ?, ?, ?, ?, 'present')`,
         )
-        .run(id, title, sourceLabel, rel, revisionId, now, now, mountId);
+        .run(
+          id,
+          title,
+          type,
+          JSON.stringify(tags),
+          sourceLabel,
+          rel,
+          revisionId,
+          now,
+          now,
+          mountId,
+        );
       this.insertRevision({
         revision_id: revisionId,
         work_id: id,
@@ -524,7 +703,7 @@ export class WorkService {
         source: 'create',
         created_at: now,
       });
-      this.indexFts(id, title, [], content);
+      this.indexFts(id, title, tags, content);
       this.feed?.record('work', id, 'work.created', {
         revision_id: revisionId,
         mount_id: mountId,
@@ -801,6 +980,17 @@ function toRevision(r: RevisionRow): Revision {
 function parseTags(raw: string): string[] {
   const value: unknown = JSON.parse(raw);
   return Array.isArray(value) ? value.filter((t): t is string => typeof t === 'string') : [];
+}
+
+function location(row: WorkRow): WorkLocation {
+  return {
+    id: row.id,
+    type: row.type,
+    storage_mode: row.storage_mode,
+    mount_id: row.mount_id,
+    source_path: row.source_path,
+    media_index: row.media_index,
+  };
 }
 
 function toWork(row: WorkRow): Work {

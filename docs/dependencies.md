@@ -139,6 +139,7 @@
 | mdast-util-from-markdown | ^2.1.0 | MIT | markdown-editor-web、mac-server | 解析 Markdown，偵測可能有損語法、比對結構 | remark（較重） |
 | micromark-extension-gfm / mdast-util-gfm | ^3.0.0 / ^3.1.0 | MIT | markdown-editor-web、mac-server | GFM（表格、腳註、刪除線、待辦）解析 | — |
 | micromark-extension-frontmatter / mdast-util-frontmatter | ^2.0.0 / ^2.0.1 | MIT | markdown-editor-web、mac-server | YAML frontmatter 解析 | — |
+| yaml | ^2.9.1 | ISC | domain（mac-server 經由它） | 讀寫貼圖與視頻作品的 front matter（QC-045/046）。`parseDocument` 保留註解、未知鍵與鍵的順序，App 寫回使用者手寫的檔案時不會丟資料。沒有其他依賴，純 JS，esbuild 直接打包 | js-yaml（MIT，讀寫會丟註解與格式）；gray-matter（依賴 js-yaml，同樣問題）；自寫子集解析器（使用者手寫的 YAML 形式太多，不可靠） |
 
 QC-010：mac-server 用同一組 mdast 套件與版本，從 Markdown 找出圖片與影音引用（`src/media/markdown-refs.ts`），讓伺服器與編輯器對「什麼算圖片」的判斷一致。沒有新增任何套件。
 

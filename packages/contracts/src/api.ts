@@ -62,6 +62,11 @@ export const ErrorCodeSchema = z.enum([
    * the app never writes into the user's own folders.
    */
   'attach_external_unsupported',
+  /**
+   * The work's front matter is not valid YAML, so the service will not rewrite
+   * the file; fix it in the file first (409, QC-045/046).
+   */
+  'front_matter_invalid',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 
@@ -104,9 +109,19 @@ export type HealthResponse = z.infer<typeof HealthResponseSchema>;
 export const MAX_MARKDOWN_BYTES = 5 * 1024 * 1024;
 export const MarkdownSchema = z.string().max(MAX_MARKDOWN_BYTES);
 
+/** Longest description of an image or video work (QC-045/046), in characters. */
+export const WORK_DESCRIPTION_MAX_CHARS = 20_000;
+export const WorkDescriptionSchema = z.string().max(WORK_DESCRIPTION_MAX_CHARS);
+
 export const CreateWorkRequestSchema = z.object({
   title: z.string().trim().min(1).max(500),
+  /**
+   * Articles: the Markdown. Image and video works: the whole file, front matter
+   * included, if given; otherwise the service writes the front matter itself.
+   */
   markdown: MarkdownSchema.default(''),
+  /** Image and video works only (QC-045/046): the description below the front matter. */
+  description: WorkDescriptionSchema.optional(),
   type: WorkTypeSchema.default('article'),
   status: WorkStatusSchema.default('drafting'),
   tags: TagsSchema.default([]),
@@ -114,13 +129,92 @@ export const CreateWorkRequestSchema = z.object({
 });
 export type CreateWorkRequest = z.input<typeof CreateWorkRequestSchema>;
 
+// ---- Image-post and video works (QC-045/046) ----------------------------------------
+
+/**
+ * One image or video file of a work, as named in its front matter. `path` is
+ * relative to the Markdown file; `asset_id` is the library asset it came from
+ * (copied in through QC-039 attach) or, for external works, the asset indexing
+ * the file in place; null when no asset matches.
+ */
+export const WorkMediaItemSchema = z.object({
+  path: z.string(),
+  asset_id: IdSchema.nullable(),
+  kind: z.enum(['image', 'video']),
+  /** `missing`: no readable file at `path` (deleted, moved, or its folder is not mounted). */
+  status: z.enum(['present', 'missing']),
+  width: z.number().int().positive().nullable(),
+  height: z.number().int().positive().nullable(),
+  duration_seconds: z.number().nonnegative().nullable(),
+});
+export type WorkMediaItem = z.infer<typeof WorkMediaItemSchema>;
+
+/** The cover: one image file, or a frame of the video. */
+export const WorkMediaCoverSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('image'), item: WorkMediaItemSchema }),
+  z.object({ kind: z.literal('frame'), time_seconds: z.number().nonnegative() }),
+]);
+export type WorkMediaCover = z.infer<typeof WorkMediaCoverSchema>;
+
+export const WorkMediaSchema = z.object({
+  /** In order. */
+  images: z.array(WorkMediaItemSchema),
+  cover: WorkMediaCoverSchema.nullable(),
+  video: WorkMediaItemSchema.nullable(),
+  /** The front matter is not valid YAML: nothing was read and the file will not be rewritten. */
+  front_matter_invalid: z.boolean(),
+  /** Front-matter fields with an unusable shape, read as empty (e.g. `images`). */
+  warnings: z.array(z.string()),
+});
+export type WorkMedia = z.infer<typeof WorkMediaSchema>;
+
+/** Cover in a write: an image (copied into the work like the images) or a video frame. */
+export const WorkCoverRequestSchema = z.union([
+  z.object({ asset_id: IdSchema }).strict(),
+  z
+    .object({
+      time_seconds: z
+        .number()
+        .nonnegative()
+        .max(24 * 60 * 60),
+    })
+    .strict(),
+]);
+export type WorkCoverRequest = z.input<typeof WorkCoverRequestSchema>;
+
 /** Work plus its current Markdown body. */
 export const WorkDetailSchema = WorkSchema.extend({
+  /** The whole source file; for image and video works this includes the front matter. */
   markdown: z.string(),
+  /** Image and video works: the text below the front matter; null for articles (QC-045/046). */
+  description: z.string().nullable().optional(),
+  /** Image and video works: their files from the front matter; null for articles (QC-045/046). */
+  media: WorkMediaSchema.nullable().optional(),
 });
 export type WorkDetail = z.infer<typeof WorkDetailSchema>;
 
+/** Most works `GET /api/v1/works?ids=` returns in one call (restoring editor tabs). */
+export const WORKS_BY_IDS_MAX = 200;
+
 export const ListWorksQuerySchema = z.object({
+  /**
+   * Comma-separated work ids (QC-045/046, restoring tabs): only these works, in
+   * this order; `limit`/`offset` do not apply. Unknown ids are listed in `missing_ids`.
+   */
+  ids: z
+    .string()
+    .trim()
+    .min(1)
+    .transform((v) => [
+      ...new Set(
+        v
+          .split(',')
+          .map((id) => id.trim())
+          .filter((id) => id !== ''),
+      ),
+    ])
+    .pipe(z.array(IdSchema).min(1).max(WORKS_BY_IDS_MAX))
+    .optional(),
   q: z.string().trim().min(1).max(200).optional(),
   type: WorkTypeSchema.optional(),
   status: WorkStatusSchema.optional(),
@@ -128,11 +222,41 @@ export const ListWorksQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
-/** Client-side query shape: every field optional, numbers as numbers. */
-export type ListWorksQuery = Partial<z.output<typeof ListWorksQuerySchema>>;
+/** Client-side query shape: every field optional, numbers as numbers; `ids` as a list. */
+export type ListWorksQuery = Partial<Omit<z.output<typeof ListWorksQuerySchema>, 'ids'>> & {
+  ids?: string[];
+};
+
+/** What a library card shows (QC-045/046). */
+export const WorkThumbnailSchema = z.object({
+  /** Library asset of the file, when one matches; otherwise use `path` with the work-files route. */
+  asset_id: IdSchema.nullable(),
+  /** Relative to the work's Markdown file. */
+  path: z.string(),
+  kind: z.enum(['image', 'video']),
+  /** For a video frame cover. */
+  time_seconds: z.number().nonnegative().optional(),
+});
+export type WorkThumbnail = z.infer<typeof WorkThumbnailSchema>;
+
+export const WorkListItemSchema = WorkSchema.extend({
+  /** Cover, else the first image, else the video; null for articles and empty works. */
+  thumbnail: WorkThumbnailSchema.nullable().optional(),
+  /** Image works: number of images; null otherwise. */
+  image_count: z.number().int().nonnegative().nullable().optional(),
+  /** Video works: length of the video when known; null otherwise. */
+  duration_seconds: z.number().nonnegative().nullable().optional(),
+  /** From the video, else the cover or first image; null when the size is unknown. */
+  orientation: z.enum(['portrait', 'landscape', 'square']).nullable().optional(),
+  /** How many image or video files named in the front matter are missing. */
+  missing_media: z.number().int().nonnegative().optional(),
+});
+export type WorkListItem = z.infer<typeof WorkListItemSchema>;
 
 export const ListWorksResponseSchema = z.object({
-  items: z.array(WorkSchema),
+  items: z.array(WorkListItemSchema),
+  /** With `ids`: the requested ids that do not exist. */
+  missing_ids: z.array(IdSchema).optional(),
   total: z.number().int().nonnegative(),
   limit: z.number().int(),
   offset: z.number().int(),
@@ -153,6 +277,26 @@ export const PatchWorkRequestSchema = z
     type: WorkTypeSchema.optional(),
     status: WorkStatusSchema.optional(),
     tags: TagsSchema.optional(),
+    /** Image and video works (QC-045/046): the text below the front matter. */
+    description: WorkDescriptionSchema.optional(),
+    /**
+     * Image works: the complete ordered list of images as library asset ids.
+     * Files not yet in the work are copied into its `assets/` (QC-039 attach).
+     */
+    images: z
+      .array(IdSchema)
+      .max(100)
+      .refine((ids) => new Set(ids).size === ids.length, 'images must not repeat')
+      .optional(),
+    /** Image or video frame; null removes the cover. */
+    cover: WorkCoverRequestSchema.nullable().optional(),
+    /** Video works: the video's library asset; null removes it. */
+    video_asset_id: IdSchema.nullable().optional(),
+    /**
+     * Adopting AI suggestions (QC-046): the succeeded AI job they came from; the
+     * write becomes an `ai_accepted` revision instead of `edit`.
+     */
+    ai_job_id: IdSchema.optional(),
   })
   .refine(
     (v) =>
@@ -160,9 +304,16 @@ export const PatchWorkRequestSchema = z
       v.markdown !== undefined ||
       v.type !== undefined ||
       v.status !== undefined ||
-      v.tags !== undefined,
+      v.tags !== undefined ||
+      v.description !== undefined ||
+      v.images !== undefined ||
+      v.cover !== undefined ||
+      v.video_asset_id !== undefined,
     { message: 'at least one editable field is required' },
-  );
+  )
+  .refine((v) => v.markdown === undefined || v.description === undefined, {
+    message: 'send markdown or description, not both',
+  });
 export type PatchWorkRequest = z.input<typeof PatchWorkRequestSchema>;
 
 export const RevisionListResponseSchema = z.object({ items: z.array(RevisionSchema) });

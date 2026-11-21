@@ -300,7 +300,11 @@ importers:
 
   packages/design-tokens: {}
 
-  packages/domain: {}
+  packages/domain:
+    dependencies:
+      yaml:
+        specifier: ^2.9.1
+        version: 2.9.1
 
   packages/i18n: {}
 

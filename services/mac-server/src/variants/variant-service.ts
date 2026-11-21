@@ -7,8 +7,10 @@ import {
   VariantRevisionSchema,
   type Platform,
   type PlatformVariantRecord,
+  type VariantCover,
   type VariantRevision,
   type VariantRevisionSource,
+  type WorkDetail,
 } from '@qiu-creator/contracts';
 import { checkRevision } from '@qiu-creator/domain';
 import type { AssetService } from '../assets/asset-service.js';
@@ -32,6 +34,10 @@ interface VariantRow {
   tags: string;
   revision: number;
   source_work_revision_id: string | null;
+  /** 1: follows the work's shared copy (QC-045/046). */
+  inherit: number;
+  /** A video frame as cover (QC-046); then `cover_asset_id` is null. */
+  cover_time_seconds: number | null;
   created_at: string;
   updated_at: string;
   /** Set on a tombstone: the variant was deleted but its revision counter lives on. */
@@ -48,6 +54,8 @@ interface VariantRevisionRow {
   image_asset_ids: string;
   tags: string;
   created_at: string;
+  inherit: number;
+  cover_time_seconds: number | null;
 }
 
 export interface VariantFields {
@@ -56,34 +64,65 @@ export interface VariantFields {
   cover_asset_id: string | null;
   image_asset_ids: string[];
   tags: string[];
+  /** Follow the work's shared copy (QC-045/046). Absent = false. */
+  inherit?: boolean;
+  /** A video frame as cover (QC-046). Absent = none. */
+  cover_time_seconds?: number | null;
 }
 
-export type VariantPatch = Partial<VariantFields>;
+export type VariantPatch = Partial<VariantFields> & {
+  /** Same as `image_asset_ids` (QC-045/046). */
+  images?: string[] | undefined;
+  /** An image asset or a video frame; null removes it (QC-046). */
+  cover?: VariantCover | null | undefined;
+};
+
+/** The work's shared copy for a platform: what an inheriting variant shows (QC-045/046). */
+function sharedCopy(
+  work: WorkDetail,
+  platform: Platform,
+): Pick<VariantFields, 'title' | 'body' | 'tags'> {
+  const body =
+    work.description ??
+    (PLATFORM_LIMITS[platform].bodyFormat === 'markdown'
+      ? markdownForArticle(work.markdown, work.title)
+      : markdownToPlainText(work.markdown, work.title));
+  return { title: work.title, body, tags: [...work.tags] };
+}
 
 function jsonArray(raw: string): string[] {
   const value: unknown = JSON.parse(raw);
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
 }
 
-function toRecord(row: VariantRow): PlatformVariantRecord {
+function toRecord(row: VariantRow, work: WorkDetail): PlatformVariantRecord {
   const platform = PlatformSchema.parse(row.platform);
+  const inherit = row.inherit === 1;
   const fields = {
-    title: row.title,
-    body: row.body,
+    ...(inherit
+      ? sharedCopy(work, platform)
+      : { title: row.title, body: row.body, tags: jsonArray(row.tags) }),
     image_asset_ids: jsonArray(row.image_asset_ids),
-    tags: jsonArray(row.tags),
   };
+  const cover: VariantCover | null =
+    row.cover_asset_id !== null
+      ? { asset_id: row.cover_asset_id }
+      : row.cover_time_seconds !== null
+        ? { time_seconds: row.cover_time_seconds }
+        : null;
   return PlatformVariantRecordSchema.parse({
     id: row.id,
     work_id: row.work_id,
     platform,
     ...fields,
+    inherit,
+    cover,
     cover_asset_id: row.cover_asset_id,
     revision: row.revision,
     source_work_revision_id: row.source_work_revision_id,
     created_at: row.created_at,
     updated_at: row.updated_at,
-    warnings: checkVariantLimits(platform, fields),
+    warnings: checkVariantLimits(platform, fields, PLATFORM_LIMITS, work.type),
   });
 }
 
@@ -108,19 +147,22 @@ export class VariantService {
   ) {}
 
   list(workId: string): PlatformVariantRecord[] {
-    this.works.get(workId);
+    const work = this.works.get(workId);
     const rows = this.db
       .prepare<[string], VariantRow>(
         'SELECT * FROM platform_variants WHERE work_id = ? AND deleted_at IS NULL',
       )
       .all(workId);
     return rows
-      .map(toRecord)
+      .map((r) => toRecord(r, work))
       .sort((a, b) => PLATFORM_ORDER.indexOf(a.platform) - PLATFORM_ORDER.indexOf(b.platform));
   }
 
   get(workId: string, platform: Platform): PlatformVariantRecord {
-    return toRecord(this.requireRow(workId, platform));
+    const work = this.works.get(workId);
+    const row = this.findRow(workId, platform);
+    if (!row || row.deleted_at !== null) throw notFound('platform variant');
+    return toRecord(row, work);
   }
 
   /** Create rule-based drafts for platforms that have no live variant yet; others are skipped. */
@@ -178,18 +220,32 @@ export class VariantService {
   ): PlatformVariantRecord {
     const row = this.requireRow(workId, platform);
     this.checkBase(row, baseRevision);
-    this.validateAssets(change);
-    const current = toRecord(row);
+    const images = change.images ?? change.image_asset_ids;
+    let coverAsset =
+      change.cover_asset_id === undefined ? row.cover_asset_id : change.cover_asset_id;
+    let coverTime = change.cover_asset_id === undefined ? row.cover_time_seconds : null;
+    if (change.cover !== undefined) {
+      coverAsset =
+        change.cover !== null && 'asset_id' in change.cover ? change.cover.asset_id : null;
+      coverTime =
+        change.cover !== null && 'time_seconds' in change.cover ? change.cover.time_seconds : null;
+      if (coverTime !== null && this.works.get(workId).type !== 'video') {
+        throw new ServiceError(400, 'validation_error', 'a frame cover needs a video work');
+      }
+    }
+    this.validateAssets({ cover_asset_id: coverAsset, image_asset_ids: images });
+    // The variant's own text, kept even while it inherits the shared copy.
     return this.update(
       row,
       {
-        title: change.title ?? current.title,
-        body: change.body ?? current.body,
-        cover_asset_id:
-          change.cover_asset_id === undefined ? current.cover_asset_id : change.cover_asset_id,
-        image_asset_ids: change.image_asset_ids ?? current.image_asset_ids,
+        title: change.title ?? row.title,
+        body: change.body ?? row.body,
+        cover_asset_id: coverAsset,
+        cover_time_seconds: coverTime,
+        image_asset_ids: images ?? jsonArray(row.image_asset_ids),
         // Tags are a set: keep order, drop duplicates.
-        tags: change.tags === undefined ? current.tags : [...new Set(change.tags)],
+        tags: change.tags === undefined ? jsonArray(row.tags) : [...new Set(change.tags)],
+        inherit: change.inherit ?? row.inherit === 1,
       },
       'edit',
       row.source_work_revision_id,
@@ -276,6 +332,23 @@ export class VariantService {
     }
     const cover =
       links.find((l) => l.role === 'cover' && isImage(l.asset.id))?.asset.id ?? images[0] ?? null;
+    if (work.media != null) {
+      // Image and video works (QC-045/046): their front matter is the source.
+      const media = work.media;
+      const own = media.images.flatMap((i) => (i.asset_id === null ? [] : [i.asset_id]));
+      const typedCover =
+        media.cover?.kind === 'image' ? media.cover.item.asset_id : (own[0] ?? null);
+      const frame = media.cover?.kind === 'frame' ? media.cover.time_seconds : null;
+      return {
+        revisionId: work.current_revision_id,
+        fieldsFor: (platform) => ({
+          ...sharedCopy(work, platform),
+          cover_asset_id: frame === null ? typedCover : null,
+          cover_time_seconds: frame,
+          image_asset_ids: [...new Set(own)],
+        }),
+      };
+    }
     return {
       revisionId: work.current_revision_id,
       fieldsFor: (platform) => ({
@@ -315,7 +388,8 @@ export class VariantService {
       const updated = this.db
         .prepare(
           `UPDATE platform_variants SET title = ?, body = ?, cover_asset_id = ?, image_asset_ids = ?,
-             tags = ?, revision = ?, source_work_revision_id = ?, deleted_at = NULL, updated_at = ?
+             tags = ?, inherit = ?, cover_time_seconds = ?, revision = ?, source_work_revision_id = ?,
+             deleted_at = NULL, updated_at = ?
            WHERE id = ? AND revision = ? AND deleted_at IS NOT NULL`,
         )
         .run(
@@ -324,6 +398,8 @@ export class VariantService {
           fields.cover_asset_id,
           JSON.stringify(fields.image_asset_ids),
           JSON.stringify(fields.tags),
+          fields.inherit === true ? 1 : 0,
+          fields.cover_time_seconds ?? null,
           next,
           sourceRevision,
           now,
@@ -353,8 +429,9 @@ export class VariantService {
       this.db
         .prepare(
           `INSERT INTO platform_variants (id, work_id, platform, title, body, cover_asset_id, tags,
-             revision, created_at, updated_at, image_asset_ids, source_work_revision_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
+             revision, created_at, updated_at, image_asset_ids, source_work_revision_id,
+             inherit, cover_time_seconds)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -368,6 +445,8 @@ export class VariantService {
           now,
           JSON.stringify(fields.image_asset_ids),
           sourceRevision,
+          fields.inherit === true ? 1 : 0,
+          fields.cover_time_seconds ?? null,
         );
       this.insertRevision(id, 1, 'draft', fields, now);
       this.feed?.record('work', workId, 'work.variant_created', {
@@ -391,7 +470,8 @@ export class VariantService {
       const updated = this.db
         .prepare(
           `UPDATE platform_variants SET title = ?, body = ?, cover_asset_id = ?, image_asset_ids = ?,
-             tags = ?, revision = ?, source_work_revision_id = ?, updated_at = ?
+             tags = ?, inherit = ?, cover_time_seconds = ?, revision = ?,
+             source_work_revision_id = ?, updated_at = ?
            WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
         )
         .run(
@@ -400,6 +480,8 @@ export class VariantService {
           fields.cover_asset_id,
           JSON.stringify(fields.image_asset_ids),
           JSON.stringify(fields.tags),
+          fields.inherit === true ? 1 : 0,
+          fields.cover_time_seconds ?? null,
           next,
           sourceRevision,
           now,
@@ -427,8 +509,8 @@ export class VariantService {
     this.db
       .prepare(
         `INSERT INTO platform_variant_revisions (variant_id, revision, source, title, body,
-           cover_asset_id, image_asset_ids, tags, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           cover_asset_id, image_asset_ids, tags, created_at, inherit, cover_time_seconds)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         variantId,
@@ -440,6 +522,8 @@ export class VariantService {
         JSON.stringify(f.image_asset_ids),
         JSON.stringify(f.tags),
         at,
+        f.inherit === true ? 1 : 0,
+        f.cover_time_seconds ?? null,
       );
   }
 
@@ -523,6 +607,13 @@ function toRevision(r: VariantRevisionRow, platform: Platform): VariantRevision 
     cover_asset_id: r.cover_asset_id,
     image_asset_ids: jsonArray(r.image_asset_ids),
     tags: jsonArray(r.tags),
+    inherit: r.inherit === 1,
+    cover:
+      r.cover_asset_id !== null
+        ? { asset_id: r.cover_asset_id }
+        : r.cover_time_seconds !== null
+          ? { time_seconds: r.cover_time_seconds }
+          : null,
     created_at: r.created_at,
   });
 }
