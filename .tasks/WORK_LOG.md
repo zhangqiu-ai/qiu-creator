@@ -1,5 +1,9 @@
 # Work Log
 
+## 2026-11-21 · QC-047
+
+- 多分頁編輯合併（853／0／853，e2e 14／14）。下一步 qc-frontend 做 QC-045 貼圖、QC-046 視頻編輯器。
+
 ## 2026-11-21 · QC-045／046 後端
 
 - 貼圖與視頻作品的存放（Markdown front matter，新依賴 yaml 2.9.1）、PATCH 原子寫入、列表縮圖、`?ids=`、平台版本 images／cover／inherit、AI 採用合併（遷移 0015；831／0／831，e2e 9／9）。前端編輯器待 qc-frontend 在 QC-047 之後接。
