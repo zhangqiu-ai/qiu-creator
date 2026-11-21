@@ -1,5 +1,12 @@
 # Done
 
+## QC-043: 服務端產生的文字跟隨介面語言
+
+**Priority:** P3 | **Assignee:** qc-backend | **Tags:** M3, backend | **Done:** 2026-11-21
+
+- AI 首次使用告知、預算提醒、AI 任務錯誤、備份錯誤改由服務端回代碼與參數，介面依語言組句。技術細節收進共用的可展開元件，不翻譯；服務端與介面各去一次金鑰。遷移 0014 `ai_jobs.error_detail`。舊欄位保留相容。同意只綁版本與 credential_id，切換語言不需重新同意。New API 名稱與 `credential_changed` 也改由介面翻譯。英文字數統一用 words。
+- 全倉 805／0／805、e2e 9／9。證據 `docs/evidence/qc043-server-text.md`。
+
 ## QC-044: 原型：貼圖／視頻創作與多分頁編輯
 
 **Priority:** P1 | **Assignee:** qc-prototype | **Tags:** M3, prototype | **Done:** 2026-11-21
