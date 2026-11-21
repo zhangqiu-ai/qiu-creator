@@ -1,0 +1,5 @@
+14:05:36 idle before upload: none
+PATCH status 415
+14:05:44 upload finished offset=2883584/3145728; held during each chunk: 11/11; sample: /usr/bin/caffeinate -i -w 4064 assertion=true
+14:06:45 released after 61 s
+instance stopped; caffeinate children left: none
