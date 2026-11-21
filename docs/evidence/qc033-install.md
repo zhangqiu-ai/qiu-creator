@@ -273,3 +273,12 @@ exit 0。升級前備份 id：**`20261121T154449342Z-manual`**。
 ### 提醒
 
 /Applications 已是新版 .app，執行中的 App 是舊行程：請使用者重新開啟 qiu-creator，才會載入新版介面。若有問題：`deploy/qc.sh rollback --yes`（舊版 schema 0013；舊版能否讀 0014 的資料庫未驗證，必要時從上面的備份還原）。
+
+## 升級到 4f64fdd（2026-11-21，QC-045–047、QC-048、QC-049，遷移 0015）：成功
+
+- 建置：乾淨 worktree，commit `4f64fddf8ae97464b65fd4147965f73e4277b96d`（無 `-dirty`），`codesign --verify --deep --strict` 通過；externals 含 `yaml`，`server/node_modules/yaml` 已打包。
+- 升級前（09:39:43）：7420 只有 launchd 服務（pid 20625），7431 無監聽；`/health` 為 31a1b23；schema 最新 0014。
+- 乾跑後 `upgrade --yes`（09:40:23）exit 0；升級前備份 `20261121T174023518Z-manual`（ok）。
+- 升級後：`/health` commit 4f64fdd、built_at `2026-11-21T17:39:56.524Z`；launchd running（pid 82141）；schema 最新 `0015|typed_works_media`；`server.prev`（31a1b23）與 `app.prev` 在；日誌 level-50 為 0 筆、err.log 0 位元組；服務正常啟動（yaml 可載入）。
+- 使用者 App 行程（pid 46004）未動，仍是舊行程。
+- NOT_VERIFIED：front matter 實際讀寫（只確認服務啟動、`yaml` 已打包）、新版介面、視窗截圖。
