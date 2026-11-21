@@ -1,5 +1,18 @@
 # Done
 
+## QC-045: 貼圖作品創作
+
+**Priority:** P1 | **Assignee:** qc-backend + qc-frontend | **Tags:** M3, backend, frontend | **Done:** 2026-11-21
+
+- 後端見 QC-045／046 後端合併。前端：新建選類型（⌘N，視頻在 QC-046 前停用）、類型篩選數量、卡片縮圖與張數、類型空狀態。貼圖編輯器放進分頁框架：3:4 圖片格、拖曳／⌥←→ 排序、⌫ 移除加復原、多種加圖方式、上傳中／失敗／檔案遺失重新指定、平台張數與字數 chip（只提示）、封面三種裁切、歷史、側邊預覽、外部掛載唯讀圖片。共用提示佇列（最多 2 則堆疊）、素材抽屜說明列固定底部。
+- 全倉 871／0／871、e2e 16／16。證據 `docs/evidence/qc045-image-post.md`。
+
+## QC-048: 匯入錯誤細節與平台版本警告的三語文案
+
+**Priority:** P3 | **Assignee:** qc-frontend | **Tags:** M3, frontend | **Done:** 2026-11-21
+
+- 匯入錯誤原文收進「技術細節」並去金鑰；平台版本警告依 code／limit／actual 組三語文案。與 QC-045 同分支。
+
 ## QC-047: 作品編輯多分頁
 
 **Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend | **Done:** 2026-11-21
