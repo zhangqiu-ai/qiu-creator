@@ -1,6 +1,7 @@
 import {
   charCount,
   checkVariantLimits,
+  imagesLimit,
   PLATFORM_LIMITS,
   type Platform,
   type VariantWarning,
@@ -57,6 +58,8 @@ export interface PreviewSource {
   author?: string;
   /** Date line, already formatted for display. */
   dateLabel?: string;
+  /** The work's type: image posts count images against `imagePostImagesMax` (QC-045). */
+  workType?: string;
   /** Language for the labels we write ourselves (the placeholder author name). */
   locale?: Locale;
 }
@@ -163,19 +166,24 @@ export function buildPreviewModel(source: PreviewSource): PreviewModel {
   const limits = PLATFORM_LIMITS[source.platform];
   const template = getTemplate(source.platform);
   const total = source.imageCount ?? source.imageUrls.length;
-  const warnings = checkVariantLimits(source.platform, {
-    title: source.title,
-    body: source.body,
-    image_asset_ids: Array.from({ length: total }, (_, i) => String(i)),
-    tags: source.tags,
-  });
+  const warnings = checkVariantLimits(
+    source.platform,
+    {
+      title: source.title,
+      body: source.body,
+      image_asset_ids: Array.from({ length: total }, (_, i) => String(i)),
+      tags: source.tags,
+    },
+    PLATFORM_LIMITS,
+    source.workType,
+  );
   const titleLength = charCount(source.title);
   const bodyLength = charCount(source.body);
   const over = (actual: number, limit: number | null): number =>
     limit === null ? 0 : Math.max(0, actual - limit);
   const shownTags = limits.tagsMax === null ? source.tags : source.tags.slice(0, limits.tagsMax);
-  const visible =
-    limits.imagesMax === null ? source.imageUrls : source.imageUrls.slice(0, limits.imagesMax);
+  const imagesMax = imagesLimit(source.platform, source.workType ?? 'article');
+  const visible = imagesMax === null ? source.imageUrls : source.imageUrls.slice(0, imagesMax);
 
   return {
     platform: source.platform,
@@ -205,8 +213,8 @@ export function buildPreviewModel(source: PreviewSource): PreviewModel {
     images: {
       visible,
       total,
-      limit: limits.imagesMax,
-      overBy: over(total, limits.imagesMax),
+      limit: imagesMax,
+      overBy: over(total, imagesMax),
     },
     coverUrl: source.coverUrl,
     warnings,

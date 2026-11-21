@@ -1,5 +1,5 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
-import type { WorkDetail, WorkStatus } from '@qiu-creator/contracts';
+import type { WorkDetail, WorkMedia, WorkStatus } from '@qiu-creator/contracts';
 import { t } from './i18n.js';
 
 export type SaveStatus = 'saved' | 'dirty' | 'saving' | 'error' | 'conflict';
@@ -14,9 +14,22 @@ export type SaveError =
 
 export interface Draft {
   title: string;
+  /** Articles: the Markdown. Image and video works: the description (QC-045/046). */
   markdown: string;
   status: WorkStatus;
   tags: readonly string[];
+  /** Image works: the images in order, as library asset ids. Always empty for articles. */
+  images?: readonly string[];
+  /** Image works: the cover image's asset id; video works may use a frame. Null: none. */
+  cover?: DraftCover | null;
+}
+
+/** The cover in a draft: an image asset, or a frame of the video (QC-046). */
+export type DraftCover = { asset_id: string } | { time_seconds: number };
+
+/** Image and video works keep their text as a description below front matter (QC-045/046). */
+export function isTypedWork(work: Pick<WorkDetail, 'type'>): boolean {
+  return work.type === 'image' || work.type === 'video';
 }
 
 /** Why the work cannot be edited right now (external works only). */
@@ -57,6 +70,10 @@ export interface WorkSessionState {
   remote: RemoteChange | null;
   /** Bumped whenever the draft is replaced from the server, so the editor can reload it. */
   epoch: number;
+  /** Image and video works: their files as the server last reported them (status, size). */
+  media: WorkMedia | null;
+  /** The whole saved source file (front matter included), for comparing with history. */
+  file: string;
 }
 
 export interface WorkSessionOptions {
@@ -69,8 +86,33 @@ export interface WorkSessionOptions {
 export type RestoreResult = 'restored' | 'conflict' | 'blocked';
 export type AcceptResult = 'accepted' | 'conflict' | 'blocked';
 
+function coverOf(media: WorkMedia | null | undefined): DraftCover | null {
+  const cover = media?.cover ?? null;
+  if (cover === null) return null;
+  if (cover.kind === 'frame') return { time_seconds: cover.time_seconds };
+  return cover.item.asset_id === null ? null : { asset_id: cover.item.asset_id };
+}
+
 function draftOf(work: WorkDetail): Draft {
-  return { title: work.title, markdown: work.markdown, status: work.status, tags: work.tags };
+  if (!isTypedWork(work)) {
+    return { title: work.title, markdown: work.markdown, status: work.status, tags: work.tags };
+  }
+  return {
+    title: work.title,
+    markdown: work.description ?? '',
+    status: work.status,
+    tags: work.tags,
+    images: (work.media?.images ?? [])
+      .map((i) => i.asset_id)
+      .filter((id): id is string => id !== null),
+    cover: coverOf(work.media),
+  };
+}
+
+function sameCover(a: DraftCover | null | undefined, b: DraftCover | null | undefined): boolean {
+  if (a == null || b == null) return (a ?? null) === (b ?? null);
+  if ('asset_id' in a) return 'asset_id' in b && a.asset_id === b.asset_id;
+  return 'time_seconds' in b && a.time_seconds === b.time_seconds;
 }
 
 function readOnlyOf(work: Pick<WorkDetail, 'external_state'>): ReadOnlyReason | null {
@@ -129,8 +171,17 @@ export class WorkSession {
       readOnly: readOnlyOf(work),
       remote: null,
       epoch: 0,
+      media: work.media ?? null,
+      file: work.markdown,
     };
+    this.typed = isTypedWork(work);
+    this.kind = work.type;
   }
+
+  private readonly kind: WorkDetail['type'];
+
+  /** Image or video work: the text is a description and media fields are saved too. */
+  private readonly typed: boolean;
 
   get snapshot(): WorkSessionState {
     return this.state;
@@ -152,7 +203,9 @@ export class WorkSession {
       draft.title !== saved.title ||
       draft.markdown !== saved.markdown ||
       draft.status !== saved.status ||
-      !sameTags(draft.tags, saved.tags)
+      !sameTags(draft.tags, saved.tags) ||
+      !sameTags(draft.images ?? [], saved.images ?? []) ||
+      !sameCover(draft.cover, saved.cover)
     );
   }
 
@@ -170,8 +223,12 @@ export class WorkSession {
       return;
     }
     this.set({ status });
-    // Status and tags are deliberate one-click changes: save them right away.
-    const immediate = change.status !== undefined || change.tags !== undefined;
+    // Status, tags, images and cover are deliberate one-click changes: save them right away.
+    const immediate =
+      change.status !== undefined ||
+      change.tags !== undefined ||
+      change.images !== undefined ||
+      change.cover !== undefined;
     this.schedule(immediate ? 0 : this.autosaveMs);
   }
 
@@ -252,6 +309,8 @@ export class WorkSession {
       saved,
       baseRevision: work.current_revision_id,
       readOnly: readOnlyOf(work),
+      media: work.media ?? null,
+      file: work.markdown,
       ...(replaceDraft
         ? {
             draft: saved,
@@ -272,13 +331,24 @@ export class WorkSession {
     const changes: {
       title?: string;
       markdown?: string;
+      description?: string;
       status?: WorkStatus;
       tags?: string[];
+      images?: string[];
+      cover?: DraftCover | null;
     } = {};
     if (sent.title !== saved.title) changes.title = sent.title;
-    if (sent.markdown !== saved.markdown) changes.markdown = sent.markdown;
+    if (sent.markdown !== saved.markdown) {
+      // Image and video works: the front matter belongs to the service; send the description only.
+      if (this.typed) changes.description = sent.markdown;
+      else changes.markdown = sent.markdown;
+    }
     if (sent.status !== saved.status) changes.status = sent.status;
     if (!sameTags(sent.tags, saved.tags)) changes.tags = [...sent.tags];
+    if (this.typed && !sameTags(sent.images ?? [], saved.images ?? [])) {
+      changes.images = [...(sent.images ?? [])];
+    }
+    if (this.typed && !sameCover(sent.cover, saved.cover)) changes.cover = sent.cover ?? null;
     const sentBase = this.state.baseRevision;
     this.set({ status: 'saving', error: null });
     try {
@@ -499,11 +569,13 @@ export class WorkSession {
    */
   async keepBoth(): Promise<WorkDetail> {
     const { title, markdown } = this.state.draft;
-    const copy = await this.client.works.create({
-      title: t('editor.keepBothCopy', { title: title.trim() || t('editor.untitled') }),
-      markdown,
-      source: 'mac-app',
-    });
+    const copyTitle = t('editor.keepBothCopy', { title: title.trim() || t('editor.untitled') });
+    // Image and video works: the copy keeps the text; their files stay with this work.
+    const copy = await this.client.works.create(
+      this.typed
+        ? { title: copyTitle, type: this.kind, description: markdown, source: 'mac-app' }
+        : { title: copyTitle, markdown, source: 'mac-app' },
+    );
     await this.reloadFromServer();
     return copy;
   }
@@ -520,7 +592,7 @@ export class WorkSession {
         this.client.works.patch(this.state.workId, {
           base_revision: serverRevision,
           title: this.state.draft.title,
-          markdown,
+          ...(this.typed ? { description: markdown } : { markdown }),
         }),
       );
       this.adopt(work, true);

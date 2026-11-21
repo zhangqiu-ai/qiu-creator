@@ -9,6 +9,7 @@ import {
 import { assetMediaUrl, thumbnailUrl, type UploadItem } from '../src/shared/bridge.js';
 import { urlRejectedText, validateImportUrl } from '../src/renderer/ImportsPage.js';
 import { mountErrorText, sortMounts } from '../src/renderer/SettingsPage.js';
+import { t } from '../src/renderer/i18n.js';
 import { countRows, filterRows, jobRow, taskRows, uploadRow } from '../src/renderer/tasks.js';
 import { sortTokens } from '../src/renderer/TokensPanel.js';
 import { ApiError } from '@qiu-creator/api-client';
@@ -73,6 +74,16 @@ describe('task rows', () => {
     expect(blocked.reason).toBe('內網或本機位址，已阻擋');
     expect(blocked.reasonDetail).toBe('host 10.0.0.12 is local');
     expect(blocked.canRetry).toBe(true);
+    // QC-048: without a code the reason is generic; the service text only goes under 技術細節.
+    const raw = jobRow(
+      job({
+        status: 'failed',
+        error_code: null,
+        error: 'fetch failed: Authorization: Bearer sk-abc',
+      }),
+    );
+    expect(raw.reason).toBe(t('library.taskFailed'));
+    expect(raw.reasonDetail).toBe('fetch failed: Authorization: Bearer sk-abc');
     const timeout = jobRow(job({ status: 'failed', error_code: 'timeout' }));
     expect(timeout.label).toBe('失敗');
     expect(timeout.reason).toBe('下載逾時');

@@ -242,6 +242,7 @@ export function AssetDrawer({
   onInsert,
   onDragAsset,
   onClose,
+  forPost = false,
 }: {
   client: CreatorHubClient;
   workId: string;
@@ -249,6 +250,8 @@ export function AssetDrawer({
   onInsert: (asset: AssetRecord) => void;
   onDragAsset: (asset: AssetRecord | null) => void;
   onClose: () => void;
+  /** Image posts (QC-045): images join the grid, and closing goes back to the preview. */
+  forPost?: boolean;
 }) {
   const [scope, setScope] = useState<DrawerScope>('images');
   const [query, setQuery] = useState('');
@@ -317,7 +320,7 @@ export function AssetDrawer({
           onClick={onClose}
         >
           <Icon name="spark" size={14} />
-          {t('editor.backToAi')}
+          {t(forPost ? 'imagePost.backToPreview' : 'editor.backToAi')}
         </button>
       </div>
       <div className="drawer__controls">
@@ -422,8 +425,8 @@ export function AssetDrawer({
         )}
       </div>
       <div className="drawer__foot">
-        <span>{t('editor.footClickInsert')}</span>
-        <span>{t('editor.footDrag')}</span>
+        <span>{t(forPost ? 'imagePost.footClick' : 'editor.footClickInsert')}</span>
+        <span>{t(forPost ? 'imagePost.footDrag' : 'editor.footDrag')}</span>
         <span>{t('editor.footKeys')}</span>
       </div>
     </aside>

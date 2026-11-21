@@ -123,6 +123,22 @@ test('開多個作品、切換保留狀態、重複開啟、快捷鍵與選單',
       .poll(() => source.evaluate((el) => (el as unknown as { scrollTop: number }).scrollTop))
       .toBe(scrolled);
 
+    // Scroll and switch in the same task, before the scroll event fires: still restored.
+    await source.evaluate((el) => {
+      (el as unknown as { scrollTop: number }).scrollTop = 900;
+      const ev = { key: ']', code: 'BracketRight', metaKey: true, shiftKey: true, bubbles: true };
+      const w = globalThis as unknown as {
+        dispatchEvent: (e: unknown) => void;
+        KeyboardEvent: new (type: string, init: unknown) => unknown;
+      };
+      w.dispatchEvent(new w.KeyboardEvent('keydown', ev));
+    });
+    expect(await selectedTitles(page)).toEqual(['乙篇草稿']);
+    await page.keyboard.press('Meta+Shift+BracketLeft');
+    await expect
+      .poll(() => source.evaluate((el) => (el as unknown as { scrollTop: number }).scrollTop))
+      .toBe(900);
+
     await tab(page, '乙篇草稿').click();
     await expect(page.getByRole('button', { name: '歷史', exact: true })).toHaveAttribute(
       'aria-expanded',

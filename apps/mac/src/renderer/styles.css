@@ -4608,3 +4608,430 @@ kbd {
   font-size: 11px;
   color: var(--qc-ink3);
 }
+
+/* ---- 新建選類型與作品庫縮圖 (PT-20261121-001 「v3 · 新建」, QC-045) ---- */
+.new-menu {
+  position: relative;
+}
+.new-menu__pop {
+  top: 40px;
+  right: 0;
+  width: 300px;
+}
+.new-menu__item {
+  height: auto;
+  padding: 8px 10px;
+}
+.new-menu__item[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.new-menu__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  white-space: normal;
+}
+.new-menu__hint {
+  font-size: 12px;
+  color: var(--qc-ink3);
+}
+.wcard__cover {
+  position: relative;
+  overflow: hidden;
+}
+.wcard__media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.wcard__badge {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.wcard__badge--bad {
+  right: auto;
+  left: 8px;
+  background: var(--qc-bad);
+}
+.pv-wbar {
+  flex-wrap: wrap;
+}
+.pv-wbar__list {
+  flex-basis: 100%;
+  margin: 0;
+  padding-left: 22px;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* ---- 貼圖編輯 (PT-20261121-001 「v3 · 貼圖編輯」, QC-045) ---- */
+.post__kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.post__doc {
+  flex: 999 1 480px;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 28px 40px;
+  background: var(--qc-surface);
+}
+.post__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 860px;
+  margin: 0 auto 24px;
+}
+.post__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.post__h {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.post__n,
+.post__count {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--qc-ink3);
+  font-variant-numeric: tabular-nums;
+}
+.post__count--over {
+  color: var(--qc-warn);
+}
+.post__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+}
+.post__chips .chip {
+  font-variant-numeric: tabular-nums;
+}
+.post__warn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--qc-warn-soft);
+  color: var(--qc-warn);
+  font-size: 12.5px;
+}
+.post__note,
+.post__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--qc-ink3);
+}
+.post__note {
+  padding: 8px 12px;
+}
+.post__grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 10px;
+}
+.post__tile {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border: 1px solid var(--qc-line);
+  border-radius: 10px;
+  background: var(--qc-sunken);
+  outline-offset: 2px;
+}
+.post__tile > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.post__tile:focus-visible,
+.post__tile--selected {
+  outline: 2px solid var(--qc-accent);
+}
+/* Past at least one platform's limit: faded with a dashed edge (warning only). */
+.post__tile--over {
+  border: 2px dashed var(--qc-warn);
+}
+.post__tile--over > img {
+  opacity: 0.45;
+}
+.post__tile--missing,
+.post__tile--failed,
+.post__tile--loose {
+  border-style: dashed;
+}
+.post__num {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 11px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.post__badge {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--qc-accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+.post__hover {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  padding: 24px 6px 30px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6), transparent);
+  opacity: 0;
+  transition: opacity var(--qc-motion-hover);
+  /* Only its buttons take clicks, so what lies under the bar stays clickable. */
+  pointer-events: none;
+}
+.post__hover .btn {
+  pointer-events: auto;
+}
+.post__tile:hover .post__hover,
+.post__tile:focus-within .post__hover {
+  opacity: 1;
+}
+.post__missing,
+.post__fail {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  color: var(--qc-ink3);
+  font-size: 12px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.post__fail {
+  background: rgba(180, 35, 24, 0.85);
+  color: #fff;
+}
+.post__fail-actions {
+  display: flex;
+  gap: 4px;
+}
+.post__ring {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.post__ring svg {
+  position: absolute;
+  width: 56px;
+  height: 56px;
+  transform: rotate(-90deg);
+}
+.post__ring-bg,
+.post__ring-fg {
+  fill: none;
+  stroke-width: 3;
+}
+.post__ring-bg {
+  stroke: rgba(255, 255, 255, 0.3);
+}
+.post__ring-fg {
+  stroke: #fff;
+  stroke-linecap: round;
+}
+.post__add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1.5px dashed var(--qc-line);
+  background: transparent;
+  color: var(--qc-ink3);
+}
+.post__add-label {
+  font-size: 12.5px;
+}
+.post__insert {
+  position: absolute;
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: var(--qc-accent);
+  pointer-events: none;
+}
+.post__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+}
+.post__title {
+  height: 36px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.post__desc {
+  height: auto;
+  min-height: 160px;
+  padding: 10px 12px;
+  line-height: 1.7;
+  resize: vertical;
+}
+.post__side {
+  display: flex;
+  flex-direction: column;
+}
+.post__preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+}
+.post__platforms {
+  align-self: stretch;
+}
+.post__platforms button {
+  flex: 1;
+  padding: 0 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.post__cover-pick {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+.post__cover-opt {
+  aspect-ratio: 3 / 4;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: var(--qc-sunken);
+  cursor: pointer;
+}
+.post__cover-opt[aria-checked='true'] {
+  border-color: var(--qc-accent);
+}
+.post__cover-opt img,
+.post__crop-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.post__crops {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+}
+.post__crop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--qc-ink3);
+}
+.post__crop-box {
+  display: block;
+  height: 120px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--qc-sunken);
+}
+
+/* ---- 共用提示佇列 (QC-045 review): at most two, stacked, newest lowest ---- */
+.toast-stack {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 60;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(640px, calc(100vw - 48px));
+  pointer-events: none;
+}
+.toast-stack .toast {
+  position: static;
+  transform: none;
+  max-width: 100%;
+  pointer-events: auto;
+}
+
+/* ---- 素材抽屜：說明列固定在底部 (QC-045 review) ----
+ * The panel itself used to scroll, so the grid shrank under its content and
+ * the thumbnails ran over the hint bar. Now only the grid scrolls; the head,
+ * controls and hint bar keep their place. Article and image-post editors alike. */
+.panel.drawer {
+  overflow: hidden;
+}
+.drawer__head,
+.drawer__controls,
+.drawer__note {
+  flex: none;
+}
+.drawer__grid {
+  overflow-y: auto;
+}
+.drawer__foot {
+  flex: none;
+  position: relative;
+  z-index: 1;
+  background: var(--qc-bg);
+}

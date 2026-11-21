@@ -17,6 +17,7 @@ import { Sidebar, type NavPage } from './Sidebar.js';
 import { serviceSummary } from './sidebar-prefs.js';
 import { t, useLocale } from './i18n.js';
 import { TabsModel } from './tabs.js';
+import { ToastHost } from './toasts.js';
 
 type Connection = { state: 'connecting' } | ConnectResult;
 type Route =
@@ -398,6 +399,7 @@ export function App() {
           }}
         />
       )}
+      <ToastHost />
     </div>
   );
 }

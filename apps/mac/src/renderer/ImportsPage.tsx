@@ -7,6 +7,7 @@ import { Dialog } from './Dialog.js';
 import { useRefreshOn, useUploads } from './events.js';
 import { t } from './i18n.js';
 import { Icon, type IconName } from './Icon.js';
+import { TechnicalDetails } from './TechnicalDetails.js';
 import {
   countRows,
   filterRows,
@@ -273,10 +274,10 @@ function TaskRowView({
             {row.origin}
           </span>
         </div>
-        {row.reason !== null && (
-          <div className="trow__reason" title={row.reasonDetail ?? undefined}>
-            {row.reason}
-          </div>
+        {row.reason !== null && <div className="trow__reason">{row.reason}</div>}
+        {/* QC-048: the raw service text, collapsed and with keys and tokens removed. */}
+        {row.reasonDetail !== null && row.reasonDetail !== row.reason && (
+          <TechnicalDetails text={row.reasonDetail} />
         )}
         {row.reused && <div className="faint">{t('library.reusedNote')}</div>}
         {error !== null && (

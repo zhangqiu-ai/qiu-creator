@@ -13,9 +13,11 @@ import {
 import type { TabCommand } from '../shared/bridge.js';
 import { Dialog } from './Dialog.js';
 import { EditorPage, type EditorTabHandle } from './EditorPage.js';
+import { ImagePostEditor } from './ImagePostEditor.js';
 import { WORK_TYPE } from './format.js';
 import { t } from './i18n.js';
 import { Icon } from './Icon.js';
+import { useToast } from './toasts.js';
 import type { Draft } from './work-session.js';
 import type { Tab, TabsModel, TabStatusPatch, TabView } from './tabs.js';
 
@@ -186,6 +188,55 @@ export function EditorTabs(props: EditorTabsProps) {
   );
   const confirmTab = confirm === null ? null : model.find(confirm.id);
 
+  // Tab notices go through the shared queue (QC-045), shown while the editor area is in front.
+  const closeNotice = () => {
+    if (notice?.kind === 'restored') model.dismissRestored();
+    if (notice?.kind === 'closed') model.dismissClosed();
+    setNotice(null);
+  };
+  useToast(
+    !visible || notice === null
+      ? null
+      : {
+          message:
+            notice.kind === 'closed'
+              ? t('tabs.closedTab', { title: notice.title })
+              : notice.kind === 'already'
+                ? t('tabs.alreadyOpen', { title: notice.title })
+                : notice.kind === 'restored'
+                  ? t('tabs.restored', { count: notice.count })
+                  : t('tabs.closedOthers', { count: notice.count }),
+          tone: notice.kind === 'already' ? 'neutral' : 'ok',
+          actions:
+            notice.kind === 'closed' && state.closed !== null
+              ? [
+                  {
+                    label: t('tabs.reopen'),
+                    onClick: () => {
+                      const closed = model.reopen();
+                      if (closed !== null && closed.draft !== null) {
+                        reopenDrafts.current.set(closed.tab.id, closed.draft as Draft);
+                      }
+                      setNotice(null);
+                      onFocusEditor();
+                    },
+                  },
+                ]
+              : notice.kind === 'restored'
+                ? [
+                    {
+                      label: t('tabs.closeAll'),
+                      onClick: () => {
+                        model.closeAll();
+                        setNotice(null);
+                      },
+                    },
+                  ]
+                : [],
+          onClose: closeNotice,
+        },
+  );
+
   return (
     <div className="tabs-area" hidden={!visible}>
       <TabBar
@@ -218,61 +269,6 @@ export function EditorTabs(props: EditorTabsProps) {
           reopenDrafts={reopenDrafts.current}
         />
       ))}
-
-      {notice !== null && (
-        <div className="toast" role="status">
-          <Icon name={notice.kind === 'already' ? 'info' : 'check'} size={16} />
-          <span className="toast__msg">
-            {notice.kind === 'closed'
-              ? t('tabs.closedTab', { title: notice.title })
-              : notice.kind === 'already'
-                ? t('tabs.alreadyOpen', { title: notice.title })
-                : notice.kind === 'restored'
-                  ? t('tabs.restored', { count: notice.count })
-                  : t('tabs.closedOthers', { count: notice.count })}
-          </span>
-          {notice.kind === 'closed' && state.closed !== null && (
-            <button
-              type="button"
-              className="btn btn--ghost btn--small toast__undo"
-              onClick={() => {
-                const closed = model.reopen();
-                if (closed !== null && closed.draft !== null) {
-                  reopenDrafts.current.set(closed.tab.id, closed.draft as Draft);
-                }
-                setNotice(null);
-                onFocusEditor();
-              }}
-            >
-              {t('tabs.reopen')}
-            </button>
-          )}
-          {notice.kind === 'restored' && (
-            <button
-              type="button"
-              className="btn btn--ghost btn--small toast__undo"
-              onClick={() => {
-                model.closeAll();
-                setNotice(null);
-              }}
-            >
-              {t('tabs.closeAll')}
-            </button>
-          )}
-          <button
-            type="button"
-            className="btn btn--ghost btn--icon btn--small"
-            aria-label={t('editor.dismissNotice')}
-            onClick={() => {
-              if (notice.kind === 'restored') model.dismissRestored();
-              if (notice.kind === 'closed') model.dismissClosed();
-              setNotice(null);
-            }}
-          >
-            <Icon name="close" size={14} />
-          </button>
-        </div>
-      )}
 
       {confirm !== null && confirmTab !== null && (
         <Dialog
@@ -433,7 +429,23 @@ function TabPane({
       aria-labelledby={`tab-${id}`}
       hidden={!shown}
     >
-      {loaded.state === 'ready' ? (
+      {loaded.state === 'ready' && loaded.work.type === 'image' ? (
+        <ImagePostEditor
+          client={client}
+          work={loaded.work}
+          userHome={userHome}
+          active={active}
+          initialView={initialView}
+          initialDraft={initialDraft}
+          onTabStatus={onTabStatus}
+          onViewChange={onViewChange}
+          onHandle={onHandle}
+          onBack={onBack}
+          onPreview={() => {
+            onPreview(loaded.work);
+          }}
+        />
+      ) : loaded.state === 'ready' ? (
         <EditorPage
           client={client}
           work={loaded.work}
