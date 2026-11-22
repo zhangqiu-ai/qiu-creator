@@ -1,5 +1,23 @@
 # Done
 
+## QC-056: AI 工作台版面重整（捲動後錯位）
+
+**Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend | **Done:** 2026-11-21
+
+- 左欄設定固定、右側結果獨立捲動；結果區分段標籤跳轉（摘要、時間點、封面建議、標題建議、簡介建議）；最近任務可選、選中清楚、失敗可看原因並重試；用量收合在左欄底部。1280–1920 寬都成立。證據 `docs/evidence/qc056-ai-workbench-layout.md`。
+
+## QC-055: 作品編輯頁視頻 AI 誤報「尚未設定 Gemini 金鑰」
+
+**Priority:** P1 | **Assignee:** qc-bugfix | **Tags:** M3, bug, frontend | **Done:** 2026-11-21
+
+- 根因：`VideoSession` 只在建立時讀一次狀態，`noKey` 不會重設。新增 `ai-status.ts`（`notifyAiStatusChanged`／`watchAiStatus`），金鑰、告知、模型變更、視窗回前景、面板重新顯示時重讀。補單元與 e2e（假 Gemini）。
+
+## QC-054: New API 模型改成下拉選擇（自動查詢模型清單）
+
+**Priority:** P1 | **Assignee:** qc-backend ＋ qc-frontend | **Tags:** M3, backend, frontend | **Done:** 2026-11-21
+
+- 後端 `GET /ai/providers/new-api/models`（10 分鐘快取、refresh、錯誤分流）；前端可重用的模型下拉元件：開啟才查、對話／全部、未定價標記、手動輸入後備、已存模型不在清單提示、Base URL 缺 /v1 一鍵採用建議。全倉 965／0／965、e2e 23／23。第一次整套 e2e 有 editor-tabs 失敗一次，開為 QC-059。證據 `docs/evidence/qc054-model-picker.md`。
+
 ## QC-053: 已刪除作品在其他地方的殘留
 
 **Priority:** P3 | **Assignee:** qc-backend | **Tags:** M3, backend | **Done:** 2026-11-21

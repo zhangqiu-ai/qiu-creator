@@ -1,5 +1,11 @@
 # Backlog
 
+## QC-059: editor-tabs e2e 游標還原偶發失敗
+
+**Priority:** P2 | **Assignee:** qc-test | **Tags:** M3
+
+2026-11-21 20:30 QC-054 第一次整套 e2e（負載 5.21）：`e2e/specs/editor-tabs.spec.ts:121` 用 ⌘⇧[ 切回分頁後 `source.selectionStart` 期望 11、5 秒內一直是 10。之後單跑 3 次、整套重跑都通過。log 在 `docs/evidence/qc054-e2e-editor-tabs-failure.log`（若已合併）。判斷是產品的游標還原競態還是測試時序，不准加長逾時或重試。
+
 ## QC-058: 刪除素材前提示「也被最近刪除中的作品使用」
 
 **Priority:** P3 | **Assignee:** qc-frontend | **Tags:** M3, frontend
