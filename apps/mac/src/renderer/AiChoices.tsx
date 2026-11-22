@@ -19,7 +19,7 @@ import {
   type RefObject,
 } from 'react';
 import { currentModel, useAiLibrary, type AiLibraryState } from './ai-library.js';
-import { t } from './i18n.js';
+import { formatWhen, t } from './i18n.js';
 import { Icon } from './Icon.js';
 import { Animated } from './motion.js';
 
@@ -115,6 +115,7 @@ export function ChoiceButton({
   className,
   title,
   place,
+  align = 'start',
   popupWidth,
   haspopup,
   children,
@@ -124,6 +125,8 @@ export function ChoiceButton({
   className: string;
   title?: string;
   place: 'above' | 'below';
+  /** Which edge of the trigger the popover lines up with (`end`: it opens towards the left). */
+  align?: 'start' | 'end';
   popupWidth: number;
   haspopup: 'listbox' | 'dialog';
   children: ReactNode;
@@ -139,10 +142,11 @@ export function ChoiceButton({
     setOpen(false);
     trigger.current?.focus();
   };
-  const style: CSSProperties =
-    place === 'above'
-      ? { bottom: 'calc(100% + 8px)', width: popupWidth }
-      : { top: 'calc(100% + 6px)', width: popupWidth };
+  const style: CSSProperties = {
+    ...(place === 'above' ? { bottom: 'calc(100% + 8px)' } : { top: 'calc(100% + 6px)' }),
+    ...(align === 'end' ? { left: 'auto', right: 0 } : {}),
+    width: popupWidth,
+  };
   return (
     <span className="choice" ref={root}>
       <button
@@ -165,7 +169,10 @@ export function ChoiceButton({
       </button>
       {open && (
         <Animated
-          preset={{ kind: 'popover', origin: place === 'above' ? 'bottom left' : 'top left' }}
+          preset={{
+            kind: 'popover',
+            origin: `${place === 'above' ? 'bottom' : 'top'} ${align === 'end' ? 'right' : 'left'}`,
+          }}
           className="qpop"
           style={style}
           onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
@@ -278,7 +285,14 @@ export function ModelList({
       ),
     }))
     .filter((g) => g.items.length > 0);
-  const broken = models?.errors ?? [];
+  // QC-082: a provider whose list failed but that fell back to its cached or
+  // stored models is listed as usual, with a note; one with nothing to fall
+  // back on stays a disabled 「無法讀取模型」 row.
+  const errors = models?.errors ?? [];
+  const fallbacks = new Map(
+    errors.filter((e) => e.fallback !== 'none').map((e) => [e.provider, e] as const),
+  );
+  const broken = errors.filter((e) => e.fallback === 'none');
   return (
     <div className="qpop__list" onKeyDown={moveFocus}>
       <label className="qpop__search">
@@ -317,6 +331,7 @@ export function ModelList({
               <ProviderMark provider={g.provider} />
               {AI_PROVIDER_NAMES[g.provider].name}
             </span>
+            {fallbacks.has(g.provider) && <FallbackNote error={fallbacks.get(g.provider)} />}
             {g.items.map((m) => {
               const on = same(current, m.provider, m.model);
               return (
@@ -359,6 +374,44 @@ export function ModelList({
         )}
       </span>
     </div>
+  );
+}
+
+/** Reasons the service gives for a failed model list (QC-082); others are shown as sent. */
+const REASON_KEY: Readonly<Record<string, MessageKey>> = {
+  timeout: 'ai.modelReasonTimeout',
+  dns: 'ai.modelReasonDns',
+  unavailable: 'ai.modelReasonUnavailable',
+  quota: 'ai.modelReasonQuota',
+};
+
+/** The reason and, for a cached list, when it was read: 「逾時 · 清單快取於 3 分鐘前」. */
+export function fallbackDetail(
+  error: Pick<AiModelsResponse['errors'][number], 'reason' | 'fallback' | 'cached_at'>,
+  now: Date = new Date(),
+): string {
+  const parts: string[] = [];
+  if (error.reason !== null) {
+    const key = REASON_KEY[error.reason];
+    parts.push(key === undefined ? error.reason : t(key));
+  }
+  if (error.fallback === 'cache' && error.cached_at !== null)
+    parts.push(t('ai.modelCachedAt', { when: formatWhen(error.cached_at, now) }));
+  return parts.join(' · ');
+}
+
+/** 「清單讀取失敗，使用已存模型」 under a provider whose list could not be read. */
+function FallbackNote({ error }: { error: AiModelsResponse['errors'][number] | undefined }) {
+  if (error === undefined) return null;
+  const detail = fallbackDetail(error);
+  return (
+    <span className="qpop__note" role="note">
+      <Icon name="alert" size={12} />
+      <span>
+        {t('ai.modelFallback')}
+        {detail !== '' && <span className="qpop__note-d">{detail}</span>}
+      </span>
+    </span>
   );
 }
 
@@ -448,6 +501,8 @@ export function LanguageModelSwitch({
         label={t('ai.modelLabel')}
         className={cls}
         place={place}
+        // In the panel the model is the right-hand select: its menu opens towards the left.
+        align={variant === 'panel' ? 'end' : 'start'}
         popupWidth={280}
         haspopup="listbox"
         popup={(close) => (

@@ -8327,3 +8327,24 @@ mark.hit {
   font-weight: 500;
   cursor: pointer;
 }
+/* QC-082: the list failed, the saved models are shown (warn tone, not an error). */
+.qpop__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 6px 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--qc-warn-soft);
+  color: var(--qc-warn);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.qpop__note > svg {
+  flex: none;
+  margin-top: 2px;
+}
+.qpop__note-d {
+  display: block;
+  color: var(--qc-ink3);
+}
