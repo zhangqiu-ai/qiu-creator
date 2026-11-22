@@ -59,6 +59,8 @@ export type Preset =
   /** `stacked`: other toasts are showing, so this one comes up with them (no overlap). */
   | { kind: 'toast'; stacked?: boolean }
   | { kind: 'listItem' }
+  /** A generated image or its placeholder (QC-074): a slower fade, no movement or scale. */
+  | { kind: 'reveal' }
   | { kind: 'fade' };
 
 /**
@@ -141,6 +143,12 @@ export function presetVariants(preset: Preset, mode: MotionMode): Variants {
         initial: { opacity: 0, scale: 0.98 },
         animate: { opacity: 1, scale: 1, transition: tween('base', 'out') },
         exit: { opacity: 0, scale: 0.98, transition: tween('fast', 'in') },
+      };
+    case 'reveal':
+      return {
+        initial: { opacity: 0 },
+        animate: { opacity: 1, transition: tween('moderate', 'out') },
+        exit: fadeOut,
       };
     case 'fade':
       return {
@@ -361,15 +369,17 @@ export const AnimatedItem = forwardRef<
     layout: boolean;
     /** Added without an entrance (e.g. a list re-drawn as a whole). */
     quiet?: boolean;
+    /** How it comes and goes; a list item (fade and a slight scale) unless said otherwise. */
+    preset?: Preset;
   }
->(function AnimatedItem({ layout, quiet = false, style, ...rest }, ref) {
+>(function AnimatedItem({ layout, quiet = false, preset, style, ...rest }, ref) {
   const mode = useMotionMode();
   const present = useIsPresent();
   return (
     <motion.li
       ref={ref}
       {...rest}
-      variants={presetVariants({ kind: 'listItem' }, mode)}
+      variants={presetVariants(preset ?? { kind: 'listItem' }, mode)}
       initial={quiet ? false : 'initial'}
       animate="animate"
       exit="exit"
