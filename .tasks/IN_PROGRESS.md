@@ -37,6 +37,8 @@
 - 空狀態：沒有項目、項目內沒有作品。三語文案長度；淺／深色。
 - 查 qiuge-design（`navigation`、`data-display`、`content-editing`、`empty-states`），引用卡片。
 
+**原型已核准（2026-11-21）**：PT-20261121-003 由總監代核准（依帳本，畫布未上傳），openQuestions 全採建議。
+
 **步驟二：實作（核准後）**
 - 後端：projects 表與 work_projects 多對多（可回滾 migration），CRUD、排序、封存；作品列表 `project_id`／`unassigned` 篩選；批量加入／移出；變更事件；contracts、api-client、agent-sdk CLI；不搬動作品檔案。
 - 前端：照原型。與 QC-061（卡片縮圖）同一區域，等 QC-061 合併後再動卡片。
