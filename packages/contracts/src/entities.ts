@@ -48,6 +48,8 @@ export const WorkSchema = z.object({
   deleted_at: TimestampSchema.nullable().optional(),
   /** When a work in 最近刪除 is deleted permanently by itself (30 days after `deleted_at`). */
   purge_at: TimestampSchema.nullable().optional(),
+  /** Projects the work is in (QC-062), deleted projects left out; archived ones included. */
+  project_ids: z.array(IdSchema).optional(),
   /** How it was removed; null when active. See `WorkRemovalSchema`. */
   removal: z.enum(['trashed', 'unindexed', 'original_trashed']).nullable().optional(),
 });

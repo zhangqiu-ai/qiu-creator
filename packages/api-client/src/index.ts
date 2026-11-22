@@ -65,6 +65,8 @@ import {
 } from './imports.js';
 
 import { createMountsApi, type CreatorHubMountsApi } from './mounts.js';
+import { createProjectsApi, type CreatorHubProjectsApi } from './projects.js';
+export type { CreatorHubProjectsApi } from './projects.js';
 import { createVariantsApi, type CreatorHubVariantsApi } from './variants.js';
 import { createAiApi, type CreatorHubAiApi } from './ai.js';
 import { createBackupsApi, type CreatorHubBackupsApi } from './backups.js';
@@ -213,6 +215,8 @@ export interface CreatorHubClient {
   tokens: CreatorHubTokensApi;
   /** External folder mounts (QC-007). */
   mounts: CreatorHubMountsApi;
+  /** Projects grouping works (QC-062). */
+  projects: CreatorHubProjectsApi;
   /** Platform variants: 小紅書, 公眾號, 抖音, 視頻號 (QC-009). */
   variants: CreatorHubVariantsApi;
   /** AI providers, Keychain keys, consent, jobs and usage (QC-021). Owner token only. */
@@ -265,6 +269,7 @@ export function createClient(options: CreatorHubClientOptions): CreatorHubClient
     jobs: createJobsApi(ctx),
     tokens: createTokensApi(ctx),
     mounts: createMountsApi(ctx),
+    projects: createProjectsApi(ctx),
     variants: createVariantsApi(ctx),
     ai: createAiApi(ctx),
     backups: createBackupsApi(ctx),

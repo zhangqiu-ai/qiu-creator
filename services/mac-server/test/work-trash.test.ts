@@ -600,9 +600,11 @@ describe('renaming through PATCH title', () => {
 describe('migration 0016 rollback', () => {
   it('undoes the columns and table so an older build opens the database, and re-applies cleanly', () => {
     const home = tempDir();
-    const db = openDatabase(path.join(home, 'db.sqlite'));
+    // Rollbacks run newest first: this one starts from a database at 0016.
+    const upTo0016 = migrations.filter((m) => m.id <= '0016');
+    const db = openDatabase(path.join(home, 'db.sqlite'), upTo0016);
     try {
-      runMigrations(db, migrations);
+      runMigrations(db, upTo0016);
       db.prepare(
         `INSERT INTO works (id, title, type, status, tags, source, storage_mode, source_path,
            current_revision_id, created_at, updated_at, deleted_at, removal)
@@ -621,7 +623,7 @@ describe('migration 0016 rollback', () => {
       expect(runMigrations(db, older)).toEqual([]);
       expect(db.prepare("SELECT id FROM works WHERE id = 'w1'").get()).toEqual({ id: 'w1' });
 
-      expect(runMigrations(db, migrations)).toEqual(['0016']);
+      expect(runMigrations(db, upTo0016)).toEqual(['0016']);
       expect(db.prepare("SELECT deleted_at FROM works WHERE id = 'w1'").get()).toEqual({
         deleted_at: null,
       });

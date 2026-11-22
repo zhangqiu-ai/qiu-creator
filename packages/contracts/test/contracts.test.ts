@@ -26,6 +26,8 @@ describe('contracts', () => {
       status: 'drafting',
       tags: [],
       source: 'api',
+      // QC-062: a new work is in no project unless asked.
+      project_ids: [],
     });
   });
 

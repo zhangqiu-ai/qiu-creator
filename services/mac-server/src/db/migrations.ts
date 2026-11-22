@@ -463,6 +463,55 @@ export const migrations: readonly Migration[] = [
       );
     `,
   },
+  {
+    id: '0017',
+    name: 'projects',
+    sql: /* sql */ `
+      -- QC-062: projects group works (many to many). Membership lives only in
+      -- SQLite, never in the works' Markdown. See PROJECTS_ROLLBACK_SQL.
+      CREATE TABLE projects (
+        id          TEXT PRIMARY KEY,
+        name        TEXT NOT NULL,
+        color       INTEGER NOT NULL CHECK (color BETWEEN 0 AND 7),
+        sort_order  INTEGER NOT NULL,
+        revision    INTEGER NOT NULL DEFAULT 1,
+        archived_at TEXT,
+        deleted_at  TEXT,
+        created_at  TEXT NOT NULL,
+        updated_at  TEXT NOT NULL
+      );
+      CREATE INDEX projects_live_order ON projects (sort_order) WHERE deleted_at IS NULL;
+      CREATE TABLE work_projects (
+        work_id    TEXT NOT NULL REFERENCES works (id) ON DELETE CASCADE,
+        project_id TEXT NOT NULL REFERENCES projects (id) ON DELETE CASCADE,
+        added_at   TEXT NOT NULL,
+        PRIMARY KEY (work_id, project_id)
+      );
+      CREATE INDEX work_projects_project ON work_projects (project_id);
+      -- Project events (entity 'project'): rebuild change_log as in 0011, keeping
+      -- every seq and the AUTOINCREMENT high-water mark.
+      CREATE TABLE change_log_new (
+        seq        INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity     TEXT NOT NULL CHECK (entity IN ('work','asset','job','system','project')),
+        entity_id  TEXT NOT NULL,
+        action     TEXT NOT NULL,
+        data       TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO change_log_new (seq, entity, entity_id, action, data, created_at)
+        SELECT seq, entity, entity_id, action, data, created_at FROM change_log
+        WHERE entity IN ('work','asset','job','system','project');
+      UPDATE sqlite_sequence
+        SET seq = max(seq, coalesce((SELECT seq FROM sqlite_sequence WHERE name = 'change_log'), 0))
+        WHERE name = 'change_log_new';
+      INSERT INTO sqlite_sequence (name, seq)
+        SELECT 'change_log_new', seq FROM sqlite_sequence
+        WHERE name = 'change_log'
+          AND NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = 'change_log_new');
+      DROP TABLE change_log;
+      ALTER TABLE change_log_new RENAME TO change_log;
+    `,
+  },
 ];
 
 /**
@@ -476,4 +525,35 @@ export const WORK_TRASH_ROLLBACK_SQL = /* sql */ `
   ALTER TABLE works DROP COLUMN removal;
   ALTER TABLE works DROP COLUMN deleted_at;
   DELETE FROM schema_migrations WHERE id = '0016';
+`;
+
+/**
+ * Undoes `0017_projects` so an older build can open the database again
+ * (QC-062): projects, their memberships and their events are dropped; works
+ * and their files are untouched. Sequence numbers keep increasing.
+ */
+export const PROJECTS_ROLLBACK_SQL = /* sql */ `
+  DROP TABLE work_projects;
+  DROP TABLE projects;
+  CREATE TABLE change_log_new (
+    seq        INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity     TEXT NOT NULL CHECK (entity IN ('work','asset','job','system')),
+    entity_id  TEXT NOT NULL,
+    action     TEXT NOT NULL,
+    data       TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
+  );
+  INSERT INTO change_log_new (seq, entity, entity_id, action, data, created_at)
+    SELECT seq, entity, entity_id, action, data, created_at FROM change_log
+    WHERE entity IN ('work','asset','job','system');
+  UPDATE sqlite_sequence
+    SET seq = max(seq, coalesce((SELECT seq FROM sqlite_sequence WHERE name = 'change_log'), 0))
+    WHERE name = 'change_log_new';
+  INSERT INTO sqlite_sequence (name, seq)
+    SELECT 'change_log_new', seq FROM sqlite_sequence
+    WHERE name = 'change_log'
+      AND NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = 'change_log_new');
+  DROP TABLE change_log;
+  ALTER TABLE change_log_new RENAME TO change_log;
+  DELETE FROM schema_migrations WHERE id = '0017';
 `;
