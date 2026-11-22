@@ -3077,36 +3077,133 @@ kbd {
   color: var(--qc-warn);
 }
 
-/* ---- AI 工作台 (QC-025, MacAI board) ---- */
+/* ---- AI 工作台 (QC-025, MacAI board; two scrolling columns since QC-056) ---- */
+.page--aiw {
+  overflow: hidden;
+}
 .aiw {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(272px, 300px) minmax(0, 1fr);
+}
+/* The left column scrolls on its own: setup, then 最近任務, then 用量 at its foot. */
+.aiw__side {
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  flex-direction: column;
   gap: 20px;
-  padding: 20px 28px;
+  padding: 20px 20px 20px 28px;
+  border-right: 1px solid var(--qc-line);
 }
 .aiw__setup {
-  flex: 1 1 260px;
-  max-width: 300px;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 .aiw__result {
-  flex: 999 1 420px;
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 28px 28px;
+}
+.aiw__result-card {
+  max-width: 1040px;
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 .aiw__usage {
-  flex: 1 1 260px;
-  max-width: 320px;
-  padding: 16px;
+  margin-top: auto;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+}
+.aiw__usage-details > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.aiw__usage-details > summary::-webkit-details-marker {
+  display: none;
+}
+.aiw__usage-details > summary > svg {
+  transform: rotate(-90deg);
+  transition: transform var(--qc-motion-hover);
+  color: var(--qc-ink3);
+}
+.aiw__usage-details[open] > summary > svg {
+  transform: none;
+}
+.aiw__usage-details[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.aiw__jobs-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.aiw__jobs-hint {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.aiw__jobs li + li {
+  border-top: 1px solid var(--qc-line);
+}
+.aiw__side .aiw__job {
+  padding: 8px;
+  border-top: 0;
+  border-radius: 8px;
+}
+.aiw__side .aiw__job--open:hover {
+  background: var(--qc-sunken);
+}
+.aiw__job--current,
+.aiw__side .aiw__job--current:hover {
+  background: var(--qc-accent-soft);
+  box-shadow: inset 3px 0 0 var(--qc-accent);
+}
+.aiw__job--current .aiw__job-k {
+  color: var(--qc-accent);
+}
+.aiw__usage .aiw__title {
+  font-size: 13px;
+}
+.aiw__nav {
+  position: sticky;
+  top: -20px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: -20px -20px 0;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--qc-line);
+  border-radius: var(--qc-radius-card) var(--qc-radius-card) 0 0;
+  background: var(--qc-surface);
+}
+.aiw__nav-item {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--qc-ink2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.aiw__nav-item:hover {
+  background: var(--qc-sunken);
+}
+.aiw__nav-item[aria-current='location'] {
+  background: var(--qc-accent-soft);
+  color: var(--qc-accent);
+  font-weight: 600;
 }
 .aiw__row {
   display: flex;

@@ -472,10 +472,37 @@ export class VideoSession {
     }
   }
 
-  /** Open a past job from the history list. */
+  /**
+   * Open a job from 最近任務 (QC-056): a finished one shows its result, a
+   * failed one its reason with 重試, a running one follows its progress.
+   */
   async open(job: AiJobRecord, asset: AssetRecord | null): Promise<void> {
     if (asset !== null && this.state.asset?.id !== asset.id) await this.select(asset);
-    this.show(job);
+    this.stopWatch();
+    switch (job.status) {
+      case 'succeeded':
+        this.set({ job: null });
+        this.show(job);
+        return;
+      case 'failed':
+        this.set({
+          phase: 'failed',
+          job,
+          failure: {
+            code: job.error_code,
+            message: t('ai.analyzeFailed'),
+            detail: job.error_detail ?? null,
+          },
+        });
+        return;
+      case 'queued':
+      case 'running':
+        this.set({ phase: 'running', job });
+        this.follow(job.id);
+        return;
+      case 'cancelled':
+        return;
+    }
   }
 
   dispose(): void {
@@ -483,6 +510,18 @@ export class VideoSession {
     this.disposed = true;
     this.listeners.clear();
   }
+}
+
+/** Which 最近任務 row the result area is showing (QC-056), or null. */
+export function selectedJobId(s: Pick<VideoState, 'phase' | 'job' | 'shown'>): string | null {
+  if (s.phase === 'failed' || s.phase === 'running') return s.job?.id ?? null;
+  if (s.phase === 'done') return s.shown?.id ?? null;
+  return null;
+}
+
+/** A 最近任務 row that can be opened: video understanding that has something to show. */
+export function canOpenJob(job: Pick<AiJobRecord, 'task' | 'status'>): boolean {
+  return job.task?.type === 'video_understanding' && job.status !== 'cancelled';
 }
 
 /** Recent AI jobs and this month's usage for the 用量 card. */
