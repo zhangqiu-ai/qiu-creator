@@ -53,7 +53,7 @@ export function CardCover({
       ) : work.type === 'article' && (hit ?? excerpt) !== null ? (
         <span className="wcard__text">
           <span className="wcard__text-body">
-            {hit !== null ? <HitPassage text={hit} /> : <Highlight text={excerpt ?? ''} />}
+            {hit !== null ? <HitPassage text={hit} /> : <Highlight text={excerpt ?? ''} long />}
           </span>
         </span>
       ) : (

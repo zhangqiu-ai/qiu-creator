@@ -7198,23 +7198,16 @@ kbd {
   padding: 12px;
 }
 
-/* 搜尋高亮 (QC-068): a highlighter mark on the hit, text keeps its own color. */
+/*
+ * 搜尋高亮 (QC-068, QC-079): a bright yellow highlighter with dark text on it,
+ * in both schemes, so a hit stands out at a glance (pinyin hits mark the
+ * Chinese characters they match).
+ */
 mark.hit {
-  background: color-mix(in srgb, var(--qc-warn) 26%, transparent);
-  color: inherit;
+  background: var(--qc-hit);
+  color: var(--qc-on-hit);
   border-radius: 2px;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--qc-warn) 26%, transparent);
-}
-/* On dark surfaces the same amber needs more body to read as a mark. */
-:root[data-theme='dark'] mark.hit {
-  background: color-mix(in srgb, var(--qc-warn) 38%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--qc-warn) 38%, transparent);
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) mark.hit {
-    background: color-mix(in srgb, var(--qc-warn) 38%, transparent);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--qc-warn) 38%, transparent);
-  }
+  box-shadow: 0 0 0 1px var(--qc-hit);
 }
 
 /* The still copy of the sidebar while it collapses or expands (sidebar-morph.ts, QC-068). */

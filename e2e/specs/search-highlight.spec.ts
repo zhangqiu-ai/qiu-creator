@@ -170,3 +170,81 @@ test('搜尋：卡片標題、列表列、摘要、素材名稱即時標出關�
     await shot(page, '4-assets-dark');
   });
 });
+
+test('拼音搜尋（QC-079）：首字母與全拼標出對應的中文字；高亮是醒目的黃色，淺深色都清楚', async ({
+  desktop,
+}) => {
+  const { page, backend } = desktop;
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ colorScheme: 'light' });
+  const c = backend.client;
+  await c.works.create({
+    title: '常用 Markdown 模板',
+    markdown: '# 常用 Markdown 模板\n\n開頭寫常用的段落結構。',
+    source: 'mac-app',
+  });
+  await c.works.create({ title: '旅行常用清單', type: 'image', source: 'mac-app' });
+  await c.works.create({
+    title: '春季選題筆記',
+    markdown: '# 春季選題筆記\n\n先列題目。',
+    source: 'mac-app',
+  });
+  await c.assets.upload({ data: await pngBytes(64, 64, '#2F4FCF'), filename: '常用封面.png' });
+  await page.reload();
+  await expect(grid(page).locator('.wcard')).toHaveCount(3);
+  const shots = process.env['QC079_SHOTS'];
+  const shot79 = async (name: string) => {
+    if (shots === undefined || shots === '') return;
+    mkdirSync(shots, { recursive: true });
+    await page.screenshot({ path: path.join(shots, `qc079-${name}.png`) });
+  };
+
+  await test.step('首字母 cy：標題標出「常用」；正文要 4 個字母以上才比對，所以摘要不標', async () => {
+    await search(page).fill('cy');
+    await expect(grid(page).locator('.wcard')).toHaveCount(2);
+    await expect(grid(page).locator('.wcard__title mark.hit')).toHaveText(['常用', '常用']);
+    await expect(grid(page).locator('.wcard__text-body mark.hit')).toHaveCount(0);
+    await shot79('1-initials-light');
+  });
+
+  await test.step('黃色高亮、深色字（淺色）', async () => {
+    const style = await page.evaluate<{ bg: string; fg: string }>(`(() => {
+      const s = getComputedStyle(document.querySelector('.wcard__title mark.hit'));
+      return { bg: s.backgroundColor, fg: s.color };
+    })()`);
+    expect(style).toEqual({ bg: 'rgb(255, 224, 61)', fg: 'rgb(28, 27, 25)' });
+  });
+
+  await test.step('全拼 changyong：正文也比對，摘要標出「常用」', async () => {
+    await search(page).fill('changyong');
+    await expect(grid(page).locator('.wcard__title mark.hit')).toHaveCount(2);
+    await expect(grid(page).locator('.wcard__text-body mark.hit')).toHaveText(['常用']);
+    // Traditional characters go through Simplified to their pinyin: 選題筆記 → xtbj.
+    await search(page).fill('xtbj');
+    await expect(grid(page).locator('.wcard')).toHaveCount(1);
+    await expect(grid(page).locator('.wcard__title mark.hit')).toHaveText('選題筆記');
+  });
+
+  await test.step('黃色高亮、深色字（深色）', async () => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await search(page).fill('cy');
+    await expect(grid(page).locator('.wcard__title mark.hit')).toHaveText(['常用', '常用']);
+    const style = await page.evaluate<{ bg: string; fg: string }>(`(() => {
+      const s = getComputedStyle(document.querySelector('.wcard__title mark.hit'));
+      return { bg: s.backgroundColor, fg: s.color };
+    })()`);
+    expect(style).toEqual({ bg: 'rgb(242, 201, 76)', fg: 'rgb(22, 22, 21)' });
+    await shot79('2-initials-dark');
+    await page.emulateMedia({ colorScheme: 'light' });
+  });
+
+  await test.step('素材庫：名稱的拼音首字母 cyfm 標出「常用封面」', async () => {
+    await page
+      .getByRole('navigation', { name: '主導航' })
+      .getByRole('button', { name: '素材庫', exact: true })
+      .click();
+    await page.locator('main input[type="search"]').fill('cyfm');
+    await expect(page.locator('.atile__name mark.hit')).toHaveText('常用封面');
+    await shot79('3-assets');
+  });
+});
