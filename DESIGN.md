@@ -341,7 +341,7 @@
   - renderer 使用 `<MotionConfig reducedMotion="always">`，所有 motion 動畫時長為 0；
   - `<html data-motion="off">` 讓 CSS 的 transition 與 animation 全部變成 `none`；
   - dnd-kit 的 `dropAnimation` 設為 `null`，sortable 的 `transition` 設為 `null`；
-  - toast 不自動消失，由測試主動關閉，以免依賴計時。
+  - toast 照常自動消失（2026-11-22 總監決定：改成不消失會改變既有 spec 時序；需要時測試主動等待或關閉）。
 - 單元測試（jsdom）預設就是動效關閉。
 - 測試不得用「等動畫結束」的 sleep。退場元素在關閉動效時必須同步移除。
 
