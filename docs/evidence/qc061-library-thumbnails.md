@@ -42,13 +42,25 @@
 
 ## 打包版驗證
 
-QC-064 已合併。rebase 到 `3880bab` 後，在 dev build 重跑（2026-11-21 22:58，負載約 3.6）：
+QC-064 已合併。rebase 到 `3880bab` 後，先在 dev build 重跑（2026-11-21 22:58，負載約 3.6）：
 
 - `pnpm typecheck`：通過。
 - mac 單元測試：346/346。
-- `library-thumbnails.spec.ts`：1/1 passed。這次是 QC-064 的背景模式，視窗沒有出現在畫面上。
+- `library-thumbnails.spec.ts`：1/1 passed（QC-064 的背景模式，視窗沒有出現在畫面上）。
 
-下一步：qc-release 用本分支的 commit 打一個 `--mac dir` 的未封裝 .app，我再以 `CREATORHUB_E2E_APP` 在背景模式跑 `library-thumbnails.spec.ts`，截圖補在這裡。目前是 **NOT_VERIFIED**。
+打包版（2026-11-21 23:2x）：
+
+- qc-release 用 `30ae100` 打了 `--mac dir` 的未封裝 .app（ad-hoc 簽名，`codesign --verify` 通過，沒有安裝）。
+- 以 `CREATORHUB_E2E_APP=…/release/mac-arm64/qiu-creator.app/Contents/MacOS/qiu-creator` 跑 `library-thumbnails.spec.ts`：**1/1 passed**。
+- 這次 e2e 用的是臨時的 `CREATORHUB_HOME` 和 `CREATORHUB_E2E_PROFILE`，在背景模式執行，沒有啟動 /Applications 裡的安裝版。
+- 安裝版原本的三個問題，在打包版裡都已經解決：視頻卡顯示 App 截的幀；貼圖卡在素材 `asset_id` 是 null 時仍顯示第一張圖；文章卡顯示正文圖片或文字預覽。
+
+| 畫面（打包版） | 檔案 |
+| --- | --- |
+| 視頻幀、空白文章（圖示）、文字預覽、文章圖片、貼圖 | ![](qc061-packaged-zh-Hant-1-grid.png) |
+| 貼圖的檔案被刪掉：圖示加缺少媒體徽章 | ![](qc061-packaged-zh-Hant-2-missing.png) |
+| English | ![](qc061-packaged-en-grid.png) |
+| 深色 | ![](qc061-packaged-dark-grid.png) |
 
 ## 測試
 
@@ -65,6 +77,5 @@ QC-064 已合併。rebase 到 `3880bab` 後，在 dev build 重跑（2026-11-21 
 
 ## NOT_VERIFIED
 
-- 打包版截圖與行為（見上一節）。
 - 有 ffmpeg 時由服務取幀，前端只是顯示 `url`；這部分由 qc-backend 的測試涵蓋，前端 e2e 沒有跑。
 - 上百張卡片的捲動效能只做了程式碼層面的設計（延遲載入、版本快取、截幀一次一支），沒有量測。
