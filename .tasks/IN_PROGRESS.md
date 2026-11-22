@@ -43,6 +43,12 @@
 
 範圍外（不做，寫進交付）：Gemini／Claude／GPT 是否也改成線上查詢。
 
+### Plan（qc-backend 後端，2026-11-21）
+- contracts：`AiProviderModelsResponse`、`classifyModelKind`（保守規則）、`suggestNewApiBaseUrl`；新錯誤碼 `ai_key_invalid`／`ai_gateway_unreachable`／`ai_gateway_bad_response`（帶 `details.reason`）。
+- `GET /api/v1/ai/providers/new-api/models`（owner）：`fetchRelayModels` 用 Keychain 金鑰查 `{base_url}/models`，不跟隨重新導向、上限 2 MiB、逾時沿用轉接器；以 `credential_id` 快取 10 分鐘、`refresh=1`、並行共用一次查詢。
+- Base URL 缺 `/v1`：選「驗證錯誤裡建議正確網址」，不自動補（金鑰送去哪裡要使用者確認）；contracts 匯出同一個函式供 App 存檔前提示。
+- 測試用本機假中轉站；DNS／TLS 用錯誤碼單元測試；api-client `ai.newApiModels`；docs/architecture.md。
+
 ## QC-052: 作品庫：原地改名、右鍵選單、多選批量、卡片縮小
 
 **Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend

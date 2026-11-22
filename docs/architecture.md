@@ -255,6 +255,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | DELETE | `/api/v1/mounts/:id` | 卸載；檔案不動，作品與歷史保留並標成 `unmounted` |
 | GET | `/api/v1/ai/providers` | 供應商的金鑰狀態、模型、首次使用告知、確認狀態與 `ready` |
 | PATCH | `/api/v1/ai/providers/:provider` | 設定文字模型（Gemini 另可設視頻模型） |
+| GET | `/api/v1/ai/providers/new-api/models` | 用 Keychain 的金鑰向中轉站查可用模型，回 `models[{id, kind, priced}]` 與 `fetched_at`；快取 10 分鐘，`refresh=1` 重新查（QC-054） |
 | PUT／DELETE | `/api/v1/ai/providers/:provider/key` | 存入／刪除 Keychain 憑證；New API 的 PUT 同時接收 `base_url` 與 `api_key`，兩欄都是唯寫 |
 | POST／DELETE | `/api/v1/ai/providers/:provider/consent` | 確認／撤回使用告知；POST 須傳目前的 `notice_version`，New API 另須傳 `notice.credential_id` |
 | GET／PATCH | `/api/v1/ai/settings` | 月度提醒金額、價格覆寫 |
@@ -523,6 +524,28 @@ tags:
 New API 是可選的文字供應商。mac-server 使用 [New API 的 Chat Completions 端點](https://github.com/QuantumNous/new-api-docs-v1/blob/main/content/docs/en/guide/feature-guide/user/api.mdx)，要求目前選定的上游模型支援嚴格結構化輸出。向使用者設定的 HTTPS Base URL（結尾為 `/v1`）送出請求，禁止重新導向。送出前可在 App 選擇供應商與模型。
 
 Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_api_provider` 保留現有供應商設定，並讓 SQLite 記錄當前憑證與任務的識別碼。更換憑證須重新確認使用告知，仍在排隊的舊任務需要主動重試才能送往新設定。用量採中轉站回報的 token，只有該模型已設定價格覆寫時才顯示估算。
+
+**Base URL 少了 `/v1`（QC-054）：** 伺服器不自動補，而是回 400 `validation_error`，並附上建議網址：issue 的 `instancePath` 是 `/base_url`，建議在 `params.params.suggested_base_url`（外層 `params` 是 fastify-type-provider-zod 包的）。App 存檔前也可以呼叫 contracts 的 `suggestNewApiBaseUrl()`，先提示「要改成…嗎？」。
+- 理由：金鑰會送到這個網址，送去哪裡應該由使用者看過、點過才算數；只補 `/v1` 也可能猜錯中轉站的路徑。
+- 會建議：只缺 `/v1`（`https://host` → `https://host/v1`，`https://host/api` → `https://host/api/v1`），或 `/v1` 後面多了路徑（貼上 `…/v1/chat/completions` → `…/v1`）。
+- 不會建議：不是 HTTPS、帶帳密、query 或 fragment 的網址。HTTPS 限制不變。
+
+**模型清單（QC-054）：** `GET /api/v1/ai/providers/new-api/models`，只限主權杖，實作在 `src/ai/providers/relay-models.ts`。App 只在使用者打開模型下拉或按重新整理時呼叫。
+- **請求**：以 Keychain 裡的金鑰向 `GET {base_url}/models` 發請求，帶 `Authorization: Bearer`，取 `data[].id`。
+  - 禁止重新導向，避免金鑰被帶到別處。
+  - 逾時沿用 AI 轉接器的 `timeoutMs`；回應最多讀 2 MiB（`AI_MODELS_MAX_BYTES`）。
+  - 金鑰、Base URL、中轉站回應內容都不進錯誤與日誌。
+  - 查清單不送任何內容，所以不需要先確認使用告知。
+- **回應**：id 去重並排序。
+  - `kind` 由 contracts 的 `classifyModelKind` 保守判斷：含圖片標記（image、dall-e、flux…）是 `image`；含 tts、whisper、embed、audio、rerank、moderation、realtime、video 等是 `unknown`；只有已知對話系列（gpt-、o1–o9、claude、gemini、deepseek、qwen、glm、kimi、llama、mistral、grok、doubao…）才是 `chat`；其餘一律 `unknown`。伺服器不藏任何模型。
+  - `priced`：AI 設定有該模型的價格覆寫才是 true，每次讀取時重算。
+- **快取**：同一組憑證（`credential_id`）在記憶體快取 10 分鐘（`AI_MODELS_CACHE_SECONDS`），換金鑰或 Base URL 後自動失效；`refresh=1` 略過快取；同時發出的請求共用一次查詢；失敗不快取。
+- **錯誤**：都附 `details`，三語文案在 App。
+  - 沒有憑證：409 `ai_key_missing`。
+  - 401／403：502 `ai_key_invalid`，附 `status`。
+  - 連不上：502 `ai_gateway_unreachable`，`reason` 是 `timeout`／`dns`／`tls`／`connection`，或 `unavailable`（429／5xx，附 `status`）。可能附 `detail`：Node 的錯誤碼，例如 `ECONNREFUSED`。
+  - 回應不是模型清單：502 `ai_gateway_bad_response`，`reason` 是 `not_json`／`missing_data`／`too_large`／`redirect`，或 `unexpected_status`（例如 Base URL 路徑錯了的 404，附 `status`）。
+  - 其他供應商：400。Gemini／Claude／GPT 是否也改成線上查詢不在範圍內。
 
 ## 文字 AI：平台候選與改寫（QC-022）
 

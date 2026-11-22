@@ -3,6 +3,8 @@ import {
   AiEstimateResponseSchema,
   AiJobRecordSchema,
   AiProviderListResponseSchema,
+  AiProviderModelsQuerySchema,
+  AiProviderModelsResponseSchema,
   AiProviderParamsSchema,
   AiProviderStatusSchema,
   AiSettingsSchema,
@@ -50,6 +52,20 @@ export function registerAiRoutes(app: App, ai: AiService, idempotency: Idempoten
       },
     },
     () => ({ items: ai.listProviders() }),
+  );
+
+  app.get(
+    '/api/v1/ai/providers/:provider/models',
+    {
+      schema: {
+        description:
+          'Models the stored New API key can use, from `GET {base_url}/models` on the relay (QC-054). Call it only when the user opens the model list. Cached for 10 minutes per key and Base URL; `refresh=1` asks again. 409 `ai_key_missing` without a key; 502 `ai_key_invalid` (401/403), `ai_gateway_unreachable` or `ai_gateway_bad_response` with `details.reason`. The key never leaves the Mac. Other providers: 400.',
+        params: AiProviderParamsSchema,
+        querystring: AiProviderModelsQuerySchema,
+        response: { 200: AiProviderModelsResponseSchema, 502: ErrorResponseSchema, ...conflict },
+      },
+    },
+    (req) => ai.listModels(req.params.provider, req.query.refresh === '1'),
   );
 
   app.patch(

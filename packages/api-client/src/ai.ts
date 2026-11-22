@@ -2,6 +2,7 @@ import {
   AiEstimateResponseSchema,
   AiJobRecordSchema,
   AiProviderListResponseSchema,
+  AiProviderModelsResponseSchema,
   AiProviderStatusSchema,
   AiSettingsSchema,
   AiUsageResponseSchema,
@@ -34,6 +35,7 @@ import {
   type AiJobRecord,
   type AiProvider,
   type AiProviderListResponse,
+  type AiProviderModelsResponse,
   type AiProviderStatus,
   type AiSettings,
   type AiUsageResponse,
@@ -56,6 +58,12 @@ export interface CreatorHubAiApi {
   patchProvider(provider: AiProvider, input: PatchAiProviderRequest): Promise<AiProviderStatus>;
   setKey(provider: AiProvider, apiKey: string, baseUrl?: string): Promise<AiProviderStatus>;
   deleteKey(provider: AiProvider): Promise<AiProviderStatus>;
+  /**
+   * Models the stored New API key can use, asked from the relay on the Mac
+   * (QC-054). Call only when the user opens the list; `refresh` skips the
+   * 10-minute cache.
+   */
+  newApiModels(options?: { refresh?: boolean }): Promise<AiProviderModelsResponse>;
   /** Confirm the displayed notice version and, for New API, its credential ID. */
   consent(
     provider: AiProvider,
@@ -139,6 +147,13 @@ export function createAiApi(ctx: Ctx): CreatorHubAiApi {
         base_url: baseUrl,
       } satisfies SetAiKeyRequest),
     deleteKey: (provider) => call(ctx, AiProviderStatusSchema, 'DELETE', `${p(provider)}/key`),
+    newApiModels: (options = {}) =>
+      call(
+        ctx,
+        AiProviderModelsResponseSchema,
+        'GET',
+        `${p('new-api')}/models${options.refresh === true ? '?refresh=1' : ''}`,
+      ),
     consent: (provider, noticeVersion, credentialId) =>
       call(ctx, AiProviderStatusSchema, 'POST', `${p(provider)}/consent`, {
         notice_version: noticeVersion,

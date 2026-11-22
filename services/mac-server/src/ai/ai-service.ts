@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import {
   AI_DEFAULT_MODELS,
+  AI_MODELS_CACHE_SECONDS,
+  classifyModelKind,
+  type AiProviderModelsResponse,
   AI_NOTICE_VERSION,
   AI_PRICE_TABLE,
   AI_PRICES_AS_OF,
@@ -174,6 +177,9 @@ export class AiService {
   private timer: NodeJS.Timeout | undefined;
   private stopped = true;
   private changingNewApiCredential = false;
+  /** Last New API model list, per credential (QC-054). Ids only; `priced` is computed per read. */
+  private modelCache: { credentialId: string; fetchedAt: Date; ids: string[] } | undefined;
+  private modelFetch: { credentialId: string; promise: Promise<string[]> } | undefined;
   private active = 0;
   private readonly inflight = new Set<Promise<void>>();
   private readonly finalizers = new Map<AiTask['type'], AiTaskFinalizer>();
@@ -223,6 +229,66 @@ export class AiService {
           ? { version: row.consent_version, at: row.consent_at }
           : null,
       ready: keyConfigured && consentValid,
+    };
+  }
+
+  /**
+   * Models the stored New API key can use (QC-054), from `GET {base_url}/models`
+   * on the user's relay. Only on request (the settings dropdown); the key is
+   * read from the SecretStore for the call and never returned or logged. The
+   * list is reused for `AI_MODELS_CACHE_SECONDS` for the same credential, and
+   * concurrent requests share one call. No consent is needed: no content is sent.
+   */
+  async listModels(provider: AiProvider, refresh = false): Promise<AiProviderModelsResponse> {
+    if (provider !== 'new-api') {
+      throw new ServiceError(400, 'validation_error', 'model lists are only available for New API');
+    }
+    const saved = await this.secrets.get('new-api');
+    const credential = NewApiCredentialSchema.safeParse(parseJson(saved));
+    if (!this.providerStatus('new-api').key_configured || !credential.success) {
+      throw new ServiceError(409, 'ai_key_missing', 'no API key stored for New API', { provider });
+    }
+    const { id: credentialId, api_key: apiKey, base_url: baseUrl } = credential.data;
+    const cached = this.modelCache;
+    const fresh =
+      cached !== undefined &&
+      cached.credentialId === credentialId &&
+      this.now().getTime() - cached.fetchedAt.getTime() < AI_MODELS_CACHE_SECONDS * 1000;
+    if (!refresh && fresh) return this.modelsResponse(cached.ids, cached.fetchedAt);
+
+    const adapter = this.providers['new-api'];
+    if (adapter.listModels === undefined) {
+      throw new ServiceError(400, 'validation_error', 'this New API adapter cannot list models');
+    }
+    let running = this.modelFetch;
+    if (running?.credentialId !== credentialId) {
+      const promise = adapter.listModels(apiKey, baseUrl);
+      running = { credentialId, promise };
+      this.modelFetch = running;
+      void promise
+        .finally(() => {
+          if (this.modelFetch?.promise === promise) this.modelFetch = undefined;
+        })
+        .catch(() => undefined);
+    }
+    const ids = await running.promise;
+    const fetchedAt = this.now();
+    // Only keep it if the credential is still the one it was fetched with.
+    if (this.providerStatus('new-api').notice.credential_id === credentialId) {
+      this.modelCache = { credentialId, fetchedAt, ids };
+    }
+    return this.modelsResponse(ids, fetchedAt);
+  }
+
+  private modelsResponse(ids: string[], fetchedAt: Date): AiProviderModelsResponse {
+    return {
+      provider: 'new-api',
+      models: ids.map((id) => ({
+        id,
+        kind: classifyModelKind(id),
+        priced: this.price(id, 'new-api') !== null,
+      })),
+      fetched_at: fetchedAt.toISOString(),
     };
   }
 
