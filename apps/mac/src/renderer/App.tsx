@@ -18,7 +18,7 @@ import { SidebarProjects, type LibraryScope } from './SidebarProjects.js';
 import { ProjectsStore } from './projects-store.js';
 import { ProjectsContext } from './ProjectTags.js';
 import { ProjectsDnd } from './projects-dnd.js';
-import { AppMotion } from './motion.js';
+import { AppMotion, ShellMain } from './motion.js';
 import { serviceSummary } from './sidebar-prefs.js';
 import { t, useLocale } from './i18n.js';
 import { TabsModel } from './tabs.js';
@@ -226,6 +226,8 @@ export function App() {
     projects?.getSnapshot ?? EMPTY_PROJECTS,
   );
   const [scope, setScope] = useState<LibraryScope>({ kind: 'all' });
+  /** The sidebar is the 56 px rail (QC-065: the content slides to its new place). */
+  const [rail, setRail] = useState(false);
   // A project that went away (deleted, archived elsewhere): back to 全部作品.
   const scopedProject =
     scope.kind === 'project'
@@ -327,7 +329,10 @@ export function App() {
           <div className="shell">
             <Sidebar
               current={current}
-              onNavigate={go}
+              onNavigate={(page) => {
+                go(page);
+                focusPageTitle();
+              }}
               importsCount={activeTasks}
               service={service}
               address={address}
@@ -336,6 +341,7 @@ export function App() {
                 else checkHealth();
               }}
               libraryScoped={scope.kind !== 'all'}
+              onRailChange={setRail}
               projects={
                 projects === null || client === null
                   ? undefined
@@ -347,150 +353,155 @@ export function App() {
                         rail={rail}
                         scope={scope}
                         active={current === 'library' && route.page === 'library'}
-                        onOpen={openScope}
+                        onOpen={(next) => {
+                          openScope(next);
+                          focusPageTitle();
+                        }}
                       />
                     )
               }
             />
 
-            {'state' in connection ? (
-              <main className="page page--center" aria-busy="true" />
-            ) : !connection.ok ? (
-              <main className="page page--center">
-                <ServiceProblem
-                  reason={connection.reason}
-                  address={connection.baseUrl.replace(/^https?:\/\//, '')}
-                  onRetry={tryConnect}
+            <ShellMain rail={rail}>
+              {'state' in connection ? (
+                <main className="page page--center" aria-busy="true" />
+              ) : !connection.ok ? (
+                <main className="page page--center">
+                  <ServiceProblem
+                    reason={connection.reason}
+                    address={connection.baseUrl.replace(/^https?:\/\//, '')}
+                    onRetry={tryConnect}
+                  />
+                </main>
+              ) : route.page === 'library' ? (
+                <LibraryPage
+                  key={`library:${String(dataEpoch)}`}
+                  client={connection.client}
+                  scope={scope}
+                  projects={projects}
+                  projectsState={projectsState}
+                  onScope={openScope}
+                  onOpenProjectAssets={(id) => {
+                    setRoute({ page: 'assets', focusAssetId: null, projectId: id });
+                  }}
+                  userHome={userHome}
+                  onOpen={openWork}
+                  onCreated={openTab}
+                  handles={editorHandles}
+                  onOpenInBackground={(work) => {
+                    tabs.openInBackground({ id: work.id, kind: work.type, title: work.title });
+                  }}
+                  onRenamed={(id, title) => {
+                    if (tabs.find(id) !== null) tabs.update(id, { title });
+                  }}
+                  onTrashed={(ids) => {
+                    // Saved before deleting, so nothing unsaved is lost; 復原 does not reopen them.
+                    for (const id of ids) if (tabs.find(id) !== null) tabs.close(id);
+                  }}
                 />
-              </main>
-            ) : route.page === 'library' ? (
-              <LibraryPage
-                key={`library:${String(dataEpoch)}`}
-                client={connection.client}
-                scope={scope}
-                projects={projects}
-                projectsState={projectsState}
-                onScope={openScope}
-                onOpenProjectAssets={(id) => {
-                  setRoute({ page: 'assets', focusAssetId: null, projectId: id });
-                }}
-                userHome={userHome}
-                onOpen={openWork}
-                onCreated={openTab}
-                handles={editorHandles}
-                onOpenInBackground={(work) => {
-                  tabs.openInBackground({ id: work.id, kind: work.type, title: work.title });
-                }}
-                onRenamed={(id, title) => {
-                  if (tabs.find(id) !== null) tabs.update(id, { title });
-                }}
-                onTrashed={(ids) => {
-                  // Saved before deleting, so nothing unsaved is lost; 復原 does not reopen them.
-                  for (const id of ids) if (tabs.find(id) !== null) tabs.close(id);
-                }}
-              />
-            ) : route.page === 'editor' ? null : route.page === 'assets' ? (
-              <AssetsPage
-                key={`${route.focusAssetId ?? 'assets'}:${String(route.startAt ?? '')}:${route.projectId ?? ''}:${String(dataEpoch)}`}
-                client={connection.client}
-                project={
-                  route.projectId === undefined
-                    ? null
-                    : (projectsState.projects?.find((p) => p.id === route.projectId) ?? null)
-                }
-                onClearProject={() => {
-                  setRoute({ page: 'assets', focusAssetId: null });
-                }}
-                onBackToProject={(id) => {
-                  openScope({ kind: 'project', id });
-                }}
-                home={home}
-                userHome={userHome}
-                focusAssetId={route.focusAssetId}
-                startAt={route.startAt ?? null}
-                onOpenWork={openWork}
-                onOpenImports={() => {
-                  go('imports');
-                }}
-                onOpenSettings={() => {
-                  go('settings');
-                }}
-              />
-            ) : route.page === 'preview' ? (
-              <PreviewPage
-                key={`preview:${String(dataEpoch)}`}
-                client={connection.client}
-                workId={route.workId}
-                onPickWork={(id) => {
-                  setRoute({ page: 'preview', workId: id, from: null });
-                }}
-                onBack={
-                  route.workId === null
-                    ? null
-                    : () => {
-                        if (route.workId !== null) openWork(route.workId);
-                      }
-                }
-              />
-            ) : route.page === 'ai' ? (
-              <AiWorkbenchPage
-                key={`ai:${String(dataEpoch)}`}
-                client={connection.client}
-                onOpenSettings={() => {
-                  setRoute({ page: 'settings', section: 'ai' });
-                }}
-                onOpenAssets={() => {
-                  go('assets');
-                }}
-                onOpenAsset={(id, at) => {
-                  setRoute({ page: 'assets', focusAssetId: id, startAt: at });
-                }}
-              />
-            ) : route.page === 'imports' ? (
-              <ImportsPage
-                key={`imports:${String(dataEpoch)}`}
-                client={connection.client}
-                onOpenAsset={(id) => {
-                  setRoute({ page: 'assets', focusAssetId: id });
-                }}
-              />
-            ) : (
-              <SettingsPage
-                key={route.section ?? 'settings'}
-                client={connection.client}
-                home={home}
-                userHome={userHome}
-                baseUrl={connection.baseUrl}
-                focusSection={route.section}
-                backups={backups.session}
-                dataEpoch={dataEpoch}
-                health={health}
-                eventStatus={events}
-                service={service}
-                checkHealth={checkHealth}
-              />
-            )}
-            {client !== null && (
-              <EditorTabs
-                model={tabs}
-                handles={editorHandles}
-                client={client}
-                userHome={userHome}
-                visible={route.page === 'editor'}
-                preloaded={preloaded}
-                focusToken={focusToken}
-                onFocusEditor={focusEditor}
-                onBack={() => {
-                  setRoute({ page: 'library' });
-                }}
-                onPreview={(work) => {
-                  setRoute({ page: 'preview', workId: work.id, from: work });
-                }}
-                onOpenSettings={() => {
-                  setRoute({ page: 'settings', section: 'ai' });
-                }}
-              />
-            )}
+              ) : route.page === 'editor' ? null : route.page === 'assets' ? (
+                <AssetsPage
+                  key={`${route.focusAssetId ?? 'assets'}:${String(route.startAt ?? '')}:${route.projectId ?? ''}:${String(dataEpoch)}`}
+                  client={connection.client}
+                  project={
+                    route.projectId === undefined
+                      ? null
+                      : (projectsState.projects?.find((p) => p.id === route.projectId) ?? null)
+                  }
+                  onClearProject={() => {
+                    setRoute({ page: 'assets', focusAssetId: null });
+                  }}
+                  onBackToProject={(id) => {
+                    openScope({ kind: 'project', id });
+                  }}
+                  home={home}
+                  userHome={userHome}
+                  focusAssetId={route.focusAssetId}
+                  startAt={route.startAt ?? null}
+                  onOpenWork={openWork}
+                  onOpenImports={() => {
+                    go('imports');
+                  }}
+                  onOpenSettings={() => {
+                    go('settings');
+                  }}
+                />
+              ) : route.page === 'preview' ? (
+                <PreviewPage
+                  key={`preview:${String(dataEpoch)}`}
+                  client={connection.client}
+                  workId={route.workId}
+                  onPickWork={(id) => {
+                    setRoute({ page: 'preview', workId: id, from: null });
+                  }}
+                  onBack={
+                    route.workId === null
+                      ? null
+                      : () => {
+                          if (route.workId !== null) openWork(route.workId);
+                        }
+                  }
+                />
+              ) : route.page === 'ai' ? (
+                <AiWorkbenchPage
+                  key={`ai:${String(dataEpoch)}`}
+                  client={connection.client}
+                  onOpenSettings={() => {
+                    setRoute({ page: 'settings', section: 'ai' });
+                  }}
+                  onOpenAssets={() => {
+                    go('assets');
+                  }}
+                  onOpenAsset={(id, at) => {
+                    setRoute({ page: 'assets', focusAssetId: id, startAt: at });
+                  }}
+                />
+              ) : route.page === 'imports' ? (
+                <ImportsPage
+                  key={`imports:${String(dataEpoch)}`}
+                  client={connection.client}
+                  onOpenAsset={(id) => {
+                    setRoute({ page: 'assets', focusAssetId: id });
+                  }}
+                />
+              ) : (
+                <SettingsPage
+                  key={route.section ?? 'settings'}
+                  client={connection.client}
+                  home={home}
+                  userHome={userHome}
+                  baseUrl={connection.baseUrl}
+                  focusSection={route.section}
+                  backups={backups.session}
+                  dataEpoch={dataEpoch}
+                  health={health}
+                  eventStatus={events}
+                  service={service}
+                  checkHealth={checkHealth}
+                />
+              )}
+              {client !== null && (
+                <EditorTabs
+                  model={tabs}
+                  handles={editorHandles}
+                  client={client}
+                  userHome={userHome}
+                  visible={route.page === 'editor'}
+                  preloaded={preloaded}
+                  focusToken={focusToken}
+                  onFocusEditor={focusEditor}
+                  onBack={() => {
+                    setRoute({ page: 'library' });
+                  }}
+                  onPreview={(work) => {
+                    setRoute({ page: 'preview', workId: work.id, from: work });
+                  }}
+                  onOpenSettings={() => {
+                    setRoute({ page: 'settings', section: 'ai' });
+                  }}
+                />
+              )}
+            </ShellMain>
             <ToastHost />
           </div>
         </ProjectsDnd>
@@ -554,4 +565,23 @@ function useProjects(client: CreatorHubClient | null, dataEpoch: number): Projec
     300,
   );
   return store;
+}
+
+/**
+ * After the sidebar switches pages, focus goes to the new page's title at once
+ * (DESIGN.md 動效 · 頁面切換), so a screen reader and the keyboard start there.
+ */
+function focusPageTitle(): void {
+  // Only if nothing else took focus meanwhile (a rename field, a menu, a typed search).
+  const before = document.activeElement;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const now = document.activeElement;
+      if (now !== before && now !== document.body && now !== null) return;
+      const title = document.querySelector<HTMLElement>('.shell__main > .page h1');
+      if (title === null) return;
+      if (!title.hasAttribute('tabindex')) title.tabIndex = -1;
+      title.focus({ preventScroll: true });
+    });
+  });
 }

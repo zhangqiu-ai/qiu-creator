@@ -121,6 +121,8 @@ export interface SidebarProps {
   projects?: (rail: boolean) => ReactNode;
   /** 作品庫 shows one project or 未分類, so its own row is not the current one. */
   libraryScoped?: boolean;
+  /** Told when the sidebar becomes the rail or expands again. */
+  onRailChange?: (rail: boolean) => void;
 }
 
 /**
@@ -137,10 +139,14 @@ export function Sidebar({
   onRecheck,
   projects,
   libraryScoped = false,
+  onRailChange,
 }: SidebarProps) {
   const [prefs, setPrefs] = useState(() => loadPrefs(storage()));
   const narrow = useNarrowWindow();
   const rail = prefs.collapsed || narrow;
+  useEffect(() => {
+    onRailChange?.(rail);
+  }, [rail, onRailChange]);
   const [dragging, setDragging] = useState(false);
   const drag = useRef<{ startX: number; startWidth: number } | null>(null);
 

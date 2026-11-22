@@ -1,33 +1,28 @@
 import {
   closestCenter,
-  defaultDropAnimationSideEffects,
   DndContext,
   DragOverlay,
-  PointerSensor,
   pointerWithin,
   useDraggable,
-  useSensor,
-  useSensors,
   type Announcements,
   type Modifier,
   type CollisionDetection,
-  type DropAnimation,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import { CSS, getEventCoordinates, type Transform } from '@dnd-kit/utilities';
+import { getEventCoordinates, type Transform } from '@dnd-kit/utilities';
 import type { Project } from '@qiu-creator/contracts';
-import { DRAG_ACTIVATION_PX, duration, easing, motionScale } from '@qiu-creator/design-tokens';
 import {
   useState,
   type ButtonHTMLAttributes,
   type PointerEventHandler,
   type ReactNode,
 } from 'react';
+import { dropAnimationFor, useDragSensors, type Landing } from './dnd-motion.js';
 import { t } from './i18n.js';
-import { useMotionMode, type MotionMode } from './motion-mode.js';
+import { useMotionMode } from './motion-mode.js';
 import { addToProject, useNotice, type Member } from './project-actions.js';
 import { projectColor, type ProjectsStore } from './projects-store.js';
 
@@ -107,46 +102,6 @@ const collision: CollisionDetection = (args) => {
   return isDragData(data) && data.type === 'project' ? closestCenter(args) : pointerWithin(args);
 };
 
-/** How the floating copy leaves when the pointer is released (DESIGN.md 動效 · 拖放). */
-export type Landing = 'into' | 'sort' | 'cancel';
-
-/** Into a project row: the copy shrinks to 0.6 and fades where it was let go. */
-export function dropIntoKeyframes(at: Transform): Keyframe[] {
-  return [
-    { opacity: 1, transform: CSS.Transform.toString(at) },
-    {
-      opacity: 0,
-      transform: CSS.Transform.toString({
-        ...at,
-        scaleX: motionScale.dropInto,
-        scaleY: motionScale.dropInto,
-      }),
-    },
-  ];
-}
-
-/** dnd-kit's options form of a drop animation (it also takes a function). */
-type DropAnimationOptions = Exclude<DropAnimation, (...args: never[]) => unknown>;
-
-export function dropAnimationFor(landing: Landing, mode: MotionMode): DropAnimationOptions | null {
-  // Reduced motion and test mode: straight to the end state.
-  if (mode !== 'full') return null;
-  const sideEffects = defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.4' } } });
-  if (landing === 'into') {
-    // Shrink and fade where it was let go.
-    return {
-      duration: duration.base,
-      easing: easing.out,
-      sideEffects,
-      keyframes: ({ transform }) => dropIntoKeyframes(transform.initial),
-    };
-  }
-  // A row settles into its new place; a cancelled drag flies back where it came from.
-  return landing === 'sort'
-    ? { duration: duration.base, easing: easing.out, sideEffects }
-    : { duration: duration.moderate, easing: easing.inOut, sideEffects };
-}
-
 function describe(data: unknown): string {
   if (!isDragData(data)) return '';
   if (data.type === 'project') return data.project.name;
@@ -180,10 +135,7 @@ export function ProjectsDnd({
   children: ReactNode;
 }) {
   const mode = useMotionMode();
-  const sensors = useSensors(
-    // A few pixels first, so a click still opens and a double-click still renames.
-    useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_PX } }),
-  );
+  const sensors = useDragSensors();
   const notify = useNotice();
   const [active, setActive] = useState<DragData | null>(null);
   const [landing, setLanding] = useState<Landing>('cancel');
@@ -252,11 +204,6 @@ export function ProjectsDnd({
       </DragOverlay>
     </DndContext>
   );
-}
-
-/** How a sortable project row moves aside: `base` / ease-out, or not at all without full motion. */
-export function sortTransition(mode: MotionMode): { duration: number; easing: string } | null {
-  return mode === 'full' ? { duration: duration.base, easing: easing.out } : null;
 }
 
 /**
