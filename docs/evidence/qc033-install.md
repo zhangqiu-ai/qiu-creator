@@ -313,3 +313,13 @@ exit 0。升級前備份 id：**`20261121T154449342Z-manual`**。
 - 偏好檔 `preferences.json`：以升級前一刻（01:30:55）為基準，升級前後 sha256 完全相同（`1bd3d58c…a90321`）。注意：此值與上一次升級時的 `2abaf5ad…` 不同，是使用者 App 在兩次升級之間自己寫入的（本會話未碰）。
 - 升級後偵測不到 qiu-creator App 行程（使用者已關閉 App）；未碰金鑰與 Keychain，未發 AI 請求。
 - NOT_VERIFIED：新版介面、視窗截圖。
+
+## 升級到 2f17a89（2026-11-22，QC-067–073，遷移 0018）：成功
+
+- 建置：乾淨 worktree，commit `2f17a8972d16659327591ac96128dd16e5e8fb95`（無 `-dirty`），`codesign --verify --deep --strict` 通過。
+- 升級前（04:40:36）：7420 只有 launchd 服務（pid 57426），7431 無監聽；`/health` 為 53e86f9；schema 最新 0017。
+- 乾跑後 `upgrade --yes`（04:41:15）exit 0；升級前備份 `20261122T124115301Z-manual`（ok）。
+- 升級後：`/health` commit 2f17a89、built_at `2026-11-22T12:40:54.290Z`；launchd running（pid 54001）；schema 最新 `0018|search_fold`，其次 0017；`server.prev`（53e86f9）與 `app.prev` 在；日誌 level-50 為 0 筆、err.log 0 位元組。
+- 偏好檔 `preferences.json`：以升級前一刻（04:40:36）為基準，升級前後 sha256 完全相同（`b962b9e0…ab588`）。此值與上次升級時的 `1bd3d58c…` 不同，是使用者 App 在兩次升級之間自己寫入的（本會話未碰）。
+- 升級後有一個 qiu-creator App 行程（pid 80415），本會話未開關，仍是舊行程；未碰金鑰與 Keychain，未發 AI 請求。
+- NOT_VERIFIED：新版介面、視窗截圖、0018 重建 FTS 後的搜尋實際結果。
