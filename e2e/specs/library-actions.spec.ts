@@ -76,7 +76,15 @@ test('作品庫：卡片縮小、原地改名、右鍵選單、改狀態復原�
   await test.step('1440 寬時一列至少 6 張卡片', async () => {
     const tops = await works(page)
       .locator('.wcard')
-      .evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+      .evaluateAll((els) =>
+        els.map((el) =>
+          Math.round(
+            (
+              el as unknown as { getBoundingClientRect: () => { top: number } }
+            ).getBoundingClientRect().top,
+          ),
+        ),
+      );
     const firstRow = tops.filter((top) => top === tops[0]).length;
     expect(firstRow).toBeGreaterThanOrEqual(6);
     await shot(page, 'zh-Hant-1-grid');

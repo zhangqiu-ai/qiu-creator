@@ -99,7 +99,9 @@ test('設定 v4：每個分類一頁並記住、⌘,、AI 服務四分頁與測�
     await app.evaluate(({ Menu }) => {
       const item = Menu.getApplicationMenu()?.getMenuItemById('tab-settings');
       if (item?.accelerator !== 'CommandOrControl+,') throw new Error('no ⌘, item');
-      item.click();
+      // Electron types MenuItem.click as `Function`; it is an arrow bound in the constructor.
+      const click = item.click as () => void;
+      click();
     });
     await expect(h1('備份與還原')).toBeVisible();
   });

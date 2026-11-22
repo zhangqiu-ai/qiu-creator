@@ -131,7 +131,8 @@ test('AI 工作台：左欄固定、結果獨立捲動、段落跳轉、最近�
     expect(before.usageBottom).toBeLessThanOrEqual(before.viewport);
     await shot(page, 'zh-Hant-1-before-scroll');
     await results(page).evaluate((el) => {
-      el.scrollTop = el.scrollHeight;
+      const box = el as unknown as { scrollTop: number; scrollHeight: number };
+      box.scrollTop = box.scrollHeight;
     });
     const after = await layout(page);
     expect(after.runTop).toBe(before.runTop);
@@ -140,9 +141,18 @@ test('AI 工作台：左欄固定、結果獨立捲動、段落跳轉、最近�
     // The section bar stays at the top of the result column.
     const navTop = await main(page)
       .getByRole('navigation', { name: '結果段落' })
-      .evaluate((el) => Math.round(el.getBoundingClientRect().top));
+      .evaluate((el) =>
+        Math.round(
+          (
+            el as unknown as { getBoundingClientRect: () => { top: number } }
+          ).getBoundingClientRect().top,
+        ),
+      );
     const columnTop = await results(page).evaluate((el) =>
-      Math.round(el.getBoundingClientRect().top),
+      Math.round(
+        (el as unknown as { getBoundingClientRect: () => { top: number } }).getBoundingClientRect()
+          .top,
+      ),
     );
     expect(Math.abs(navTop - columnTop)).toBeLessThanOrEqual(2);
     await expect(main(page).getByRole('button', { name: '簡介建議' })).toHaveAttribute(
@@ -168,15 +178,29 @@ test('AI 工作台：左欄固定、結果獨立捲動、段落跳轉、最近�
     );
     await expect
       .poll(async () => {
-        const top = await results(page).evaluate((el) => el.getBoundingClientRect().top);
+        const top = await results(page).evaluate(
+          (el) =>
+            (
+              el as unknown as { getBoundingClientRect: () => { top: number } }
+            ).getBoundingClientRect().top,
+        );
         const block = await page
           .locator('#aiw-sec-moments')
-          .evaluate((el) => el.getBoundingClientRect().top);
+          .evaluate(
+            (el) =>
+              (
+                el as unknown as { getBoundingClientRect: () => { top: number } }
+              ).getBoundingClientRect().top,
+          );
         return Math.round(block - top);
       })
       .toBeLessThan(80);
     await nav.getByRole('button', { name: '摘要' }).click();
-    await expect.poll(() => results(page).evaluate((el) => el.scrollTop)).toBeLessThan(5);
+    await expect
+      .poll(() =>
+        results(page).evaluate((el) => (el as unknown as { scrollTop: number }).scrollTop),
+      )
+      .toBeLessThan(5);
   });
 
   await test.step('失敗的任務：顯示原因與重試，在最近任務中標為正在顯示', async () => {
@@ -231,7 +255,8 @@ test('AI 工作台：左欄固定、結果獨立捲動、段落跳轉、最近�
       for (const lang of ['zh-Hans', 'en'] as const) {
         await page.evaluate(`window.creatorhub.setLanguage('${lang}')`);
         await results(page).evaluate((el) => {
-          el.scrollTop = el.scrollHeight / 2;
+          const box = el as unknown as { scrollTop: number; scrollHeight: number };
+          box.scrollTop = box.scrollHeight / 2;
         });
         await shot(page, `${lang}-scrolled`);
       }
