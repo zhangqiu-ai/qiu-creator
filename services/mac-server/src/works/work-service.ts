@@ -6,6 +6,7 @@ import {
   WORK_TRASH_RETENTION_DAYS,
   WorkRemovalSchema,
   ListWorksQuerySchema,
+  WORK_EXCERPT_MAX_CHARS,
   WORK_REFS_MAX,
   WorkFacetsQuerySchema,
   WorkRefSchema,
@@ -48,7 +49,13 @@ import {
 } from '../fs/atomic.js';
 import type { Layout } from '../layout.js';
 import { isTypedWork, TypedWorkMedia, type WorkLocation } from './typed-media.js';
-import { WorkCardImages, workExcerpt, type CardImageOptions } from './card-images.js';
+import { matchExcerpt, matchesSearch, foldForSearch, searchKey } from '@qiu-creator/domain/search';
+import {
+  WorkCardImages,
+  workExcerpt,
+  workPlainText,
+  type CardImageOptions,
+} from './card-images.js';
 
 interface WorkRow {
   id: string;
@@ -309,7 +316,7 @@ export class WorkService {
         return r === undefined ? [] : [r];
       });
       return {
-        items: rows.map((r) => this.listItem(r)),
+        items: rows.map((r) => this.listItem(r, q.q)),
         total: rows.length,
         limit: rows.length,
         offset: 0,
@@ -339,7 +346,7 @@ export class WorkService {
     const page = more ? rows.slice(0, q.limit) : rows;
     const last = page.at(-1);
     return {
-      items: page.map((r) => this.listItem(r)),
+      items: page.map((r) => this.listItem(r, q.q)),
       total: total?.n ?? 0,
       limit: q.limit,
       offset: q.cursor === undefined ? q.offset : 0,
@@ -445,16 +452,20 @@ export class WorkService {
       where.push('EXISTS (SELECT 1 FROM json_each(w.tags) WHERE value = ?)');
       params.push(q.tag);
     }
-    if (q.q) {
-      if (Array.from(q.q).length >= 3) {
+    // QC-068: the index holds folded text; fold the query the same way.
+    const key = q.q === undefined ? '' : searchKey(q.q);
+    if (key !== '') {
+      if (Array.from(key).length >= 3) {
         // trigram FTS: quote as a phrase so user input is never parsed as FTS syntax.
         where.push('w.id IN (SELECT work_id FROM works_fts WHERE works_fts MATCH ?)');
-        params.push(`"${q.q.replaceAll('"', '""')}"`);
+        params.push(`"${key.replaceAll('"', '""')}"`);
       } else {
-        // trigram needs 3+ characters; fall back to a substring scan for short queries.
-        where.push("(w.title LIKE ? ESCAPE '\\' OR w.tags LIKE ? ESCAPE '\\')");
-        const like = `%${q.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-        params.push(like, like);
+        // trigram needs 3+ characters; scan the folded title, tags and body instead.
+        where.push(
+          `w.id IN (SELECT work_id FROM works_fts
+                    WHERE instr(title, ?) > 0 OR instr(tags, ?) > 0 OR instr(body, ?) > 0)`,
+        );
+        params.push(key, key, key);
       }
     }
     return { where, params };
@@ -464,7 +475,7 @@ export class WorkService {
    * A list row; image and video works add their card fields (QC-045/046), and
    * every work its card image and excerpt (QC-061).
    */
-  private listItem(row: WorkRow): WorkListItem {
+  private listItem(row: WorkRow, query?: string): WorkListItem {
     const work = this.workOf(row);
     let markdown: string;
     try {
@@ -476,6 +487,7 @@ export class WorkService {
     const card = {
       card_image: this.cards.cardImage(loc, markdown),
       excerpt: workExcerpt(row.type, markdown),
+      ...(query === undefined ? {} : { match_excerpt: matchExcerptOf(row, markdown, query) }),
     };
     if (!isTypedWork(row.type)) {
       const image = card.card_image === null ? null : this.articleThumbnail(loc, markdown);
@@ -1277,7 +1289,7 @@ export class WorkService {
     this.db.prepare('DELETE FROM works_fts WHERE work_id = ?').run(id);
     this.db
       .prepare('INSERT INTO works_fts (work_id, title, tags, body) VALUES (?, ?, ?, ?)')
-      .run(id, title, tags.join(' '), body);
+      .run(id, foldForSearch(title), foldForSearch(tags.join(' ')), foldForSearch(body));
   }
 }
 
@@ -1302,6 +1314,17 @@ function toRevision(r: RevisionRow): Revision {
     source: r.source as RevisionSource,
     ai_job_id: r.ai_job_id ?? null,
   };
+}
+
+/**
+ * The passage of a card's plain text around the first hit (QC-068), only when
+ * the title does not show the hit; null when the title matches or the hit is
+ * somewhere the card text does not show (tags, Markdown syntax, front matter).
+ */
+function matchExcerptOf(row: WorkRow, markdown: string, query: string): string | null {
+  if (matchesSearch(row.title, query)) return null;
+  const text = workPlainText(row.type, markdown);
+  return text === null ? null : matchExcerpt(text, query, WORK_EXCERPT_MAX_CHARS);
 }
 
 function toWorkRef(row: WorkRefRow): WorkRef {

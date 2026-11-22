@@ -512,6 +512,20 @@ export const migrations: readonly Migration[] = [
       ALTER TABLE change_log_new RENAME TO change_log;
     `,
   },
+  {
+    id: '0018',
+    name: 'search_fold',
+    sql: /* sql */ `
+      -- QC-068: the full-text index holds text folded for search (NFKC, lower
+      -- case, Traditional to Simplified by character), the same rule the app
+      -- highlights with; queries are folded the same way. search_fold is a
+      -- function registered on every connection (registerSqlFunctions).
+      UPDATE works_fts SET
+        title = search_fold(title),
+        tags = search_fold(tags),
+        body = search_fold(body);
+    `,
+  },
 ];
 
 /**
@@ -556,4 +570,14 @@ export const PROJECTS_ROLLBACK_SQL = /* sql */ `
   DROP TABLE change_log;
   ALTER TABLE change_log_new RENAME TO change_log;
   DELETE FROM schema_migrations WHERE id = '0017';
+`;
+
+/**
+ * Undoes `0018_search_fold` so an older build can open the database again
+ * (QC-068). The folded index cannot be unfolded in SQL, so it is left folded:
+ * an older build still finds works whose text is already lower-case,
+ * half-width and Simplified, and the rest as each work is saved again.
+ */
+export const SEARCH_FOLD_ROLLBACK_SQL = /* sql */ `
+  DELETE FROM schema_migrations WHERE id = '0018';
 `;

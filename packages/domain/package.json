@@ -4,7 +4,14 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./search": "./src/search.ts"
+  },
+  "imports": {
+    "#opencc/ts-characters": {
+      "types": "./src/opencc-dict.d.ts",
+      "default": "opencc-js/dict/TSCharacters"
+    }
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -12,6 +19,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "opencc-js": "^1.4.2",
     "yaml": "^2.9.1"
   }
 }

@@ -363,9 +363,10 @@ describe('works and projects (QC-062)', () => {
 describe('migration 0017 rollback', () => {
   it('drops projects and their events, keeps works and every other event, and re-applies cleanly', () => {
     const home = tempDir();
-    const db = openDatabase(path.join(home, 'db.sqlite'));
+    // Up to 0017: later migrations would be unknown to the rolled-back build.
+    const upTo0017 = migrations.filter((m) => m.id <= '0017');
+    const db = openDatabase(path.join(home, 'db.sqlite'), upTo0017);
     try {
-      runMigrations(db, migrations);
       const now = '2026-11-21T00:00:00.000Z';
       db.prepare(
         `INSERT INTO works (id, title, type, status, tags, source, storage_mode, source_path,
@@ -411,7 +412,7 @@ describe('migration 0017 rollback', () => {
           .get(),
       ).toEqual({ seq: 4 });
 
-      expect(runMigrations(db, migrations)).toEqual(['0017']);
+      expect(runMigrations(db, upTo0017)).toEqual(['0017']);
     } finally {
       db.close();
     }
