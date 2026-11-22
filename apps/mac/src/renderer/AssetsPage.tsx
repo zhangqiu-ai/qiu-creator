@@ -153,9 +153,9 @@ type DeleteDialog =
 
 /**
  * 素材庫 v2 (PT-20261119-001 「v2 · 素材庫：刪除與編輯」, QC-037): scopes
- * 全部／未引用／最近刪除, ⌘-click multi-select with batch tags and delete,
+ * 全部／未引用／回收站, ⌘-click multi-select with batch tags and delete,
  * an inspector that edits name, tags, alt text and note with autosave, and
- * delete rules by case: unreferenced managed assets go to 最近刪除 at once
+ * delete rules by case: unreferenced managed assets go to 回收站 at once
  * with 復原, referenced ones confirm with the works, external files leave the
  * library only unless the user opts in to the system Trash.
  */
@@ -348,7 +348,7 @@ export function AssetsPage({
     load();
   };
 
-  /** 移到最近刪除 / 移出素材庫 for one asset, following the delete rules. */
+  /** 移到回收站 / 移出素材庫 for one asset, following the delete rules. */
   const deleteOne = (asset: AssetRecord) => {
     if (isExternal(asset)) {
       setDialog({ kind: 'external', asset });

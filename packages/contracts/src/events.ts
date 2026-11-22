@@ -27,9 +27,9 @@ export const ChangeActionSchema = z.enum([
   'work.variant_updated',
   /** A platform variant (and its history) was deleted; `data.platform`. */
   'work.variant_deleted',
-  /** Moved to 最近刪除 or removed from the library (QC-051); `data.removal`. */
+  /** Moved to 回收站 or removed from the library (QC-051); `data.removal`. */
   'work.trashed',
-  /** Back from 最近刪除; revision and history unchanged (QC-051). */
+  /** Back from 回收站; revision and history unchanged (QC-051). */
   'work.restored',
   /** The work joined or left projects (QC-062); `data.added`, `data.removed` (project ids). */
   'work.projects_changed',
@@ -46,9 +46,9 @@ export const ChangeActionSchema = z.enum([
   'asset.created',
   /** Metadata or file details changed; `data.fields` for edits (QC-037). */
   'asset.updated',
-  /** Moved to 最近刪除 or removed from the library (QC-037); `data.removal`. */
+  /** Moved to 回收站 or removed from the library (QC-037); `data.removal`. */
   'asset.trashed',
-  /** Back from 最近刪除 with its references (QC-037). */
+  /** Back from 回收站 with its references (QC-037). */
   'asset.restored',
   /** Deleted permanently, by hand or after 30 days (QC-037); `data.removal`, `data.reason` (`manual`/`empty`/`expired`). */
   'asset.deleted',

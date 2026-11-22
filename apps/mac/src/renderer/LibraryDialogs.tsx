@@ -8,7 +8,7 @@ import { t } from './i18n.js';
 import { parseTags, unionTags } from './library-trash.js';
 
 /**
- * Confirmations for 作品庫 (QC-052). 刪除 can be undone from 最近刪除, so
+ * Confirmations for 作品庫 (QC-052). 刪除 can be undone from 回收站, so
  * its button takes the focus; 永久刪除 cannot, so 取消 does
  * (`qiuge-design/cases/kubai-999-009-overlay-selection`).
  */
@@ -75,7 +75,7 @@ export function DeleteDialog({
   );
 }
 
-/** 永久刪除 chosen works, or (with `empty`) everything in 最近刪除. */
+/** 永久刪除 chosen works, or (with `empty`) everything in 回收站. */
 export function PurgeDialog({
   works,
   empty,
@@ -85,7 +85,7 @@ export function PurgeDialog({
 }: {
   works: readonly DialogWork[];
   empty: boolean;
-  /** For `empty`: how many works 最近刪除 holds. */
+  /** For `empty`: how many works 回收站 holds. */
   count: number;
   onCancel: () => void;
   onConfirm: () => void;

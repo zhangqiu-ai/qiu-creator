@@ -6,7 +6,7 @@ import { test } from '../fixtures/desktop.js';
 /*
  * QC-069 作品庫與項目頁精簡、側欄重新分組 (PT-20261122-001):
  * - the sidebar goes scopes (全部作品, 未分類) → 項目 → 素材 → 工具, with
- *   最近刪除 and 設定 in its foot;
+ *   回收站 and 設定 in its foot;
  * - one header row: title, one light line of counts, search, 篩選, view, 新建;
  *   type and status live in the 篩選 popover (faceted counts, 0 dimmed), and
  *   the filters in use show as removable chips;
@@ -76,7 +76,7 @@ test('作品庫精簡：側欄分組、一行頁首、篩選彈出層、結果�
   await make('2026 年最順手的寫作工具', { markdown: '# 寫作工具\n\n打開就能寫。' }, []);
   await page.reload();
 
-  await test.step('側欄：全部作品、未分類 → 項目 → 素材 → 工具；底部是最近刪除與設定', async () => {
+  await test.step('側欄：全部作品、未分類 → 項目 → 素材 → 工具；底部是回收站與設定', async () => {
     const groups = nav(page).getByRole('group');
     await expect(groups).toHaveText([
       /全部作品.*6.*未分類.*1/,
@@ -84,7 +84,7 @@ test('作品庫精簡：側欄分組、一行頁首、篩選彈出層、結果�
       /素材庫.*匯入任務/,
       /AI 工作台.*平台預覽/,
     ]);
-    await expect(nav(page).locator('.sb__foot')).toContainText('最近刪除');
+    await expect(nav(page).locator('.sb__foot')).toContainText('回收站');
     await expect(nav(page).locator('.sb__foot')).toContainText('設定');
     await expect(nav(page).getByRole('button', { name: '全部作品' })).toHaveAttribute(
       'aria-current',
@@ -97,7 +97,7 @@ test('作品庫精簡：側欄分組、一行頁首、篩選彈出層、結果�
   await test.step('全部作品：一行頁首，淡字寫作品數；卡片顯示所屬項目', async () => {
     await expect(page.locator('main h1')).toHaveText('全部作品');
     await expect(sub(page)).toHaveText('6 個作品');
-    // The old rows are gone: no type segments, status chips or 最近刪除 chip on the page.
+    // The old rows are gone: no type segments, status chips or 回收站 chip on the page.
     await expect(page.locator('main .filters')).toHaveCount(0);
     await expect(page.locator('main .proj-overview')).toHaveCount(0);
     const label = card(page, '伏見稻荷').locator('.plabel');
@@ -186,17 +186,17 @@ test('作品庫精簡：側欄分組、一行頁首、篩選彈出層、結果�
     await search.fill('');
   });
 
-  await test.step('最近刪除在側欄底部，打開後頁首是標題與 30 天說明', async () => {
+  await test.step('回收站在側欄底部，打開後頁首是標題與 30 天說明', async () => {
     const gone = (await c.works.list({ q: '寫作工具', limit: 1 })).items[0];
     if (gone === undefined) throw new Error('no work to delete');
     await c.works.batch({
       action: 'trash',
       items: [{ id: gone.id, base_revision: gone.current_revision_id }],
     });
-    const trash = nav(page).locator('.sb__foot').getByRole('button', { name: '最近刪除' });
+    const trash = nav(page).locator('.sb__foot').getByRole('button', { name: '回收站' });
     await expect(trash).toContainText('1');
     await trash.click();
-    await expect(page.locator('main h1')).toHaveText('最近刪除');
+    await expect(page.locator('main h1')).toHaveText('回收站');
     await expect(sub(page)).toContainText('30 天後自動永久刪除');
     await expect(page.locator('main input[type="search"]')).toHaveCount(0);
     await expect(page.locator('.card-grid .wcard')).toHaveCount(1);

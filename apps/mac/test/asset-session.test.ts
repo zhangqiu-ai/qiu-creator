@@ -70,7 +70,7 @@ describe('asset helpers (QC-037)', () => {
     expect(isExternal(asset({ mount_id: '00000000-0000-4000-8000-000000000009' }))).toBe(true);
   });
 
-  it('counts days left in 最近刪除', () => {
+  it('counts days left in 回收站', () => {
     const now = new Date('2026-11-19T00:00:00Z');
     expect(daysLeft('2026-12-19T00:00:00Z', now)).toBe(30);
     expect(daysLeft('2026-11-19T01:00:00Z', now)).toBe(1);
@@ -100,7 +100,7 @@ describe('asset helpers (QC-037)', () => {
   it('words the asset error codes', () => {
     expect(assetErrorText(apiError(500, 'trash_failed'))).toBe('無法移到系統垃圾桶，原檔未變動');
     expect(assetErrorText(apiError(409, 'asset_file_missing'))).toContain('放回原處');
-    expect(assetErrorText(apiError(409, 'asset_in_trash'))).toBe('這個素材已在最近刪除');
+    expect(assetErrorText(apiError(409, 'asset_in_trash'))).toBe('這個素材已在回收站');
     expect(assetErrorText(new TypeError('fetch failed'))).toBe('沒有收到服務的回應');
   });
 
@@ -143,7 +143,7 @@ describe('delete dialog says what really happens (QC-039)', () => {
     expect(deleteImpactText(impact)).toBe(
       '文章中的圖片是獨立複本，不受影響；這些作品的素材清單會移除此項，30 天內恢復即補回。',
     );
-    expect(deletedToast(impact)).toBe('已移到最近刪除 · 文章中的圖片不受影響');
+    expect(deletedToast(impact)).toBe('已移到回收站 · 文章中的圖片不受影響');
     expect(
       deleteImpactText(deleteImpact([{ works: [copy('w1', '京都')], variants: [] }])),
     ).toContain('這件作品的素材清單');
@@ -166,7 +166,7 @@ describe('delete dialog says what really happens (QC-039)', () => {
     expect(deleteImpactText(impact)).toBe(
       '「書房」、「舊作品」、「咖啡」 會顯示為缺圖，30 天內恢復即自動補回。「京都」 中的圖片是獨立複本，不受影響。',
     );
-    expect(deletedToast(impact)).toBe('已移到最近刪除 · 部分作品顯示為缺圖');
+    expect(deletedToast(impact)).toBe('已移到回收站 · 部分作品顯示為缺圖');
   });
 
   it('a work with a copied body image but also a cover counts as missing', () => {
@@ -323,7 +323,7 @@ describe('AssetEditor autosave', () => {
     const ed = new AssetEditor(svc.client, svc.current, undefined, 600);
     ed.change('note', 'x');
     await ed.flush();
-    expect(ed.getSnapshot()).toMatchObject({ status: 'error', error: '這個素材已在最近刪除' });
+    expect(ed.getSnapshot()).toMatchObject({ status: 'error', error: '這個素材已在回收站' });
     expect(ed.value('note')).toBe('x');
   });
 

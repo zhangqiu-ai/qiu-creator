@@ -5736,7 +5736,7 @@ kbd {
   color: var(--qc-ink3);
 }
 
-/* ---- 作品庫：刪除、最近刪除、批量標籤 (QC-052) ---- */
+/* ---- 作品庫：刪除、回收站、批量標籤 (QC-052) ---- */
 .filters__trash {
   margin-left: auto;
   gap: 6px;

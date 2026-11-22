@@ -132,7 +132,7 @@ test('作品庫：超過一頁時捲到底載入全部、數量是全體、⌘A 
     await closeFilter(page);
   });
 
-  await test.step('⌘A 後刪除：篩選下的全部都進最近刪除', async () => {
+  await test.step('⌘A 後刪除：篩選下的全部都進回收站', async () => {
     await chooseFilter(page, '類型', /^貼圖/);
     await expect(cards(page)).toHaveCount(60);
     await page.locator('main .page__title').click();
@@ -141,17 +141,17 @@ test('作品庫：超過一頁時捲到底載入全部、數量是全體、⌘A 
     await page.keyboard.press('Meta+Backspace');
     await page
       .getByRole('dialog')
-      .getByRole('button', { name: /移到最近刪除|刪除/ })
+      .getByRole('button', { name: /移到回收站|刪除/ })
       .last()
       .click();
     await expect
       .poll(async () => (await c.works.list({ scope: 'trash', limit: 1 })).total)
       .toBe(POSTS);
     await expect(total(page)).toHaveText(`0 個結果 · 共 ${String(ARTICLES)} 個`);
-    await expect(trashRow(page)).toHaveText(`最近刪除${String(POSTS)}`);
+    await expect(trashRow(page)).toHaveText(`回收站${String(POSTS)}`);
   });
 
-  await test.step('最近刪除也分頁；⌘A 選取全部刪除的作品', async () => {
+  await test.step('回收站也分頁；⌘A 選取全部刪除的作品', async () => {
     await trashRow(page).click();
     const trashCards = (p: Page) => p.locator('.card-grid .wcard');
     await expect(trashCards(page)).toHaveCount(60);

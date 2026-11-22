@@ -116,7 +116,7 @@ describe('insert helpers (QC-039)', () => {
 
   it('words attach and upload failures', () => {
     expect(attachErrorText(apiError(409, 'attach_external_unsupported'))).toContain('外部掛載');
-    expect(attachErrorText(apiError(409, 'asset_in_trash'))).toContain('最近刪除');
+    expect(attachErrorText(apiError(409, 'asset_in_trash'))).toContain('回收站');
     expect(attachErrorText(new TypeError('fetch failed'))).toBe('本機服務未回應');
     expect(uploadErrorText({ error: null, errorCode: null })).toBe('本機服務未回應');
     expect(uploadErrorText({ error: 'x', errorCode: 'unsupported_media_type' })).toBe(

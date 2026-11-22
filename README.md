@@ -49,7 +49,7 @@ node packages/agent-sdk/bin/creatorhub.js import url https://example.com/clip.mp
 node packages/agent-sdk/bin/creatorhub.js jobs get <job-id>
 node packages/agent-sdk/bin/creatorhub.js mounts add ~/Documents/寫作 --name 寫作   # 就地索引，不搬移檔案
 node packages/agent-sdk/bin/creatorhub.js mounts list
-# 最近刪除與批量（QC-053），需要 write 權限
+# 回收站與批量（QC-053），需要 write 權限
 node packages/agent-sdk/bin/creatorhub.js works delete <work-id> --base-revision <revision>
 node packages/agent-sdk/bin/creatorhub.js works list --trash
 node packages/agent-sdk/bin/creatorhub.js works restore <work-id> --use-current-revision
@@ -64,7 +64,7 @@ node packages/agent-sdk/bin/creatorhub.js works list --project <project-id>
 node packages/agent-sdk/bin/creatorhub.js works list --unassigned
 ```
 
-刪除與批量都要帶作品的版本（`--base-revision` 或 `<id>:<revision>`；版本用 `--json works list` 查）；別處改過就逐項回 `revision_conflict`。加 `--use-current-revision` 會改用伺服器上的目前版本，等於放棄這個保護。批量逐項成功或失敗，有任何一項失敗時退出碼是 1。CLI 刪除只會移到最近刪除（30 天內可恢復），掛載資料夾裡的檔案不會被動到；CLI 沒有永久刪除。
+刪除與批量都要帶作品的版本（`--base-revision` 或 `<id>:<revision>`；版本用 `--json works list` 查）；別處改過就逐項回 `revision_conflict`。加 `--use-current-revision` 會改用伺服器上的目前版本，等於放棄這個保護。批量逐項成功或失敗，有任何一項失敗時退出碼是 1。CLI 刪除只會移到回收站（30 天內可恢復），掛載資料夾裡的檔案不會被動到；CLI 沒有永久刪除。
 
 給外部 Agent 用時，請用主權杖建立權限受限、可撤銷的 Agent 權杖（`POST /api/v1/tokens`，`scopes` 為 `read`／`import`／`write`），不要把主權杖交給 Agent。Agent 權杖建立作品或匯入 URL 時必須帶 `Idempotency-Key`；CLI 預設每次產生新的鍵，要安全重試時用 `--idempotency-key` 指定同一個鍵。
 

@@ -95,10 +95,10 @@ export function moveInOrder(ids: readonly string[], id: string, step: -1 | 1): s
 
 export interface ProjectsState {
   projects: Project[] | null;
-  /** 全部作品 and 未分類 counts (works not in 最近刪除). */
+  /** 全部作品 and 未分類 counts (works not in 回收站). */
   allCount: number | null;
   unassignedCount: number | null;
-  /** Works in 最近刪除, for its row at the foot of the sidebar (QC-069). */
+  /** Works in 回收站, for its row at the foot of the sidebar (QC-069). */
   trashCount: number | null;
   failed: boolean;
 }
@@ -218,7 +218,7 @@ export class ProjectsStore {
 
   /**
    * Add works to or remove them from one project; returns the ids that
-   * changed (works in 最近刪除 or gone are skipped by the service).
+   * changed (works in 回收站 or gone are skipped by the service).
    */
   async setMembership(
     projectId: string,

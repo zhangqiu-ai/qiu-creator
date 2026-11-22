@@ -11,7 +11,7 @@ import { trashRow } from '../fixtures/library.js';
  * the 項目 ▸ checkboxes (mixed for a mixed selection) with 復原, colour dots
  * on cards, a project's page with its counts and assets link, a new work
  * made inside a project joining it, 所屬項目 in the editor, and deleting a
- * project (works stay, 復原 brings it back) with 最近刪除 saying where a
+ * project (works stay, 復原 brings it back) with 回收站 saying where a
  * deleted work was.
  * Set QC062_SHOTS=<dir> to also save screenshots for the acceptance record.
  */
@@ -188,7 +188,7 @@ test('作品庫項目：側欄、拖放加入、勾選、項目頁、編輯器�
     await expect(tag).toHaveCount(1);
   });
 
-  await test.step('最近刪除寫出原本所在的項目', async () => {
+  await test.step('回收站寫出原本所在的項目', async () => {
     await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
     await card(page, '京都散步路線').click({ button: 'right' });
     await page.getByRole('menuitem', { name: /刪除…/ }).click();

@@ -44,9 +44,9 @@ export const WorkSchema = z.object({
   external_state: z.enum(['present', 'missing', 'unmounted']).nullable().optional(),
   /** External works only: path of the file relative to the mount root. */
   external_path: z.string().nullable().optional(),
-  /** Set while the work is in 最近刪除 (QC-051); null when active. */
+  /** Set while the work is in 回收站 (QC-051); null when active. */
   deleted_at: TimestampSchema.nullable().optional(),
-  /** When a work in 最近刪除 is deleted permanently by itself (30 days after `deleted_at`). */
+  /** When a work in 回收站 is deleted permanently by itself (30 days after `deleted_at`). */
   purge_at: TimestampSchema.nullable().optional(),
   /** Projects the work is in (QC-062), deleted projects left out; archived ones included. */
   project_ids: z.array(IdSchema).optional(),

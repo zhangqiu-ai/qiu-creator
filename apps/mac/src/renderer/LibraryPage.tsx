@@ -122,7 +122,7 @@ export interface LibraryPageProps {
   handles: EditorHandles;
   /** A work was renamed here, so its tab (if any) shows the new title. */
   onRenamed: (id: string, title: string) => void;
-  /** Works moved to 最近刪除 here: their tabs close. */
+  /** Works moved to 回收站 here: their tabs close. */
   onTrashed: (ids: readonly string[]) => void;
   /** 全部作品, 未分類 or one project (QC-062). */
   scope?: LibraryScope;
@@ -186,7 +186,7 @@ export function LibraryPage({
       : null;
   const projectId = libraryScope.kind === 'project' ? libraryScope.id : null;
   const unassigned = libraryScope.kind === 'unassigned';
-  /** 最近刪除, opened from the foot of the sidebar (QC-069). */
+  /** 回收站, opened from the foot of the sidebar (QC-069). */
   const inTrash = libraryScope.kind === 'trash';
   const notifyProject = useNotice();
   // 作品庫分頁 (QC-067): the works matching the filter, a page at a time.
@@ -210,7 +210,7 @@ export function LibraryPage({
   const [status, setStatus] = useState<StatusFilter>('all');
   const [view, setView] = useState<View>(readView);
   const [creating, setCreating] = useState(false);
-  /** Where 最近刪除 puts its 清空 button (the header's tool area). */
+  /** Where 回收站 puts its 清空 button (the header's tool area). */
   const [trashTools, setTrashTools] = useState<HTMLDivElement | null>(null);
   /** Works in the scope before searching or filtering (「共 M 個」, QC-069). */
   const [scopeTotal, setScopeTotal] = useState<number | null>(null);
@@ -594,7 +594,7 @@ export function LibraryPage({
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [busy, setBusy] = useState(false);
 
-  /** Move works to 最近刪除; the notice's 復原 brings them back. */
+  /** Move works to 回收站; the notice's 復原 brings them back. */
   const deleteWorks = async (targets: readonly LibraryWork[], moveOriginal: boolean) => {
     setConfirm(null);
     setBusy(true);

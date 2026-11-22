@@ -5,7 +5,7 @@ import { t } from './i18n.js';
 
 /**
  * 素材庫 v2 (PT-20261119-001 「v2 · 素材庫：刪除與編輯」, QC-037): names,
- * delete rules, 最近刪除 and the autosaving editor. Framework-free for tests.
+ * delete rules, 回收站 and the autosaving editor. Framework-free for tests.
  */
 
 /** What the user sees: the display name, else the original file name. */
@@ -25,7 +25,7 @@ export function isExternal(asset: AssetRecord): boolean {
   return asset.mount_id !== null && asset.mount_id !== undefined;
 }
 
-/** Whole days left before 最近刪除 purges it (never below 0). */
+/** Whole days left before 回收站 purges it (never below 0). */
 export function daysLeft(
   purgeAt: string | null | undefined,
   now: Date = new Date(),

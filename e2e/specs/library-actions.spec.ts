@@ -309,7 +309,7 @@ test('作品庫：卡片縮小、原地改名、右鍵選單、改狀態復原�
   }
 });
 
-test('作品庫：刪除確認與復原、批量標籤、分頁關閉、最近刪除還原與永久刪除、外部作品原檔不動', async ({
+test('作品庫：刪除確認與復原、批量標籤、分頁關閉、回收站還原與永久刪除、外部作品原檔不動', async ({
   desktop,
 }) => {
   const { page, backend } = desktop;
@@ -334,18 +334,18 @@ test('作品庫：刪除確認與復原、批量標籤、分頁關閉、最近�
 
     await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
     await expect(works(page).locator('.wcard')).toHaveCount(5);
-    await expect(trashChip()).toHaveText('最近刪除');
+    await expect(trashChip()).toHaveText('回收站');
 
     await test.step('右鍵刪除：確認框寫明可還原 30 天，刪除後可復原', async () => {
       await card(page, '春季選題').click({ button: 'right' });
       await page.getByRole('menuitem', { name: /^刪除…/ }).click();
       const dialog = page.getByRole('dialog', { name: '刪除「春季選題」？' });
-      await expect(dialog).toContainText('會移到最近刪除，30 天內可以還原');
+      await expect(dialog).toContainText('會移到回收站，30 天內可以還原');
       await expect(dialog.getByRole('button', { name: '刪除', exact: true })).toBeFocused();
       await shot(page, 'zh-Hant-9-delete-confirm');
       await page.keyboard.press('Enter');
       await expect(card(page, '春季選題')).toHaveCount(0);
-      await expect(trashChip()).toHaveText('最近刪除1');
+      await expect(trashChip()).toHaveText('回收站1');
       const toast = page.getByRole('status').filter({ hasText: '已刪除「春季選題」' });
       await expect(toast).toBeVisible();
       await shot(page, 'zh-Hant-10-deleted-undo');
@@ -404,7 +404,7 @@ test('作品庫：刪除確認與復原、批量標籤、分頁關閉、最近�
       await page.keyboard.press('Meta+Backspace');
       const dialog = page.getByRole('dialog', { name: '刪除 2 個作品？' });
       await dialog.getByRole('button', { name: '刪除', exact: true }).click();
-      await expect(trashChip()).toHaveText('最近刪除2');
+      await expect(trashChip()).toHaveText('回收站2');
       await expect(page.getByRole('toolbar')).toHaveCount(0);
       expect((await active()).map((w) => w.title).sort()).toEqual([
         '外部筆記',
@@ -426,12 +426,12 @@ test('作品庫：刪除確認與復原、批量標籤、分頁關閉、最近�
         dialog.getByRole('checkbox', { name: /原檔也移到 macOS 垃圾桶/ }),
       ).not.toBeChecked();
       await dialog.getByRole('button', { name: '刪除', exact: true }).click();
-      await expect(trashChip()).toHaveText('最近刪除3');
+      await expect(trashChip()).toHaveText('回收站3');
       expect(existsSync(externalFile)).toBe(true);
       expect(desktop.systemTrash.moved).toEqual([]);
     });
 
-    await test.step('最近刪除：剩餘天數、還原、永久刪除（取消先有焦點）、清空', async () => {
+    await test.step('回收站：剩餘天數、還原、永久刪除（取消先有焦點）、清空', async () => {
       await trashChip().click();
       const list = page.getByRole('region', { name: '已刪除的作品' });
       await expect(list.locator('.wcard')).toHaveCount(3);
@@ -461,22 +461,22 @@ test('作品庫：刪除確認與復原、批量標籤、分頁關閉、最近�
       ).toBeVisible();
       await expect(list.locator('.wcard')).toHaveCount(1);
 
-      await page.getByRole('button', { name: '清空最近刪除' }).click();
-      const empty = page.getByRole('dialog', { name: '清空最近刪除？' });
+      await page.getByRole('button', { name: '清空回收站' }).click();
+      const empty = page.getByRole('dialog', { name: '清空回收站？' });
       await expect(empty).toContainText('1 個作品會永久刪除');
-      await empty.getByRole('button', { name: '清空最近刪除' }).click();
-      await expect(page.getByText('最近刪除是空的')).toBeVisible();
+      await empty.getByRole('button', { name: '清空回收站' }).click();
+      await expect(page.getByText('回收站是空的')).toBeVisible();
       expect((await c.works.list({ scope: 'trash', limit: 5 })).total).toBe(0);
       // Purging an unindexed external work never touches its file.
       expect(existsSync(externalFile)).toBe(true);
 
       await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
-      await expect(trashChip()).toHaveText('最近刪除');
+      await expect(trashChip()).toHaveText('回收站');
       await expect(works(page).locator('.wcard')).toHaveCount(3);
     });
 
     if (shooting()) {
-      await test.step('截圖：最近刪除的簡中、English、深色', async () => {
+      await test.step('截圖：回收站的簡中、English、深色', async () => {
         for (const title of ['春季選題', '秋天散步']) {
           const w = await byTitle(title);
           await c.works.trash(w.id, { base_revision: w.current_revision_id });

@@ -40,7 +40,7 @@ export const ProjectSchema = z.object({
   archived_at: TimestampSchema.nullable(),
   /** Set while the project is deleted (restorable for 30 days); deleted projects are not listed. */
   deleted_at: TimestampSchema.nullable(),
-  /** Works in the project, not counting works in 最近刪除. */
+  /** Works in the project, not counting works in 回收站. */
   work_count: z.number().int().nonnegative(),
   created_at: TimestampSchema,
   updated_at: TimestampSchema,
@@ -83,14 +83,14 @@ export type ReorderProjectsRequest = z.input<typeof ReorderProjectsRequestSchema
 
 export const ProjectSummarySchema = z.object({
   project: ProjectSchema,
-  /** Works in the project by status, not counting works in 最近刪除. */
+  /** Works in the project by status, not counting works in 回收站. */
   by_status: z.record(WorkStatusSchema, z.number().int().nonnegative()),
   /** Most recent `updated_at` of the project's works; null when it has none. */
   last_updated_at: TimestampSchema.nullable(),
   /** Library assets the project's works use (see `GET /api/v1/assets?project_id=`). */
   asset_count: z.number().int().nonnegative(),
   /**
-   * Works (not in 最近刪除) in this project and in no other live project,
+   * Works (not in 回收站) in this project and in no other live project,
    * archived ones counting as other projects: those that become 未分類 when
    * the project is deleted (QC-067).
    */
