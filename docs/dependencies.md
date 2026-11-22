@@ -146,8 +146,9 @@
 | --- | --- | --- | --- | --- | --- |
 | react / react-dom | ^19.3.1 | MIT | mac、markdown-editor-web（peer） | UI | Preact（MDXEditor 不支援） |
 | @mdxeditor/editor | ^4.5.0 | MIT | markdown-editor-web | 視覺 Markdown 編輯（見上） | Milkdown、TipTap |
+| lexical / @lexical/react / @lexical/utils | ^0.48.0 | MIT | markdown-editor-web | QC-072：唯讀「原樣保留」節點（HTML、腳註、參照連結、數學）的 DecoratorNode 與選取、刪除。與 MDXEditor 4.5.0 內建的 Lexical 同版，不另裝一份（pnpm 解析為同一個） | 不用（只能用 MDXEditor 內建的節點則無法顯示原樣文字） |
 | @fontsource-variable/inter | ^5.3.0 | OFL-1.1（字型）／MIT（打包腳本） | mac | DESIGN.md 指定的 Inter 可變字型（wght 軸，正體與斜體），由 Vite 打進 App，不從網路載入（見「字型」一節） | 直接放 rsms/inter 官方 woff2；系統字體（不符視覺基線） |
-| mdast-util-from-markdown | ^2.1.0 | MIT | markdown-editor-web、mac-server | 解析 Markdown，偵測可能有損語法、比對結構 | remark（較重） |
+| mdast-util-from-markdown | ^2.1.0 | MIT | markdown-editor-web、mac-server | 解析 Markdown，找出要原樣保留的語法（QC-072）、比對結構 | remark（較重） |
 | micromark-extension-gfm / mdast-util-gfm | ^3.0.0 / ^3.1.0 | MIT | markdown-editor-web、mac-server | GFM（表格、腳註、刪除線、待辦）解析 | — |
 | micromark-extension-frontmatter / mdast-util-frontmatter | ^2.0.0 / ^2.0.1 | MIT | markdown-editor-web、mac-server | YAML frontmatter 解析 | — |
 | yaml | ^2.9.1 | ISC | domain（mac-server 經由它） | 讀寫貼圖與視頻作品的 front matter（QC-045/046）。`parseDocument` 保留註解、未知鍵與鍵的順序，App 寫回使用者手寫的檔案時不會丟資料。沒有其他依賴，純 JS，esbuild 直接打包 | js-yaml（MIT，讀寫會丟註解與格式）；gray-matter（依賴 js-yaml，同樣問題）；自寫子集解析器（使用者手寫的 YAML 形式太多，不可靠） |

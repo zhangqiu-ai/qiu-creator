@@ -11,12 +11,8 @@ import {
   useState,
   type ChangeEvent,
 } from 'react';
-import {
-  detectLossySyntax,
-  lossyReasonLabel,
-  restoreFinalNewline,
-  type LossyReason,
-} from './lossy.js';
+import { restoreFinalNewline } from './lossy.js';
+import { protectRawSyntax, restoreRawSyntax } from './raw.js';
 import { createEditorPlugins, liveTranslationPlugin, TO_MARKDOWN_OPTIONS } from './plugins.js';
 import { blockEndAt, boundaryBeforeBlock, insertBlockAt } from './insert.js';
 import {
@@ -37,8 +33,13 @@ export interface MarkdownEditorProps {
   /** Told when IME composition starts and ends so hosts can hold saves and shortcuts. */
   onCompositionChange?: (composing: boolean) => void;
   onModeChange?: (mode: EditorMode) => void;
-  /** Force a starting mode. Default: source for documents with lossy syntax, visual otherwise. */
+  /** Force a starting mode. Default: visual. */
   initialMode?: EditorMode;
+  /**
+   * Told when the visual editor cannot take this text, so the document stays in
+   * source mode (QC-072). Nothing is changed: the text is exactly as it was.
+   */
+  onVisualUnavailable?: () => void;
   readOnly?: boolean;
   /** Render the built-in 視覺／原始碼 switch. Hosts with their own switch call `requestMode`. */
   showModeSwitch?: boolean;
@@ -67,7 +68,7 @@ export interface MarkdownEditorHandle {
   getMarkdown: () => string;
   isComposing: () => boolean;
   getMode: () => EditorMode;
-  /** Switch modes; switching a lossy document to visual asks for confirmation first. */
+  /** Switch modes at once; nothing is confirmed and the text is never rewritten by switching. */
   requestMode: (mode: EditorMode) => void;
   focus: () => void;
   /** The current selection as a Markdown source range (see `onSelectionChange`), or null. */
@@ -97,30 +98,50 @@ export interface MarkdownEditorHandle {
  * Markdown editor with a visual (MDXEditor) mode and a plain-text source mode.
  *
  * Original-text protection:
- * - Documents with syntax the visual editor may rewrite open in source mode,
- *   and switching to visual needs an explicit confirmation.
+ * - Syntax the visual editor cannot edit (HTML, footnotes, reference links,
+ *   table edge cases, math) is carried through as read-only raw nodes and
+ *   written back byte-for-byte (raw.ts), so switching to visual needs no
+ *   confirmation (QC-072).
  * - Loading a document never reports a change: MDXEditor's initial
  *   normalisation is ignored, and if the user's edits bring the visual
  *   document back to its loaded state the original text is reported, not the
  *   normalised one.
  */
+/** Swap raw syntax for placeholders into `text`. False when the document cannot be protected. */
+function protectForVisual(
+  markdown: string,
+  originals: { current: readonly string[] },
+  text: { current: string },
+): boolean {
+  const protectedText = protectRawSyntax(markdown);
+  if (protectedText === null) return false;
+  originals.current = protectedText.originals;
+  text.current = protectedText.text;
+  return true;
+}
+
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
   function MarkdownEditor(props, ref) {
     const { onChange, onCompositionChange, onModeChange, readOnly = false } = props;
-    const initialLossy = useMemo(() => detectLossySyntax(props.markdown), [props.markdown]);
-    const [mode, setMode] = useState<EditorMode>(
-      props.initialMode ?? (initialLossy.length > 0 ? 'source' : 'visual'),
-    );
+    /** What the visual editor loads: the text with raw syntax swapped for placeholders. */
+    const rawOriginals = useRef<readonly string[]>([]);
+    const visualText = useRef(props.markdown);
+    const [mode, setMode] = useState<EditorMode>(() => {
+      const wanted = props.initialMode ?? 'visual';
+      if (wanted === 'visual' && !protectForVisual(props.markdown, rawOriginals, visualText)) {
+        return 'source';
+      }
+      return wanted;
+    });
     const [sourceText, setSourceText] = useState(props.markdown);
     const [visualKey, setVisualKey] = useState(0);
-    const [pendingVisual, setPendingVisual] = useState<LossyReason[] | null>(null);
 
     /** Text as it will be saved. */
     const current = useRef(props.markdown);
     const lastEmitted = useRef(props.markdown);
     /** Text handed to MDXEditor on its last (re)mount, and MDXEditor's normalised form of it. */
     const visualLoaded = useRef(props.markdown);
-    const visualNormalized = useRef(props.markdown);
+    const visualNormalized = useRef(visualText.current);
     const composing = useRef(false);
     const mdx = useRef<MDXEditorMethods>(null);
     const textarea = useRef<HTMLTextAreaElement>(null);
@@ -207,7 +228,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         current.current =
           markdown === visualNormalized.current
             ? visualLoaded.current
-            : restoreFinalNewline(markdown, visualLoaded.current);
+            : restoreFinalNewline(
+                restoreRawSyntax(markdown, rawOriginals.current),
+                visualLoaded.current,
+              );
         emit();
       },
       [emit],
@@ -230,31 +254,28 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       [onModeChange],
     );
 
-    const enterVisual = useCallback(() => {
+    const { onVisualUnavailable } = props;
+    /** Hand the current text to a fresh visual editor. False when it cannot take it. */
+    const loadVisual = useCallback((): boolean => {
+      if (!protectForVisual(current.current, rawOriginals, visualText)) return false;
       visualLoaded.current = current.current;
-      visualNormalized.current = current.current;
-      setPendingVisual(null);
+      visualNormalized.current = visualText.current;
       setVisualKey((k) => k + 1);
-      changeMode('visual');
-    }, [changeMode]);
+      return true;
+    }, []);
 
     const requestMode = useCallback(
       (next: EditorMode) => {
         if (next === mode) return;
         if (next === 'source') {
           setSourceText(current.current);
-          setPendingVisual(null);
           changeMode('source');
           return;
         }
-        const reasons = detectLossySyntax(current.current);
-        if (reasons.length > 0) {
-          setPendingVisual(reasons);
-          return;
-        }
-        enterVisual();
+        if (loadVisual()) changeMode('visual');
+        else onVisualUnavailable?.();
       },
-      [changeMode, enterVisual, mode],
+      [changeMode, loadVisual, mode, onVisualUnavailable],
     );
 
     const insertBlock = useCallback(
@@ -275,9 +296,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         current.current = result.markdown;
         lastRange.current = { start: result.end, end: result.end };
         if (mode === 'visual') {
-          visualLoaded.current = result.markdown;
-          visualNormalized.current = result.markdown;
-          setVisualKey((k) => k + 1);
+          if (!loadVisual()) {
+            setSourceText(result.markdown);
+            changeMode('source');
+            onVisualUnavailable?.();
+          }
         } else {
           setSourceText(result.markdown);
           requestAnimationFrame(() => {
@@ -289,7 +312,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         }
         emit();
       },
-      [emit, mode, selectionRange],
+      [changeMode, emit, loadVisual, mode, onVisualUnavailable, selectionRange],
     );
 
     const boundaryAt = useCallback(
@@ -394,6 +417,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       () => [
         ...createEditorPlugins({
           locale,
+          rawOriginals,
           ...(hasResolver
             ? {
                 resolveImage: (src: string) =>
@@ -451,40 +475,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           </div>
         )}
 
-        {pendingVisual !== null && (
-          <div
-            className="qc-md-editor__confirm"
-            role="alertdialog"
-            aria-label={translate(locale, 'editor.switchToVisualTitle')}
-          >
-            <span>
-              {translate(locale, 'editor.lossyWarning', {
-                reasons: pendingVisual
-                  .map((r) => lossyReasonLabel(r, locale))
-                  .join(translate(locale, 'common.listSeparator')),
-              })}
-            </span>
-            <button type="button" onClick={enterVisual}>
-              {translate(locale, 'editor.switchAnyway')}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPendingVisual(null);
-              }}
-            >
-              {translate(locale, 'common.cancel')}
-            </button>
-          </div>
-        )}
-
         {mode === 'visual' ? (
           <MDXEditor
             key={visualKey}
             ref={mdx}
             className="qc-md-editor__visual"
             contentEditableClassName="qc-md-editor__content"
-            markdown={visualLoaded.current}
+            markdown={visualText.current}
             plugins={plugins}
             onChange={handleVisualChange}
             onError={() => {

@@ -47,45 +47,53 @@ describe('MarkdownEditor', () => {
     m.unmount();
   });
 
-  it('opens lossy documents in source mode and keeps their text byte-for-byte', async () => {
+  it('opens a document with raw syntax in visual mode, unchanged (QC-072)', async () => {
     const onChange = vi.fn();
     const ref = createRef<MarkdownEditorHandle>();
     const original = fixture('lossy.md');
     const m = await mount(<MarkdownEditor ref={ref} markdown={original} onChange={onChange} />);
-    expect(ref.current?.getMode()).toBe('source');
-    const ta = m.container.querySelector('textarea');
-    expect(ta?.value).toBe(original);
-
-    const edited = `${original}\n補一句。\n`;
-    act(() => {
-      if (ta) setTextareaValue(ta, edited);
-    });
-    expect(onChange).toHaveBeenLastCalledWith(edited);
+    expect(ref.current?.getMode()).toBe('visual');
+    expect(onChange).not.toHaveBeenCalled();
+    expect(ref.current?.getMarkdown()).toBe(original);
     m.unmount();
   });
 
-  it('asks before switching a lossy document to the visual editor', async () => {
+  it('switches to visual and back at once, with no confirmation and no change (QC-072)', async () => {
+    const onChange = vi.fn();
     const ref = createRef<MarkdownEditorHandle>();
+    const original = fixture('lossy.md');
     const m = await mount(
-      <MarkdownEditor ref={ref} markdown={fixture('lossy.md')} onChange={vi.fn()} />,
+      <MarkdownEditor ref={ref} markdown={original} initialMode="source" onChange={onChange} />,
     );
+    expect(ref.current?.getMode()).toBe('source');
     const visualButton = [...m.container.querySelectorAll('button')].find(
       (b) => b.textContent === '視覺',
     );
     act(() => {
       visualButton?.click();
     });
-    expect(ref.current?.getMode()).toBe('source');
-    expect(m.container.querySelector('[role="alertdialog"]')?.textContent).toContain('HTML');
-
-    const cancel = [...m.container.querySelectorAll('button')].find(
-      (b) => b.textContent === '取消',
-    );
-    act(() => {
-      cancel?.click();
-    });
     expect(m.container.querySelector('[role="alertdialog"]')).toBeNull();
-    expect(ref.current?.getMode()).toBe('source');
+    expect(ref.current?.getMode()).toBe('visual');
+    act(() => {
+      ref.current?.requestMode('source');
+    });
+    expect(m.container.querySelector('textarea')?.value).toBe(original);
+    expect(onChange).not.toHaveBeenCalled();
+    m.unmount();
+  });
+
+  it('keeps editing in source mode byte-for-byte', async () => {
+    const onChange = vi.fn();
+    const original = fixture('lossy.md');
+    const m = await mount(
+      <MarkdownEditor markdown={original} initialMode="source" onChange={onChange} />,
+    );
+    const ta = m.container.querySelector('textarea');
+    const edited = `${original}\n補一句。\n`;
+    act(() => {
+      if (ta) setTextareaValue(ta, edited);
+    });
+    expect(onChange).toHaveBeenLastCalledWith(edited);
     m.unmount();
   });
 

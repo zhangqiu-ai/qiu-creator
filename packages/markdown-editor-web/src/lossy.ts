@@ -1,33 +1,9 @@
-import { SOURCE_LOCALE, translate, type Locale, type MessageKey } from '@qiu-creator/i18n';
-import type { Nodes, Root, Table } from 'mdast';
+import type { Root, Table } from 'mdast';
 import { fromMarkdown } from 'mdast-util-from-markdown';
 import { frontmatterFromMarkdown } from 'mdast-util-frontmatter';
 import { gfmFromMarkdown } from 'mdast-util-gfm';
 import { frontmatter } from 'micromark-extension-frontmatter';
 import { gfm } from 'micromark-extension-gfm';
-
-/**
- * Syntax the visual editor may rewrite or drop on save. Documents that contain
- * any of these open in source mode so the original text is kept byte-for-byte
- * unless the user explicitly switches to the visual editor.
- */
-export type LossyReason =
-  'html' | 'footnote' | 'reference_link' | 'table_edge_case' | 'math' | 'directive' | 'parse_error';
-
-const LOSSY_REASON_KEYS: Readonly<Record<LossyReason, MessageKey>> = {
-  html: 'editor.lossyHtml',
-  footnote: 'editor.lossyFootnote',
-  reference_link: 'editor.lossyReferenceLink',
-  table_edge_case: 'editor.lossyTableEdgeCase',
-  math: 'editor.lossyMath',
-  directive: 'editor.lossyDirective',
-  parse_error: 'editor.lossyParseError',
-};
-
-/** What to call one reason in the interface (QC-042: in the given language). */
-export function lossyReasonLabel(reason: LossyReason, locale: Locale = SOURCE_LOCALE): string {
-  return translate(locale, LOSSY_REASON_KEYS[reason]);
-}
 
 /** Parse Markdown with the same syntax extensions the editor understands. */
 export function parseMarkdown(markdown: string): Root {
@@ -37,7 +13,7 @@ export function parseMarkdown(markdown: string): Root {
   });
 }
 
-function tableIsEdgeCase(table: Table, source: string): boolean {
+export function tableIsEdgeCase(table: Table, source: string): boolean {
   const width = table.children[0]?.children.length ?? 0;
   if (table.children.some((row) => row.children.length !== width)) return true;
   const start = table.position?.start.offset;
@@ -46,47 +22,6 @@ function tableIsEdgeCase(table: Table, source: string): boolean {
   const raw = source.slice(start, end);
   // Escaped pipes and multi-line cell content do not survive re-serialisation reliably.
   return raw.includes('\\|') || /<br\s*\/?>/i.test(raw);
-}
-
-export function detectLossySyntax(markdown: string): LossyReason[] {
-  const found = new Set<LossyReason>();
-  let tree: Root;
-  try {
-    tree = parseMarkdown(markdown);
-  } catch {
-    return ['parse_error'];
-  }
-
-  const visit = (node: Nodes): void => {
-    switch (node.type) {
-      case 'html':
-        found.add('html');
-        break;
-      case 'footnoteDefinition':
-      case 'footnoteReference':
-        found.add('footnote');
-        break;
-      case 'definition':
-      case 'linkReference':
-      case 'imageReference':
-        found.add('reference_link');
-        break;
-      case 'table':
-        if (tableIsEdgeCase(node, markdown)) found.add('table_edge_case');
-        break;
-      default:
-        break;
-    }
-    if ('children' in node) {
-      for (const child of node.children) visit(child);
-    }
-  };
-  visit(tree);
-
-  if (/(^|\n)\s*\$\$/.test(markdown)) found.add('math');
-  if (/(^|\n)\s*:{2,}[a-zA-Z]/.test(markdown)) found.add('directive');
-
-  return [...found];
 }
 
 type Plain = string | number | boolean | null | Plain[] | { [key: string]: Plain };

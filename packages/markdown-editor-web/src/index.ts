@@ -1,13 +1,7 @@
 export { MarkdownEditor } from './MarkdownEditor.js';
 export type { EditorMode, MarkdownEditorHandle, MarkdownEditorProps } from './MarkdownEditor.js';
-export {
-  detectLossySyntax,
-  lossyReasonLabel,
-  markdownStructure,
-  parseMarkdown,
-  restoreFinalNewline,
-  type LossyReason,
-} from './lossy.js';
+export { markdownStructure, parseMarkdown, restoreFinalNewline } from './lossy.js';
+export { protectRawSyntax, restoreRawSyntax, type RawProtected } from './raw.js';
 export {
   codeBlockLanguages,
   createEditorPlugins,
