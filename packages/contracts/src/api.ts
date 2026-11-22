@@ -67,6 +67,8 @@ export const ErrorCodeSchema = z.enum([
    * the file; fix it in the file first (409, QC-045/046).
    */
   'front_matter_invalid',
+  /** The work is in 最近刪除; restore it before editing (409, QC-051). */
+  'work_in_trash',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 
@@ -219,6 +221,12 @@ export const ListWorksQuerySchema = z.object({
   type: WorkTypeSchema.optional(),
   status: WorkStatusSchema.optional(),
   tag: z.string().trim().min(1).max(64).optional(),
+  /**
+   * `active` (default): works not in 最近刪除. `trash`: only works in 最近刪除,
+   * newest deletion first (QC-051). `ids` follows the scope too: works outside
+   * it are listed in `missing_ids`.
+   */
+  scope: z.enum(['active', 'trash']).default('active'),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -255,7 +263,7 @@ export type WorkListItem = z.infer<typeof WorkListItemSchema>;
 
 export const ListWorksResponseSchema = z.object({
   items: z.array(WorkListItemSchema),
-  /** With `ids`: the requested ids that do not exist. */
+  /** With `ids`: the requested ids that do not exist (or are outside `scope`). */
   missing_ids: z.array(IdSchema).optional(),
   total: z.number().int().nonnegative(),
   limit: z.number().int(),

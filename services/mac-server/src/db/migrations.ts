@@ -445,4 +445,35 @@ export const migrations: readonly Migration[] = [
       ALTER TABLE platform_variant_revisions ADD COLUMN cover_time_seconds REAL;
     `,
   },
+  {
+    id: '0016',
+    name: 'work_trash',
+    sql: /* sql */ `
+      -- QC-051: works in 最近刪除. Columns and one table only; see WORK_TRASH_ROLLBACK_SQL.
+      ALTER TABLE works ADD COLUMN deleted_at TEXT;
+      ALTER TABLE works ADD COLUMN removal TEXT
+        CHECK (removal IS NULL OR removal IN ('trashed','unindexed','original_trashed'));
+      CREATE INDEX works_deleted_at ON works (deleted_at) WHERE deleted_at IS NOT NULL;
+      -- Files of external works deleted permanently: rescans leave them unindexed.
+      CREATE TABLE work_exclusions (
+        mount_id    TEXT NOT NULL REFERENCES mounts (id) ON DELETE CASCADE,
+        source_path TEXT NOT NULL,
+        created_at  TEXT NOT NULL,
+        PRIMARY KEY (mount_id, source_path)
+      );
+    `,
+  },
 ];
+
+/**
+ * Undoes `0016_work_trash` so an older build can open the database again
+ * (QC-051). Works still in 最近刪除 become active again; permanently deleted
+ * external files would be indexed again by the next rescan.
+ */
+export const WORK_TRASH_ROLLBACK_SQL = /* sql */ `
+  DROP TABLE work_exclusions;
+  DROP INDEX works_deleted_at;
+  ALTER TABLE works DROP COLUMN removal;
+  ALTER TABLE works DROP COLUMN deleted_at;
+  DELETE FROM schema_migrations WHERE id = '0016';
+`;

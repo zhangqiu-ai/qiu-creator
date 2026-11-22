@@ -44,6 +44,12 @@ export const WorkSchema = z.object({
   external_state: z.enum(['present', 'missing', 'unmounted']).nullable().optional(),
   /** External works only: path of the file relative to the mount root. */
   external_path: z.string().nullable().optional(),
+  /** Set while the work is in 最近刪除 (QC-051); null when active. */
+  deleted_at: TimestampSchema.nullable().optional(),
+  /** When a work in 最近刪除 is deleted permanently by itself (30 days after `deleted_at`). */
+  purge_at: TimestampSchema.nullable().optional(),
+  /** How it was removed; null when active. See `WorkRemovalSchema`. */
+  removal: z.enum(['trashed', 'unindexed', 'original_trashed']).nullable().optional(),
 });
 export type Work = z.infer<typeof WorkSchema>;
 

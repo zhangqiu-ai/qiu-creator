@@ -38,6 +38,12 @@ interface RecordRow {
 export class IdempotencyService {
   constructor(private readonly db: Db) {}
 
+  /** Async runs in progress, by principal + endpoint + key (see `runAsync`). */
+  private readonly inFlight = new Map<
+    string,
+    { requestHash: string; result: Promise<StoredResponse> }
+  >();
+
   /**
    * @param required agent tokens must send a key on creating endpoints; the owner token may omit it.
    * @returns the response to send and whether it was replayed.
@@ -49,6 +55,60 @@ export class IdempotencyService {
     requestBody: unknown,
     create: () => { statusCode: number; body: unknown },
   ): { statusCode: number; body: unknown; replayed: boolean } {
+    const lookup = this.lookup(principal, endpoint, rawKey, requestBody);
+    if (lookup.kind === 'none') return { ...create(), replayed: false };
+    if (lookup.kind === 'replay') return { ...lookup.stored, replayed: true };
+    return this.db.transaction(() => {
+      const result = create();
+      this.store(principal, endpoint, lookup.key, lookup.requestHash, result);
+      return { ...result, replayed: false };
+    })();
+  }
+
+  /**
+   * Like `run` for work that awaits (QC-051 batch). The result is stored when
+   * `create` resolves; a second request with the same key while the first is
+   * still running waits for it and gets its result as a replay. A rejected
+   * `create` stores nothing, so the client may retry with the same key.
+   */
+  async runAsync(
+    principal: Principal,
+    endpoint: string,
+    rawKey: string | string[] | undefined,
+    requestBody: unknown,
+    create: () => Promise<StoredResponse>,
+  ): Promise<{ statusCode: number; body: unknown; replayed: boolean }> {
+    const lookup = this.lookup(principal, endpoint, rawKey, requestBody);
+    if (lookup.kind === 'none') return { ...(await create()), replayed: false };
+    if (lookup.kind === 'replay') return { ...lookup.stored, replayed: true };
+    const slot = `${principal.id}\0${endpoint}\0${lookup.key}`;
+    const running = this.inFlight.get(slot);
+    if (running !== undefined) {
+      if (running.requestHash !== lookup.requestHash) throw keyReused();
+      return { ...(await running.result), replayed: true };
+    }
+    const result = (async () => {
+      const response = await create();
+      this.store(principal, endpoint, lookup.key, lookup.requestHash, response);
+      return response;
+    })();
+    this.inFlight.set(slot, { requestHash: lookup.requestHash, result });
+    try {
+      return { ...(await result), replayed: false };
+    } finally {
+      this.inFlight.delete(slot);
+    }
+  }
+
+  private lookup(
+    principal: Principal,
+    endpoint: string,
+    rawKey: string | string[] | undefined,
+    requestBody: unknown,
+  ):
+    | { kind: 'none' }
+    | { kind: 'replay'; stored: StoredResponse }
+    | { kind: 'new'; key: string; requestHash: string } {
     const key = typeof rawKey === 'string' ? rawKey.trim() : undefined;
     if (key === undefined || key === '') {
       if (principal.kind === 'agent') {
@@ -58,7 +118,7 @@ export class IdempotencyService {
           'agent tokens must send an Idempotency-Key header on this endpoint',
         );
       }
-      return { ...create(), replayed: false };
+      return { kind: 'none' };
     }
     const parsed = IdempotencyKeySchema.safeParse(key);
     if (!parsed.success) {
@@ -76,37 +136,47 @@ export class IdempotencyService {
       )
       .get(principal.id, endpoint, key);
     if (existing) {
-      if (existing.request_hash !== requestHash) {
-        throw new ServiceError(
-          422,
-          'idempotency_key_reused',
-          'this Idempotency-Key was already used with a different request body',
-        );
-      }
+      if (existing.request_hash !== requestHash) throw keyReused();
       return {
-        statusCode: existing.status_code,
-        body: JSON.parse(existing.response_body) as unknown,
-        replayed: true,
+        kind: 'replay',
+        stored: {
+          statusCode: existing.status_code,
+          body: JSON.parse(existing.response_body) as unknown,
+        },
       };
     }
-    return this.db.transaction(() => {
-      const result = create();
-      this.db
-        .prepare(
-          `INSERT INTO idempotency_records
-             (principal, endpoint, key, request_hash, status_code, response_body, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          principal.id,
-          endpoint,
-          key,
-          requestHash,
-          result.statusCode,
-          JSON.stringify(result.body),
-          new Date().toISOString(),
-        );
-      return { ...result, replayed: false };
-    })();
+    return { kind: 'new', key, requestHash };
   }
+
+  private store(
+    principal: Principal,
+    endpoint: string,
+    key: string,
+    requestHash: string,
+    result: StoredResponse,
+  ): void {
+    this.db
+      .prepare(
+        `INSERT INTO idempotency_records
+           (principal, endpoint, key, request_hash, status_code, response_body, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        principal.id,
+        endpoint,
+        key,
+        requestHash,
+        result.statusCode,
+        JSON.stringify(result.body),
+        new Date().toISOString(),
+      );
+  }
+}
+
+function keyReused(): ServiceError {
+  return new ServiceError(
+    422,
+    'idempotency_key_reused',
+    'this Idempotency-Key was already used with a different request body',
+  );
 }

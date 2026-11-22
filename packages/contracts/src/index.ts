@@ -10,3 +10,4 @@ export * from './ai.js';
 export * from './ai-text.js';
 export * from './ai-video.js';
 export * from './backups.js';
+export * from './work-trash.js';

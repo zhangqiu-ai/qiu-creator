@@ -38,6 +38,7 @@ export const errors = defineMessages({
     trash_failed: '無法移到垃圾桶，沒有任何變更',
     attach_external_unsupported: '外部掛載的作品不能插入素材庫的圖片',
     front_matter_invalid: '作品檔案開頭的 front matter 格式有誤，請先在檔案裡修正',
+    work_in_trash: '這個作品在最近刪除，請先恢復再編輯',
   },
   'zh-Hans': {
     unauthorized: '令牌无效，无法访问本机服务',
@@ -71,6 +72,7 @@ export const errors = defineMessages({
     trash_failed: '无法移到废纸篓，没有任何更改',
     attach_external_unsupported: '外部挂载的作品不能插入素材库中的图片',
     front_matter_invalid: '作品文件开头的 front matter 格式有误，请先在文件里修正',
+    work_in_trash: '这个作品在最近删除中，请先恢复再编辑',
   },
   en: {
     unauthorized: 'The access token is invalid, so the local service can’t be reached',
@@ -105,5 +107,6 @@ export const errors = defineMessages({
     attach_external_unsupported: 'Works in linked folders can’t take images from the asset library',
     front_matter_invalid:
       'The front matter at the top of this work’s file isn’t valid. Fix it in the file first.',
+    work_in_trash: 'This work is in Recently Deleted. Restore it before editing.',
   },
 });

@@ -369,7 +369,7 @@ export class MountService {
   // ---- rows -------------------------------------------------------------------
 
   private rows(id?: string): MountRow[] {
-    const sql = `SELECT m.*, (SELECT count(*) FROM works w WHERE w.mount_id = m.id) AS work_count
+    const sql = `SELECT m.*, (SELECT count(*) FROM works w WHERE w.mount_id = m.id AND w.deleted_at IS NULL) AS work_count
                  FROM mounts m ${id === undefined ? '' : 'WHERE m.id = ?'} ORDER BY m.created_at`;
     return id === undefined
       ? this.db.prepare<[], MountRow>(sql).all()
