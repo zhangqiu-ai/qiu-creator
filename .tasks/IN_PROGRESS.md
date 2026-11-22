@@ -56,6 +56,8 @@
 
 **原型已核准（2026-11-21）**：PT-20261121-003 由總監代核准（依帳本，畫布未上傳），openQuestions 全採建議。
 
+**後端已合併（2026-11-21，21c8158）**：migration 0017_projects（projects、work_projects，change_log 允許 entity project，回滾有測試）；項目 CRUD／排序／封存／軟刪除 30 天清除；作品 `project_ids`、`project_id`／`unassigned` 篩選；`POST /works/batch/projects`；`GET /assets?project_id=`；事件；CLI。全倉 1016／0／1016；e2e NOT_VERIFIED（QC-064 暫停中）。剩前端。
+
 **步驟二：實作（核准後）**
 - 後端：projects 表與 work_projects 多對多（可回滾 migration），CRUD、排序、封存；作品列表 `project_id`／`unassigned` 篩選；批量加入／移出；變更事件；contracts、api-client、agent-sdk CLI；不搬動作品檔案。
 - 前端：照原型。與 QC-061（卡片縮圖）同一區域，等 QC-061 合併後再動卡片。
