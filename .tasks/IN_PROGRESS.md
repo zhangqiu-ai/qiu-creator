@@ -1,3 +1,24 @@
+## QC-054: New API 模型改成下拉選擇（自動查詢模型清單）
+
+**Priority:** P1 | **Assignee:** qc-backend（API）＋ qc-frontend（設定頁） | **Tags:** M3, backend, frontend
+
+使用者 2026-11-21：設定頁 New API 文字模型 ID 要手動輸入，很笨拙，要能下拉選。依使用者自建中轉站的接入指南（https://api.hahaeng.app/integration.md）：OpenAI 相容，`GET {base_url}/models` 帶 `Authorization: Bearer <key>`，取 `data[].id`；清單依金鑰權限而定，可能混有對話與圖片模型（例如 gpt-image-2）。
+
+後端：
+- 新端點（例如 `GET /api/v1/ai/providers/new_api/models`，owner 權限）：用 Keychain 裡的金鑰在 Mac 端查詢，金鑰不出 Mac、不進日誌；回傳 `{ models: [{ id, kind: chat|image|unknown, priced: boolean }], fetched_at }`。短暫快取（例如 10 分鐘），支援 `?refresh=1`。
+- 錯誤分流：401／403 → 金鑰無效；逾時、DNS、TLS → 連不上中轉站；非 JSON 或缺 `data` → 中轉站回應格式不對。都回錯誤碼＋參數（三語文案在前端），不吞錯。逾時、大小上限照既有 provider。
+- `kind` 用保守規則判斷（id 含 image／dall-e／tts／whisper／embedding 等標為非對話），判斷不了就 `unknown` 不藏起來。
+- Base URL：接入指南說應用可能自動補 `/v1`；輸入 `https://host` 不帶 `/v1` 時，存檔前提示並補上，或在驗證錯誤裡直接建議正確網址（二選一，說明理由），不放寬 HTTPS 限制。
+- 測試一律用假中轉站，不打真實網址。
+
+前端（QC-052 完成後接）：
+- 「New API 文字模型 ID」輸入框改成可搜尋的下拉（combobox）：開啟時載入清單，有「重新整理」；預設只列對話模型，可切換顯示全部；保留手動輸入作為後備（清單載入失敗或模型不在清單時）。目前已存的模型不在清單時要標「不在中轉站清單中」。
+- 選了沒有價格的模型時，提示「費用無法預估」，沿用既有的未定價處理。
+- 錯誤用三語文案顯示，附 TechnicalDetails。
+- 查詢清單本身會連到使用者的中轉站：只在使用者打開下拉或按重新整理時才發，不在頁面載入時自動發。
+
+範圍外（不做，寫進交付）：Gemini／Claude／GPT 是否也改成線上查詢。
+
 ## QC-052: 作品庫：原地改名、右鍵選單、多選批量、卡片縮小
 
 **Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend
