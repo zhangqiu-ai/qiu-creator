@@ -38,6 +38,7 @@ import {
 import { useRefreshOn } from './events.js';
 import { formatWhen, sourceLabel, WORK_STATUS, WORK_TYPE } from './format.js';
 import { CardCover } from './WorkCover.js';
+import { CardFrameQueue } from './card-frames.js';
 import { DeleteDialog, TagsDialog } from './LibraryDialogs.js';
 import { TrashView } from './LibraryTrash.js';
 import { tagUndoGroups, unionTags } from './library-trash.js';
@@ -176,6 +177,46 @@ export function LibraryPage({
 
   useEffect(load, [load]);
   useRefreshOn(['work'], load, 300);
+
+  // Card images (QC-061): signed URLs from the list; video frames the service could not
+  // take are grabbed off-screen one at a time and uploaded, then the list is read again.
+  const loadRef = useRef(load);
+  useEffect(() => {
+    loadRef.current = load;
+  }, [load]);
+  const [frames] = useState(
+    () =>
+      new CardFrameQueue(
+        async (job, frame) => {
+          const res = await window.creatorhub?.putCardFrame(
+            job.workId,
+            new Uint8Array(await frame.arrayBuffer()),
+            { version: job.version, source: job.path, timeSeconds: job.timeSeconds },
+          );
+          if (res?.ok !== true) throw new Error(res?.code ?? 'frame upload failed');
+        },
+        undefined,
+        (_job, ok) => {
+          if (ok) loadRef.current();
+        },
+      ),
+  );
+  const imageUrl = useCallback((relative: string) => client.media.absoluteUrl(relative), [client]);
+  const onNeedsFrame = useCallback(
+    (w: WorkListItem) => {
+      const card = w.card_image ?? null;
+      const from = card?.frame_source;
+      if (card === null || from === undefined) return;
+      frames.enqueue({
+        workId: w.id,
+        version: card.version,
+        assetId: from.asset_id,
+        path: from.path,
+        timeSeconds: from.time_seconds,
+      });
+    },
+    [frames],
+  );
   const mounts = useMounts(client);
 
   // Search is debounced and never runs while the IME is still composing.
@@ -992,6 +1033,8 @@ export function LibraryPage({
                       menuTarget={menu?.ids.includes(w.id) === true}
                       renaming={renaming === w.id}
                       source={externalSource(w, mounts, userHome)}
+                      imageUrl={imageUrl}
+                      onNeedsFrame={onNeedsFrame}
                       onClick={(e, onTitle) => {
                         onItemClick(e, w, onTitle);
                       }}
@@ -1228,6 +1271,8 @@ function WorkCard({
   onMenu,
   onRename,
   onRenameCancel,
+  imageUrl,
+  onNeedsFrame,
 }: {
   work: WorkListItem;
   selected: boolean;
@@ -1240,6 +1285,8 @@ function WorkCard({
   onMenu: (e: ReactMouseEvent<HTMLElement>) => void;
   onRename: (title: string) => void;
   onRenameCancel: () => void;
+  imageUrl: (relative: string) => string;
+  onNeedsFrame: (work: WorkListItem) => void;
 }) {
   const className = [
     'wcard',
@@ -1274,7 +1321,7 @@ function WorkCard({
           e.preventDefault();
         }}
       >
-        <CardCover work={work} />
+        <CardCover work={work} imageUrl={imageUrl} onNeedsFrame={onNeedsFrame} />
         <span className="wcard__body">
           <RenameField
             value={work.title}
@@ -1299,7 +1346,7 @@ function WorkCard({
       }}
       onContextMenu={onMenu}
     >
-      <CardCover work={work} />
+      <CardCover work={work} imageUrl={imageUrl} onNeedsFrame={onNeedsFrame} />
       <span className="wcard__body">
         <span
           className="wcard__title"

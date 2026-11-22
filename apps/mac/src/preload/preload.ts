@@ -52,6 +52,12 @@ const bridge: CreatorHubBridge = {
     return ipcRenderer.invoke(IPC.insertPaths, paths) as Promise<string[]>;
   },
   insertBytes: (name, data) => ipcRenderer.invoke(IPC.insertBytes, name, data) as Promise<string>,
+  putCardFrame: (workId, data, frame) =>
+    ipcRenderer.invoke(IPC.putCardFrame, workId, data, frame) as Promise<{
+      ok: boolean;
+      status: number;
+      code: string | null;
+    }>,
   uploads: () => ipcRenderer.invoke(IPC.uploads) as Promise<UploadItem[]>,
   onUploads: (listener) =>
     listen(IPC.uploadsChanged, (p) => {

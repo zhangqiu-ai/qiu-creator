@@ -100,6 +100,16 @@ export class FrameGrabber {
     });
   }
 
+  /** A frame scaled so its longest edge is at most `maxEdge`, as JPEG (library cards, QC-061). */
+  scaledFrame(time: number, maxEdge: number): Promise<Blob> {
+    return this.run(async () => {
+      await this.seek(time);
+      const { videoWidth: w, videoHeight: h } = this.video;
+      const width = w >= h ? Math.min(w, maxEdge) : Math.round((w * Math.min(h, maxEdge)) / h);
+      return canvasBlob(drawFrame(this.video, width), 'image/jpeg');
+    });
+  }
+
   private run<T>(task: () => Promise<T>): Promise<T> {
     const next = this.queue.then(task, task);
     this.queue = next.catch(() => undefined);

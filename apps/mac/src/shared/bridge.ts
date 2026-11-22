@@ -97,6 +97,15 @@ export interface CreatorHubBridge {
    * main process keeps them in a temporary file until the upload settles.
    */
   insertBytes: (name: string, data: Uint8Array) => Promise<string>;
+  /**
+   * Upload the JPEG frame the App grabbed for a video card with `needs_frame`
+   * (QC-061); the main process adds the token and checks every argument.
+   */
+  putCardFrame: (
+    workId: string,
+    data: Uint8Array,
+    frame: { version: string; source: string; timeSeconds: number },
+  ) => Promise<{ ok: boolean; status: number; code: string | null }>;
 
   /** Opens the system folder picker; resolves with the absolute path or null when cancelled. */
   pickFolder: () => Promise<string | null>;
@@ -172,6 +181,7 @@ export const IPC = {
   dismissUpload: 'creatorhub:dismiss-upload',
   insertPaths: 'creatorhub:insert-paths',
   insertBytes: 'creatorhub:insert-bytes',
+  putCardFrame: 'creatorhub:put-card-frame',
   pickFolder: 'creatorhub:pick-folder',
   reveal: 'creatorhub:reveal',
   copyText: 'creatorhub:copy-text',
