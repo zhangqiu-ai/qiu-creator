@@ -6846,6 +6846,86 @@ kbd {
 :root[data-motion='lite'] .sb:not(.sb--rail) .sb__label {
   animation: qc-fade-in var(--qc-dur-fast) var(--qc-ease-out) !important;
 }
+/*
+ * Overlays (DESIGN.md 動效 · 選單、右鍵選單、對話框、側面板, QC-065 area 2).
+ * Entrances are keyframes that run when the overlay mounts; exits are played
+ * by useExitFade / <ExitFade> on a still copy. Reduce Motion and the lite set
+ * keep only a fast fade.
+ */
+.exit-fade {
+  display: contents;
+}
+/* Right-click menus appear almost at once. */
+.ctx-menu {
+  animation: qc-fade-in var(--qc-dur-instant) var(--qc-ease-out);
+}
+/* Dropdowns and popovers grow from their trigger's side: 0.96 → 1 and a 4 px nudge. */
+.pop:not(.ctx-menu) {
+  transform-origin: top left;
+  animation: qc-pop-in var(--qc-dur-base) var(--qc-ease-out);
+}
+.tabbar__pop,
+.new-menu__pop,
+.insert-menu__pop {
+  transform-origin: top right;
+}
+.pop.slash {
+  transform-origin: bottom left;
+  animation-name: qc-pop-in-up;
+}
+@keyframes qc-pop-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+  }
+}
+/* Dialogs: the scrim fades in, the panel grows from 0.97 at the centre. */
+.scrim {
+  animation: qc-fade-in var(--qc-dur-base) var(--qc-ease-out);
+}
+.scrim > .dialog {
+  animation: qc-dialog-in var(--qc-dur-moderate) var(--qc-ease-out);
+}
+@keyframes qc-dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+/* Side panels and drawers: 24 px from the right and a fade, not the full width. */
+.panel.ai,
+#history-panel,
+.panel.drawer {
+  animation: qc-panel-in var(--qc-dur-moderate) var(--qc-ease-out);
+}
+@keyframes qc-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ctx-menu,
+  .pop:not(.ctx-menu),
+  .ptags__pop,
+  .scrim,
+  .scrim > .dialog,
+  .panel.ai,
+  #history-panel,
+  .panel.drawer {
+    animation: qc-fade-in var(--qc-dur-fast) var(--qc-ease-out) !important;
+  }
+}
+:root[data-motion='lite'] .ctx-menu,
+:root[data-motion='lite'] .pop:not(.ctx-menu),
+:root[data-motion='lite'] .ptags__pop,
+:root[data-motion='lite'] .scrim,
+:root[data-motion='lite'] .scrim > .dialog,
+:root[data-motion='lite'] .panel.ai,
+:root[data-motion='lite'] #history-panel,
+:root[data-motion='lite'] .panel.drawer {
+  animation: qc-fade-in var(--qc-dur-fast) var(--qc-ease-out) !important;
+}
 /* Test mode (DESIGN.md 動效 · 測試模式): e2e runs with nothing animating. */
 :root[data-motion='off'] *,
 :root[data-motion='off'] *::before,

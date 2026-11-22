@@ -25,7 +25,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { motion } from 'motion/react';
 import type { TabCommand } from '../shared/bridge.js';
 import { dropAnimationFor, sortTransition, useDragSensors, type Landing } from './dnd-motion.js';
-import { springOf, tween } from './motion.js';
+import { springOf, tween, ExitFade } from './motion.js';
 import { moves, useMotionMode } from './motion-mode.js';
 import { anchorOf, ContextMenu, type MenuAnchor } from './ContextMenu.js';
 import { Dialog } from './Dialog.js';
@@ -1025,92 +1025,94 @@ function AllTabsMenu({
         <Icon name="chevronDown" size={14} />
       </button>
       {open && (
-        <div
-          className="pop tabbar__pop"
-          role="dialog"
-          aria-label={t('tabs.allTabs')}
-          onKeyDown={(e) => {
-            if (e.nativeEvent.isComposing) return;
-            if (e.key === 'Escape') {
-              e.preventDefault();
-              e.stopPropagation();
-              close();
-            } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-              e.preventDefault();
-              const n = shown.length;
-              if (n > 0) setCursor((c) => (c + (e.key === 'ArrowDown' ? 1 : -1) + n) % n);
-            } else if (e.key === 'Enter') {
-              const hit = shown[Math.min(cursor, shown.length - 1)];
-              if (hit !== undefined) {
+        <ExitFade>
+          <div
+            className="pop tabbar__pop"
+            role="dialog"
+            aria-label={t('tabs.allTabs')}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return;
+              if (e.key === 'Escape') {
                 e.preventDefault();
-                pick(hit.tab.id);
+                e.stopPropagation();
+                close();
+              } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const n = shown.length;
+                if (n > 0) setCursor((c) => (c + (e.key === 'ArrowDown' ? 1 : -1) + n) % n);
+              } else if (e.key === 'Enter') {
+                const hit = shown[Math.min(cursor, shown.length - 1)];
+                if (hit !== undefined) {
+                  e.preventDefault();
+                  pick(hit.tab.id);
+                }
               }
-            }
-          }}
-        >
-          <input
-            className="input tabbar__search"
-            type="search"
-            // The menu exists to find a tab: typing goes straight into the search.
-            autoFocus
-            placeholder={t('tabs.search')}
-            aria-label={t('tabs.search')}
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setCursor(0);
-            }}
-          />
-          <div className="tabbar__list" role="listbox" aria-label={t('tabs.allTabs')}>
-            {shown.length === 0 && <div className="pop__empty">{t('tabs.noMatch')}</div>}
-            {shown.map(({ tab, index }, i) => {
-              const states = tabStates(tab);
-              const shortcut = shortcutFor(index, tabs.length);
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="option"
-                  aria-selected={i === Math.min(cursor, shown.length - 1)}
-                  aria-current={tab.id === activeId ? 'true' : undefined}
-                  className={[
-                    'pop__item',
-                    'tabbar__item',
-                    tab.loaded ? '' : 'tabbar__item--unloaded',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  onMouseEnter={() => {
-                    setCursor(i);
-                  }}
-                  onClick={() => {
-                    pick(tab.id);
-                  }}
-                >
-                  <Icon name={WORK_TYPE[tab.kind].icon} size={14} />
-                  <span className="tabbar__item-title">{tabTitle(tab)}</span>
-                  <span className="tabbar__item-state">{states.join(' · ')}</span>
-                  {shortcut === null ? <span /> : <kbd>{shortcut}</kbd>}
-                </button>
-              );
-            })}
-          </div>
-          <div className="pop__sep" />
-          <button
-            type="button"
-            className="pop__item"
-            disabled={activeId === null || tabs.length < 2}
-            onClick={() => {
-              setOpen(false);
-              setQuery('');
-              if (activeId !== null) onCloseOthers(activeId);
             }}
           >
-            <Icon name="close" size={14} />
-            {t('tabs.closeOthers')}
-            <span className="pop__item-hint">{t('tabs.closeOthersHint')}</span>
-          </button>
-        </div>
+            <input
+              className="input tabbar__search"
+              type="search"
+              // The menu exists to find a tab: typing goes straight into the search.
+              autoFocus
+              placeholder={t('tabs.search')}
+              aria-label={t('tabs.search')}
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setCursor(0);
+              }}
+            />
+            <div className="tabbar__list" role="listbox" aria-label={t('tabs.allTabs')}>
+              {shown.length === 0 && <div className="pop__empty">{t('tabs.noMatch')}</div>}
+              {shown.map(({ tab, index }, i) => {
+                const states = tabStates(tab);
+                const shortcut = shortcutFor(index, tabs.length);
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="option"
+                    aria-selected={i === Math.min(cursor, shown.length - 1)}
+                    aria-current={tab.id === activeId ? 'true' : undefined}
+                    className={[
+                      'pop__item',
+                      'tabbar__item',
+                      tab.loaded ? '' : 'tabbar__item--unloaded',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    onMouseEnter={() => {
+                      setCursor(i);
+                    }}
+                    onClick={() => {
+                      pick(tab.id);
+                    }}
+                  >
+                    <Icon name={WORK_TYPE[tab.kind].icon} size={14} />
+                    <span className="tabbar__item-title">{tabTitle(tab)}</span>
+                    <span className="tabbar__item-state">{states.join(' · ')}</span>
+                    {shortcut === null ? <span /> : <kbd>{shortcut}</kbd>}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="pop__sep" />
+            <button
+              type="button"
+              className="pop__item"
+              disabled={activeId === null || tabs.length < 2}
+              onClick={() => {
+                setOpen(false);
+                setQuery('');
+                if (activeId !== null) onCloseOthers(activeId);
+              }}
+            >
+              <Icon name="close" size={14} />
+              {t('tabs.closeOthers')}
+              <span className="pop__item-hint">{t('tabs.closeOthersHint')}</span>
+            </button>
+          </div>
+        </ExitFade>
       )}
     </div>
   );

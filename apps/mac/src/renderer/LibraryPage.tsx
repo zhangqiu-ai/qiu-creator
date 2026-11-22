@@ -43,6 +43,7 @@ import { CardFrameQueue } from './card-frames.js';
 import { DeleteDialog, TagsDialog } from './LibraryDialogs.js';
 import { TrashView } from './LibraryTrash.js';
 import { tagUndoGroups, unionTags } from './library-trash.js';
+import { ExitFade } from './motion.js';
 import { codeText, t } from './i18n.js';
 import { Icon } from './Icon.js';
 import { externalSource, useMounts } from './mounts.js';
@@ -1764,55 +1765,57 @@ function NewMenu({
         <Icon name="chevronDown" size={14} />
       </button>
       {open && (
-        <div
-          className="pop new-menu__pop"
-          role="menu"
-          aria-label={t('library.newMenu')}
-          onKeyDown={(e) => {
-            if (e.nativeEvent.isComposing) return;
-            if (e.key === 'Escape') {
-              e.preventDefault();
-              onOpenChange(false);
-              button.current?.focus();
-            } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-              e.preventDefault();
-              const n = NEW_TYPES.length;
-              focusAt((at + (e.key === 'ArrowDown' ? 1 : -1) + n) % n);
-            } else if (/^[1-3]$/.test(e.key)) {
-              e.preventDefault();
-              pick(Number(e.key) - 1);
-            }
-          }}
-        >
-          {NEW_TYPES.map((item, i) => (
-            <button
-              key={item.type}
-              type="button"
-              role="menuitem"
-              className="pop__item new-menu__item"
-              aria-disabled={!item.enabled}
-              tabIndex={i === at ? 0 : -1}
-              onFocus={() => {
-                setAt(i);
-              }}
-              onClick={() => {
-                pick(i);
-              }}
-            >
-              <Icon name={WORK_TYPE[item.type].icon} size={16} />
-              <span className="new-menu__text">
-                <span>{WORK_TYPE[item.type].label}</span>
-                <span className="new-menu__hint">{t(TYPE_HINT_KEY[item.type])}</span>
-              </span>
-              <kbd>{i + 1}</kbd>
-            </button>
-          ))}
-          <div className="pop__sep" />
-          <div className="pop__keys">
-            <span>{t('library.newKeysMove')}</span>
-            <span>{t('library.newKeysPick')}</span>
+        <ExitFade>
+          <div
+            className="pop new-menu__pop"
+            role="menu"
+            aria-label={t('library.newMenu')}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return;
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                onOpenChange(false);
+                button.current?.focus();
+              } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const n = NEW_TYPES.length;
+                focusAt((at + (e.key === 'ArrowDown' ? 1 : -1) + n) % n);
+              } else if (/^[1-3]$/.test(e.key)) {
+                e.preventDefault();
+                pick(Number(e.key) - 1);
+              }
+            }}
+          >
+            {NEW_TYPES.map((item, i) => (
+              <button
+                key={item.type}
+                type="button"
+                role="menuitem"
+                className="pop__item new-menu__item"
+                aria-disabled={!item.enabled}
+                tabIndex={i === at ? 0 : -1}
+                onFocus={() => {
+                  setAt(i);
+                }}
+                onClick={() => {
+                  pick(i);
+                }}
+              >
+                <Icon name={WORK_TYPE[item.type].icon} size={16} />
+                <span className="new-menu__text">
+                  <span>{WORK_TYPE[item.type].label}</span>
+                  <span className="new-menu__hint">{t(TYPE_HINT_KEY[item.type])}</span>
+                </span>
+                <kbd>{i + 1}</kbd>
+              </button>
+            ))}
+            <div className="pop__sep" />
+            <div className="pop__keys">
+              <span>{t('library.newKeysMove')}</span>
+              <span>{t('library.newKeysPick')}</span>
+            </div>
           </div>
-        </div>
+        </ExitFade>
       )}
     </div>
   );

@@ -1,6 +1,7 @@
 import type { WorkDetail } from '@qiu-creator/contracts';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Chip } from './Chip.js';
+import { useExitFade } from './motion.js';
 import { conflictHunks, mergeHunks, type Hunk, type Side } from './conflict.js';
 import { formatWhen } from './format.js';
 import { t } from './i18n.js';
@@ -47,6 +48,8 @@ export function ConflictDialog({
     () => session.snapshot.conflictBase ?? session.snapshot.baseRevision,
   );
   const dialogRef = useRef<HTMLElement>(null);
+  const scrim = useRef<HTMLDivElement>(null);
+  useExitFade(scrim);
   const conflictRevision = session.snapshot.conflictRevision;
 
   // Load (and on a repeated 409, reload) the server version being compared against.
@@ -141,7 +144,7 @@ export function ConflictDialog({
   const done = mode === 'done';
 
   return (
-    <div className="scrim">
+    <div ref={scrim} className="scrim">
       <section
         ref={dialogRef}
         className="dialog"

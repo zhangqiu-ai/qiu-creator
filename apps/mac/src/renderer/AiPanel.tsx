@@ -1,7 +1,14 @@
 import type { AiProviderStatus, Platform, RewriteMode } from '@qiu-creator/contracts';
 import type { MessageKey } from '@qiu-creator/i18n';
 import { getTemplate } from '@qiu-creator/platform-preview';
-import { useCallback, useEffect, useState, useSyncExternalStore, type KeyboardEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type KeyboardEvent,
+} from 'react';
 import {
   AI_BLOCK_LABEL,
   FAILURE_LABEL,
@@ -15,6 +22,7 @@ import {
   type WriteOutcome,
 } from './ai-session.js';
 import { Icon } from './Icon.js';
+import { useExitFade } from './motion.js';
 import { t } from './i18n.js';
 import { TechnicalDetails } from './TechnicalDetails.js';
 
@@ -64,6 +72,9 @@ function useStore<S>(store: { subscribe: (l: (s: S) => void) => () => void; snap
  * per-hunk diff, and four-platform title candidates.
  */
 export function AiPanel(props: AiPanelProps) {
+  const panelRef = useRef<HTMLElement>(null);
+  // The side panel slides in (24 px, moderate) and back out (base).
+  useExitFade(panelRef, 'panel');
   const [tab, setTab] = useState<'rewrite' | 'title'>('rewrite');
   const rw = useStore(props.rewrite);
   const tt = useStore(props.titles);
@@ -87,7 +98,7 @@ export function AiPanel(props: AiPanelProps) {
     };
   }, [providers, rw.block, tt.block, props.refreshToken]);
   return (
-    <aside className="panel ai" aria-label={t('ai.panelLabel')} id="ai-panel">
+    <aside ref={panelRef} className="panel ai" aria-label={t('ai.panelLabel')} id="ai-panel">
       <div className="ai__tabs">
         <div className="ai__tab-list" role="tablist" aria-label="AI">
           <button

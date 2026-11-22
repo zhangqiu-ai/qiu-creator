@@ -1,6 +1,7 @@
 import type { AiProviderModelsResponse, AiRelayModel } from '@qiu-creator/contracts';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Chip } from './Chip.js';
+import { ExitFade } from './motion.js';
 import { formatWhen, t } from './i18n.js';
 import { Icon } from './Icon.js';
 import {
@@ -219,103 +220,105 @@ export function ModelCombobox({
             <Icon name="chevronDown" size={14} />
           </button>
           {open && (
-            <div className="pop mcombo__pop">
-              {!builtin && (
-                <div className="mcombo__bar">
-                  <label className="mcombo__all">
-                    <input
-                      type="checkbox"
-                      checked={showAll}
-                      onChange={(e) => {
-                        setShowAll(e.target.checked);
-                        setCursor(-1);
+            <ExitFade>
+              <div className="pop mcombo__pop">
+                {!builtin && (
+                  <div className="mcombo__bar">
+                    <label className="mcombo__all">
+                      <input
+                        type="checkbox"
+                        checked={showAll}
+                        onChange={(e) => {
+                          setShowAll(e.target.checked);
+                          setCursor(-1);
+                        }}
+                      />
+                      {t('modelPicker.showAll')}
+                    </label>
+                    {list.status === 'ready' && (
+                      <span className="faint mcombo__count">
+                        {t('modelPicker.count', { shown: shown.length, total: models.length })}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--small mcombo__refresh"
+                      disabled={list.status === 'loading'}
+                      onClick={() => {
+                        fetchList(true);
+                        input.current?.focus();
                       }}
-                    />
-                    {t('modelPicker.showAll')}
-                  </label>
-                  {list.status === 'ready' && (
-                    <span className="faint mcombo__count">
-                      {t('modelPicker.count', { shown: shown.length, total: models.length })}
+                    >
+                      <Icon name="refresh" size={14} />
+                      {t('modelPicker.refresh')}
+                    </button>
+                  </div>
+                )}
+                {list.status === 'error' ? (
+                  <div className="mcombo__error" role="alert">
+                    <span className="mcombo__error-title">
+                      <Icon name="alert" size={14} />
+                      {t('modelPicker.errorTitle')}
                     </span>
-                  )}
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--small mcombo__refresh"
-                    disabled={list.status === 'loading'}
-                    onClick={() => {
-                      fetchList(true);
-                      input.current?.focus();
-                    }}
-                  >
-                    <Icon name="refresh" size={14} />
-                    {t('modelPicker.refresh')}
-                  </button>
-                </div>
-              )}
-              {list.status === 'error' ? (
-                <div className="mcombo__error" role="alert">
-                  <span className="mcombo__error-title">
-                    <Icon name="alert" size={14} />
-                    {t('modelPicker.errorTitle')}
-                  </span>
-                  <span>{list.problem.message}</span>
-                  <TechnicalDetails text={list.problem.technical} />
-                  <span className="faint">{t('modelPicker.manualHint')}</span>
-                </div>
-              ) : (
-                <>
-                  {list.status === 'loading' && (
-                    <span className="mcombo__status faint" role="status">
-                      {t('modelPicker.refreshing')}
-                    </span>
-                  )}
-                  <ul
-                    id={listId}
-                    className="mcombo__list"
-                    role="listbox"
-                    aria-label={t('modelPicker.listLabel')}
-                    aria-busy={list.status === 'loading'}
-                  >
-                    {shown.map((m, i) => (
-                      <li
-                        key={m.id}
-                        id={optionId(i)}
-                        role="option"
-                        aria-selected={i === active}
-                        className="mcombo__opt"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                        }}
-                        onMouseEnter={() => {
-                          setCursor(i);
-                        }}
-                        onClick={() => {
-                          choose(m);
-                        }}
-                      >
-                        <span className="mono mcombo__id">{m.id}</span>
-                        {m.id === saved && <Chip tone="accent">{t('modelPicker.current')}</Chip>}
-                        <span className="faint mcombo__kind">{t(KIND_LABEL[m.kind])}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {list.status === 'ready' && shown.length === 0 && (
-                    <span className="mcombo__status faint">
-                      {models.length === 0 ? t('modelPicker.empty') : t('modelPicker.noMatch')}
-                    </span>
-                  )}
-                </>
-              )}
-              <span className="mcombo__foot faint">
-                {builtin
-                  ? t('aiServices.builtinHint')
-                  : list.status === 'ready'
-                    ? `${t('modelPicker.fetchedAt', { when: formatWhen(list.data.fetched_at) })} · ${
-                        showAll ? t('modelPicker.loadHint') : t('modelPicker.chatOnlyHint')
-                      }`
-                    : t('modelPicker.loadHint')}
-              </span>
-            </div>
+                    <span>{list.problem.message}</span>
+                    <TechnicalDetails text={list.problem.technical} />
+                    <span className="faint">{t('modelPicker.manualHint')}</span>
+                  </div>
+                ) : (
+                  <>
+                    {list.status === 'loading' && (
+                      <span className="mcombo__status faint" role="status">
+                        {t('modelPicker.refreshing')}
+                      </span>
+                    )}
+                    <ul
+                      id={listId}
+                      className="mcombo__list"
+                      role="listbox"
+                      aria-label={t('modelPicker.listLabel')}
+                      aria-busy={list.status === 'loading'}
+                    >
+                      {shown.map((m, i) => (
+                        <li
+                          key={m.id}
+                          id={optionId(i)}
+                          role="option"
+                          aria-selected={i === active}
+                          className="mcombo__opt"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                          }}
+                          onMouseEnter={() => {
+                            setCursor(i);
+                          }}
+                          onClick={() => {
+                            choose(m);
+                          }}
+                        >
+                          <span className="mono mcombo__id">{m.id}</span>
+                          {m.id === saved && <Chip tone="accent">{t('modelPicker.current')}</Chip>}
+                          <span className="faint mcombo__kind">{t(KIND_LABEL[m.kind])}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {list.status === 'ready' && shown.length === 0 && (
+                      <span className="mcombo__status faint">
+                        {models.length === 0 ? t('modelPicker.empty') : t('modelPicker.noMatch')}
+                      </span>
+                    )}
+                  </>
+                )}
+                <span className="mcombo__foot faint">
+                  {builtin
+                    ? t('aiServices.builtinHint')
+                    : list.status === 'ready'
+                      ? `${t('modelPicker.fetchedAt', { when: formatWhen(list.data.fetched_at) })} · ${
+                          showAll ? t('modelPicker.loadHint') : t('modelPicker.chatOnlyHint')
+                        }`
+                      : t('modelPicker.loadHint')}
+                </span>
+              </div>
+            </ExitFade>
           )}
         </div>
         <button type="submit" className="btn btn--small" disabled={busy || value.trim() === saved}>

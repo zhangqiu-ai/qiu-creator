@@ -3,6 +3,7 @@ import path from 'node:path';
 import { expect, type ElectronApplication, type Locator, type Page } from '@playwright/test';
 import { ok } from '../../services/mac-server/test/fake-ai.js';
 import { test } from '../fixtures/desktop.js';
+import { settleAfterDrop } from '../fixtures/dnd.js';
 
 /*
  * QC-047 多分頁編輯 (PT-20261121-001): several works open in tabs; switching
@@ -231,9 +232,8 @@ test('開多個作品、切換保留狀態、重複開啟、快捷鍵與選單',
     await page.mouse.move(from.x + from.width / 2 - 10, from.y + from.height / 2, { steps: 3 });
     await page.mouse.move(to.x + 8, to.y + to.height / 2, { steps: 12 });
     await page.mouse.up();
-    // dnd-kit swallows clicks for 50 ms after a drop (its guard against the drag's own
-    // click); a person cannot click that fast, the next step's click can.
-    await page.evaluate('new Promise((done) => setTimeout(done, 60))');
+    // dnd-kit stops clicks for a moment after a drop; the next step clicks, so wait for it.
+    await settleAfterDrop(page);
     await expect.poll(() => order(page)).toEqual(['丙篇筆記', '甲篇長文', '乙篇草稿']);
     // ⌘1 follows the new order.
     await page.keyboard.press('Meta+1');
