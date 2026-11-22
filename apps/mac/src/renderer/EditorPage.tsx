@@ -514,26 +514,27 @@ function SessionEditor({
   });
   const latest = useRef({ mode, panel, onViewChange });
   latest.current = { mode, panel, onViewChange };
+  /** Read the caret from the DOM now, if it is inside the document. */
+  const rememberSelection = useCallback(() => {
+    const doc = docRef.current;
+    const sel = window.getSelection();
+    if (doc === null || sel === null || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (!doc.contains(range.startContainer)) return;
+    const ta = sourceArea();
+    where.current.selection =
+      ta !== null
+        ? { start: ta.selectionStart, end: ta.selectionEnd }
+        : (editor.current?.getSelectionRange() ?? where.current.selection);
+    where.current.domRange = ta !== null ? null : range.cloneRange();
+  }, []);
   useEffect(() => {
     if (!active) return;
-    const remember = () => {
-      const doc = docRef.current;
-      const sel = window.getSelection();
-      if (doc === null || sel === null || sel.rangeCount === 0) return;
-      const range = sel.getRangeAt(0);
-      if (!doc.contains(range.startContainer)) return;
-      const ta = sourceArea();
-      where.current.selection =
-        ta !== null
-          ? { start: ta.selectionStart, end: ta.selectionEnd }
-          : (editor.current?.getSelectionRange() ?? where.current.selection);
-      where.current.domRange = ta !== null ? null : range.cloneRange();
-    };
-    document.addEventListener('selectionchange', remember);
+    document.addEventListener('selectionchange', rememberSelection);
     return () => {
-      document.removeEventListener('selectionchange', remember);
+      document.removeEventListener('selectionchange', rememberSelection);
     };
-  }, [active]);
+  }, [active, rememberSelection]);
   const reportView = useCallback(() => {
     const { mode: m, panel: p, onViewChange: report } = latest.current;
     report?.({
@@ -558,16 +559,17 @@ function SessionEditor({
       doc.removeEventListener('scroll', onScroll, { capture: true });
     };
   }, [active]);
-  // Leaving the front: read the scroll position from the DOM before the pane is hidden
-  // (layout cleanups run before the parent's `hidden` is applied), in case the
-  // last scroll event has not fired yet.
+  // Leaving the front: read the scroll position and the caret from the DOM before the pane
+  // is hidden (layout cleanups run before the parent's `hidden` is applied), in case the
+  // last scroll or selectionchange event has not fired yet (QC-059).
   useLayoutEffect(() => {
     if (!active) return;
     return () => {
       const doc = docRef.current;
       if (doc !== null) where.current.scrollTop = (sourceArea() ?? doc).scrollTop;
+      rememberSelection();
     };
-  }, [active]);
+  }, [active, rememberSelection]);
   // Mode and panel are saved as they change, so a quit keeps them for the next launch.
   useEffect(() => {
     if (active) reportView();
