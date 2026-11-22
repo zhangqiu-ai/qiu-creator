@@ -1,5 +1,11 @@
 # Done
 
+## QC-069: 項目頁與側欄的資訊架構簡化
+
+**Priority:** P1 | **Assignee:** qc-prototype → qc-frontend | **Tags:** M3, prototype, frontend | **Done:** 2026-11-22
+
+- PT-20261122-001（總監代核准）＋追加卡片項目標籤與顏色輪替。側欄：全部作品、未分類 → 項目 → 素材 → 工具（AI 工作台、平台預覽），底部最近刪除與設定。頁首一行：標題＋淡字（N 個作品／搜尋時 N 個結果 · 共 M 個）＋搜尋、篩選彈出層（類型＋狀態，0 停用）、檢視切換、新建；移除概覽列與兩列膠囊。卡片項目標籤（第一個名稱＋「+N」），列表「項目」欄。順修篩選 Esc 偶發不關閉。e2e 40 passed／8 skipped。英文與簡中篩選版面截圖、封面卡的內文／標籤命中行 NOT_VERIFIED。
+
 ## QC-068: 搜尋即時高亮關鍵字；側欄收合／展開加過渡動畫
 
 **Priority:** P1 | **Assignee:** qc-backend ＋ qc-frontend | **Tags:** M3, frontend, backend | **Done:** 2026-11-22
