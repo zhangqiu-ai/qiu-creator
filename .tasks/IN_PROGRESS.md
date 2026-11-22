@@ -50,6 +50,8 @@
 使用者 2026-11-21 授權：完成驗收後直接發版安裝（「做完直接發版」）。
 使用者 2026-11-21（附已安裝版 272c754 作品庫截圖）：「作品庫的卡片中要顯示縮略圖，目前只有一個圖標在上面，不是很直觀！」截圖：視頻卡只有「0:51 · 竖屏」徽章、封面區空白；貼圖卡與四張文章卡都只顯示類型圖示。
 
+**後端已合併（2026-11-21，6b41b56）**：列表帶 `card_image.url`（簽名、整點對齊）與 `excerpt`（120 字）；`/works/:id/thumbnail` 有 ffmpeg 用 ffmpeg，沒有則 `needs_frame` 由 App 截幀 `PUT thumbnail-frame`（2 MiB、sharp 解碼驗證、version 防舊幀）；全倉 1004／0／1004；最終版 e2e NOT_VERIFIED（QC-064 暫停中），前端合併前補跑。
+
 總監初查（待證實）：
 - `apps/mac/src/renderer/WorkCover.tsx` 只在 `thumbnail.asset_id` 有值時才顯示圖；視頻用 `<video preload="metadata" #t=…>` 取幀，安裝版顯示空白（可能是 `qc-asset://` 在打包 App 的載入／CORS，或 metadata 預載不畫幀，QC-046 時列為 NOT_VERIFIED）。
 - 後端 `typed-media.ts` 的 `thumbnail` 對文章一律為 null；`asset_id` 只在檔案對得上素材庫時才有，作品自己 `assets/` 內的檔案可能沒有 asset_id（應改走 `path` 加作品檔案路由）。
