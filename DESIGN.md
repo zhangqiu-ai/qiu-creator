@@ -182,14 +182,7 @@
 
 ### 動效
 
-| 用途 | 時長 | 曲線 |
-| --- | --- | --- |
-| 懸停、切換、開關 | 150ms | ease |
-| 進度條寬度 | 400ms | ease |
-| 骨架閃爍 | 1.2s 循環 | ease-in-out |
-| 轉圈 | 0.8s 循環 | linear |
-
-開啟 Reduce Motion（`prefers-reduced-motion: reduce`）時，關閉所有過渡與動畫：骨架改為靜態底色，進度直接跳到目標值。
+見下方「動效」一節（QC-065）。
 
 ### 窄視窗
 
@@ -202,6 +195,200 @@
 - 只用圖示的按鈕要用真正的圖示元件或 SVG，不用 `×`、`+`、`‹` 這類文字字元；圖示要在點擊區內視覺置中。
 - 狀態色只用來表達語義，不當裝飾。
 
+## 動效（QC-065，待總監核准）
+
+用 `motion`（Framer Motion 的現行套件）和 dnd-kit，讓介面的變化有來處、有去處，但不搶內容。基調是 macOS 的克制：
+
+- 多數動效短於 250ms。
+- 只有歸位與重排用彈簧，而且不回彈或只回彈一點點。
+- 不加裝飾性的循環動畫。
+
+本節取代視覺基線舊的動效表；舊的 150ms 懸停改為 `fast` 120ms。
+
+### 原則
+
+1. **動效說明因果，不是裝飾。**
+   - 每個動效都要回答一個問題：東西從哪來、到哪去、現在是什麼狀態。
+   - 回答不了的動效就不做。
+   - 依據：`motion-vocabulary-actionable-brief`、`rare-ui-scenario-motion-reference`。
+2. **進場快、退場更快。**
+   - 進場用 ease-out，讓東西先快後慢地落位。
+   - 退場用 ease-in，時長比進場短一級；使用者已經在看下一件事。
+   - 依據：`kubai-999-011-animation-easing`。
+3. **從觸發處長出來。**
+   - 選單和彈出層的縮放原點在觸發按鈕那一側。
+   - 依據：`emil-dropdown-trigger-transform-origin`。macOS 的 NSPopover 也從箭頭處展開。
+4. **一次只有一個主角。**
+   - 同一時間只有一組元素在做大位移，其他元素淡入淡出或不動。
+   - 依據：`kubai-999-015-continuity`。
+5. **可中斷。**
+   - 動畫途中再操作，要從當前值反向或接續，不等動畫跑完。
+   - 依據：`transitions-dev-state-preserving-components`。
+6. **狀態誠實。**
+   - 動畫跟著真實狀態走：請求還沒回來就不播「完成」。
+   - 依據：`kubai-slowed-ui-microfeedback`、`kubai-999-017-waiting-states`。
+
+### Tokens
+
+數值放在 `packages/design-tokens`（純資料，不依賴任何動效套件），並產生 CSS 變數，例如 `--qc-dur-base`、`--qc-ease-out`。`apps/mac` 再把它們轉成 motion 與 dnd-kit 的參數。頁面裡不寫死時長與曲線。
+
+| 時長 token | 值 | 用在 |
+| --- | --- | --- |
+| `instant` | 80ms | 右鍵選單、子選單出現，按下回饋 |
+| `fast` | 120ms | 懸停、顏色與邊框、選取環、所有退場淡出、頁面內容淡入 |
+| `base` | 180ms | 選單／彈出層進場、toast 進場、勾選、分段指示器 |
+| `moderate` | 240ms | 對話框、側面板、側欄收合、拖放取消歸位、結果卡展開 |
+| `slow` | 320ms | 大範圍重排（篩選切換時卡片重新排位） |
+| `progress` | 400ms | 確定進度條前進（沿用） |
+| `skeleton` | 1200ms 循環 | 骨架閃爍（沿用） |
+| `spinner` | 800ms 循環 | 轉圈（沿用） |
+
+| 曲線 token | 值 | 用在 |
+| --- | --- | --- |
+| `out` | `cubic-bezier(0.22, 1, 0.36, 1)` | 進場、落位 |
+| `in` | `cubic-bezier(0.4, 0, 1, 1)` | 退場 |
+| `inOut` | `cubic-bezier(0.45, 0, 0.25, 1)` | 畫面內兩個位置之間的移動（取消歸位、側欄） |
+| `linear` | `linear` | 轉圈、不確定進度 |
+
+| 彈簧 token | motion 參數 | 用在 |
+| --- | --- | --- |
+| `snappy` | `{ type: 'spring', visualDuration: 0.2, bounce: 0 }` | layout 重排、分段／分頁指示器滑動 |
+| `settle` | `{ type: 'spring', visualDuration: 0.28, bounce: 0.12 }` | 拖放放下後落位、勾選記號 |
+
+- 彈簧一律用 `visualDuration`（時間）定義，不用幀數，60Hz 與 120Hz 的觀感一致。
+- 任何地方的 `bounce` 都不超過 0.15。大面積面板（對話框、側欄、頁面）不用彈簧。
+
+| 距離 token | 值 | 用在 |
+| --- | --- | --- |
+| `nudge` | 4px | 選單、彈出層朝觸發處的位移 |
+| `rise` | 8px | toast 上升、新增列淡入 |
+| `panel` | 24px | 側面板、抽屜滑入 |
+| 縮放 | 選單 0.96、對話框 0.97、拖曳拿起 1.02 | 不超出這個範圍 |
+| 錯開（stagger） | 每項 20ms，最多 6 項（共 120ms） | 列表首次出現；第 7 項起不錯開 |
+
+### 各類互動
+
+| 互動 | 規則 | 理由與參考 |
+| --- | --- | --- |
+| 頁面切換（側欄換頁、設定分類） | 側欄不動；內容區舊頁直接卸下，新頁 opacity 0→1，`fast`；不左右滑。焦點立即移到新頁標題。 | 側欄導覽是平行切換，不是層級前進；macOS 系統設定、Finder 側欄切換都是原地更換。滑動會暗示「前進／返回」。 |
+| 編輯分頁切換 | 內容立即切換，不做動畫，保留捲動、游標與組字狀態。 | 高頻操作，任何延遲都會被感覺到；Safari、Xcode 的分頁切換是即時的。 |
+| 編輯分頁開啟、關閉、重排 | 新分頁：寬度從 0 展開（layout，`snappy`），標題 `fast` 淡入。關閉：其餘分頁補位（`snappy`）。重排用 dnd-kit sortable，水平軸，其他分頁讓位 `base`。 | 讓人看見分頁從哪裡來、去了哪裡；Safari 拖曳分頁時，其他分頁會讓位。 |
+| 分段控制、AI 分頁指示器 | 選中底色用共享元素（`layoutId`）滑到新位置，`snappy`；文字顏色 `fast`。 | 連續的指示器比閃爍更好讀出「換到哪」；依據 `kubai-999-015-continuity`（Tab Bar 膠囊落位）。 |
+| 側欄收合／展開 | 側欄面板用 transform 移動，標籤 `fast` 淡出；主內容區立即取得最終寬度，用 `layout="position"` 從舊位置平移到位。時長 `moderate`，曲線 `inOut`。不逐幀動寬度。 | Finder、Mail 收合側欄都有平滑過渡；逐幀改寬度會讓整個內容區每幀重排，卡片多時會掉幀。 |
+| 選單、下拉、彈出層 | 進場：opacity 0→1，scale 0.96→1，朝觸發處位移 `nudge`，`base`／`out`，縮放原點在觸發按鈕那一側（向上翻轉時跟著換）。退場只淡出，`fast`／`in`。 | `emil-dropdown-trigger-transform-origin`；NSPopover 從箭頭展開。退場只淡出，免得畫面「縮回去」時還搶眼。 |
+| 右鍵選單、子選單 | 進場只淡入，`instant`；退場淡出 `fast`。子選單不加延遲動畫。 | macOS 的右鍵選單幾乎是立即出現、關閉時淡出；右鍵是高頻操作。 |
+| 對話框 | 遮罩淡入 `base`。面板 opacity 0→1，scale 0.97→1，`moderate`／`out`。退場淡出 `fast`。焦點在掛載時就移入，不等動畫結束。 | 置中面板沒有局部觸發點，所以從中心微縮放；退場要快，讓結果立即可見。 |
+| 側面板、抽屜（AI 面板、素材抽屜） | translateX `panel`（24px）＋淡入，`moderate`／`out`；退場 `base`／`in`。不從整個面板寬度滑進來。 | 完整滑入的距離太長、太慢；短位移加淡入已足夠交代來源方向。 |
+| Toast | 進場從下方 `rise` 上升＋淡入，`base`／`out`。退場淡出 `fast`。最多同時 3 個，新的在下方，舊的用 layout 上移（`snappy`）。滑鼠懸停或鍵盤聚焦時暫停倒數。 | `kubai-999-016-toast-vs-notification`：堆疊要量真實高度；可復原的提示要給足時間。 |
+| 列表與卡片新增 | 新項 opacity 0→1，scale 0.98→1，`base`；其他項用 layout 讓位，`snappy`。 | 讓人看到新東西插在哪；`kubai-999-015-continuity`（新增項插入、其餘後移）。 |
+| 列表與卡片刪除 | 先離場：淡出＋scale 0.98，`fast`。其餘項在下一幀補位，`snappy`。焦點移到下一項，沒有下一項就移到上一項。可復原時，復原的項目用新增動效回到原位。 | `kubai-999-014-card-deletion`：資料刪除、視覺離場、補位要分開；不做燃燒、碎裂這類戲劇化離場。 |
+| 重排、篩選切換 | 數量在上限內：卡片用 layout 移到新位置，`slow` 內完成（`snappy`）；被篩掉的淡出 `fast`。超過上限：整個網格交叉淡化 `fast`，不做逐張 layout。 | 少量時看得到誰去哪；大量時逐張移動只會變成一團雜訊，還會掉幀。 |
+| 卡片懸停 | 只變陰影與邊框，`fast`；不放大、不上浮。 | 密集網格裡上浮會讓鄰近卡片看起來在晃；內容優先。 |
+| 卡片選取 | 選取環 `fast` 出現；左上勾選記號 scale 0.8→1，`settle`。多選時批量列從底部 `rise`＋淡入，`base`。 | 勾選是允許一點回彈的小回饋（`kubai-999-011-animation-easing`：overshoot 只用在勾選類）。 |
+| 載入骨架到內容 | 載入超過 300ms 才顯示骨架；一旦顯示，至少停留 300ms。內容到了，骨架與內容交叉淡化 `base`。骨架必須和最終版面同尺寸，切換時不跳動。 | `kubai-999-017-waiting-states`：骨架對齊列表結構，再原位換成內容；短等待不閃骨架。 |
+| 儲存狀態（未儲存→儲存中→已儲存） | 標籤內文字與圖示交叉淡化 `fast`；寬度變化用 layout（`snappy`）。「已儲存」不閃爍、不彈跳。 | 頻繁出現的狀態要安靜；`kubai-slowed-ui-microfeedback`：同一容器內交替文案與圖示。 |
+| 測試連線、按鈕的等待 | 按下後，按鈕內圖示換成轉圈（`fast` 交叉淡化），按鈕寬度不變。結果卡高度變化用 layout（`moderate`）；成功或失敗圖示 scale 0.9→1，`base`，不回彈。 | 等待要留在原地（`kubai-999-017-waiting-states`）；按鈕不能縮放，避免點擊目標在手下移動。 |
+| AI 任務進度 | 確定進度用 `transform: scaleX` 前進，`progress`；不確定進度用 `linear` 循環。完成後進度條淡出 `fast`，結果用新增動效進場。 | 只用可信的進度數據；用 scaleX 而不動 width，不會觸發重排。 |
+| 拖放：拿起 | 指標移動 4px 後才開始拖（dnd-kit `activationConstraint.distance: 4`），避免點擊被當成拖曳。拖曳中的浮層（`DragOverlay`）scale 1.02、彈出層陰影，`fast`。原位留淡化佔位（opacity 0.4）。游標改成抓取手形。 | `kubai-999-005-drag-sort`：拿起時讓出落點；Finder 拖曳檔案時，原圖示留著淡化的影子。 |
+| 拖放：經過目標 | 可排序列表：鄰近項讓位，`base`／`out`，並顯示插入線。放入容器（例如側欄項目）：目標列 `fast` 顯示強調底色與外框。不是有效目標就不加任何變化。 | 落點要在放手前就看得到；插入線和讓位跟著同一張卡片。 |
+| 拖放：放下 | 浮層移到最終位置後消失，`base`／`out`（`dropAnimation`），佔位恢復。放入容器時，浮層縮到 0.6 並淡出、飛向目標列，`base`；目標列的數量交叉淡化更新，不閃。 | 交代東西「去了哪」，不需要額外慶祝。 |
+| 拖放：取消 | 按 Esc 或放到無效位置時，浮層回到原位，`moderate`／`inOut`，然後一切還原，不產生任何資料變更。 | Finder 拖到無效位置時，圖示會飛回原處；可預期的回彈讓人放心。 |
+| 拖放：鍵盤 | 空白鍵拿起，方向鍵移動，空白鍵放下，Esc 取消；每一步都用三語播報（dnd-kit `announcements`）。動效與滑鼠拖曳相同。 | 拖放不能是唯一入口；依據 `drag-threshold-collapse`、`kubai-999-005-drag-sort`。 |
+
+### 無障礙
+
+- **減少動態效果**（macOS「減少動態效果」，對應 `prefers-reduced-motion: reduce`）：
+  - App 根節點使用 `<MotionConfig reducedMotion="user">`。這會關掉位移、縮放和 layout 動畫，只保留透明度變化。
+  - 所有淡入淡出縮短為 `fast`，不再有位移、縮放、彈簧、錯開。
+  - 重排與補位直接到位；拖放沒有拿起縮放，放下與取消都直接到位。拖曳時仍保留陰影與佔位，讓人看得出正在拖。
+  - 骨架改為靜態底色，確定進度直接跳到目標值。
+  - **轉圈保留**：它是「正在進行」的唯一訊號（WCAG 2.3.3 允許必要動畫）。這和舊規則「關閉所有動畫」不同，列為待核准變更。
+  - 理由：Apple 的「減少動態效果」會把滑動換成淡入淡出，而不是完全不給回饋。
+- **不擋輸入，不延後焦點**：
+  - 開啟時焦點在元素掛載時就移入，不等進場動畫結束。
+  - 退場中的元素立即設 `inert` 和 `pointer-events: none`，不能被點到，也不能被 Tab 到。
+  - 任何操作都不必等動畫結束；動畫途中再按，要從當前狀態接續（原則 5）。
+- **中文輸入法**：
+  - 組字中（`compositionstart` 到 `compositionend` 之間），包含這個輸入框的容器不做 layout 動畫，也不移動輸入框。輸入框一移動，候選字窗就會錯位。
+  - 由輸入內容觸發的篩選與重排，要等組字結束後才執行，沿用既有規則。
+  - 不在組字中彈出會搶焦點的 toast 或選單。
+- **時長上限**：會擋住使用者看下一步的動效，不超過 `moderate`（240ms）。
+
+### 效能
+
+- **只動 transform 與 opacity。**
+  - 不動 width、height、top、left、margin。需要改尺寸時，用 motion 的 layout（以 transform 實作）或 `layout="position"`。
+  - box-shadow 不做大量逐幀變化：卡片懸停的陰影放在偽元素上，改它的 opacity。
+- **layout 動畫上限：**
+  - 一次最多 40 個元素參與；只算可視範圍內的元素，畫面外的直接到位。
+  - 超過上限時，改用整區交叉淡化（`fast`）。
+  - 作品庫上百張卡片時一律走這條路。
+- `will-change` 只在動畫期間加上，結束後移除。捲動時不觸發動畫，也不做 scroll-linked 動效。
+- **ProMotion（120Hz）：**
+  - 動效全部以時間定義（包括彈簧的 `visualDuration`），60Hz 與 120Hz 的時長相同，只是更平滑。
+  - 每幀預算以 8ms 為目標：同時動畫的元素少、不在動畫期間讀取版面。
+- **低電量模式與高溫：**
+  - 主程序在可取得時讀取低電量模式或 `powerMonitor` 的熱狀態，在 `serious`／`critical` 時通知 renderer 切到精簡模式（`data-motion="lite"`）。
+  - 精簡模式關閉 layout 動畫、錯開與彈簧，只保留 `fast` 淡入淡出。
+  - Electron 在 macOS 上能不能讀到低電量模式未經驗證（NOT_VERIFIED），由前端實作時確認；讀不到就只用熱狀態。
+- **驗收方式：**
+  - Apple silicon 機器上，作品庫 300 張卡片切換篩選、多選刪除 12 張、拖曳排序，Performance 面板沒有超過 16ms 的長幀。
+  - 減少動態效果開啟時，畫面每一步都可用。
+
+### 測試模式
+
+- e2e 執行時，主程序以既有的 e2e 環境變數，或新的 `CREATORHUB_MOTION=off`，告訴 renderer 關閉動效。這時：
+  - renderer 使用 `<MotionConfig reducedMotion="always">`，所有 motion 動畫時長為 0；
+  - `<html data-motion="off">` 讓 CSS 的 transition 與 animation 全部變成 `none`；
+  - dnd-kit 的 `dropAnimation` 設為 `null`，sortable 的 `transition` 設為 `null`；
+  - toast 不自動消失，由測試主動關閉，以免依賴計時。
+- 單元測試（jsdom）預設就是動效關閉。
+- 測試不得用「等動畫結束」的 sleep。退場元素在關閉動效時必須同步移除。
+
+### 實作邊界
+
+- `motion` 與 `@dnd-kit/*` 只出現在 `apps/mac` renderer；`packages/*` 只放 token 數值。
+- 共用封裝放在 renderer：
+  - `<Presence>`（AnimatePresence 加上退場時設 inert）；
+  - `useMotionMode()`（回傳 `full`、`reduced`、`lite`、`off`）；
+  - `<Sortable>`、`<DropTarget>`（包好 sensors、三語 announcements 和上述參數）。
+- 頁面只能使用這些封裝，不能各自設定時長與曲線。
+- 既有的 CSS transition 改用 token 變數；自寫的拖曳逐一換成 dnd-kit：
+  - 分頁：`EditorTabs.tsx`；
+  - 貼圖格：`ImagePostEditor.tsx`；
+  - 插入素材：`InsertUI.tsx`；
+  - 素材庫：`AssetsPage.tsx`；
+  - 預覽：`PreviewPage.tsx`；
+  - 側欄項目（QC-062）。
+
+### 驗收（動效）
+
+- 每區附正常速度的前後對照錄影，以及開啟「減少動態效果」的截圖或錄影。
+- 抽查：
+  - 快速連點開關選單與對話框，不卡住、不殘留；
+  - 動畫中按 Esc 或再點一次會反向；
+  - 拖放取消後資料沒有變化；
+  - 中文輸入法在動畫容器內組字，候選窗不錯位；
+  - 測試模式下 e2e 時序穩定。
+
+### 參考卡片
+
+設計參考庫 `/Users/feature/code/qiuge-design/cases/`。這些卡片多為 `concept`（概念示範，未經上線驗證），只借用做法，不照搬參數：
+
+- `kubai-999-011-animation-easing`：進場 ease-out、退場 ease-in、兩點移動 ease-in-out，overshoot 只用在小回饋。
+- `emil-dropdown-trigger-transform-origin`：選單從觸發處縮放。
+- `kubai-999-015-continuity`：用共享元素銜接前後狀態，一次一個主角。
+- `kubai-999-005-drag-sort`：拿起時讓出落點、插入線、Esc 取消還原。
+- `kubai-999-014-card-deletion`：資料刪除、視覺離場、補位分開處理，並提供復原。
+- `kubai-999-017-waiting-states`：依任務選骨架、轉圈或進度，等待留在原位。
+- `kubai-999-016-toast-vs-notification`：toast 堆疊與停留時間。
+- `kubai-slowed-ui-microfeedback`：狀態文案與圖示在同一容器交替，由真實狀態驅動。
+- `transitions-dev-state-preserving-components`：可中斷、保持狀態的展開與收合。
+- `motion-vocabulary-actionable-brief`、`rare-ui-scenario-motion-reference`：每個動效寫明觸發、對象、取消與減少動態效果的規則。
+- `drag-threshold-collapse`：拖曳要有門檻與鍵盤替代。
+
+參考庫沒有 macOS 系統動效的實測卡片。文中的 macOS 行為（Finder、Mail、Safari、系統設定、NSPopover）是一般使用觀察，不是量測值；數值以本節 tokens 為準。
+
 ## 可及性與輸入
 
 - **中文輸入法**：組字期間不觸發儲存、快捷鍵或搜尋；游標、撤銷、重做都要正確。這是 M0 的驗收項。
@@ -210,7 +397,7 @@
   - 常用動作有快捷鍵：新建、儲存、搜尋、切換預覽。
 - **iOS**：
   - 觸控區至少 44×44pt。
-  - 支援動態字體、VoiceOver 標籤、Reduce Motion、Reduce Transparency。
+  - 支援動態字體、VoiceOver 標籤、Reduce Motion（見「動效」）、Reduce Transparency。
 - 正文與控制項的對比要符合 WCAG AA。
 
 ## 原型流程
