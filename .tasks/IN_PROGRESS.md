@@ -1,3 +1,23 @@
+## QC-061: 作品庫卡片顯示真正的縮略圖
+
+**Priority:** P1 | **Assignee:** qc-frontend（主）＋ qc-backend（需要時） | **Tags:** M3, frontend, backend
+
+使用者 2026-11-21（附已安裝版 272c754 作品庫截圖）：「作品庫的卡片中要顯示縮略圖，目前只有一個圖標在上面，不是很直觀！」截圖：視頻卡只有「0:51 · 竖屏」徽章、封面區空白；貼圖卡與四張文章卡都只顯示類型圖示。
+
+總監初查（待證實）：
+- `apps/mac/src/renderer/WorkCover.tsx` 只在 `thumbnail.asset_id` 有值時才顯示圖；視頻用 `<video preload="metadata" #t=…>` 取幀，安裝版顯示空白（可能是 `qc-asset://` 在打包 App 的載入／CORS，或 metadata 預載不畫幀，QC-046 時列為 NOT_VERIFIED）。
+- 後端 `typed-media.ts` 的 `thumbnail` 對文章一律為 null；`asset_id` 只在檔案對得上素材庫時才有，作品自己 `assets/` 內的檔案可能沒有 asset_id（應改走 `path` 加作品檔案路由）。
+- 貼圖卡要確認那個作品是真的沒圖，還是有圖卻沒 asset_id。
+
+要做：
+1. **視頻**：卡片顯示封面幀。建議後端在選定封面或匯入視頻時產生並快取靜態縮圖（WebP，最長邊 512，放可重建的 `cache/`），卡片只載圖片，不在列表裡開 `<video>`。
+2. **貼圖**：封面或第一張圖；`asset_id` 為空時用作品檔案路由。
+3. **文章**：正文第一張圖（Markdown 圖片或 front matter cover）；沒有圖時用「文字預覽」卡面（標題＋前幾行摘要，排版要好看），不是只放圖示。
+4. 圖片載入失敗、檔案遺失：顯示類型圖示＋既有「缺少媒體」徽章，不留空白。
+5. 效能：縮圖延遲載入、快取；上百張卡捲動順暢。
+6. 必須在**打包後的 App**驗證（不只 dev），附截圖；e2e 用背景模式。
+不改原稿；縮圖是可重建快取。三語文案進 i18n。
+
 ## QC-033: Mac 生產可用實機驗收
 
 **Priority:** P1 | **Assignee:** qc-test | **Tags:** M3
