@@ -1,4 +1,3 @@
-import type { CreatorHubClient } from '@qiu-creator/api-client';
 import type { Project } from '@qiu-creator/contracts';
 import { useState, type ReactNode } from 'react';
 import { ContextMenu, type MenuAnchor, type MenuEntry } from './ContextMenu.js';
@@ -11,7 +10,6 @@ import {
   PROJECT_COLORS,
   projectColor,
   projectName,
-  unsortedAfterRemoving,
   type ProjectsStore,
 } from './projects-store.js';
 
@@ -23,14 +21,12 @@ import {
  */
 export function useProjectMenu({
   store,
-  client,
   notify,
   onRename,
   onGone,
 }: {
   /** Null before the project list exists: the menu then never opens. */
   store: ProjectsStore | null;
-  client: CreatorHubClient;
   notify: (notice: Notice | null) => void;
   onRename: (project: Project) => void;
   /** The project was archived or deleted (so a page showing it goes back to 全部作品). */
@@ -67,11 +63,12 @@ export function useProjectMenu({
   };
 
   const askDelete = async (p: Project) => {
-    const works = await client.works.list({ project_id: p.id, limit: 200 }).catch(() => null);
+    // The service counts both, however many works the project has (QC-067).
+    const summary = await store?.summary(p.id).catch(() => null);
     setDeleting({
       project: p,
-      count: works?.total ?? p.work_count,
-      unsorted: unsortedAfterRemoving(works?.items ?? [], p.id),
+      count: summary?.project.work_count ?? p.work_count,
+      unsorted: summary?.sole_count ?? 0,
     });
   };
 

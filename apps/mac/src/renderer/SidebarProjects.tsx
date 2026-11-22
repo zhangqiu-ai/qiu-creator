@@ -1,4 +1,3 @@
-import type { CreatorHubClient } from '@qiu-creator/api-client';
 import type { Project } from '@qiu-creator/contracts';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -60,7 +59,6 @@ function writeOpen(key: string, open: boolean): void {
 export function SidebarProjects({
   store,
   s,
-  client,
   rail,
   scope,
   active,
@@ -68,7 +66,6 @@ export function SidebarProjects({
 }: {
   store: ProjectsStore;
   s: ProjectsState;
-  client: CreatorHubClient;
   rail: boolean;
   scope: LibraryScope;
   /** 作品庫 is the page in front (so the scope's row is the current one). */
@@ -123,7 +120,6 @@ export function SidebarProjects({
 
   const menu = useProjectMenu({
     store,
-    client,
     notify,
     onRename: (p) => {
       if (p.archived) setArchivedOpen(true);

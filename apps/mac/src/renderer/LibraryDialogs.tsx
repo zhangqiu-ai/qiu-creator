@@ -1,4 +1,7 @@
-import { WORK_TRASH_RETENTION_DAYS, type WorkListItem } from '@qiu-creator/contracts';
+import { WORK_TRASH_RETENTION_DAYS, type WorkRef } from '@qiu-creator/contracts';
+
+/** What the delete and tag dialogs read of a work: a loaded card or a ⌘A ref (QC-067). */
+type DialogWork = Pick<WorkRef, 'id' | 'title' | 'tags' | 'storage_mode' | 'external_state'>;
 import { useState } from 'react';
 import { Dialog } from './Dialog.js';
 import { t } from './i18n.js';
@@ -15,7 +18,7 @@ export function DeleteDialog({
   onCancel,
   onConfirm,
 }: {
-  works: readonly WorkListItem[];
+  works: readonly DialogWork[];
   onCancel: () => void;
   onConfirm: (moveOriginal: boolean) => void;
 }) {
@@ -80,7 +83,7 @@ export function PurgeDialog({
   onCancel,
   onConfirm,
 }: {
-  works: readonly WorkListItem[];
+  works: readonly DialogWork[];
   empty: boolean;
   /** For `empty`: how many works 最近刪除 holds. */
   count: number;
@@ -124,7 +127,7 @@ export function TagsDialog({
   onApply,
 }: {
   mode: 'add' | 'remove';
-  works: readonly WorkListItem[];
+  works: readonly DialogWork[];
   onCancel: () => void;
   onApply: (tags: string[]) => void;
 }) {

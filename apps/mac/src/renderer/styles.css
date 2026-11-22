@@ -7258,3 +7258,12 @@ kbd {
   padding: 6px 8px;
   font-size: 12.5px;
 }
+
+/* 作品庫分頁 (QC-067): the end of a paged list, where the next page starts loading. */
+.load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 12px;
+}
