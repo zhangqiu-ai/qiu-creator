@@ -15,7 +15,15 @@ import {
   type Transition,
   type Variants,
 } from 'motion/react';
-import { useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react';
+import {
+  forwardRef,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { currentMotionMode, moves, useMotionMode, type MotionMode } from './motion-mode.js';
 
 /**
@@ -153,10 +161,21 @@ export function AppMotion({ children }: { children: ReactNode }) {
  * test mode, where they go at once (no AnimatePresence at all), so a test
  * never waits on an animation.
  */
-export function Presence({ children }: { children: ReactNode }) {
+export function Presence({
+  children,
+  popLayout = false,
+}: {
+  children: ReactNode;
+  /** A leaving item stops taking space at once, so the others close the gap while it fades. */
+  popLayout?: boolean;
+}) {
   const mode = useMotionMode();
   if (mode === 'off') return <>{children}</>;
-  return <AnimatePresence initial={false}>{children}</AnimatePresence>;
+  return (
+    <AnimatePresence initial={false} mode={popLayout ? 'popLayout' : 'sync'}>
+      {children}
+    </AnimatePresence>
+  );
 }
 
 /**
@@ -298,5 +317,121 @@ export function ExitFade({ children, kind = 'fade' }: { children: ReactNode; kin
     <div ref={ref} className="exit-fade">
       {children}
     </div>
+  );
+}
+
+/**
+ * Most items that may move with a layout animation at once (DESIGN.md 動效 · 效能).
+ * Past it, a list changes with one cross-fade instead of item by item.
+ */
+export const LAYOUT_LIMIT = 40;
+
+/**
+ * A list item that fades and scales in when added (`base`), fades out when
+ * removed (`fast`), and, with `layout`, slides to its new place (`snappy`)
+ * when the list re-orders or filters. Inert while it leaves.
+ */
+export const AnimatedItem = forwardRef<
+  HTMLLIElement,
+  Omit<HTMLMotionProps<'li'>, 'initial' | 'animate' | 'exit' | 'variants' | 'layout'> & {
+    layout: boolean;
+    /** Added without an entrance (e.g. a list re-drawn as a whole). */
+    quiet?: boolean;
+  }
+>(function AnimatedItem({ layout, quiet = false, style, ...rest }, ref) {
+  const mode = useMotionMode();
+  const present = useIsPresent();
+  return (
+    <motion.li
+      ref={ref}
+      {...rest}
+      variants={presetVariants({ kind: 'listItem' }, mode)}
+      initial={quiet ? false : 'initial'}
+      animate="animate"
+      exit="exit"
+      layout={layout && moves(mode) ? 'position' : false}
+      transition={springOf('snappy')}
+      inert={!present}
+      style={{ ...style, ...(present ? {} : { pointerEvents: 'none' as const }) }}
+    />
+  );
+});
+
+/** When something loads: nothing, then a skeleton, then the content (DESIGN.md 動效 · 載入骨架). */
+export type LoadingView = 'blank' | 'skeleton' | 'content';
+
+/** Skeletons show only after this long, and once shown stay at least this long. */
+export const SKELETON_AFTER_MS = 300;
+
+/**
+ * A short wait never flashes a skeleton; a longer one shows it for at least
+ * 300 ms, so it does not blink away the moment it appears.
+ */
+export function useSkeletonGate(loading: boolean): LoadingView {
+  const [view, setView] = useState<LoadingView>(loading ? 'blank' : 'content');
+  const shownAt = useRef<number | null>(null);
+  useEffect(() => {
+    if (loading) {
+      setView('blank');
+      shownAt.current = null;
+      const timer = setTimeout(() => {
+        shownAt.current = Date.now();
+        setView('skeleton');
+      }, SKELETON_AFTER_MS);
+      return () => {
+        clearTimeout(timer);
+      };
+    }
+    const since = shownAt.current;
+    if (since === null) {
+      setView('content');
+      return;
+    }
+    const timer = setTimeout(
+      () => {
+        shownAt.current = null;
+        setView('content');
+      },
+      Math.max(0, SKELETON_AFTER_MS - (Date.now() - since)),
+    );
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [loading]);
+  return loading && view === 'content' ? 'blank' : view;
+}
+
+/**
+ * Where keyboard focus goes after items are removed (DESIGN.md 動效 · 刪除):
+ * the first item after the removed ones, or else the one before them.
+ */
+export function focusAfterRemoval(
+  order: readonly string[],
+  removed: ReadonlySet<string>,
+): string | null {
+  const first = order.findIndex((id) => removed.has(id));
+  if (first < 0) return null;
+  const after = order.slice(first).find((id) => !removed.has(id));
+  if (after !== undefined) return after;
+  return [...order.slice(0, first)].reverse().find((id) => !removed.has(id)) ?? null;
+}
+
+/**
+ * A small mark that pops in with the `settle` spring (scale 0.8 → 1, a little
+ * overshoot), e.g. a card's check mark when it is selected. Fades only without
+ * full motion; appears at once in test mode.
+ */
+export function SettleIn({ className, children }: { className: string; children: ReactNode }) {
+  const mode = useMotionMode();
+  return (
+    <motion.span
+      className={className}
+      aria-hidden="true"
+      initial={mode === 'off' ? false : moves(mode) ? { opacity: 0, scale: 0.8 } : { opacity: 0 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={moves(mode) ? springOf('settle') : tween('fast')}
+    >
+      {children}
+    </motion.span>
   );
 }

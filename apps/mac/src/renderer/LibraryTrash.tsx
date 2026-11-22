@@ -19,6 +19,7 @@ import { daysLeft } from './library-trash.js';
 import { useToast } from './toasts.js';
 import { purgeWorks, restoreWorks } from './work-actions.js';
 import { CardCover } from './WorkCover.js';
+import { Animated, AnimatedItem, LAYOUT_LIMIT, Presence, SettleIn } from './motion.js';
 
 type Notice = { message: string; tone: 'ok' | 'bad' };
 type Purge = { works: readonly WorkListItem[]; empty: boolean };
@@ -261,48 +262,52 @@ export function TrashView({
         </button>
       </div>
 
-      {selected.length > 0 && (
-        <div
-          className="batch-bar"
-          role="toolbar"
-          aria-label={t('workActions.selected', { count: selected.length })}
-        >
-          <span className="batch-bar__count" aria-live="polite">
-            {t('workActions.selected', { count: selected.length })}
-          </span>
-          <button
-            type="button"
-            className="btn btn--small"
-            disabled={busy}
-            onClick={() => {
-              void restore(selected);
-            }}
+      <Presence>
+        {selected.length > 0 && (
+          <Animated
+            key="batch-bar"
+            preset={{ kind: 'toast' }}
+            className="batch-bar"
+            role="toolbar"
+            aria-label={t('workActions.selected', { count: selected.length })}
           >
-            {t('workActions.restore')}
-          </button>
-          <button
-            type="button"
-            className="btn btn--small btn--danger"
-            disabled={busy}
-            onClick={() => {
-              setPurge({ works: selected, empty: false });
-            }}
-          >
-            {t('workActions.purgeItem')}
-          </button>
-          <span className="batch-bar__hint">{t('workActions.selectHint')}</span>
-          <button
-            type="button"
-            className="btn btn--small btn--ghost batch-bar__clear"
-            onClick={() => {
-              setSelection(EMPTY_SELECTION);
-            }}
-          >
-            {t('workActions.clearSelection')}
-            <kbd>esc</kbd>
-          </button>
-        </div>
-      )}
+            <span className="batch-bar__count" aria-live="polite">
+              {t('workActions.selected', { count: selected.length })}
+            </span>
+            <button
+              type="button"
+              className="btn btn--small"
+              disabled={busy}
+              onClick={() => {
+                void restore(selected);
+              }}
+            >
+              {t('workActions.restore')}
+            </button>
+            <button
+              type="button"
+              className="btn btn--small btn--danger"
+              disabled={busy}
+              onClick={() => {
+                setPurge({ works: selected, empty: false });
+              }}
+            >
+              {t('workActions.purgeItem')}
+            </button>
+            <span className="batch-bar__hint">{t('workActions.selectHint')}</span>
+            <button
+              type="button"
+              className="btn btn--small btn--ghost batch-bar__clear"
+              onClick={() => {
+                setSelection(EMPTY_SELECTION);
+              }}
+            >
+              {t('workActions.clearSelection')}
+              <kbd>esc</kbd>
+            </button>
+          </Animated>
+        )}
+      </Presence>
 
       <section
         className="page__body"
@@ -327,67 +332,69 @@ export function TrashView({
           </div>
         ) : (
           <ul className="card-grid" aria-multiselectable="true">
-            {works.map((w) => {
-              const days = daysLeft(w.purge_at);
-              const isSelected = selection.ids.has(w.id);
-              return (
-                <li key={w.id}>
-                  <button
-                    type="button"
-                    className={[
-                      'wcard',
-                      'wcard--trashed',
-                      isSelected ? 'wcard--selected' : '',
-                      menu?.ids.includes(w.id) === true ? 'wcard--menu' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                    data-work-id={w.id}
-                    aria-pressed={isSelected}
-                    title={w.title}
-                    onClick={(e) => {
-                      onCardClick(e, w);
-                    }}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      setMenu({
-                        anchor: anchorOf(e),
-                        ids: contextTargets(selection, w.id, orderRef.current),
-                      });
-                    }}
-                  >
-                    <CardCover work={w} imageUrl={(rel) => client.media.absoluteUrl(rel)} />
-                    <span className="wcard__body">
-                      <span className="wcard__title">{w.title}</span>
-                      <span className="wcard__meta">
-                        <span className="chip chip--warn">
-                          {days === null || days === 0
-                            ? t('workActions.purgeToday')
-                            : t('workActions.daysLeft', { count: days })}
+            <Presence popLayout>
+              {works.map((w) => {
+                const days = daysLeft(w.purge_at);
+                const isSelected = selection.ids.has(w.id);
+                return (
+                  <AnimatedItem key={w.id} layout={works.length <= LAYOUT_LIMIT}>
+                    <button
+                      type="button"
+                      className={[
+                        'wcard',
+                        'wcard--trashed',
+                        isSelected ? 'wcard--selected' : '',
+                        menu?.ids.includes(w.id) === true ? 'wcard--menu' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      data-work-id={w.id}
+                      aria-pressed={isSelected}
+                      title={w.title}
+                      onClick={(e) => {
+                        onCardClick(e, w);
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setMenu({
+                          anchor: anchorOf(e),
+                          ids: contextTargets(selection, w.id, orderRef.current),
+                        });
+                      }}
+                    >
+                      <CardCover work={w} imageUrl={(rel) => client.media.absoluteUrl(rel)} />
+                      <span className="wcard__body">
+                        <span className="wcard__title">{w.title}</span>
+                        <span className="wcard__meta">
+                          <span className="chip chip--warn">
+                            {days === null || days === 0
+                              ? t('workActions.purgeToday')
+                              : t('workActions.daysLeft', { count: days })}
+                          </span>
+                          <span className="wcard__type">{WORK_TYPE[w.type].label}</span>
                         </span>
-                        <span className="wcard__type">{WORK_TYPE[w.type].label}</span>
+                        <TrashFrom projectIds={w.project_ids} projects={projects} />
+                        {w.removal === 'unindexed' || w.removal === 'original_trashed' ? (
+                          <span className="wcard__meta wcard__meta--muted">
+                            <Icon name="folder" size={11} />
+                            {t(
+                              w.removal === 'unindexed'
+                                ? 'workActions.removalUnindexed'
+                                : 'workActions.removalOriginalTrashed',
+                            )}
+                          </span>
+                        ) : null}
                       </span>
-                      <TrashFrom projectIds={w.project_ids} projects={projects} />
-                      {w.removal === 'unindexed' || w.removal === 'original_trashed' ? (
-                        <span className="wcard__meta wcard__meta--muted">
-                          <Icon name="folder" size={11} />
-                          {t(
-                            w.removal === 'unindexed'
-                              ? 'workActions.removalUnindexed'
-                              : 'workActions.removalOriginalTrashed',
-                          )}
-                        </span>
-                      ) : null}
-                    </span>
-                    {isSelected && (
-                      <span className="wcard__check" aria-hidden="true">
-                        <Icon name="check" size={12} />
-                      </span>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
+                      {isSelected && (
+                        <SettleIn className="wcard__check">
+                          <Icon name="check" size={12} />
+                        </SettleIn>
+                      )}
+                    </button>
+                  </AnimatedItem>
+                );
+              })}
+            </Presence>
           </ul>
         )}
       </section>
