@@ -1,5 +1,11 @@
 # Done
 
+## QC-057: 設定頁重新設計：每個分類獨立頁面，AI 服務重整並加連線測試
+
+**Priority:** P1 | **Assignee:** qc-prototype → qc-backend ＋ qc-frontend | **Tags:** M3, prototype, frontend, backend | **Done:** 2026-11-21
+
+- 原型 PT-20261121-002 由總監代核准（畫布未上傳，依帳本）。後端：`POST /ai/providers/:provider/test`（免費列模型探測，10 秒）、`last_test` 保存、429 分 quota／rate_limited（Gemini 看 QuotaFailure／ErrorInfo）、`/ai/defaults`、`unpriced_jobs`、New API `base_url`／`base_url_host`。前端：每分類一頁、⌘,、記住分類；外觀主題卡＋語言分段、本機服務、備份紀錄表、資料夾狀態列、關於；AI 服務四分頁、供應商雙欄、測試結果卡、用途、用量、隱私。全倉 991／0／991、e2e 24／24。證據 `docs/evidence/qc057-*`。尚未發版。
+
 ## QC-059: editor-tabs e2e 游標還原偶發失敗
 
 **Priority:** P2 | **Assignee:** qc-test（診斷）→ qc-bugfix（修正） | **Tags:** M3 | **Done:** 2026-11-21
