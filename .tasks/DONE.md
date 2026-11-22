@@ -1,5 +1,11 @@
 # Done
 
+## QC-074: AI 圖片生成動畫簡化；縮寫／擴寫候選與下方圖片重疊
+
+**Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend | **Done:** 2026-11-22
+
+- 生圖等待改為單一訊號、圖片較慢淡入不縮放、退場只淡出（DESIGN.md 同步）；候選佔據真實版面高度，下方內容讓位、縮寫平順收回。e2e 一般 47／0、動效 48／0。
+
 ## QC-073: 動效開啟時 7 個 e2e 失敗（發版阻擋）
 
 **Priority:** P0 | **Assignee:** qc-frontend | **Tags:** M3, frontend | **Done:** 2026-11-22
