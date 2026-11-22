@@ -1,33 +1,20 @@
-import type { Project, ProjectSummary, WorkStatus } from '@qiu-creator/contracts';
+import type { Project } from '@qiu-creator/contracts';
 import { useEffect, useState } from 'react';
 import type { MenuEntry } from './ContextMenu.js';
-import { formatWhen, WORK_STATUS } from './format.js';
 import { t } from './i18n.js';
-import { Icon } from './Icon.js';
 import { addToProject, removeFromProject, type Notice } from './project-actions.js';
-import { cardDots, membership, projectColor, type ProjectsStore } from './projects-store.js';
+import { membership, projectColor, projectLabel, type ProjectsStore } from './projects-store.js';
 
 /** Works the project pieces of 作品庫 act on: ids, titles and memberships. */
 export type Member = { id: string; title: string; project_ids?: readonly string[] | undefined };
 
-const STATUS_ORDER: readonly WorkStatus[] = ['drafting', 'in_review', 'ready', 'published'];
-
-function dotsWithNames(
-  projectIds: readonly string[] | undefined,
-  projects: readonly Project[],
-  currentId: string | null,
-): { dots: Project[]; more: number; names: string } {
-  const { dots, more } = cardDots(projectIds, projects, currentId);
-  const names = (projectIds ?? [])
-    .map((id) => projects.find((p) => p.id === id))
-    .filter((p): p is Project => p !== undefined && !p.archived && p.id !== currentId)
-    .map((p) => p.name)
-    .join('、');
-  return { dots, more, names };
-}
-
-/** The colour dots on a card: its other live projects, at most two, then +N (QC-062). */
-export function ProjectDots({
+/**
+ * The project label on a card or a list row (QC-069, PT-20261122-001): the
+ * colour and name of the work's first other live project, then +N for the
+ * rest; the full names are in the tooltip and the accessible name. On a
+ * project's own page that project is left out. Nothing when there is none.
+ */
+export function ProjectLabel({
   projectIds,
   projects,
   currentId,
@@ -36,71 +23,45 @@ export function ProjectDots({
   projects: readonly Project[];
   currentId: string | null;
 }) {
-  const { dots, more, names } = dotsWithNames(projectIds, projects, currentId);
-  if (dots.length === 0) return null;
+  const label = projectLabel(projectIds, projects, currentId);
+  if (label === null) return null;
+  const { first, others } = label;
+  const names = [first, ...others].map((p) => p.name).join('、');
   return (
-    <span className="wcard__dots" title={names} aria-label={`${t('projects.inProjects')} ${names}`}>
-      {dots.map((p) => (
-        <span key={p.id} className="wcard__dot" style={{ background: projectColor(p.color) }} />
-      ))}
-      {more > 0 && <span className="wcard__more num">+{more}</span>}
+    <span className="plabel" title={names} aria-label={`${t('projects.inProjects')}：${names}`}>
+      <span className="plabel__dot" style={{ background: projectColor(first.color) }} />
+      <span className="plabel__name">{first.name}</span>
+      {others.length > 0 && <span className="plabel__more num">+{others.length}</span>}
     </span>
   );
 }
 
 /**
- * 項目概覽 under a project's header: how many works, by status, when one was
- * last changed, and 用到的素材 N › (the assets its works use).
+ * How many assets a project's works use (the 「M 個素材」 link beside its
+ * title, QC-069); null until the service has answered.
  */
-export function ProjectOverview({
-  store,
-  project,
-  refresh,
-  onOpenAssets,
-}: {
-  store: ProjectsStore;
-  project: Project;
-  /** Changes whenever the list was read again, so the summary follows. */
-  refresh: unknown;
-  onOpenAssets: () => void;
-}) {
-  const [summary, setSummary] = useState<ProjectSummary | null>(null);
+export function useProjectAssetCount(
+  store: ProjectsStore | null,
+  project: Project | null,
+  /** Changes whenever the list was read again, so the count follows. */
+  refresh: unknown,
+): number | null {
+  const [count, setCount] = useState<{ id: string; n: number } | null>(null);
+  const id = project?.id ?? null;
   useEffect(() => {
+    if (store === null || id === null) return;
     let alive = true;
     store
-      .summary(project.id)
+      .summary(id)
       .then((s) => {
-        if (alive) setSummary(s);
+        if (alive) setCount({ id, n: s.asset_count });
       })
       .catch(() => undefined);
     return () => {
       alive = false;
     };
-  }, [store, project.id, project.revision, project.work_count, refresh]);
-  return (
-    <div className="proj-overview" role="group" aria-label={t('projects.overview')}>
-      <span className="proj-overview__item">
-        {t('projects.worksCount', { count: summary?.project.work_count ?? project.work_count })}
-      </span>
-      {STATUS_ORDER.map((st) => (
-        <span key={st} className="proj-overview__item proj-overview__status">
-          <span className={`proj-overview__dot proj-overview__dot--${WORK_STATUS[st].tone}`} />
-          {WORK_STATUS[st].label}
-          <span className="num">{summary?.by_status[st] ?? 0}</span>
-        </span>
-      ))}
-      {summary?.last_updated_at != null && (
-        <span className="proj-overview__item faint">
-          {t('projects.updatedAt', { when: formatWhen(summary.last_updated_at) })}
-        </span>
-      )}
-      <button type="button" className="proj-overview__assets" onClick={onOpenAssets}>
-        {t('projects.usedAssets')}
-        <span className="num">{summary?.asset_count ?? '–'}</span>
-        <Icon name="chevronRight" size={12} />
-      </button>
-    </div>
-  );
+  }, [store, id, project?.revision, project?.work_count, refresh]);
+  return count !== null && count.id === id ? count.n : null;
 }
 
 /**

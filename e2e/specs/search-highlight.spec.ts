@@ -120,9 +120,12 @@ test('搜尋：卡片標題、列表列、摘要、素材名稱即時標出關�
   await test.step('列表檢視：只有內文命中時，列上顯示命中的那段', async () => {
     await search(page).fill('郁金香');
     await page.getByRole('button', { name: '列表' }).click();
-    await expect(grid(page).locator('.tbl__hit mark.hit')).toHaveText('鬱金香');
+    await expect(grid(page).locator('.hitline--row mark.hit')).toHaveText('鬱金香');
     expect(
-      await insideOf(grid(page).locator('.tbl__hit mark.hit'), grid(page).locator('.tbl__hit')),
+      await insideOf(
+        grid(page).locator('.hitline--row mark.hit'),
+        grid(page).locator('.hitline--row'),
+      ),
     ).toBe(true);
     await shot(page, '6-list-body-hit');
     await page.getByRole('button', { name: '網格' }).click();

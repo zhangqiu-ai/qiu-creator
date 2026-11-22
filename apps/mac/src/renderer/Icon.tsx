@@ -6,6 +6,7 @@ export type IconName =
   | 'library'
   | 'plus'
   | 'search'
+  | 'filter'
   | 'grid'
   | 'list'
   | 'back'
@@ -72,6 +73,7 @@ const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   pulse: ['M5 12h3l2-6 4 12 2-6h3'],
   trash: ['M4 7h16', 'M9 7V4h6v3', 'M6 7l1 13h10l1-13', 'M10 11v6', 'M14 11v6'],
   search: ['M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Z', 'm20 20-4.8-4.8'],
+  filter: ['M4 6h16', 'M7 12h10', 'M10 18h4'],
   grid: ['M4 4h7v7H4Z', 'M13 4h7v7h-7Z', 'M4 13h7v7H4Z', 'M13 13h7v7h-7Z'],
   list: ['M8 6h12', 'M8 12h12', 'M8 18h12', 'M4 6h.01', 'M4 12h.01', 'M4 18h.01'],
   back: ['M15 5l-7 7 7 7'],

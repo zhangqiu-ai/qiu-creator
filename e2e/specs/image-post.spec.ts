@@ -4,6 +4,7 @@ import path from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
 import { pngBytes } from '../../services/mac-server/test/fixtures.js';
 import { test } from '../fixtures/desktop.js';
+import { chooseFilter, filterCount, filterOption } from '../fixtures/library.js';
 
 /*
  * QC-045 貼圖 (PT-20261121-001 「v3 · 新建」「v3 · 貼圖編輯」): 新建 with a
@@ -91,7 +92,7 @@ test('貼圖：新建選類型、加圖、上限提示、鍵盤排序、移除�
 
   try {
     await test.step('新建選單：⌘N 開啟，視頻先停用，↓↩ 建立貼圖', async () => {
-      await nav(page).getByRole('button', { name: '作品庫', exact: true }).click();
+      await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
       await page.keyboard.press('Meta+n');
       const menu = page.getByRole('menu', { name: '新建作品' });
       await expect(menu.getByRole('menuitem')).toHaveCount(3);
@@ -235,7 +236,7 @@ test('貼圖：檔案遺失後重新指定、作品庫類型篩選與縮圖、�
     const lost = detail.media?.images[4];
     if (lost === undefined) throw new Error('no fifth image');
     unlinkSync(path.join(backend.home, 'library', 'works', work.id, lost.path));
-    await nav(page).getByRole('button', { name: '作品庫', exact: true }).click();
+    await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
     await page
       .getByRole('region', { name: '作品', exact: true })
       .getByRole('button', { name: /週末咖啡館/ })
@@ -255,7 +256,7 @@ test('貼圖：檔案遺失後重新指定、作品庫類型篩選與縮圖、�
   });
 
   await test.step('兩則提示同時出現時上下堆疊，不重疊', async () => {
-    await nav(page).getByRole('button', { name: '作品庫', exact: true }).click();
+    await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
     await page
       .getByRole('region', { name: '作品', exact: true })
       .getByRole('button', { name: /一篇文章/ })
@@ -296,10 +297,9 @@ test('貼圖：檔案遺失後重新指定、作品庫類型篩選與縮圖、�
   });
 
   await test.step('作品庫：類型篩選帶數量，卡片顯示第一張圖與張數', async () => {
-    await nav(page).getByRole('button', { name: '作品庫', exact: true }).click();
-    const types = page.getByRole('group', { name: '類型' });
-    await expect(types.getByRole('button', { name: /貼圖\s*1/ })).toBeVisible();
-    await types.getByRole('button', { name: /貼圖/ }).click();
+    await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
+    expect(await filterCount(page, '類型', /^貼圖/)).toBe('1');
+    await chooseFilter(page, '類型', /^貼圖/);
     const card = page.getByRole('region', { name: '作品', exact: true }).getByRole('button', {
       name: /週末咖啡館/,
     });
@@ -316,10 +316,11 @@ test('貼圖：檔案遺失後重新指定、作品庫類型篩選與縮圖、�
       )
       .toBe(true);
     await expect(card).toContainText('10 張');
-    await types.getByRole('button', { name: /視頻/ }).click();
-    await expect(page.getByText('還沒有視頻')).toBeVisible();
-    await expect(page.getByRole('button', { name: '新建視頻' })).toBeEnabled();
-    await types.getByRole('button', { name: /全部/ }).click();
+    // QC-069: a type with no works is dimmed in 篩選 and cannot be picked.
+    expect(await filterCount(page, '類型', /^視頻/)).toBe('0');
+    await expect(filterOption(page, '類型', /^視頻/)).toBeDisabled();
+    await page.keyboard.press('Escape');
+    await chooseFilter(page, '類型', /^全部/);
     await shot(page, 'zh-Hant-4-library');
   });
 

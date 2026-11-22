@@ -473,13 +473,14 @@ kbd {
 }
 .sb__foot {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
   padding: 8px;
   border-top: 1px solid var(--qc-line);
 }
 .sb__foot .sb__nav {
-  flex: 1;
+  flex: none;
 }
 .sb__handle {
   position: absolute;
@@ -715,7 +716,7 @@ kbd {
 }
 .page__body {
   flex: 1;
-  padding: 4px 28px 28px;
+  padding: 16px 28px 28px;
 }
 .state-card {
   display: flex;
@@ -6726,25 +6727,6 @@ kbd {
   align-items: center;
 }
 
-/* Cards and rows: the work's other projects */
-.wcard__dots {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 3px;
-}
-.wcard__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-.wcard__more {
-  font-size: 10.5px;
-  color: var(--qc-ink3);
-}
-.tbl__title .wcard__dots {
-  margin-left: 6px;
-}
 .wcard__from {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -7067,59 +7049,6 @@ kbd {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.proj-overview {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 16px;
-  margin: 12px 28px 0;
-  padding: 8px 12px;
-  border: 1px solid var(--qc-line);
-  border-radius: var(--qc-radius-card);
-  background: var(--qc-surface);
-  font-size: 12.5px;
-  color: var(--qc-ink2);
-}
-.proj-overview__item {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.proj-overview__item:first-child {
-  font-weight: 600;
-  color: var(--qc-ink);
-}
-.proj-overview__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--qc-ink3);
-}
-.proj-overview__dot--ok {
-  background: var(--qc-ok);
-}
-.proj-overview__dot--warn {
-  background: var(--qc-warn);
-}
-.proj-overview__dot--accent {
-  background: var(--qc-accent);
-}
-.proj-overview__assets {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-  padding: 2px 6px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--qc-accent);
-  font: inherit;
-  cursor: pointer;
-}
-.proj-overview__assets:hover {
-  background: var(--qc-bg);
-}
 .proj-colors {
   display: flex;
   gap: 8px;
@@ -7295,34 +7224,247 @@ mark.hit {
   will-change: transform, opacity;
 }
 
-/* A search hit only in the body (QC-068): the passage around it, on the cover and in the row. */
-.wcard__hit {
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 8px;
+/* 作品庫 header (QC-069, PT-20261122-001): one row; the counts are one light line by the title. */
+.page__sub {
+  color: var(--qc-ink3);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.page__sub-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--qc-accent);
+  font: inherit;
+  cursor: pointer;
+}
+.page__sub-link:hover {
+  text-decoration: underline;
+}
+.page__tools {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* 篩選: type and status in one popover (QC-069). */
+.fmenu {
+  position: relative;
+}
+.fmenu__btn--on {
+  border-color: var(--qc-accent);
+  background: var(--qc-accent-soft);
+  color: var(--qc-accent);
+}
+.fmenu__badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--qc-accent);
+  color: var(--qc-on-accent);
+  font-size: 10.5px;
+  line-height: 16px;
+  text-align: center;
+}
+.fmenu__pop {
+  top: 38px;
+  right: 0;
+  min-width: 220px;
+}
+.fmenu__head {
+  padding: 4px 10px 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--qc-ink3);
+}
+.fmenu__opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--qc-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.fmenu__opt:hover:not(:disabled),
+.fmenu__opt:focus-visible {
+  background: var(--qc-accent-soft);
+  outline: none;
+}
+.fmenu__opt:disabled {
+  color: var(--qc-ink3);
+  opacity: 0.55;
+  cursor: default;
+}
+.fmenu__radio {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border: 1.5px solid var(--qc-line);
+  border-radius: 50%;
+}
+.fmenu__opt[aria-checked='true'] .fmenu__radio {
+  border: 4px solid var(--qc-accent);
+}
+.fmenu__label {
+  flex: 1;
+}
+.fmenu__n {
+  color: var(--qc-ink3);
+  font-size: 12px;
+}
+.fmenu__clear {
+  align-self: flex-start;
+}
+.sdot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--qc-ink3);
+}
+.sdot--ok {
+  background: var(--qc-ok);
+}
+.sdot--warn {
+  background: var(--qc-warn);
+}
+.sdot--accent {
+  background: var(--qc-accent);
+}
+.sdot--bad {
+  background: var(--qc-bad);
+}
+/* The filters in use, each removable (only while one is on). */
+.afilters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 28px 0;
+}
+.afilters__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 4px 0 10px;
+  border-radius: 999px;
+  background: var(--qc-accent-soft);
+  color: var(--qc-accent);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.afilters__x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.afilters__x:hover {
+  background: color-mix(in srgb, var(--qc-accent) 16%, transparent);
+}
+
+/* The project label on a card or row (QC-069): colour, first name, +N. */
+.plabel {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+  height: 18px;
+  padding: 0 7px 0 6px;
+  border-radius: 999px;
+  background: var(--qc-sunken);
+  color: var(--qc-ink2);
+  font-size: 11px;
+  font-weight: 500;
+}
+.plabel__dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 2.5px;
+}
+.plabel__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plabel__more {
+  flex: none;
+  color: var(--qc-ink3);
+}
+.wcard__body {
+  container-type: inline-size;
+}
+.wcard__meta {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+.wcard__proj {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+/* A narrow card puts the label on a line of its own and keeps that line in every card, so rows align. */
+@container (max-width: 220px) {
+  .wcard__meta {
+    min-height: calc(22px + 4px + 18px);
+    align-content: flex-start;
+  }
+  .wcard__proj {
+    flex-basis: 100%;
+    order: 9;
+  }
+}
+.tbl__proj .plabel {
+  max-width: 160px;
+}
+
+/* A search hit not in the title (QC-069): 「內文 …」 or 「標籤 #…」 under the title or after it in a row. */
+.hitline {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  padding: 4px 7px;
-  border-radius: 6px;
-  background: var(--qc-surface);
-  box-shadow: var(--qc-shadow-card);
   color: var(--qc-ink2);
   font-size: 11.5px;
   line-height: 1.45;
 }
-.wcard__hit ~ .wcard__badge {
-  display: none;
+.hitline__k {
+  margin-right: 6px;
+  color: var(--qc-ink3);
+  font-weight: 600;
 }
-.tbl__hit {
+.hitline__tag + .hitline__tag {
+  margin-left: 4px;
+}
+.hitline--row {
+  display: block;
   min-width: 0;
   max-width: 420px;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--qc-ink3);
+  text-overflow: ellipsis;
   font-size: 12px;
   font-weight: 400;
 }

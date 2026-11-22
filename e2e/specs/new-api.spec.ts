@@ -32,7 +32,7 @@ test('設定 New API、獨立確認使用告知，並切換供應商改寫', asy
     await pv(provider).click();
   };
   const openWork = async () => {
-    await nav.getByRole('button', { name: '作品庫', exact: true }).click();
+    await nav.getByRole('button', { name: '全部作品', exact: true }).click();
     await page
       .getByRole('region', { name: '作品', exact: true })
       .getByRole('button', { name: new RegExp(WORK_TITLE) })

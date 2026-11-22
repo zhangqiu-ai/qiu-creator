@@ -28,7 +28,7 @@ const L: Record<
 > = {
   'zh-Hant': {
     card: '繁體中文',
-    library: '作品庫',
+    library: '全部作品',
     settings: '設定',
     assets: '素材庫',
     appearance: '外觀',
@@ -38,7 +38,7 @@ const L: Record<
   },
   'zh-Hans': {
     card: '简体中文',
-    library: '作品库',
+    library: '全部作品',
     settings: '设置',
     assets: '素材库',
     appearance: '外观',
@@ -48,7 +48,7 @@ const L: Record<
   },
   en: {
     card: 'English',
-    library: 'Library',
+    library: 'All posts',
     settings: 'Settings',
     assets: 'Assets',
     appearance: 'Appearance',
@@ -148,7 +148,7 @@ test('語言：三種語言即時切換，側欄、設定頁、編輯器與原�
 
   await test.step('English 深色截圖', async () => {
     await page.emulateMedia({ colorScheme: 'dark' });
-    await nav(page, 'en').getByRole('button', { name: 'Library', exact: true }).click();
+    await nav(page, 'en').getByRole('button', { name: 'All posts', exact: true }).click();
     await shot(page, 'en-4-library-dark');
     await page.emulateMedia({ colorScheme: 'light' });
   });

@@ -1,4 +1,5 @@
-import { findMatches } from '@qiu-creator/domain/search';
+import { findMatches, matchesSearch } from '@qiu-creator/domain/search';
+import { t } from './i18n.js';
 import { createContext, Fragment, useContext, useMemo, type ReactNode } from 'react';
 
 /**
@@ -55,4 +56,48 @@ export function Highlight({ text }: { text: string }) {
   }
   if (at < text.length) out.push(<Fragment key={`t${String(at)}`}>{text.slice(at)}</Fragment>);
   return <>{out}</>;
+}
+
+/**
+ * Where a search hit that is not in the title shows (QC-069, PT-20261122-001):
+ * 「內文 …passage…」 for a hit in the text (the service's `match_excerpt`), or
+ * 「標籤 #tag」 for a hit only in the tags. A text card shows the passage on
+ * its cover instead (`inCover`), so here it is only read out.
+ */
+export function HitLine({
+  title,
+  tags,
+  excerpt,
+  inCover = false,
+  className = 'hitline',
+}: {
+  title: string;
+  tags: readonly string[];
+  excerpt: string | null | undefined;
+  inCover?: boolean;
+  className?: string;
+}) {
+  const query = useContext(SearchQuery);
+  if (query.trim() === '' || matchesSearch(title, query)) return null;
+  if (excerpt != null) {
+    if (inCover) return <span className="visually-hidden">{excerpt}</span>;
+    return (
+      <span className={className}>
+        <span className="hitline__k">{t('library.hitBody')}</span>
+        <HitPassage text={excerpt} />
+      </span>
+    );
+  }
+  const hits = tags.filter((tag) => matchesSearch(tag, query));
+  if (hits.length === 0) return null;
+  return (
+    <span className={className}>
+      <span className="hitline__k">{t('library.hitTags')}</span>
+      {hits.map((tag) => (
+        <span key={tag} className="hitline__tag">
+          #<Highlight text={tag} />
+        </span>
+      ))}
+    </span>
+  );
 }

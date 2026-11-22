@@ -32,7 +32,6 @@ function at(page: Page) {
     nav,
     cat: (name: RegExp): Locator => cats.getByRole('button', { name }),
     view: page.getByRole('group', { name: '檢視' }),
-    types: page.getByRole('group', { name: '類型' }),
     detail: page.locator('.set-md__detail'),
     result: page.locator('#ai-test-result'),
   };
@@ -88,12 +87,11 @@ test('設定與 AI 動效錄影（正常速度）與減少動態效果', async (
     videoDir === '' ? null : await startScreencast(page, videoDir, 'qc065-area5-settings-ai');
 
   // Segments: the highlight glides to the new choice, then hands back to the real one.
-  for (const name of [/文章/, /貼圖/, /全部/]) {
-    await ui.types.getByRole('button', { name }).click();
+  // (QC-069: the library's type filter is a popover now; its view switch is the segment.)
+  for (const name of ['列表', '網格', '列表', '網格']) {
+    await ui.view.getByRole('button', { name }).click();
     await expect(page.locator('.seg-glide')).toHaveCount(0);
   }
-  await ui.view.getByRole('button', { name: '列表' }).click();
-  await ui.view.getByRole('button', { name: '網格' }).click();
   await expect(page.locator('[data-gliding]')).toHaveCount(0);
 
   // The AI panel's tab underline glides between 改寫 and 標題.
@@ -124,8 +122,8 @@ test('設定與 AI 動效錄影（正常速度）與減少動態效果', async (
 
   // Reduce Motion: segments switch without gliding.
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await ui.nav.getByRole('button', { name: '作品庫', exact: true }).click();
-  await ui.types.getByRole('button', { name: /貼圖/ }).click();
+  await ui.nav.getByRole('button', { name: '全部作品', exact: true }).click();
+  await ui.view.getByRole('button', { name: '列表' }).click();
   expect(await page.locator('.seg-glide').count()).toBe(0);
   await shot(page, 'area5-reduced-segment');
   await page.emulateMedia({ reducedMotion: 'no-preference' });

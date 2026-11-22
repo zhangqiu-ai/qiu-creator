@@ -20,6 +20,7 @@ import { ExitFade } from './motion.js';
 import { useProjectMenu } from './project-menu.js';
 import {
   moveInOrder,
+  nextProjectColor,
   projectColor,
   projectName,
   type ProjectsState,
@@ -29,7 +30,11 @@ import { RenameField } from './RenameField.js';
 
 /** Which works 作品庫 shows (QC-062). */
 export type LibraryScope =
-  { kind: 'all' } | { kind: 'unassigned' } | { kind: 'project'; id: string };
+  | { kind: 'all' }
+  | { kind: 'unassigned' }
+  | { kind: 'project'; id: string }
+  /** 最近刪除, from the foot of the sidebar (QC-069). */
+  | { kind: 'trash' };
 
 const SECTION_KEY = 'qc.sidebar.projects';
 
@@ -50,7 +55,8 @@ function writeOpen(key: string, open: boolean): void {
 }
 
 /**
- * 未分類 and the 項目 section of the sidebar (QC-062, PT-20261121-003): rows
+ * The top of the sidebar (QC-062, QC-069): 全部作品 and 未分類 (the scopes of
+ * the works, no heading), then the 項目 section (PT-20261121-003): rows
  * with a colour block, name and count; click to open, double-click or F2 to
  * rename, right-click for the project menu, drag to reorder (or ⌥↑/⌥↓), and
  * drop works on a row to add them (never to move them). Archived projects
@@ -283,121 +289,177 @@ export function SidebarProjects({
   };
 
   return (
-    <div className="sb-proj">
-      <span id={hintId} className="visually-hidden">
-        {t('projects.dndInstructions')}
-      </span>
-      <span className="visually-hidden" aria-live="assertive">
-        {spoken}
-      </span>
-      <button
-        type="button"
-        className="sb__nav"
-        aria-current={active && scope.kind === 'unassigned' ? 'page' : undefined}
-        aria-label={t('projects.unassigned')}
-        data-tip={t('projects.unassigned')}
-        onClick={() => {
-          onOpen({ kind: 'unassigned' });
-        }}
-      >
-        <Icon name="inbox" />
-        <span className="sb__label">{t('projects.unassigned')}</span>
-        {s.unassignedCount !== null && (
-          <span key={s.unassignedCount} className="sb__count num sb__count--update">
-            {s.unassignedCount}
-          </span>
-        )}
-      </button>
-
-      {!rail && (
-        <div className="sb-proj__head">
-          <button
-            type="button"
-            className="sb-proj__toggle"
-            aria-expanded={open}
-            aria-label={t('projects.sectionToggle')}
-            onClick={() => {
-              setOpen(!open);
-              writeOpen(SECTION_KEY, !open);
-            }}
-          >
-            <Icon name={open ? 'chevronDown' : 'chevronRight'} size={12} />
-            {t('projects.projects')}
-          </button>
-          <button
-            type="button"
-            className="sb-proj__add"
-            aria-label={t('projects.newProject')}
-            title={t('projects.newProject')}
-            onClick={() => {
-              setOpen(true);
-              setCreating(true);
-            }}
-          >
-            <Icon name="plus" size={14} />
-          </button>
-        </div>
-      )}
-
-      {(open || rail) && (
-        <div className="sb-proj__list">
-          <SortableContext items={live.map((p) => p.id)} strategy={verticalListSortingStrategy}>
-            {live.map((p) => (
-              // A new project's row comes in; a deleted or archived one fades away.
-              <ExitFade key={p.id}>
-                <SortableRow project={p}>{(dnd) => row(p, dnd)}</SortableRow>
-              </ExitFade>
-            ))}
-          </SortableContext>
-          {creating && !rail && (
-            <div className="sb__nav sb-proj__row sb-proj__row--edit">
-              <span className="sb-proj__chip" style={{ background: projectColor(0) }} />
-              <RenameField
-                value=""
-                label={t('projects.projectName')}
-                className="rename--sidebar"
-                onCommit={(name) => {
-                  void create(name);
-                }}
-                onCancel={() => {
-                  setCreating(false);
-                }}
-              />
-            </div>
+    <>
+      <div className="sb__grp sb-scopes" role="group" aria-label={t('shell.groupWorks')}>
+        <button
+          type="button"
+          className="sb__nav"
+          aria-current={active && scope.kind === 'all' ? 'page' : undefined}
+          aria-label={t('shell.navAllWorks')}
+          data-tip={t('shell.navAllWorks')}
+          onClick={() => {
+            onOpen({ kind: 'all' });
+          }}
+        >
+          <Icon name="library" />
+          <span className="sb__label">{t('shell.navAllWorks')}</span>
+          {s.allCount !== null && (
+            <span key={s.allCount} className="sb__count num sb__count--update">
+              {s.allCount}
+            </span>
           )}
-          {live.length === 0 && !creating && !rail && (
+        </button>
+        <button
+          type="button"
+          className="sb__nav"
+          aria-current={active && scope.kind === 'unassigned' ? 'page' : undefined}
+          aria-label={t('projects.unassigned')}
+          data-tip={t('projects.unassigned')}
+          onClick={() => {
+            onOpen({ kind: 'unassigned' });
+          }}
+        >
+          <Icon name="inbox" />
+          <span className="sb__label">{t('projects.unassigned')}</span>
+          {s.unassignedCount !== null && (
+            <span key={s.unassignedCount} className="sb__count num sb__count--update">
+              {s.unassignedCount}
+            </span>
+          )}
+        </button>
+      </div>
+      <div className="sb__grp sb-proj" role="group" aria-label={t('projects.projects')}>
+        <span id={hintId} className="visually-hidden">
+          {t('projects.dndInstructions')}
+        </span>
+        <span className="visually-hidden" aria-live="assertive">
+          {spoken}
+        </span>
+
+        {!rail && (
+          <div className="sb-proj__head">
             <button
               type="button"
-              className="sb__nav sb-proj__new"
+              className="sb-proj__toggle"
+              aria-expanded={open}
+              aria-label={t('projects.sectionToggle')}
               onClick={() => {
+                setOpen(!open);
+                writeOpen(SECTION_KEY, !open);
+              }}
+            >
+              <Icon name={open ? 'chevronDown' : 'chevronRight'} size={12} />
+              {t('projects.projects')}
+            </button>
+            <button
+              type="button"
+              className="sb-proj__add"
+              aria-label={t('projects.newProject')}
+              title={t('projects.newProject')}
+              onClick={() => {
+                setOpen(true);
                 setCreating(true);
               }}
             >
               <Icon name="plus" size={14} />
-              <span className="sb__label">{t('projects.newProject')}</span>
             </button>
-          )}
-          {archived.length > 0 && !rail && (
-            <>
+          </div>
+        )}
+
+        {(open || rail) && (
+          <div className="sb-proj__list">
+            <SortableContext items={live.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+              {live.map((p) => (
+                // A new project's row comes in; a deleted or archived one fades away.
+                <ExitFade key={p.id}>
+                  <SortableRow project={p}>{(dnd) => row(p, dnd)}</SortableRow>
+                </ExitFade>
+              ))}
+            </SortableContext>
+            {creating && !rail && (
+              <div className="sb__nav sb-proj__row sb-proj__row--edit">
+                <span
+                  className="sb-proj__chip"
+                  style={{ background: projectColor(nextProjectColor(projects)) }}
+                />
+                <RenameField
+                  value=""
+                  label={t('projects.projectName')}
+                  className="rename--sidebar"
+                  onCommit={(name) => {
+                    void create(name);
+                  }}
+                  onCancel={() => {
+                    setCreating(false);
+                  }}
+                />
+              </div>
+            )}
+            {live.length === 0 && !creating && !rail && (
               <button
                 type="button"
-                className="sb-proj__toggle sb-proj__toggle--archived"
-                aria-expanded={archivedOpen}
+                className="sb__nav sb-proj__new"
                 onClick={() => {
-                  setArchivedOpen(!archivedOpen);
+                  setCreating(true);
                 }}
               >
-                <Icon name={archivedOpen ? 'chevronDown' : 'chevronRight'} size={12} />
-                {t('projects.archivedCount', { count: archived.length })}
+                <Icon name="plus" size={14} />
+                <span className="sb__label">{t('projects.newProject')}</span>
               </button>
-              {archivedOpen && archived.map((p) => row(p, null))}
-            </>
-          )}
-        </div>
-      )}
+            )}
+            {archived.length > 0 && !rail && (
+              <>
+                <button
+                  type="button"
+                  className="sb-proj__toggle sb-proj__toggle--archived"
+                  aria-expanded={archivedOpen}
+                  onClick={() => {
+                    setArchivedOpen(!archivedOpen);
+                  }}
+                >
+                  <Icon name={archivedOpen ? 'chevronDown' : 'chevronRight'} size={12} />
+                  {t('projects.archivedCount', { count: archived.length })}
+                </button>
+                {archivedOpen && archived.map((p) => row(p, null))}
+              </>
+            )}
+          </div>
+        )}
 
-      {menu.node}
-    </div>
+        {menu.node}
+      </div>
+    </>
+  );
+}
+
+/** 最近刪除 in the foot of the sidebar, above 設定 (QC-069): a quiet way back to deleted works. */
+export function SidebarTrash({
+  count,
+  current,
+  onOpen,
+}: {
+  count: number | null;
+  /** 最近刪除 is the page in front. */
+  current: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="sb__nav"
+      aria-current={current ? 'page' : undefined}
+      aria-label={t('shell.navTrash')}
+      data-tip={t('shell.navTrash')}
+      onClick={onOpen}
+    >
+      <Icon name="trash" />
+      <span className="sb__label">{t('shell.navTrash')}</span>
+      {count !== null && count > 0 && (
+        <span key={count} className="sb__count num sb__count--update">
+          {count}
+        </span>
+      )}
+    </button>
   );
 }
 

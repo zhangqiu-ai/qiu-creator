@@ -31,6 +31,7 @@ const EMPTY: ProjectsState = {
   projects: null,
   allCount: null,
   unassignedCount: null,
+  trashCount: null,
   failed: false,
 };
 const EMPTY_STATE = () => EMPTY;

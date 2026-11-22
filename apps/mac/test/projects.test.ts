@@ -12,10 +12,11 @@ import { addToProject, type Notice } from '../src/renderer/project-actions.js';
 import { dropAnimationFor, dropIntoKeyframes, sortTransition } from '../src/renderer/dnd-motion.js';
 import { dropAction } from '../src/renderer/projects-dnd.js';
 import {
-  cardDots,
   membership,
   moveInOrder,
+  nextProjectColor,
   projectColor,
+  projectLabel,
   projectName,
   ProjectsStore,
 } from '../src/renderer/projects-store.js';
@@ -48,7 +49,7 @@ describe('project helpers (QC-062)', () => {
     expect(membership([], 'a')).toBe('none');
   });
 
-  it('card dots skip the current and archived projects, at most two then +N', () => {
+  it('card label names the first other live project, then +N (QC-069)', () => {
     const list = [
       project('a'),
       project('b'),
@@ -56,14 +57,24 @@ describe('project helpers (QC-062)', () => {
       project('d'),
       project('e'),
     ];
-    expect(cardDots(['a', 'b', 'c', 'd', 'e'], list, 'a')).toEqual({
-      dots: [list[1], list[3]],
-      more: 1,
+    expect(projectLabel(['a', 'b', 'c', 'd', 'e'], list, 'a')).toEqual({
+      first: list[1],
+      others: [list[3], list[4]],
     });
-    expect(cardDots(['c'], list, null)).toEqual({ dots: [], more: 0 });
-    expect(cardDots(undefined, list, null)).toEqual({ dots: [], more: 0 });
+    // On its own project page, a work in no other project shows no label.
+    expect(projectLabel(['a'], list, 'a')).toBeNull();
+    expect(projectLabel(['c'], list, null)).toBeNull();
+    expect(projectLabel(undefined, list, null)).toBeNull();
     // A project the list does not know (deleted) is not shown.
-    expect(cardDots(['zz', 'a'], list, null).dots.map((p) => p.id)).toEqual(['a']);
+    expect(projectLabel(['zz', 'd'], list, null)?.first.id).toBe('d');
+  });
+
+  it('new projects take the eight colours in turn (QC-069)', () => {
+    expect(nextProjectColor([])).toBe(0);
+    expect(nextProjectColor([project('a'), project('b'), project('c')])).toBe(3);
+    const eight = Array.from({ length: 8 }, (_, i) => project(`p${String(i)}`));
+    expect(nextProjectColor(eight)).toBe(0);
+    expect(nextProjectColor([...eight, project('x')])).toBe(1);
   });
 
   it('moves with ⌥↑/⌥↓ in the sidebar order', () => {

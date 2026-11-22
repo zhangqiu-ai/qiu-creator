@@ -90,7 +90,7 @@ test('作品庫卡片：貼圖、文章圖片、文字預覽、視頻幀、缺�
 
   await page
     .getByRole('navigation', { name: '主導航' })
-    .getByRole('button', { name: '作品庫', exact: true })
+    .getByRole('button', { name: '全部作品', exact: true })
     .click();
   await expect(grid(page).locator('.wcard')).toHaveCount(5);
 

@@ -152,5 +152,13 @@ describe('篩選數量來自服務的總數 (QC-067)', () => {
       published: 80,
     });
     expect(statusCounts({}, 'video').all).toBe(0);
+    // Faceted (QC-069): with a status chosen, the type counts are within it.
+    expect(typeCounts(by, 'published')).toEqual({
+      all: 80,
+      article: 0,
+      image: 80,
+      video: 0,
+      mixed: 0,
+    });
   });
 });

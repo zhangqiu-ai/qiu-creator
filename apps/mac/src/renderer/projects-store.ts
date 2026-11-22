@@ -56,19 +56,30 @@ export function membership(
 }
 
 /**
- * The colour dots a card shows: the work's other projects (not the one being
- * viewed, not archived), at most two, plus how many more.
+ * The colour a new project gets (QC-069): the n-th project takes the n-th of
+ * the eight colours, so projects made one after another can be told apart.
+ * Existing projects keep their colour.
  */
-export function cardDots(
+export function nextProjectColor(projects: readonly Project[]): number {
+  return projects.length % PROJECT_COLORS.length;
+}
+
+/**
+ * A card's project label (QC-069): its live projects other than the one being
+ * viewed; the first is named, the rest count as +N, and every name goes in
+ * the tooltip. Null when there is none to show.
+ */
+export function projectLabel(
   projectIds: readonly string[] | undefined,
   projects: readonly Project[],
   currentId: string | null,
-): { dots: Project[]; more: number } {
+): { first: Project; others: Project[] } | null {
   const byId = new Map(projects.map((p) => [p.id, p]));
   const shown = (projectIds ?? [])
     .map((id) => byId.get(id))
     .filter((p): p is Project => p !== undefined && !p.archived && p.id !== currentId);
-  return { dots: shown.slice(0, 2), more: Math.max(0, shown.length - 2) };
+  const [first, ...others] = shown;
+  return first === undefined ? null : { first, others };
 }
 
 /** The order after moving `id` by `step` (⌥↑/⌥↓, 上移／下移); unchanged at an end. */
@@ -87,6 +98,8 @@ export interface ProjectsState {
   /** 全部作品 and 未分類 counts (works not in 最近刪除). */
   allCount: number | null;
   unassignedCount: number | null;
+  /** Works in 最近刪除, for its row at the foot of the sidebar (QC-069). */
+  trashCount: number | null;
   failed: boolean;
 }
 
@@ -95,6 +108,7 @@ export class ProjectsStore {
     projects: null,
     allCount: null,
     unassignedCount: null,
+    trashCount: null,
     failed: false,
   };
   private readonly listeners = new Set<() => void>();
@@ -122,16 +136,18 @@ export class ProjectsStore {
   async load(): Promise<void> {
     const n = ++this.request;
     try {
-      const [list, all, unassigned] = await Promise.all([
+      const [list, all, unassigned, trash] = await Promise.all([
         this.client.projects.list(),
         this.client.works.list({ limit: 1 }),
         this.client.works.list({ limit: 1, unassigned: '1' }),
+        this.client.works.list({ limit: 1, scope: 'trash' }),
       ]);
       if (n !== this.request) return;
       this.set({
         projects: list.items,
         allCount: all.total,
         unassignedCount: unassigned.total,
+        trashCount: trash.total,
         failed: false,
       });
     } catch {
@@ -139,10 +155,11 @@ export class ProjectsStore {
     }
   }
 
+  /** A new project; without a colour it takes the next of the eight in turn (QC-069). */
   async create(name: string, color?: number): Promise<Project> {
     const project = await this.client.projects.create({
       name,
-      ...(color === undefined ? {} : { color }),
+      color: color ?? nextProjectColor(this.state.projects ?? []),
     });
     await this.load();
     return project;

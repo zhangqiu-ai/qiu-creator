@@ -19,11 +19,11 @@ function sum(values: Iterable<number | undefined>): number {
   return n;
 }
 
-/** Works of each type (and in all), whatever their status. */
-export function typeCounts(by: ByTypeStatus): TypeCounts {
+/** Works of each type (and in all) in the chosen status (null: whatever their status). */
+export function typeCounts(by: ByTypeStatus, status: WorkStatus | null = null): TypeCounts {
   const out = { all: 0, article: 0, image: 0, video: 0, mixed: 0 };
   for (const type of WORK_TYPES) {
-    out[type] = sum(Object.values(by[type] ?? {}));
+    out[type] = status === null ? sum(Object.values(by[type] ?? {})) : (by[type]?.[status] ?? 0);
     out.all += out[type];
   }
   return out;

@@ -76,7 +76,7 @@ test('服務端文字跟隨介面語言：English 的 AI 錯誤、简体的備�
 
   await test.step('English：AI 失敗卡用英文類別，技術細節預設收起', async () => {
     const nav = page.getByRole('navigation', { name: 'Main navigation' });
-    await nav.getByRole('button', { name: 'Library', exact: true }).click();
+    await nav.getByRole('button', { name: 'All posts', exact: true }).click();
     await page.getByRole('button', { name: new RegExp(TITLE) }).click();
     const panel = page.getByRole('complementary', { name: 'AI rewrite' });
     await panel.getByRole('button', { name: 'Rewrite all', exact: true }).click();

@@ -42,7 +42,7 @@ async function pickUp(page: Page, from: Locator, toX: number, steps: number): Pr
 
 async function openWorks(page: Page, titles: readonly string[]): Promise<void> {
   for (const title of titles) {
-    await nav(page).getByRole('button', { name: '作品庫', exact: true }).click();
+    await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
     await page.locator('.card-grid .wcard', { hasText: title }).click();
     await expect(tab(page, title)).toBeVisible();
   }
@@ -59,8 +59,8 @@ test('殼層：換頁焦點到標題、側欄收合後內容到位、分頁拖�
   await test.step('從側欄換頁：焦點到新頁標題', async () => {
     await nav(page).getByRole('button', { name: '素材庫', exact: true }).click();
     await expect(page.getByRole('heading', { level: 1, name: '素材庫' })).toBeFocused();
-    await nav(page).getByRole('button', { name: '作品庫', exact: true }).click();
-    await expect(page.getByRole('heading', { level: 1, name: '作品庫' })).toBeFocused();
+    await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
+    await expect(page.getByRole('heading', { level: 1, name: '全部作品' })).toBeFocused();
   });
 
   await test.step('收起與展開側欄：內容直接到最終位置', async () => {
@@ -106,7 +106,7 @@ test('殼層動效錄影（正常速度）與減少動態效果', async ({ deskt
   const stop = videoDir === '' ? null : await startScreencast(page, videoDir, 'qc065-area1-shell');
 
   // Page switches: the new page fades in, nothing slides.
-  for (const name of ['素材庫', 'AI 工作台', '作品庫']) {
+  for (const name of ['素材庫', 'AI 工作台', '全部作品']) {
     await nav(page).getByRole('button', { name, exact: true }).click();
     await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
   }

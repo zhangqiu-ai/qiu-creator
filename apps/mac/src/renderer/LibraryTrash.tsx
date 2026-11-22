@@ -14,6 +14,7 @@ import {
   useSyncExternalStore,
   type MouseEvent,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { anchorOf, ContextMenu, type MenuAnchor, type MenuEntry } from './ContextMenu.js';
 import { useRefreshOn } from './events.js';
 import { WORK_TYPE } from './format.js';
@@ -52,18 +53,17 @@ type Purge = { works: readonly TrashWork[]; empty: boolean };
  */
 export function TrashView({
   client,
-  query,
-  onBack,
-  onCount,
+  query = '',
   projects = [],
+  tools = null,
 }: {
   client: CreatorHubClient;
   /** To say which projects a deleted work was in (QC-062); 還原 puts it back in them. */
   projects?: readonly Project[];
-  /** The library's search, applied here too. */
-  query: string;
-  onBack: () => void;
-  onCount: (count: number) => void;
+  /** A search to apply (none since 最近刪除 opens from the sidebar, QC-069). */
+  query?: string;
+  /** The page header's tool area, where 清空最近刪除 goes. */
+  tools?: HTMLElement | null;
 }) {
   // Paged like 作品庫 (QC-067), so a long 最近刪除 shows every deleted work.
   const [feed] = useState(
@@ -99,12 +99,9 @@ export function TrashView({
           ...(q === '' ? {} : { q }),
           ...(cursor === null ? {} : { cursor }),
         })
-        .then((res) => {
-          if (q === '') onCount(res.total);
-          return { items: res.items, next_cursor: res.next_cursor, total: res.total };
-        }),
+        .then((res) => ({ items: res.items, next_cursor: res.next_cursor, total: res.total })),
     );
-  }, [client, feed, query, onCount]);
+  }, [client, feed, query]);
   const refresh = useCallback(() => {
     void feed.refresh();
   }, [feed]);
@@ -306,29 +303,21 @@ export function TrashView({
 
   return (
     <>
-      <div className="filters trash-bar">
-        <button type="button" className="btn btn--small btn--ghost" onClick={onBack}>
-          <Icon name="back" size={14} />
-          {t('workActions.backToLibrary')}
-        </button>
-        <h2 className="trash-bar__title">
-          <Icon name="trash" size={16} />
-          {t('workActions.trash')}
-        </h2>
-        <span className="trash-bar__hint">
-          {t('workActions.trashHint', { days: WORK_TRASH_RETENTION_DAYS })}
-        </span>
-        <button
-          type="button"
-          className="btn btn--small btn--danger"
-          disabled={busy || works === null || works.length === 0}
-          onClick={() => {
-            setPurge({ works: [], empty: true });
-          }}
-        >
-          {t('workActions.emptyTrash')}
-        </button>
-      </div>
+      {/* The title and the 30-day note are in the page header, and 清空 joins them there (QC-069). */}
+      {tools !== null &&
+        createPortal(
+          <button
+            type="button"
+            className="btn btn--danger"
+            disabled={busy || works === null || works.length === 0}
+            onClick={() => {
+              setPurge({ works: [], empty: true });
+            }}
+          >
+            {t('workActions.emptyTrash')}
+          </button>,
+          tools,
+        )}
 
       <Presence>
         {selected.length > 0 && (

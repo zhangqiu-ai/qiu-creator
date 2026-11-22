@@ -223,18 +223,20 @@ export function useProjectMenu({
   };
 }
 
-/** 新建項目…: a name and one of the eight colours; ↩ creates. */
+/** 新建項目…: a name and one of the eight colours (the next in turn to start, QC-069); ↩ creates. */
 export function NewProjectDialog({
   initialName = '',
+  initialColor = 0,
   onCancel,
   onCreate,
 }: {
   initialName?: string;
+  initialColor?: number;
   onCancel: () => void;
   onCreate: (name: string, color: number) => void;
 }) {
   const [name, setName] = useState(initialName);
-  const [color, setColor] = useState(0);
+  const [color, setColor] = useState(initialColor);
   const valid = projectName(name) !== null;
   const submit = () => {
     const n = projectName(name);

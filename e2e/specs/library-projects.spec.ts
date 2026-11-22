@@ -3,12 +3,13 @@ import path from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
 import { pngBytes } from '../../services/mac-server/test/fixtures.js';
 import { test } from '../fixtures/desktop.js';
+import { trashRow } from '../fixtures/library.js';
 
 /*
  * QC-062 作品庫的項目 (PT-20261121-003): 未分類 and 項目 in the sidebar,
  * creating and renaming a project, dragging works onto it with dnd-kit (add, never move), dragging rows to reorder,
  * the 項目 ▸ checkboxes (mixed for a mixed selection) with 復原, colour dots
- * on cards, a project's page with its overview and 用到的素材, a new work
+ * on cards, a project's page with its counts and assets link, a new work
  * made inside a project joining it, 所屬項目 in the editor, and deleting a
  * project (works stay, 復原 brings it back) with 最近刪除 saying where a
  * deleted work was.
@@ -86,13 +87,13 @@ test('作品庫項目：側欄、拖放加入、勾選、項目頁、編輯器�
   });
 
   await test.step('拖到側欄的項目：加入，不移動；復原只拿回新加的', async () => {
-    await nav(page).getByRole('button', { name: '作品庫', exact: true }).click();
+    await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
     await drag(page, card(page, '京都散步路線'), row(page, '秋季'));
     await expect(page.getByText('已加入「秋季」')).toBeVisible();
     await expect(row(page, '秋季')).toContainText('1');
     // Still in 全部作品: a project is a label, not a folder.
     await expect(card(page, '京都散步路線')).toBeVisible();
-    await expect(card(page, '京都散步路線').locator('.wcard__dot')).toHaveCount(1);
+    await expect(card(page, '京都散步路線').locator('.plabel')).toHaveText('秋季');
     await expect(nav(page).getByRole('button', { name: '未分類' })).toContainText('2');
     await shot(page, '2-dropped');
   });
@@ -113,13 +114,14 @@ test('作品庫項目：側欄、拖放加入、勾選、項目頁、編輯器�
     await page.keyboard.press('Escape');
   });
 
-  await test.step('項目頁：概覽、用到的素材、在項目裡新建的作品自動加入', async () => {
+  await test.step('項目頁：作品數、素材連結、在項目裡新建的作品自動加入', async () => {
     await row(page, '秋季').click();
-    const overview = page.getByRole('group', { name: '項目概覽' });
-    await expect(overview).toContainText('1 個作品');
-    await expect(overview.getByRole('button', { name: /用到的素材/ })).toContainText('1');
+    // QC-069: the overview row became one light line by the title.
+    const sub = page.locator('main .page__sub');
+    await expect(sub).toContainText('1 個作品');
+    await expect(sub.getByRole('button', { name: '1 個素材' })).toBeVisible();
     await shot(page, '4-project-page');
-    await overview.getByRole('button', { name: /用到的素材/ }).click();
+    await sub.getByRole('button', { name: '1 個素材' }).click();
     await expect(page.getByText('用在「秋季」')).toBeVisible();
     await expect(page.locator('.atile')).toHaveCount(1);
     await expect(page.locator('.atile__name')).toHaveText('leaf.png');
@@ -187,11 +189,11 @@ test('作品庫項目：側欄、拖放加入、勾選、項目頁、編輯器�
   });
 
   await test.step('最近刪除寫出原本所在的項目', async () => {
-    await nav(page).getByRole('button', { name: '作品庫', exact: true }).click();
+    await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
     await card(page, '京都散步路線').click({ button: 'right' });
     await page.getByRole('menuitem', { name: /刪除…/ }).click();
     await page.getByRole('dialog').getByRole('button', { name: /刪除/ }).last().click();
-    await page.getByRole('button', { name: /最近刪除/ }).click();
+    await trashRow(page).click();
     await expect(page.getByText('原本在：秋季')).toBeVisible();
     await shot(page, '8-trash-from');
   });

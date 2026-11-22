@@ -128,7 +128,7 @@ test('插入素材：選單、抽屜、斜線、貼上、Finder 拖入，視覺�
   await page.emulateMedia({ colorScheme: 'light' });
   await page
     .getByRole('navigation', { name: '主導航' })
-    .getByRole('button', { name: '作品庫', exact: true })
+    .getByRole('button', { name: '全部作品', exact: true })
     .click();
   await page
     .getByRole('region', { name: '作品', exact: true })
@@ -317,7 +317,7 @@ test('外部掛載的作品：插入停用並說明，外部資料夾不被寫�
       .toBe(1);
     await page
       .getByRole('navigation', { name: '主導航' })
-      .getByRole('button', { name: '作品庫', exact: true })
+      .getByRole('button', { name: '全部作品', exact: true })
       .click();
     await page
       .getByRole('region', { name: '作品', exact: true })

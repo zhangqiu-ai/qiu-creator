@@ -103,7 +103,7 @@ test('捲動正文與 AI 面板時，工具列與分頁列不會蓋住內容', a
 
   await page.setViewportSize({ width: 1440, height: 900 });
   const nav = page.getByRole('navigation', { name: '主導航' });
-  await nav.getByRole('button', { name: '作品庫', exact: true }).click();
+  await nav.getByRole('button', { name: '全部作品', exact: true }).click();
   await page
     .getByRole('region', { name: '作品', exact: true })
     .getByRole('button', { name: new RegExp(WORK_TITLE) })

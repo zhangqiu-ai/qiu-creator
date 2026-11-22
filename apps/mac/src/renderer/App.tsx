@@ -14,7 +14,7 @@ import { PreviewPage } from './PreviewPage.js';
 import { AiWorkbenchPage } from './AiWorkbenchPage.js';
 import { SettingsPage } from './SettingsPage.js';
 import { Sidebar, type NavPage } from './Sidebar.js';
-import { SidebarProjects, type LibraryScope } from './SidebarProjects.js';
+import { SidebarProjects, SidebarTrash, type LibraryScope } from './SidebarProjects.js';
 import { ProjectsStore } from './projects-store.js';
 import { ProjectsContext } from './ProjectTags.js';
 import { ProjectsDnd } from './projects-dnd.js';
@@ -341,7 +341,6 @@ export function App() {
                 if (client === null) tryConnect();
                 else checkHealth();
               }}
-              libraryScoped={scope.kind !== 'all'}
               projects={
                 projects === null || client === null
                   ? undefined
@@ -354,6 +353,20 @@ export function App() {
                         active={current === 'library' && route.page === 'library'}
                         onOpen={(next) => {
                           openScope(next);
+                          focusPageTitle();
+                        }}
+                      />
+                    )
+              }
+              foot={
+                projects === null || client === null
+                  ? undefined
+                  : () => (
+                      <SidebarTrash
+                        count={projectsState.trashCount}
+                        current={route.page === 'library' && scope.kind === 'trash'}
+                        onOpen={() => {
+                          openScope({ kind: 'trash' });
                           focusPageTitle();
                         }}
                       />
@@ -543,6 +556,7 @@ const EMPTY: ReturnType<ProjectsStore['getSnapshot']> = {
   projects: null,
   allCount: null,
   unassignedCount: null,
+  trashCount: null,
   failed: false,
 };
 const EMPTY_PROJECTS = () => EMPTY;
