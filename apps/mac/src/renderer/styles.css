@@ -7326,3 +7326,23 @@ mark.hit {
   font-size: 12px;
   font-weight: 400;
 }
+/* QC-071: the chip lives in a fixed slot, so 版本號 and 字數 never move when it comes and goes. */
+.save-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 72px;
+}
+.save-chip--faint {
+  background: transparent;
+  color: var(--qc-ink3);
+}
+.save-chip--alert {
+  font-weight: 600;
+  box-shadow: 0 0 0 1px currentColor;
+  cursor: pointer;
+}
+.save-chip--alert:focus-visible {
+  outline: 2px solid var(--qc-focus);
+  outline-offset: 2px;
+}

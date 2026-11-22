@@ -47,7 +47,7 @@ import { Dialog } from './Dialog.js';
 import { sessionHandle, type EditorTabHandle } from './tab-handle.js';
 import { imageFiles, InsertSession, type InsertState, type InsertWhere } from './editor-insert.js';
 import { useChangeEvents } from './events.js';
-import { SAVE_STATUS, WORK_STATUS } from './format.js';
+import { WORK_STATUS } from './format.js';
 import { HistoryPanel } from './HistoryPanel.js';
 import { codeText, t, useLocale } from './i18n.js';
 import { Icon } from './Icon.js';
@@ -446,9 +446,6 @@ function PostEditor({
   };
 
   // ---- Derived --------------------------------------------------------------------------------
-  const save = readOnly
-    ? { label: t('editor.readOnlyChip'), tone: 'neutral' as const }
-    : SAVE_STATUS[state.status];
   const rev = numbers.get(state.baseRevision);
   const shownCover = coverAssetId(ids, cover);
   const counts = imageCounts(ids.length);
@@ -549,7 +546,13 @@ function PostEditor({
             </span>
           )}
           <span className="save-status" role="status" aria-live="polite">
-            <SaveChip tone={save.tone} label={save.label} saving={state.status === 'saving'} />
+            <SaveChip
+              status={state.status}
+              readOnly={readOnly}
+              onAct={() => {
+                void session.save();
+              }}
+            />
           </span>
           {rev !== undefined && <Chip>r{rev}</Chip>}
           <div className="editor__actions">
