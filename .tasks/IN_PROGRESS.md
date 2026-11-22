@@ -2,6 +2,7 @@
 
 **Priority:** P1 | **Assignee:** qc-bugfix | **Tags:** M3
 
+使用者 2026-11-21 授權：QC-060 完成後與 QC-057、QC-059 一起直接發版安裝（「等 QC-060 一起發」）。
 使用者 2026-11-21：「端到端測試的時候能不能在後台不要在前台，這樣會影響我操作電腦幹其它事情。」
 - 原因：`apps/mac/src/main/main.ts` `createWindow()` 在 `ready-to-show` 時 `win.show()`，Playwright 每次啟動 Electron 都會把視窗帶到前景、搶焦點、出現在 Dock。
 - 做法（僅測試模式，以 `CREATORHUB_E2E_PROFILE` 或專用旗標判斷，正式 App 行為不變）：`app.setActivationPolicy('accessory')`／`app.dock.hide()` 不出現在 Dock 與 ⌘Tab；視窗用 `showInactive()` 或維持隱藏＋`paintWhenInitiallyHidden`，不取得焦點、不啟用 App；必要時放到螢幕外。確認 Playwright 的點擊、鍵盤（含 ⌘ 快捷鍵與選單）、截圖、`focus`／`visibilitychange` 相關測試（QC-055 的 watchAiStatus）在不搶焦點下仍正確，不能靠放寬斷言或加逾時。
