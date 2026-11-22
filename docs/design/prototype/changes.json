@@ -2274,6 +2274,305 @@
       "approvalDecisions": [
         "decisions 與 openQuestions 八項全部採用原型建議。候選暫存以後端 24 小時 TTL 為準；App 重開不再顯示未保留的候選。"
       ]
+    },
+    {
+      "id": "PT-20261122-003",
+      "title": "Prompt 庫、AI 輸出語言、工具列快速切換模型與插入 prompt",
+      "date": "2026-11-22",
+      "status": "pending",
+      "model": "claude-opus-5-5",
+      "session": "qc-prototype",
+      "requestedBy": "使用者 via 開發總監",
+      "userRequest": "2. AI生成文字時加一個語言選項，並且設置要持久化，先支持簡體、繁體、和英語。4. 左側再增加\"prompt\"，prompt頁面支持自定義指令，指令也要支持AI建議和編輯。5. AI 編輯、擴寫等要支持快速切換模型，並且AI工具條要支持快速插入 prompt（2026-11-22，見 docs/decisions.md QC-074／QC-075）",
+      "tasks": ["QC-075"],
+      "approvedBy": null,
+      "approvedAt": null,
+      "approvalNote": "總監代為核准（docs/decisions.md 2026-11-22 QC-074、QC-075）",
+      "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "baseCanvasVersion": "41 (version id 1795275033-35aa) + every unpublished canvas.json up to PT-20261122-002",
+      "canvasVersion": "NOT_PUBLISHED: canvas uploads are on hold (director 2026-11-22). Files are in the shared notes folder pt-20261122-003-boards/; its canvas.json is the latest and includes every unpublished PT.",
+      "sharedStylesheets": [
+        "/_blob/ce383cde01b175413fc4b99a21feb132 (qc-v2.css)",
+        "/_blob/a801184fe6d1b75f3cf8e2f73e8e3dc4 (qc-v3.css)",
+        "qc-v4…v8.css inlined in each board"
+      ],
+      "boards": [
+        {
+          "file": "PromptLib.dc.html",
+          "title": "v8 · Prompt：AI 改寫指令（diff）",
+          "tweaks": {
+            "dark": "boolean",
+            "reduced": "boolean",
+            "lang": ["繁中", "简中", "English"],
+            "state": [
+              "內建指令",
+              "自訂指令",
+              "AI 生成新指令",
+              "AI 改寫指令",
+              "沒有自訂指令",
+              "搜尋",
+              "匯入匯出",
+              "刪除確認"
+            ]
+          },
+          "states": [
+            "側欄「工具」：AI 工作台、Prompt、平台預覽（沿用 PT-20261122-001 的分組）",
+            "頁首：Prompt＋「N 個內建 · M 個自訂」、⋯（匯出全部自訂指令 JSON、匯入 JSON；同名另存副本不覆蓋）、新建指令",
+            "左欄清單：搜尋（命中高亮）、分組（內建、小紅書、公眾號…，可收合）、每列圖示代表適用場景、內建帶鎖",
+            "內建指令唯讀，「複製成自訂」後才可改",
+            "編輯器：名稱（原地）、儲存狀態、刪除；AI 建議（描述 → 生成／改寫，結果以候選 diff 出現，重試／捨棄 esc／保留 ⌘↩，保留才寫入）",
+            "內容：變數 {選取}{標題}{全文}{平台}{語言} 以藍底標記，可點按插入",
+            "用在：選取文字／全文／標題／配圖；預設模型（沿用工具列或指定）；輸出語言（沿用全域或指定）；分組；使用次數",
+            "空狀態：還沒有自訂指令 → 新建指令、用 AI 生成"
+          ]
+        },
+        {
+          "file": "PromptBuiltin.dc.html",
+          "title": "v8 · 內建指令（唯讀，可複製）",
+          "wraps": "PromptLib.dc.html",
+          "props": {
+            "state": "內建指令"
+          }
+        },
+        {
+          "file": "PromptCustom.dc.html",
+          "title": "v8 · 自訂指令",
+          "wraps": "PromptLib.dc.html",
+          "props": {
+            "state": "自訂指令"
+          }
+        },
+        {
+          "file": "PromptAiNew.dc.html",
+          "title": "v8 · AI 依描述生成指令",
+          "wraps": "PromptLib.dc.html",
+          "props": {
+            "state": "AI 生成新指令"
+          }
+        },
+        {
+          "file": "PromptEmpty.dc.html",
+          "title": "v8 · 沒有自訂指令",
+          "wraps": "PromptLib.dc.html",
+          "props": {
+            "state": "沒有自訂指令"
+          }
+        },
+        {
+          "file": "PromptSearch.dc.html",
+          "title": "v8 · 搜尋指令",
+          "wraps": "PromptLib.dc.html",
+          "props": {
+            "state": "搜尋"
+          }
+        },
+        {
+          "file": "PromptIo.dc.html",
+          "title": "v8 · 匯入／匯出",
+          "wraps": "PromptLib.dc.html",
+          "props": {
+            "state": "匯入匯出"
+          }
+        },
+        {
+          "file": "PromptToolbar.dc.html",
+          "title": "v8 · 工具列：Prompt 快選",
+          "tweaks": {
+            "dark": "boolean",
+            "reduced": "boolean",
+            "lang": ["繁中", "简中", "English"],
+            "state": [
+              "工具列",
+              "語言選單",
+              "模型選單",
+              "Prompt 快選",
+              "輸入自訂指令",
+              "存成 prompt",
+              "生成中",
+              "候選（標示語言與模型）"
+            ]
+          },
+          "states": [
+            "浮動工具列：潤色、擴寫、縮寫、語氣、配圖｜Prompt ▾｜語言（例：跟隨原文）｜模型（供應商色塊＋短名）",
+            "Prompt 快選（⌘K）：搜尋框兼指令輸入；最近使用置頂，再來是「選取文字」可用的，其他場景的指令淡化停用；↑↓↩；底部「管理 Prompt ›」",
+            "輸入清單外的文字：第一項「以「…」送出 ↩」，第二項「存成 prompt…」→ 原地填名稱與分組後儲存",
+            "語言選單：跟隨原文（顯示偵測結果「這段是繁體中文」）、简体中文、繁體中文、English；選了全域保存並提示",
+            "模型選單：搜尋、依供應商分組、只列已設定可用的，失效供應商（金鑰無效）停用並標狀態；「上次用」；底部「AI 服務 ›」",
+            "生成中膠囊寫出「動作 · 語言 · 模型」；候選列標示語言與模型",
+            "右側面板「改寫」分頁：頂部語言與模型兩個選擇（與工具列同步）、選取內容、Prompt 膠囊（含自訂）與「管理」、補充指令、生成"
+          ]
+        },
+        {
+          "file": "TbLang.dc.html",
+          "title": "v8 · 工具列：輸出語言",
+          "wraps": "PromptToolbar.dc.html",
+          "props": {
+            "state": "語言選單"
+          }
+        },
+        {
+          "file": "TbModel.dc.html",
+          "title": "v8 · 工具列：模型",
+          "wraps": "PromptToolbar.dc.html",
+          "props": {
+            "state": "模型選單"
+          }
+        },
+        {
+          "file": "TbFree.dc.html",
+          "title": "v8 · 直接輸入指令",
+          "wraps": "PromptToolbar.dc.html",
+          "props": {
+            "state": "輸入自訂指令"
+          }
+        },
+        {
+          "file": "TbSave.dc.html",
+          "title": "v8 · 存成 prompt",
+          "wraps": "PromptToolbar.dc.html",
+          "props": {
+            "state": "存成 prompt"
+          }
+        },
+        {
+          "file": "TbCand.dc.html",
+          "title": "v8 · 候選標示語言與模型",
+          "wraps": "PromptToolbar.dc.html",
+          "props": {
+            "state": "候選（標示語言與模型）"
+          }
+        },
+        {
+          "file": "TbReduced.dc.html",
+          "title": "v8 · 減少動態效果",
+          "wraps": "PromptToolbar.dc.html",
+          "props": {
+            "reduced": true,
+            "state": "語言選單"
+          }
+        },
+        {
+          "file": "PromptLibDark.dc.html",
+          "title": "v8 · Prompt（深色）",
+          "wraps": "PromptLib.dc.html",
+          "props": {
+            "dark": true
+          }
+        },
+        {
+          "file": "PromptToolbarDark.dc.html",
+          "title": "v8 · 工具列（深色）",
+          "wraps": "PromptToolbar.dc.html",
+          "props": {
+            "dark": true
+          }
+        },
+        {
+          "file": "TbModelDark.dc.html",
+          "title": "v8 · 模型選單（深色）",
+          "wraps": "PromptToolbar.dc.html",
+          "props": {
+            "dark": true,
+            "state": "模型選單"
+          }
+        }
+      ],
+      "decisions": [
+        "保留「跟隨原文」並設為預設：寫作者常繁簡混用或中英並存；預設固定某一種語言，會讓「潤色一段繁體」悄悄變成簡體，違反「不改原意」。跟隨原文時依選取內容偵測（漢字以繁簡對照判斷、拉丁字母比例判斷英文），候選標示實際語言；偵測不出時用介面語言。",
+        "語言與模型是全域偏好，工具列與面板任一處改了就保存並同步（存服務端，三端共用）；prompt 若指定了模型或語言，套用那條 prompt 時以它為準，候選標示「prompt 指定」。",
+        "工具列的「更多」改名「Prompt」：它現在主要是指令選擇器；搜尋框同時接受直接輸入的指令，不必分兩個入口。",
+        "場景不符的指令淡化停用而不隱藏：使用者看得到它存在，也知道為什麼不能用。",
+        "內建指令唯讀、可複製成自訂：升級時內建內容可更新，不會覆蓋使用者的修改。",
+        "AI 建議指令走同一套候選＋diff＋保留，不直接覆蓋指令內容。"
+      ],
+      "backendNeeds": {
+        "storage": [
+          "prompts (id, name, group, scene: selection|full|title|image, content, model nullable, language nullable, sort_order, builtin bool, builtin_version, use_count, last_used_at, created_at, updated_at); reversible migration; built-ins seeded and upgradable without touching custom rows.",
+          "User preferences on the service: ai.output_language (follow|zh-Hans|zh-Hant|en), ai.text_model {provider, model}; shared by Mac, iPhone and iPad."
+        ],
+        "api": [
+          "GET/POST/PATCH/DELETE /api/v1/prompts, PUT /api/v1/prompts/order, POST /api/v1/prompts/:id/duplicate; GET /api/v1/prompts/export → JSON; POST /api/v1/prompts/import (same name → copy).",
+          "POST /api/v1/ai/prompt-suggestions {description, base_prompt_id?} → candidate text job; keeping it is a normal PATCH.",
+          "Every text AI job accepts prompt_id, language, model; the server expands variables ({選取} {標題} {全文} {平台} {語言}) and injects the language instruction; results carry detected_language and the model used.",
+          "GET /api/v1/ai/models?kind=chat lists usable models across configured providers (reuses QC-054/QC-057 status)."
+        ],
+        "limits": {
+          "promptNameMaxChars": 40,
+          "promptContentMaxChars": 4000
+        }
+      },
+      "references": [
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/dual-agent-searchable-model-picker/case.md",
+          "kind": "concept",
+          "borrowed": "Model popover with search at the top, grouped models, a check on the current one.",
+          "adaptation": "Groups by configured provider, shows provider status, disables broken providers, marks the last used model."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/raycast-command-primary-secondary/case.md",
+          "kind": "product",
+          "borrowed": "Type a few letters, Enter runs the main action; more actions sit behind ⌘K.",
+          "adaptation": "⌘K opens the prompt picker; the search box also accepts a free instruction, Enter sends it, “存成 prompt…” is the secondary action."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/llm-wiki-file-skill-chat-context/case.md",
+          "kind": "concept",
+          "borrowed": "Pick skills right where you type, with a clear scope.",
+          "adaptation": "Prompts are picked from the floating toolbar at the selection; prompts for other scenes are shown but disabled."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/hermes-desktop-named-bot-profiles/case.md",
+          "kind": "product",
+          "borrowed": "Named profiles that carry their own model; show the model at the switch point.",
+          "adaptation": "A prompt can carry a default model and language; the candidate says when the prompt set them."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-ai-writing-panel/case.md",
+          "kind": "concept",
+          "borrowed": "Separate instruction input, the suggestion area and a clear adopt action.",
+          "adaptation": "The prompt editor’s AI suggestion uses the same candidate bar (retry, discard, keep)."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-022-empty-states/case.md",
+          "kind": "concept",
+          "borrowed": "At most two actions in an empty state.",
+          "adaptation": "No custom prompts: 新建指令 and 用 AI 生成."
+        }
+      ],
+      "referenceGaps": "No library card for a prompt or snippet library page; the list/editor layout follows the existing settings and library patterns.",
+      "verified": [
+        "Static check on all 17 boards; Node harness ran every handler and timer in every tweak combination: 0 handler errors (the harness was also fixed to report every handler error, and every earlier PT board re-ran at 0); every template hole resolves in all 8 + 8 states."
+      ],
+      "notVerified": [
+        "NOT_VERIFIED: canvas upload (on hold), rendering, and three-language fit by screenshot.",
+        "Language detection is described, not prototyped; the board shows its result."
+      ],
+      "openQuestions": [
+        {
+          "q": "「跟隨原文」偵測不出（例如全是數字或混合）時怎麼辦？",
+          "recommendation": "用介面語言，候選標示實際使用的語言。"
+        },
+        {
+          "q": "prompt 指定的模型或語言與工具列不同時以誰為準？",
+          "recommendation": "以 prompt 為準，候選標「prompt 指定」；工具列的全域設定不被改掉。"
+        },
+        {
+          "q": "語言偏好是全域還是每個作品？",
+          "recommendation": "全域（使用者要求持久化）；之後有需要再加作品層級覆寫。"
+        },
+        {
+          "q": "內建指令要不要能隱藏？",
+          "recommendation": "可以在清單右鍵「隱藏」，不能改內容；之後再做。"
+        },
+        {
+          "q": "變數不夠用（例如 {標籤}）？",
+          "recommendation": "第一版五個；新增變數要後端支援展開，另開任務。"
+        },
+        {
+          "q": "匯入的 JSON 格式？",
+          "recommendation": "{version, prompts:[{name, group, scene, content, model?, language?}]}；不含使用次數。"
+        }
+      ]
     }
   ]
 }
