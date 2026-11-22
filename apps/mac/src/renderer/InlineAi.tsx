@@ -14,15 +14,17 @@ import type { ImageGenSession, ImageGenState, ImageJobView } from './ai-images.j
 import { FAILURE_LABEL, type RewriteSession, type RewriteState } from './ai-session.js';
 import { t } from './i18n.js';
 import { Icon } from './Icon.js';
-import { Animated, Presence } from './motion.js';
+import { useIsPresent } from 'motion/react';
+import { Animated, LAYOUT_LIMIT, Presence } from './motion.js';
+import { currentMotionMode, moves } from './motion-mode.js';
+import { duration, easing } from '@qiu-creator/design-tokens';
 import type { Segment } from './rewrite-diff.js';
 import { TechnicalDetails } from './TechnicalDetails.js';
 
 /** How tall an image placeholder may be; wider ratios use the full width. */
 const IMAGE_MAX_HEIGHT = 420;
-/** Space for the candidate bar under a text candidate, and the caption row under an image. */
-const BAR_SPACE = 52;
-const CAPTION_SPACE = 92;
+/** Space between a candidate (with its bar) and the text that follows it. */
+const GAP = 12;
 
 /** A box inside the scrolling document area (its scroll included). */
 interface Box {
@@ -45,17 +47,28 @@ const ratioOf = (r: string): number => {
 };
 
 /**
- * Pushes the text below a candidate down by setting the margin under the
- * block it follows (the visual editor's own DOM; nothing in the document
- * changes). Every pass puts the old margins back first, so it never drifts.
+ * Pushes the text below a candidate down by the room it really takes, through
+ * the margin under the block it follows (the visual editor's own DOM; nothing
+ * in the document changes). When that room changes, the blocks below slide to
+ * their new place with a transform (QC-074, DESIGN.md 動效: transform only,
+ * at most `LAYOUT_LIMIT` in view; none with Reduce Motion): it makes room at
+ * once and gives it back smoothly (see `slideBelow`).
  */
 class Spacers {
   private readonly original = new Map<HTMLElement, string>();
 
+  private set(el: HTMLElement, value: string): void {
+    const before = parseFloat(window.getComputedStyle(el).marginBottom) || 0;
+    el.style.marginBottom = value;
+    const after = parseFloat(window.getComputedStyle(el).marginBottom) || 0;
+    slideBelow(el, after - before);
+  }
+
   apply(wanted: Map<HTMLElement, number>): void {
     for (const [el, margin] of this.original)
       if (!wanted.has(el)) {
-        el.style.marginBottom = margin;
+        this.set(el, margin);
+        delete el.dataset['qcExtra'];
         this.original.delete(el);
       }
     for (const [el, extra] of wanted) {
@@ -66,7 +79,7 @@ class Spacers {
       const own = was === '' ? base - (parseFloat(el.dataset['qcExtra'] ?? '0') || 0) : base;
       const next = `${String(Math.round(own + extra))}px`;
       if (el.style.marginBottom !== next) {
-        el.style.marginBottom = next;
+        this.set(el, next);
         el.dataset['qcExtra'] = String(extra);
       }
     }
@@ -74,10 +87,33 @@ class Spacers {
 
   clear(): void {
     for (const [el, margin] of this.original) {
-      el.style.marginBottom = margin;
+      this.set(el, margin);
       delete el.dataset['qcExtra'];
     }
     this.original.clear();
+  }
+}
+
+/**
+ * The blocks after `el` were moved by `delta`. Making room (delta > 0) happens
+ * at once, in the frame the candidate appears, so it never covers what is
+ * below even for a moment; giving room back (delta < 0) glides up into the
+ * freed space.
+ */
+function slideBelow(el: HTMLElement, delta: number): void {
+  if (delta > -1 || !moves(currentMotionMode())) return;
+  const view = window.innerHeight;
+  let n = el.nextElementSibling;
+  for (let count = 0; n !== null && count < LAYOUT_LIMIT; n = n.nextElementSibling) {
+    if (!(n instanceof HTMLElement)) continue;
+    const r = n.getBoundingClientRect();
+    if (r.top > view) break;
+    if (r.bottom < 0) continue;
+    count += 1;
+    n.animate([{ transform: `translateY(${String(-delta)}px)` }, { transform: 'none' }], {
+      duration: duration.moderate,
+      easing: easing.inOut,
+    });
   }
 }
 
@@ -132,7 +168,30 @@ export function InlineAi({
   const [textBox, setTextBox] = useState<Box | null>(null);
   const [imageBox, setImageBox] = useState<{ gap: Box; card: Box } | null>(null);
   const [font, setFont] = useState<CSSProperties>({});
-  const textCard = useRef<HTMLDivElement>(null);
+  /** The drawn candidate and placeholder: their real height is the room they take. */
+  /**
+   * The live layers, as they report themselves. A layer that is leaving (its
+   * fade-out after a change) never reports, so only what stays takes room.
+   */
+  const layers = useRef<{ text: HTMLElement | null; image: HTMLElement | null }>({
+    text: null,
+    image: null,
+  });
+  /**
+   * The latest `measure`, for the layers: with motion on, `AnimatePresence` hands
+   * its children new props in a render of its own, where this component does
+   * not render again; the layer measures from its own layout effect then.
+   */
+  const measureRef = useRef<() => void>(() => undefined);
+  const waiting = useRef(false);
+  const reportText = useCallback((el: HTMLElement | null) => {
+    layers.current.text = el;
+    if (el !== null) measureRef.current();
+  }, []);
+  const reportImage = useCallback((el: HTMLElement | null) => {
+    layers.current.image = el;
+    if (el !== null) measureRef.current();
+  }, []);
   const spacers = useRef(new Spacers());
 
   // A toolbar rewrite that ended (kept, discarded, stopped) lets go of its range.
@@ -143,7 +202,21 @@ export function InlineAi({
   const measure = useCallback(() => {
     const area = scroller.current;
     const ed = editor.current;
-    if (area === null || ed === null) return;
+    if (area === null) return;
+    if (ed === null) {
+      // This layer comes before the editor in the tree: in a commit that also
+      // re-creates the editor's handle, our layout effects run while it is
+      // detached. Measure once the commit is done, still before the frame is
+      // painted (QC-074: no frame with a candidate over the text below).
+      if (!waiting.current) {
+        waiting.current = true;
+        queueMicrotask(() => {
+          waiting.current = false;
+          if (editor.current !== null) measureRef.current();
+        });
+      }
+      return;
+    }
     const origin = area.getBoundingClientRect();
     const inArea = (r: DOMRect): Box => ({
       top: r.top - origin.top + area.scrollTop,
@@ -163,14 +236,23 @@ export function InlineAi({
       const b = inArea(last.getBoundingClientRect());
       tb = { top: a.top, left: a.left, width: a.width, height: b.top + b.height - a.top };
       const style = window.getComputedStyle(first);
-      setFont({
-        fontFamily: style.fontFamily,
-        fontSize: style.fontSize,
-        lineHeight: style.lineHeight,
-      });
+      // The same font keeps the same object: measuring after every commit must not render again.
+      setFont((old) =>
+        old.fontFamily === style.fontFamily &&
+        old.fontSize === style.fontSize &&
+        old.lineHeight === style.lineHeight
+          ? old
+          : {
+              fontFamily: style.fontFamily,
+              fontSize: style.fontSize,
+              lineHeight: style.lineHeight,
+            },
+      );
       if (rw.phase === 'pending' || rw.phase === 'busy' || rw.phase === 'failed') {
-        const cardH = textCard.current?.offsetHeight ?? tb.height;
-        wanted.set(last, Math.max(0, cardH - tb.height) + BAR_SPACE);
+        // Everything the candidate draws (the diff and its bar, however many lines the bar
+        // wraps to) takes room in the article; what is below starts after it.
+        const drawn = layers.current.text?.offsetHeight ?? tb.height;
+        wanted.set(last, Math.max(0, drawn - tb.height) + GAP);
       }
     }
     setTextBox((old) => (same(old, tb) ? old : tb));
@@ -194,12 +276,13 @@ export function InlineAi({
         const extra =
           block.dataset['qcExtra'] === undefined ? 0 : parseFloat(block.dataset['qcExtra']) || 0;
         const top = r.top + r.height + Math.max(0, own - extra) + 4;
-        const room = inline.phase === 'ready' || inline.phase === 'failed' ? CAPTION_SPACE : 12;
+        // The placeholder with its caption row and bar, as drawn.
+        const drawn = Math.max(h, layers.current.image?.offsetHeight ?? h);
         ib = {
-          gap: { top, left: r.left, width: r.width, height: h + room },
+          gap: { top, left: r.left, width: r.width, height: drawn },
           card: { top, left: r.left + (r.width - w) / 2, width: w, height: h },
         };
-        wanted.set(block, h + room + 8);
+        wanted.set(block, drawn + GAP);
       }
     }
     setImageBox((old) =>
@@ -208,12 +291,20 @@ export function InlineAi({
     spacers.current.apply(wanted);
   }, [editor, scroller, textOn, rewriteRange, rw.phase, inline]);
 
+  // After every render, before the browser paints (QC-074): the layers below have
+  // committed and reported, so a candidate is never drawn for a frame before the
+  // text under it has made room.
+  const ro = useRef<ResizeObserver | null>(null);
   useLayoutEffect(() => {
-    const frame = requestAnimationFrame(measure);
-    return () => {
-      cancelAnimationFrame(frame);
-    };
-  }, [measure, layoutKey, rw.candidate, inline?.phase, inline?.candidates.length]);
+    measureRef.current = measure;
+    measure();
+    // The candidate itself changes height too (a bar that wraps, a caption row):
+    // watch the live layers; observations come before the frame is painted.
+    const observer = ro.current;
+    if (observer === null) return;
+    for (const layer of [layers.current.text, layers.current.image])
+      if (layer !== null) observer.observe(layer);
+  });
 
   // The document reflows (typing elsewhere, the window): measure again.
   useEffect(() => {
@@ -224,12 +315,17 @@ export function InlineAi({
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(measure);
     };
-    const ro = new ResizeObserver(again);
-    ro.observe(content);
+    // Resize observations come before the frame is painted: measure right there.
+    const observer = new ResizeObserver(() => {
+      measure();
+    });
+    observer.observe(content);
+    ro.current = observer;
     window.addEventListener('resize', again);
     return () => {
       cancelAnimationFrame(frame);
-      ro.disconnect();
+      observer.disconnect();
+      ro.current = null;
       window.removeEventListener('resize', again);
     };
   }, [scroller, measure, textOn, inline, layoutKey]);
@@ -279,7 +375,7 @@ export function InlineAi({
             font={font}
             state={rw}
             mode={rewriteTarget?.mode ?? 'polish'}
-            cardRef={textCard}
+            report={reportText}
             readOnly={readOnly}
             onStop={() => {
               void rewrite.stop();
@@ -307,11 +403,30 @@ export function InlineAi({
             readOnly={readOnly}
             images={images}
             onNotice={onNotice}
+            report={reportImage}
           />
         )}
       </Presence>
     </div>
   );
+}
+
+/**
+ * A layer's root element, reported to the parent while it is present (not
+ * while it fades out after leaving), before the parent measures in the same
+ * commit.
+ */
+function useLiveLayer(report: (el: HTMLElement | null) => void): RefObject<HTMLDivElement | null> {
+  const root = useRef<HTMLDivElement>(null);
+  const present = useIsPresent();
+  useLayoutEffect(() => {
+    if (!present) return;
+    report(root.current);
+    return () => {
+      report(null);
+    };
+  });
+  return root;
 }
 
 function same(a: Box | null, b: Box | null): boolean {
@@ -337,7 +452,7 @@ function TextCandidate({
   font,
   state,
   mode,
-  cardRef,
+  report,
   readOnly,
   onStop,
   onRetry,
@@ -348,7 +463,8 @@ function TextCandidate({
   font: CSSProperties;
   state: RewriteState;
   mode: RewriteMode;
-  cardRef: RefObject<HTMLDivElement | null>;
+  /** Tells the layer which element it draws (the room it takes is that element's height). */
+  report: (el: HTMLElement | null) => void;
   readOnly: boolean;
   onStop: () => void;
   onRetry: () => void;
@@ -362,15 +478,17 @@ function TextCandidate({
   const before = c?.original.length ?? 0;
   const after = c?.result.text.length ?? 0;
   const change = after - before >= 0 ? `+${String(after - before)}` : String(after - before);
+  const root = useLiveLayer(report);
   return (
     <Animated
+      ref={root}
       preset={{ kind: 'fade' }}
       className="inline-ai__text"
       style={{ top: box.top, left: box.left, width: box.width }}
     >
       {loading ? (
         <>
-          <div className="inline-ai__lock shim" style={{ height: box.height }} aria-hidden="true" />
+          <div className="inline-ai__lock" style={{ height: box.height }} aria-hidden="true" />
           <div className="gen-pill" role="status">
             <span className="spin" aria-hidden="true" />
             {t('ai.working', { action })}
@@ -404,12 +522,7 @@ function TextCandidate({
         </>
       ) : c !== null ? (
         <>
-          <div
-            ref={cardRef}
-            className="inline-ai__diff"
-            style={font}
-            aria-label={t('ai.candidate')}
-          >
+          <div className="inline-ai__diff" style={font} aria-label={t('ai.candidate')}>
             {c.segments.map((s: Segment, i) =>
               s.kind === 'same' ? (
                 <span key={i}>{s.text}</span>
@@ -463,6 +576,7 @@ function ImagePlaceholder({
   readOnly,
   images,
   onNotice,
+  report,
 }: {
   job: ImageJobView;
   state: ImageGenState;
@@ -471,7 +585,10 @@ function ImagePlaceholder({
   readOnly: boolean;
   images: ImageGenSession;
   onNotice: (text: string) => void;
+  /** Tells the layer which element it draws (the room it takes is that element's height). */
+  report: (el: HTMLElement | null) => void;
 }) {
+  const root = useLiveLayer(report);
   const live = job.candidates.filter((c) => c.fate === 'new');
   const [pick, setPick] = useState(0);
   const shown = live[Math.min(pick, Math.max(0, live.length - 1))];
@@ -501,7 +618,8 @@ function ImagePlaceholder({
 
   return (
     <Animated
-      preset={{ kind: 'listItem' }}
+      ref={root}
+      preset={{ kind: 'reveal' }}
       className="imgslot-wrap"
       style={{ top: gap.top, left: gap.left, width: gap.width }}
     >
@@ -513,7 +631,8 @@ function ImagePlaceholder({
       >
         {job.phase === 'generating' && (
           <>
-            <div className="imgslot__sk shim">
+            {/* One quiet signal (QC-074): a still fill, a small spinner and the words. */}
+            <div className="imgslot__sk">
               <span className="spin" aria-hidden="true" />
               <span>{t('ai.imageGenerating')}</span>
               <button
@@ -525,9 +644,6 @@ function ImagePlaceholder({
               >
                 {t('common.cancel')}
               </button>
-            </div>
-            <div className="imgslot__bar" aria-hidden="true">
-              <span />
             </div>
           </>
         )}

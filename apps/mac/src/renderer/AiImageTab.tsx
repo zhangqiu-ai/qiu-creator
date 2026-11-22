@@ -447,13 +447,20 @@ function cells(
   const ratio = job.request.aspectRatio.replace(':', ' / ');
   if (job.phase === 'generating')
     return Array.from({ length: job.request.count }, (_, i) => (
-      <AnimatedItem key={`${job.key}-sk-${String(i)}`} layout={false} quiet={false}>
+      <AnimatedItem
+        key={`${job.key}-sk-${String(i)}`}
+        layout={false}
+        quiet={false}
+        preset={{ kind: 'reveal' }}
+      >
         <div
-          className="ai-img__cell ai-img__cell--sk shim"
+          className="ai-img__cell ai-img__cell--sk"
           style={{ aspectRatio: ratio }}
           role="status"
           aria-label={t('ai.generating')}
         >
+          {/* One quiet signal (QC-074): a small spinner in the first cell, nothing else moves. */}
+          {i === 0 && <span className="spin ai-img__spin" aria-hidden="true" />}
           {i === 0 && (
             <button
               type="button"
@@ -471,7 +478,7 @@ function cells(
     ));
   if (job.phase === 'failed' || job.phase === 'cancelled')
     return [
-      <AnimatedItem key={`${job.key}-err`} layout={false} quiet={false}>
+      <AnimatedItem key={`${job.key}-err`} layout={false} quiet={false} preset={{ kind: 'reveal' }}>
         <div
           className="ai-img__cell ai-img__cell--err"
           role={job.phase === 'failed' ? 'alert' : 'status'}
@@ -510,7 +517,12 @@ function cells(
   return job.candidates
     .filter((c) => c.fate === 'new' || c.fate === 'kept')
     .map((c) => (
-      <AnimatedItem key={`${job.key}-${String(c.index)}`} layout={false} quiet={false}>
+      <AnimatedItem
+        key={`${job.key}-${String(c.index)}`}
+        layout={false}
+        quiet={false}
+        preset={{ kind: 'reveal' }}
+      >
         <div
           className={c.fate === 'kept' ? 'ai-img__cell ai-img__cell--kept' : 'ai-img__cell'}
           style={{ aspectRatio: ratio }}

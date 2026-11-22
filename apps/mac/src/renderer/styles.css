@@ -7490,35 +7490,6 @@ mark.hit {
 }
 
 /* ---- QC-070 AI 圖片／封面與選取浮動工具列 (PT-20261122-002) ---------------------------------- */
-@keyframes qc-shimmer {
-  0% {
-    background-position: -400px 0;
-  }
-  100% {
-    background-position: 400px 0;
-  }
-}
-@keyframes qc-indeterminate {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(250%);
-  }
-}
-@keyframes qc-settle {
-  0% {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-  70% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 1;
-    transform: none;
-  }
-}
 /* The selection toolbar: above the selection, or upright beside the line in source mode. */
 .ftb-anchor {
   position: fixed;
@@ -7640,23 +7611,9 @@ mark.hit {
 }
 .inline-ai__lock {
   border-radius: 4px;
-  outline: 1.5px dashed var(--qc-accent);
+  outline: 1.5px solid color-mix(in srgb, var(--qc-accent) 35%, transparent);
   outline-offset: 4px;
   pointer-events: none;
-}
-.shim {
-  background: linear-gradient(
-      90deg,
-      transparent 0,
-      color-mix(in srgb, var(--qc-accent) 12%, transparent) 50%,
-      transparent 100%
-    )
-    var(--qc-accent-soft);
-  background-size: 400px 100%;
-  animation: qc-shimmer 1.2s ease-in-out infinite;
-}
-.inline-ai__lock.shim {
-  opacity: 0.6;
 }
 .gen-pill {
   position: absolute;
@@ -7740,12 +7697,13 @@ mark.hit {
   margin-left: 4px;
 }
 /* 配圖: a placeholder the size of the image to come, then the image settles in. */
+/* Waiting (QC-074): a still, soft fill with one small spinner and the words; nothing else moves. */
 .imgslot {
   position: relative;
   overflow: hidden;
-  border: 1.5px dashed var(--qc-accent);
+  border: 1px solid var(--qc-line);
   border-radius: 10px;
-  background: var(--qc-surface);
+  background: var(--qc-sunken);
 }
 .imgslot--ready {
   border: 1px solid var(--qc-line);
@@ -7758,25 +7716,8 @@ mark.hit {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: var(--qc-accent);
+  color: var(--qc-ink3);
   font-size: 12.5px;
-}
-.imgslot__bar {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 3px;
-  overflow: hidden;
-  background: var(--qc-line);
-}
-.imgslot__bar span {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 40%;
-  background: var(--qc-accent);
-  animation: qc-indeterminate 1.4s linear infinite;
 }
 .imgslot__img {
   position: absolute;
@@ -7784,7 +7725,7 @@ mark.hit {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  animation: qc-settle var(--qc-dur-moderate) var(--qc-ease-out) both;
+  animation: qc-fade-in var(--qc-dur-moderate) var(--qc-ease-out) both;
 }
 .imgslot__pager {
   position: absolute;
@@ -7878,7 +7819,7 @@ mark.hit {
   flex: none;
   border-radius: 6px;
   object-fit: cover;
-  animation: qc-settle var(--qc-dur-moderate) var(--qc-ease-out) both;
+  animation: qc-fade-in var(--qc-dur-moderate) var(--qc-ease-out) both;
 }
 .cover-strip__label {
   display: flex;
@@ -8038,7 +7979,7 @@ mark.hit {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  animation: qc-settle var(--qc-dur-moderate) var(--qc-ease-out) both;
+  animation: qc-fade-in var(--qc-dur-moderate) var(--qc-ease-out) both;
 }
 .ai-img__hover {
   position: absolute;
@@ -8084,6 +8025,16 @@ mark.hit {
   color: #fff;
   font-size: 11px;
 }
+.ai-img__spin {
+  position: absolute;
+  top: calc(50% - 7px);
+  left: calc(50% - 7px);
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--qc-ink3);
+  border-right-color: transparent;
+  border-radius: 50%;
+}
 .ai-img__cancel {
   position: absolute;
   top: 6px;
@@ -8110,4 +8061,9 @@ mark.hit {
 }
 .link-btn:hover {
   text-decoration: underline;
+}
+/* QC-074: the placeholder's spinner is as quiet as its words. */
+.imgslot__sk .spin {
+  border-color: currentColor;
+  border-right-color: transparent;
 }
