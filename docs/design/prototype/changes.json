@@ -1822,6 +1822,22 @@
           "props": {
             "dark": true
           }
+        },
+        {
+          "file": "ProjLabels.dc.html",
+          "title": "v6 · 卡片上的項目標籤（淺／深）",
+          "size": "1600×900",
+          "tweaks": {
+            "dark": "boolean",
+            "lang": ["繁中", "简中", "English"]
+          },
+          "addedFor": "approvalDecisions 追加 1、2（使用者 2026-11-22「作品庫中的作品卡片上應該能看到隸屬於哪個項目」）",
+          "states": [
+            "淺色與深色並排，各四張 164px 卡片：一個項目、三個項目（名稱＋「+2」）、名稱過長（截斷＋懸停提示全名）、在「京都旅行」頁（不重複目前項目，只顯示其他項目）",
+            "標籤＝色點＋名稱的小膠囊，在狀態／類型／時間那一行最後；164px 時換到第二行，卡片預留這一行高度讓格子對齊；寬卡片（240px）同一行",
+            "列表檢視加「項目」欄，沒有項目時顯示「—」",
+            "新項目預設顏色依 8 色輪替（第 n 個用第 n mod 8 色），既有項目不改色"
+          ]
         }
       ],
       "decisions": [
@@ -1882,7 +1898,8 @@
       "notVerified": [
         "NOT_VERIFIED: canvas upload (server refused), so no canvas version.",
         "NOT_VERIFIED: rendering in the canvas and the three-language fit by screenshot.",
-        "The prototype highlights with span.hl; the product must use <mark>."
+        "The prototype highlights with span.hl; the product must use <mark>.",
+        "NOT_VERIFIED: ProjLabels rendering and three-language fit by screenshot; it is also not on the canvas yet (files in pt-20261122-001-boards/)."
       ],
       "openQuestions": [
         {
@@ -1919,7 +1936,8 @@
         "decisions 與 openQuestions 七項全部採用原型建議。",
         "追加（使用者 2026-11-22：「作品庫中的作品卡片上應該能看到隸屬於哪個項目」）：取代 QC-062「卡片只放色點」的決定。卡片在類型／時間那一行顯示所屬項目的名稱標籤（色點＋名稱，最多 1 個名稱，其餘「+N」，名稱過長截斷並懸停顯示全部）；在某個項目頁內時，不重複顯示目前這個項目。列表檢視加「項目」欄。",
         "追加：新建項目時預設顏色在 8 色中輪替，避免多個項目同色而無法分辨；既有同色項目不自動改色。"
-      ]
+      ],
+      "boardsAddedAfterApproval": ["ProjLabels.dc.html"]
     }
   ]
 }
