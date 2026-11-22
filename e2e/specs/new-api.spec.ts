@@ -27,7 +27,9 @@ test('設定 New API、獨立確認使用告知，並切換供應商改寫', asy
     await settingsButton.click();
     await page
       .getByRole('navigation', { name: '設定分類' })
-      .getByRole('button', { name: 'AI 服務', exact: true })
+      // The name gains the status dot's label (「AI 服務 AI 服務有待處理的項目」) once the
+      // providers load; match its start so the click does not race that (QC-081).
+      .getByRole('button', { name: /^AI 服務/ })
       .click();
     await pv(provider).click();
   };
