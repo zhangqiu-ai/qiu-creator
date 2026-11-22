@@ -1,5 +1,11 @@
 # Done
 
+## QC-065: 全面引入動效設計（Motion／Framer Motion、dnd-kit）
+
+**Priority:** P1 | **Assignee:** qc-prototype ＋ qc-frontend | **Tags:** M3, frontend, prototype | **Done:** 2026-11-22
+
+- DESIGN.md「動效」規格（總監代核准）；`motion`、dnd-kit 依賴；`renderer/motion.tsx` 封裝與 full／reduced／lite／off 四種模式；六區落地：殼層、浮層、作品庫、貼圖、設定與 AI、項目（含儲存狀態與 AI 完成）。發版前：乾淨 checkout 全套 11 套件全過、e2e 36 passed／7 skipped、錄影 7／7；打包版 300 件效能檢查無長任務、無明確卡頓（偶發單幀 150–187 ms 在動效關閉時也有）。證據 `docs/evidence/qc065-*`。120 Hz 實際體感與 GPU 成本 NOT_VERIFIED。發現作品庫缺分頁，開 QC-067。
+
 ## QC-066: 根目錄 lint 在 e2e 有 30 個錯誤
 
 **Priority:** P1 | **Assignee:** qc-test | **Tags:** M3 | **Done:** 2026-11-21

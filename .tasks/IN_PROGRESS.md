@@ -1,38 +1,10 @@
-## QC-065: 全面引入動效設計（Motion／Framer Motion、dnd-kit）
+## QC-067: 作品庫超過 200 件時舊作品看不到（缺分頁）
 
-**Priority:** P1 | **Assignee:** qc-frontend（主）＋ qc-prototype（動效規格） | **Tags:** M3, frontend, prototype
+**Priority:** P1 | **Assignee:** qc-frontend（主）＋ qc-backend（需要時） | **Tags:** M3, frontend
 
-使用者 2026-11-21 授權發版；後改為 QC-061、QC-062、QC-063、QC-065 合在**同一個版本**發（「三項發在一個版本中」），全部驗收合併後才安裝。
-使用者 2026-11-21：「我先發現此項目很少用到動效來提升UI、UX質量，現在你要全面的引入動效設計，Framer Motion、dnd-kit 這是兩個動效庫，來大幅提升產品的優雅和舒適性。」
-
-**步驟一：動效規格（寫進 DESIGN.md「動效」一節，總監核准）**
-- 動效 tokens：時長（例如 120／180／240／320 ms）、曲線（標準、進入、離開、彈簧參數）、距離；macOS 的克制風格，避免花俏與彈跳過度。
-- 每類互動的規則：頁面與分頁切換、側欄收合、彈出層／選單／對話框／抽屜、toast 堆疊、列表新增／刪除／重排（layout 動畫）、卡片 hover／選取、載入骨架到內容、狀態變化（儲存、測試連線、AI 任務進度）、拖放（拿起、經過目標、放下、取消）。
-- 無障礙：尊重 `prefers-reduced-motion`（系統「減少動態效果」），改為淡入或無動畫；動畫不阻擋輸入、不延遲焦點；中文輸入法組字中不觸發會搶焦點的動畫。
-- 效能：只動 transform／opacity；大量卡片時的 layout 動畫上限；120 Hz ProMotion 與低電量模式下的表現。
-- 查 qiuge-design（`visual`、`feedback`、`navigation`、`data-display`），引用卡片。
-
-**步驟一已完成（2026-11-21）**：DESIGN.md「動效」一節由總監代核准（tokens 放 `packages/design-tokens` 純資料、reduced-motion 保留轉圈）。互動示範在共用筆記 `qc065-motion-demo.html`。
-
-**步驟二：基礎建設**
-- 依賴：`motion`（Framer Motion 的現行套件名，MIT）、`@dnd-kit/core`／`@dnd-kit/sortable`（MIT）；寫進 `docs/dependencies.md`（授權、版本、替代方案、體積）。只放在 `apps/mac` 的 renderer；`packages/*` 不依賴它們（共用套件不綁死）。
-- 共用動效元件與 hooks（例如 `<Presence>`、`<Reorder>`、`useReducedMotion` 封裝、tokens 常數），既有 CSS transition 統一改用 tokens。
-- 拖放：統一用 dnd-kit（鍵盤拖放、觸控板、無障礙播報三語），取代目前各處自寫的拖曳。
-
-**步驟二已合併（2026-11-21，20c7135）**：`motion` 依賴、`renderer/motion.tsx` 封裝、四種動效模式（full／reduced／lite／off）、CSS 時長改 token；QC-062 補件（收合側欄可捲動、拖曳浮層位置、深色／英文／簡中截圖、錄影開關與 mp4）。
-
-**步驟三：分區落地（每區一個 commit，可分次合併）**
-1. 殼層：側欄收合（QC-063 Logo 切換）、頁面切換、編輯分頁開關與重排（分頁可拖曳排序）。
-2. 浮層：選單、右鍵選單、對話框、抽屜、toast。
-3. 作品庫：卡片進出與篩選切換的 layout 動畫、多選、批量列、最近刪除。
-4. 貼圖編輯：圖片格拖曳排序（dnd-kit sortable）、封面設定。
-5. 設定與 AI：分頁切換、測試連線狀態、AI 工作台結果載入。
-6. 項目（QC-062）：側欄項目排序、拖卡片到項目的放下回饋。
-
-- 進度：六區全部合併（第 1 區 528753e、第 2 區 f32ebcf、第 3 區 ccd6d41、第 4 區 f2498a4、第 5 區 ea50dc3、第 6 區含儲存狀態與 AI 完成動效）。剩發版前收尾。
-- 發版前收尾：六區合併後，qc-test 在打包版（qc-release `--mac dir`）量 300 張卡片的長幀與捲動，並跑整套閘門；通過才安裝。
-- 時序：與 QC-061、QC-062 同區域；先做步驟一、二與 1、2 區，作品庫與項目區等 QC-061／QC-062 合併後再做，避免衝突。
-- 驗收：每區附前後對照錄影（GIF 或 mp4）、reduced-motion 截圖；e2e 背景模式（QC-064 後），測試要能關閉動畫（測試模式直接用 reduced motion）以免時序不穩。
+QC-065 效能檢查附帶發現（`docs/evidence/qc065-perf.md`）：`LibraryPage.tsx` 只呼叫一次 `client.works.list({ limit: 200 })`，沒有分頁或「載入更多」。種子 300 件只顯示最新 200 件；「貼圖」篩選只顯示 100 件（實有 200）。作品超過 200 件時舊作品會從作品庫消失（資料還在）。篩選計數、項目頁、搜尋、⌘A 全選、批量操作都要以完整集合為準。
+- 方向：後端 cursor 分頁（若已有就沿用），前端捲到底自動載入下一頁（或虛擬化列表），篩選與計數由後端回總數；⌘A 的範圍要說清楚（目前篩選下的全部，而非已載入）。
+- 驗收：e2e 種 300＋件，捲到底看得到最舊的作品、篩選數量正確、全選批量正確；效能不退步。
 
 ## QC-033: Mac 生產可用實機驗收
 
