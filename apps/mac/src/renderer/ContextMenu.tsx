@@ -64,6 +64,27 @@ export function placeMenu(
   return { left, top };
 }
 
+/** What a menu was opened from: the focused control (a button), else what lies under its anchor. */
+function openedFrom(anchor: MenuAnchor, focused: Element | null): Element | null {
+  if (focused !== null && focused !== document.body) return focused;
+  return document.elementFromPoint(anchor.x, anchor.y);
+}
+
+function scrollOf(el: Element): { top: number; left: number } {
+  return { top: el.scrollTop, left: el.scrollLeft };
+}
+
+/** The scroll positions of every scrolling area holding `el`, and of the page. */
+function scrollPositions(el: Element | null): Map<Element, { top: number; left: number }> {
+  const out = new Map<Element, { top: number; left: number }>();
+  for (let n = el?.parentElement ?? null; n !== null; n = n.parentElement) {
+    if (n.scrollHeight > n.clientHeight || n.scrollWidth > n.clientWidth) out.set(n, scrollOf(n));
+  }
+  const page = document.scrollingElement;
+  if (page !== null) out.set(page, scrollOf(page));
+  return out;
+}
+
 const SUB_OPEN_MS = 120;
 /** Moving across other rows toward an open submenu does not close it at once (kubai-999-002). */
 const SUB_CLOSE_MS = 280;
@@ -99,18 +120,28 @@ export function ContextMenu({
     timer.current = null;
   };
 
-  const close = useCallback(
-    (restoreFocus: boolean) => {
-      clearTimer();
-      onClose();
-      const back = returnTo.current;
-      if (restoreFocus && back instanceof HTMLElement && back.isConnected) back.focus();
-    },
-    [onClose],
-  );
+  /**
+   * The host's `onClose`, read when closing (QC-073). Hosts pass a new function on
+   * every render; depending on it re-ran the effect below on each render of the page
+   * (a list refreshed by a live update), and its cleanup cancelled a submenu that was
+   * about to open.
+   */
+  const onCloseRef = useRef(onClose);
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+  const close = useCallback((restoreFocus: boolean) => {
+    clearTimer();
+    onCloseRef.current();
+    const back = returnTo.current;
+    if (restoreFocus && back instanceof HTMLElement && back.isConnected) back.focus();
+  }, []);
 
+  /** Where the scrolling areas around what the menu was opened from stood when it opened. */
+  const scrolls = useRef(new Map<Element, { top: number; left: number }>());
   useLayoutEffect(() => {
     returnTo.current = document.activeElement;
+    scrolls.current = scrollPositions(openedFrom(anchor, document.activeElement));
     const el = root.current;
     if (el === null) return;
     setPos(
@@ -138,15 +169,27 @@ export function ContextMenu({
     const onAway = () => {
       close(false);
     };
+    // A scroll closes the menu only when it moved what the menu was opened from (QC-073):
+    // a scroll that ended just before it opened (its event comes a frame later), or one in
+    // an unrelated area, leaves it open.
+    const onScroll = () => {
+      for (const [el, at] of scrolls.current) {
+        const now = scrollOf(el);
+        if (Math.abs(now.top - at.top) > 0.5 || Math.abs(now.left - at.left) > 0.5) {
+          close(false);
+          return;
+        }
+      }
+    };
     document.addEventListener('mousedown', onDown, true);
     window.addEventListener('blur', onAway);
     window.addEventListener('resize', onAway);
-    document.addEventListener('scroll', onAway, true);
+    document.addEventListener('scroll', onScroll, true);
     return () => {
       document.removeEventListener('mousedown', onDown, true);
       window.removeEventListener('blur', onAway);
       window.removeEventListener('resize', onAway);
-      document.removeEventListener('scroll', onAway, true);
+      document.removeEventListener('scroll', onScroll, true);
       clearTimer();
     };
   }, [close]);

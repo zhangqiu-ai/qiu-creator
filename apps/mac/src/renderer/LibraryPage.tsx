@@ -59,6 +59,7 @@ import {
   AnimatedItem,
   ExitFade,
   focusAfterRemoval,
+  hasOpenLayer,
   LAYOUT_LIMIT,
   Presence,
   presetVariants,
@@ -761,7 +762,7 @@ export function LibraryPage({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.isComposing || isEditable(e.target) || trashRef.current) return;
-      if (document.querySelector('[aria-modal="true"], .ctx-menu') !== null) return;
+      if (hasOpenLayer(true)) return;
       if (e.metaKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         latest.current.selectAll();

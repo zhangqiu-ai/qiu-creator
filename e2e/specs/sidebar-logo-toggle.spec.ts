@@ -19,9 +19,12 @@ async function shot(page: Page, name: string): Promise<void> {
 const topLeft = { x: 0, y: 0, width: 360, height: 220 };
 
 // By class: the navigation's own name changes with the language.
-const navOf = (page: Page): Locator => page.locator('nav.sb');
+/** The sidebar itself, not the still copy that fades while it collapses (QC-068). */
+const navOf = (page: Page): Locator => page.locator('nav.sb:not(.sb--ghost)');
 const navWidth = (page: Page): Promise<number> =>
-  page.evaluate<number>("document.querySelector('nav.sb').getBoundingClientRect().width");
+  page.evaluate<number>(
+    "document.querySelector('nav.sb:not(.sb--ghost)').getBoundingClientRect().width",
+  );
 
 /** The panel icon's opacity (it fades in over 0.12 s) and the tooltip text and opacity. */
 const swapOpacity = (page: Page): Promise<string> =>

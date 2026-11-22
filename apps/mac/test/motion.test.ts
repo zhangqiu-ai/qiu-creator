@@ -133,3 +133,16 @@ describe('a drop into a project flies into its row (QC-065 area 6)', () => {
     });
   });
 });
+
+describe('a toast joining a stack (QC-073)', () => {
+  it('rises with the others on their spring, from more than its own height, so they never overlap', () => {
+    const joining = presetVariants({ kind: 'toast', stacked: true }, 'full');
+    expect(joining['initial']).toEqual({ opacity: 0, y: '150%' });
+    expect(joining['animate']).toMatchObject({ opacity: 1, y: 0, transition: springOf('snappy') });
+    // Alone, it keeps its short rise; with Reduce Motion it only fades either way.
+    expect(presetVariants({ kind: 'toast' }, 'full')['initial']).toMatchObject({ y: 8 });
+    expect(presetVariants({ kind: 'toast', stacked: true }, 'reduced')['initial']).toEqual({
+      opacity: 0,
+    });
+  });
+});

@@ -26,7 +26,12 @@ import {
 } from './sidebar-prefs.js';
 import type { MessageKey } from '@qiu-creator/i18n';
 import { t } from './i18n.js';
-import { morphSidebar, snapshotSidebar, type SidebarSnapshot } from './sidebar-morph.js';
+import {
+  morphSidebar,
+  snapshotSidebar,
+  stopSidebarMorph,
+  type SidebarSnapshot,
+} from './sidebar-morph.js';
 
 export type NavPage = 'library' | 'assets' | 'imports' | 'ai' | 'preview' | 'settings';
 
@@ -162,7 +167,8 @@ export function Sidebar({
   useLayoutEffect(() => {
     const snap = morph.current;
     morph.current = null;
-    morphSidebar(navRef.current, snap);
+    if (snap === null) stopSidebarMorph();
+    else morphSidebar(navRef.current, snap);
   }, [rail]);
 
   const toggle = useCallback(() => {

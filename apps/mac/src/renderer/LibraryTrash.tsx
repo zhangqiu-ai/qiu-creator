@@ -35,7 +35,14 @@ import { LoadMore } from './LoadMore.js';
 import { useToast } from './toasts.js';
 import { purgeWorks, restoreWorks } from './work-actions.js';
 import { CardCover } from './WorkCover.js';
-import { Animated, AnimatedItem, LAYOUT_LIMIT, Presence, SettleIn } from './motion.js';
+import {
+  Animated,
+  AnimatedItem,
+  hasOpenLayer,
+  LAYOUT_LIMIT,
+  Presence,
+  SettleIn,
+} from './motion.js';
 
 type Notice = { message: string; tone: 'ok' | 'bad' };
 /** A deleted work as selection and actions see it: a loaded card or a ⌘A ref (QC-067). */
@@ -235,7 +242,7 @@ export function TrashView({
       if (e.isComposing) return;
       const target = e.target;
       if (target instanceof HTMLElement && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
-      if (document.querySelector('[aria-modal="true"], .ctx-menu') !== null) return;
+      if (hasOpenLayer(true)) return;
       if (e.metaKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         // Every deleted work matching the search (QC-067), not only those loaded.
