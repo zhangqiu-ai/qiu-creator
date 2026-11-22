@@ -74,8 +74,9 @@ export async function startScreencast(
         out,
       ]);
       return out;
-    } catch {
-      // No ffmpeg on this Mac: the timed frames and their list are the recording.
+    } catch (err) {
+      // No ffmpeg, or it failed: say why; the timed frames and their list are the recording.
+      console.warn(`screencast ${name}: ffmpeg did not make an mp4, keeping the frames`, err);
       return framesDir;
     }
   };

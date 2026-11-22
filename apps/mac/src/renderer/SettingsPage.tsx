@@ -270,7 +270,7 @@ export function SettingsPage({
           onPick={goTo}
         />
         <div className="set-body">
-          <div className={cat === 'ai' ? 'set-page set-page--wide' : 'set-page'}>
+          <div key={cat} className={cat === 'ai' ? 'set-page set-page--wide' : 'set-page'}>
             {cat === 'appearance' && <AppearanceSection />}
 
             {cat === 'service' && (

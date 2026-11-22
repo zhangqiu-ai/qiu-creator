@@ -21,6 +21,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
   type RefObject,
 } from 'react';
@@ -434,4 +435,14 @@ export function SettleIn({ className, children }: { className: string; children:
       {children}
     </motion.span>
   );
+}
+
+/**
+ * A determinate progress bar's fill (DESIGN.md 動效 · AI 任務進度): it grows
+ * with `transform: scaleX`, so no layout runs per frame. Null: indeterminate.
+ */
+export function progressStyle(pct: number | null): CSSProperties | undefined {
+  if (pct === null) return undefined;
+  const p = Math.max(0, Math.min(100, pct)) / 100;
+  return { transform: `scaleX(${String(p)})` };
 }

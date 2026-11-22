@@ -26,6 +26,9 @@ import { Dialog } from './Dialog.js';
 import { formatWhen } from './format.js';
 import { currentLocale, t } from './i18n.js';
 import { Icon } from './Icon.js';
+import { tween } from './motion.js';
+import { moves, useMotionMode } from './motion-mode.js';
+import { motion } from 'motion/react';
 import { ModelCombobox } from './ModelCombobox.js';
 import { budgetWarningText, companyText, noticeText } from './server-text.js';
 import { useToast } from './toasts.js';
@@ -317,6 +320,7 @@ function ProviderDetail({
   const test = s.tests[p.provider];
   const co = isRelay ? destination(p) : companyText(p);
   const view = testView(p, test, co);
+  const motionMode = useMotionMode();
   const error = s.error?.target === p.provider ? s.error.message : null;
   const [editing, setEditing] = useState(!p.key_configured);
   const [confirm, setConfirm] = useState<'delete' | 'withdraw' | null>(null);
@@ -392,14 +396,27 @@ function ProviderDetail({
         )}
       </div>
 
-      <div
+      {/* 測試連線 (DESIGN.md 動效): the result card grows to its new height (moderate);
+          a result's icon comes in from 0.9 (base), without bounce. */}
+      <motion.div
         id="ai-test-result"
         className={`set-test set-test--${view.tone}`}
         role="status"
         aria-live="polite"
+        layout={moves(motionMode) ? true : false}
+        transition={tween('moderate')}
       >
-        <div className="set-test__row">
-          <span className="set-test__ic" aria-hidden="true">
+        <motion.div className="set-test__row" layout={moves(motionMode) ? 'position' : false}>
+          <motion.span
+            key={view.tone}
+            className="set-test__ic"
+            aria-hidden="true"
+            initial={
+              view.tone === 'none' || motionMode === 'off' ? false : { opacity: 0, scale: 0.9 }
+            }
+            animate={{ opacity: 1, scale: 1 }}
+            transition={tween(view.tone === 'run' ? 'fast' : 'base')}
+          >
             {view.tone === 'run' ? (
               <span className="set-spin" />
             ) : (
@@ -408,7 +425,7 @@ function ProviderDetail({
                 size={14}
               />
             )}
-          </span>
+          </motion.span>
           <div className="set-test__tx">
             <b>{view.title}</b>
             {view.desc !== '' && (
@@ -434,7 +451,7 @@ function ProviderDetail({
                   : t('aiServices.checkUrl')}
             </button>
           ))}
-        </div>
+        </motion.div>
         {view.metrics !== null && (
           <dl className="set-test__ms">
             <div>
@@ -469,7 +486,7 @@ function ProviderDetail({
             </button>
           </div>
         )}
-      </div>
+      </motion.div>
 
       <section className="set-g" aria-labelledby="ai-g-conn">
         <h3 className="set-g__t" id="ai-g-conn">

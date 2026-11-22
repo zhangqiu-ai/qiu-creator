@@ -1854,7 +1854,6 @@ kbd {
   height: 100%;
   border-radius: 2px;
   background: var(--qc-accent);
-  transition: width var(--qc-dur-progress) var(--qc-ease-out);
 }
 .bar--indeterminate > span {
   width: 35%;
@@ -6856,12 +6855,14 @@ kbd {
   animation: qc-fade-in var(--qc-dur-fast) var(--qc-ease-out);
 }
 @media (prefers-reduced-motion: reduce) {
+  .set-page,
   .shell__main > .page,
   .shell__main > .tabs-area:not([hidden]),
   .sb:not(.sb--rail) .sb__label {
     animation: qc-fade-in var(--qc-dur-fast) var(--qc-ease-out) !important;
   }
 }
+:root[data-motion='lite'] .set-page,
 :root[data-motion='lite'] .shell__main > .page,
 :root[data-motion='lite'] .shell__main > .tabs-area:not([hidden]),
 :root[data-motion='lite'] .sb:not(.sb--rail) .sb__label {
@@ -6967,6 +6968,33 @@ kbd {
 :root[data-motion='lite'] .post__tile.post__tile--lifted,
 :root[data-motion='lite'] .drag-ghost {
   transform: none;
+}
+/* 分段控制與 AI 分頁：選取的底色或底線滑到新位置 (segment-glide.ts, QC-065 area 5). */
+.seg,
+.ai__tab-list {
+  position: relative;
+}
+.seg > button,
+.ai__tab-list > .ai__tab {
+  position: relative;
+  z-index: 1;
+}
+.seg > button[data-gliding='true'] {
+  background: transparent;
+  box-shadow: none;
+}
+.ai__tab[data-gliding='true'] {
+  border-bottom-color: transparent;
+}
+/* 設定分類切換：內容直接換上並淡入 (fast)。 */
+.set-page {
+  animation: qc-fade-in var(--qc-dur-fast) var(--qc-ease-out);
+}
+/* 確定進度 (DESIGN.md 動效 · AI 任務進度): the bar grows by scaleX, never by width. */
+.bar > span {
+  width: 100%;
+  transform-origin: left center;
+  transition: transform var(--qc-dur-progress) var(--qc-ease-out);
 }
 /* Test mode (DESIGN.md 動效 · 測試模式): e2e runs with nothing animating. */
 :root[data-motion='off'] *,

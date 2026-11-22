@@ -19,6 +19,7 @@ import { ProjectsStore } from './projects-store.js';
 import { ProjectsContext } from './ProjectTags.js';
 import { ProjectsDnd } from './projects-dnd.js';
 import { AppMotion, ShellMain } from './motion.js';
+import { installSegmentGlide } from './segment-glide.js';
 import { serviceSummary } from './sidebar-prefs.js';
 import { t, useLocale } from './i18n.js';
 import { TabsModel } from './tabs.js';
@@ -225,6 +226,8 @@ export function App() {
     projects?.subscribe ?? NO_PROJECTS,
     projects?.getSnapshot ?? EMPTY_PROJECTS,
   );
+  // Segments and the AI tabs: the chosen highlight glides to its new place (QC-065).
+  useEffect(() => installSegmentGlide(), []);
   const [scope, setScope] = useState<LibraryScope>({ kind: 'all' });
   /** The sidebar is the 56 px rail (QC-065: the content slides to its new place). */
   const [rail, setRail] = useState(false);

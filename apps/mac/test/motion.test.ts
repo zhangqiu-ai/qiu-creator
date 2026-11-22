@@ -8,6 +8,7 @@ import {
   tween,
 } from '../src/renderer/motion.js';
 import { besidePointerAt } from '../src/renderer/projects-dnd.js';
+import { glideKeyframes } from '../src/renderer/segment-glide.js';
 
 describe('motion preference from the main process (QC-065)', () => {
   it('e2e runs with motion off unless recording asks for it', () => {
@@ -99,5 +100,16 @@ describe('library motion helpers (QC-065 area 3)', () => {
 
   it('at most 40 cards move one by one; more change with one cross-fade', () => {
     expect(LAYOUT_LIMIT).toBe(40);
+  });
+});
+
+describe('segment highlight glide (QC-065 area 5)', () => {
+  it('starts exactly over the old choice and ends on the new one', () => {
+    const frames = glideKeyframes(
+      { left: 100, top: 10, width: 60, height: 28 },
+      { left: 220, top: 10, width: 80, height: 28 },
+    );
+    expect(frames[0]).toEqual({ transform: 'translate(-120px, 0px) scaleX(0.75)' });
+    expect(frames[1]).toEqual({ transform: 'translate(0px, 0px) scaleX(1)' });
   });
 });

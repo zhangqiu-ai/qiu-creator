@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
 import { useRefreshOn, useUploads } from './events.js';
+import { progressStyle } from './motion.js';
 import { t } from './i18n.js';
 import { Icon, type IconName } from './Icon.js';
 import { TechnicalDetails } from './TechnicalDetails.js';
@@ -300,7 +301,7 @@ function TaskRowView({
             aria-valuemax={100}
             aria-valuenow={pct ?? undefined}
           >
-            <span style={pct === null ? undefined : { width: `${pct}%` }} />
+            <span style={progressStyle(pct)} />
           </div>
         )}
       </div>
