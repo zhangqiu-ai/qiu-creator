@@ -1,3 +1,11 @@
+## QC-059: editor-tabs e2e 游標還原偶發失敗
+
+**Priority:** P2 | **Assignee:** qc-test（診斷）→ qc-bugfix（修正） | **Tags:** M3
+
+2026-11-21 20:30 QC-054 第一次整套 e2e（負載 5.21）：`e2e/specs/editor-tabs.spec.ts:121` 用 ⌘⇧[ 切回分頁後 `source.selectionStart` 期望 11、5 秒內一直是 10。之後單跑 3 次、整套重跑都通過。log 在 `docs/evidence/qc054-e2e-editor-tabs-failure.log`（若已合併）。判斷是產品的游標還原競態還是測試時序，不准加長逾時或重試。
+
+- 2026-11-21 qc-test 診斷：產品競態。游標只在非同步 `selectionchange` 事件時保存，快速切分頁會遺失；3／3 重現、對照 3／3 通過。證據 `docs/evidence/qc059-caret-race.md`。交 qc-bugfix 修產品程式碼。
+
 ## QC-057: 設定頁重新設計：每個分類獨立頁面，AI 服務重整並加連線測試
 
 **Priority:** P1 | **Assignee:** qc-prototype（原型）→ qc-frontend ＋ qc-backend（實作） | **Tags:** M3, prototype, frontend, backend
