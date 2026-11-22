@@ -19,6 +19,8 @@
 - 共用動效元件與 hooks（例如 `<Presence>`、`<Reorder>`、`useReducedMotion` 封裝、tokens 常數），既有 CSS transition 統一改用 tokens。
 - 拖放：統一用 dnd-kit（鍵盤拖放、觸控板、無障礙播報三語），取代目前各處自寫的拖曳。
 
+**步驟二已合併（2026-11-21，20c7135）**：`motion` 依賴、`renderer/motion.tsx` 封裝、四種動效模式（full／reduced／lite／off）、CSS 時長改 token；QC-062 補件（收合側欄可捲動、拖曳浮層位置、深色／英文／簡中截圖、錄影開關與 mp4）。
+
 **步驟三：分區落地（每區一個 commit，可分次合併）**
 1. 殼層：側欄收合（QC-063 Logo 切換）、頁面切換、編輯分頁開關與重排（分頁可拖曳排序）。
 2. 浮層：選單、右鍵選單、對話框、抽屜、toast。
