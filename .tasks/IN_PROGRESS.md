@@ -20,6 +20,8 @@
 
 **後端已合併（2026-11-21，6b54beb）**：`POST /api/v1/ai/providers/:provider/test`（owner），四家都探測免費的列模型端點；回 `{ok, latency_ms, model_count, text_model_listed, error, tested_at}`，失敗也 200＋ok:false；新增 reason `quota`（402 或提到額度的 429）；不保存上次結果；api-client `ai.testProvider()`。
 
+**原型已核准（2026-11-21）**：PT-20261121-002 由總監代核准（畫布上傳失敗，依帳本核准，見 `approvalCaveat`）。AI 服務改四分頁（供應商、用途、用量、隱私），供應商清單＋詳情雙欄。後端補：`last_test` 保存、429 分 quota／rate_limited、`GET/PUT /ai/defaults`、usage `unpriced_jobs`、New API Base URL 顯示與 `base_url_host`。三家線上模型清單不在本次範圍。
+
 **步驟二：實作（核准後）**
 - 後端：`POST /api/v1/ai/providers/:provider/test`（owner），用 Keychain 金鑰在 Mac 端做**不產生內容費用**的探測（優先列模型清單端點；New API 用 `/models`），回傳 ok、延遲、模型數、錯誤碼；金鑰不出 Mac、不進日誌；假服務測試。測試連線只在使用者按下時發出。
 - 前端：照核准原型重做設定頁與 AI 服務；QC-054 的模型下拉元件沿用。e2e、三語截圖。
