@@ -49,7 +49,14 @@ import {
 } from '../fs/atomic.js';
 import type { Layout } from '../layout.js';
 import { isTypedWork, TypedWorkMedia, type WorkLocation } from './typed-media.js';
-import { matchExcerpt, matchesSearch, foldForSearch, searchKey } from '@qiu-creator/domain/search';
+import {
+  foldForSearch,
+  matchExcerpt,
+  matchesSearch,
+  PINYIN_LONG_TEXT_MIN_LENGTH,
+  pinyinKey,
+  searchKey,
+} from '@qiu-creator/domain/search';
 import {
   WorkCardImages,
   workExcerpt,
@@ -455,18 +462,32 @@ export class WorkService {
     // QC-068: the index holds folded text; fold the query the same way.
     const key = q.q === undefined ? '' : searchKey(q.q);
     if (key !== '') {
+      const any: string[] = [];
       if (Array.from(key).length >= 3) {
         // trigram FTS: quote as a phrase so user input is never parsed as FTS syntax.
-        where.push('w.id IN (SELECT work_id FROM works_fts WHERE works_fts MATCH ?)');
+        any.push('w.id IN (SELECT work_id FROM works_fts WHERE works_fts MATCH ?)');
         params.push(`"${key.replaceAll('"', '""')}"`);
       } else {
         // trigram needs 3+ characters; scan the folded title, tags and body instead.
-        where.push(
+        any.push(
           `w.id IN (SELECT work_id FROM works_fts
                     WHERE instr(title, ?) > 0 OR instr(tags, ?) > 0 OR instr(body, ?) > 0)`,
         );
         params.push(key, key, key);
       }
+      // QC-079: letters may be pinyin (`cy` → 常用). Titles and tags from 2
+      // letters, the body from 4 (two initials occur in almost any article).
+      const py = q.q === undefined ? null : pinyinKey(q.q);
+      if (py !== null) {
+        const body = py.length >= PINYIN_LONG_TEXT_MIN_LENGTH;
+        any.push(
+          `w.id IN (SELECT work_id FROM works_fts
+                    WHERE search_pinyin(title, ?) OR search_pinyin(tags, ?)
+                      ${body ? 'OR search_pinyin(body, ?)' : ''})`,
+        );
+        params.push(py, py, ...(body ? [py] : []));
+      }
+      where.push(`(${any.join(' OR ')})`);
     }
     return { where, params };
   }
@@ -1324,7 +1345,12 @@ function toRevision(r: RevisionRow): Revision {
 function matchExcerptOf(row: WorkRow, markdown: string, query: string): string | null {
   if (matchesSearch(row.title, query)) return null;
   const text = workPlainText(row.type, markdown);
-  return text === null ? null : matchExcerpt(text, query, WORK_EXCERPT_MAX_CHARS);
+  // Body text: pinyin from 4 letters, the same rule the list uses (QC-079).
+  return text === null
+    ? null
+    : matchExcerpt(text, query, WORK_EXCERPT_MAX_CHARS, {
+        pinyinMinLength: PINYIN_LONG_TEXT_MIN_LENGTH,
+      });
 }
 
 function toWorkRef(row: WorkRefRow): WorkRef {

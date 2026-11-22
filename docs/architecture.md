@@ -1266,3 +1266,31 @@ New API 的 `POST {base_url}/images/generations`（OpenAI 相容）。只在使�
   - 標題：`suggestions` 帶 `platforms: [p]`，標題字數上限依 `PLATFORM_LIMITS` 寫進請求。
   - 封面：`images` 帶 `purpose: cover` 與 `platform`，比例預設用 `PLATFORM_COVER_RATIOS`（小紅書 3:4、公眾號 2.35:1、抖音 3:4、視頻號 6:7），提示詞也會寫出平台名稱。
   - 保留封面時用 `placement: library`，再以 `PATCH /works/:id/variants/:platform` 的 `cover: {asset_id}` 設為該平台版本的封面，不改原稿。
+
+## 拼音搜尋（QC-079）
+
+規則集中在 `@qiu-creator/domain/search`，服務端比對和 App 的高亮共用同一套。
+
+- **什麼算拼音查詢**：`pinyinKey(q)` 會去掉空白和撇號、轉小寫、全形轉半形；結果只含字母、而且至少 2 個字母時，才當作拼音查詢。
+- **比對方式**：
+  - 文字先經 QC-068 的 fold，繁體已轉成簡體。
+  - 每個漢字取 pinyin-pro 的所有讀音：多音字全收，ü 可以打 v 或 u。
+  - 每個字可以用全拼、首字母（zh、ch、sh 也算首字母）來比；最後一個字可以只打到一半。
+  - 非漢字的字元照原樣比，所以 `A股` 用 `agu` 也找得到。
+  - 回傳原文範圍，拼音命中直接對到中文字上。
+  - `findMatches` 會把字面命中與拼音命中合併。
+- **最短長度**：
+  - 標題、標籤、素材名稱：2 個字母。
+  - 作品正文與 `match_excerpt`：`PINYIN_LONG_TEXT_MIN_LENGTH`（4 個字母）。兩個首字母幾乎每篇文章都找得到，所以正文要求更長。
+- **服務端**：
+  - 用 SQL 函式 `search_pinyin(folded, key)`，在 `registerSqlFunctions` 註冊。
+  - 作品：`works_fts` 的 title、tags 一定查；body 只在 key 至少 4 個字母時才查。這個條件和字面比對用 OR 合併，放在 `filterSql` 裡，所以列表、分頁、facets、refs 的結果一致。
+  - 素材：比對 `search_fold(original_name)` 與 `search_fold(display_name)`。
+- **不加拼音索引欄位**：
+  - 原因：混用與多音字無法寫成固定字串的子字串比對；只存全拼加首字母的欄位，會漏掉 `cyong`、`yinhang` 這類查詢，或是與高亮規則不一致。所以改成在查詢時比對已 fold 的文字，配合讀音快取與起始字母遮罩加速。
+  - 沒有 migration，也不需要重建索引。
+- **效能**（證據 `docs/evidence/qc079-pinyin-search-backend.md`）：
+  - 300 件、每件 2000 字：每次列表 ≤ 44 ms。
+  - 3000 件、每件 3000 字：正文拼音查詢約 0.3–1 秒；標題層級的查詢 ≤ 44 ms。
+  - 若之後作品量大到需要，再考慮預先計算的讀音索引。
+
