@@ -21,6 +21,7 @@
     "@qiu-creator/api-client": "workspace:*",
     "@qiu-creator/contracts": "workspace:*",
     "@qiu-creator/design-tokens": "workspace:*",
+    "@qiu-creator/domain": "workspace:*",
     "@qiu-creator/i18n": "workspace:*",
     "@qiu-creator/markdown-editor-web": "workspace:*",
     "@qiu-creator/platform-preview": "workspace:*",

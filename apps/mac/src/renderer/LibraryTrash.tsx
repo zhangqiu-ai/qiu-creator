@@ -29,6 +29,7 @@ import {
 } from './library-select.js';
 import { daysLeft } from './library-trash.js';
 import { LibraryFeed } from './library-feed.js';
+import { Highlight } from './Highlight.js';
 import { LoadMore } from './LoadMore.js';
 import { useToast } from './toasts.js';
 import { purgeWorks, restoreWorks } from './work-actions.js';
@@ -434,7 +435,9 @@ export function TrashView({
                     >
                       <CardCover work={w} imageUrl={(rel) => client.media.absoluteUrl(rel)} />
                       <span className="wcard__body">
-                        <span className="wcard__title">{w.title}</span>
+                        <span className="wcard__title">
+                          <Highlight text={w.title} />
+                        </span>
                         <span className="wcard__meta">
                           <span className="chip chip--warn">
                             {days === null || days === 0

@@ -33,6 +33,7 @@ import {
   type ByTypeStatus,
 } from './library-counts.js';
 import { LibraryFeed } from './library-feed.js';
+import { Highlight, HitPassage, SearchHighlight } from './Highlight.js';
 import { LoadMore } from './LoadMore.js';
 import { RenameField } from './RenameField.js';
 import { useToast, type ToastAction } from './toasts.js';
@@ -204,6 +205,8 @@ export function LibraryPage({
   const failed = createFailed || (feedState.failed && works === null);
   const [query, setQuery] = useState('');
   const [appliedQuery, setAppliedQuery] = useState('');
+  /** What the loaded works mark as hits: every keystroke, never mid-composition (QC-068). */
+  const [highlight, setHighlight] = useState('');
   const [type, setType] = useState<TypeFilter>('all');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [view, setView] = useState<View>(readView);
@@ -321,6 +324,7 @@ export function LibraryPage({
     setQuery(value);
     if (timer.current !== null) clearTimeout(timer.current);
     if (composing) return;
+    setHighlight(value);
     timer.current = setTimeout(() => {
       setAppliedQuery(value);
     }, 250);
@@ -1010,319 +1014,335 @@ export function LibraryPage({
   const loadView = useSkeletonGate(works === null && !failed);
 
   return (
-    <main className="page" aria-label={t('library.library')}>
-      <header className="page__header">
-        {project !== null ? (
-          <h1 className="page__title proj-title">
-            <span
-              className="proj-title__chip"
-              style={{ background: projectColor(project.color) }}
+    <SearchHighlight query={highlight}>
+      <main className="page" aria-label={t('library.library')}>
+        <header className="page__header">
+          {project !== null ? (
+            <h1 className="page__title proj-title">
+              <span
+                className="proj-title__chip"
+                style={{ background: projectColor(project.color) }}
+              />
+              {renamingProject ? (
+                <RenameField
+                  value={project.name}
+                  label={t('workActions.renameField', { title: project.name })}
+                  className="rename--title"
+                  onCommit={(name) => {
+                    renameCurrentProject(name);
+                  }}
+                  onCancel={() => {
+                    setRenamingProject(false);
+                  }}
+                />
+              ) : (
+                <span
+                  className="proj-title__name"
+                  onDoubleClick={() => {
+                    setRenamingProject(true);
+                  }}
+                >
+                  {project.name}
+                </span>
+              )}
+            </h1>
+          ) : (
+            <h1 className="page__title">
+              {unassigned ? t('projects.unassigned') : t('library.library')}
+            </h1>
+          )}
+          <span className="page__count">
+            {scope === 'trash' ? trashCount : feedState.total === null ? '' : feedState.total}
+          </span>
+          {project !== null && (
+            <button
+              type="button"
+              className="btn btn--icon btn--ghost proj-title__more"
+              aria-label={t('projects.projectOptions')}
+              aria-haspopup="menu"
+              aria-expanded={projectMenu.openId === project.id}
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                projectMenu.open(project, { x: r.left, y: r.bottom + 4 });
+              }}
+            >
+              <Icon name="more" />
+            </button>
+          )}
+          <label className="search">
+            <Icon name="search" />
+            <span className="visually-hidden">{t('library.searchWorks')}</span>
+            <input
+              ref={searchRef}
+              type="search"
+              placeholder={t('common.search')}
+              value={query}
+              aria-keyshortcuts="Meta+F"
+              onChange={(e) => {
+                onQuery(e.target.value, (e.nativeEvent as InputEvent).isComposing);
+              }}
+              onCompositionEnd={(e) => {
+                onQuery(e.currentTarget.value, false);
+              }}
             />
-            {renamingProject ? (
-              <RenameField
-                value={project.name}
-                label={t('workActions.renameField', { title: project.name })}
-                className="rename--title"
-                onCommit={(name) => {
-                  renameCurrentProject(name);
+            <kbd>⌘F</kbd>
+          </label>
+          <div className="seg" role="group" aria-label={t('library.view')}>
+            {(['grid', 'list'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                aria-label={v === 'grid' ? t('library.viewGrid') : t('library.viewList')}
+                aria-pressed={view === v}
+                onClick={() => {
+                  setView(v);
+                  writeView(v);
                 }}
-                onCancel={() => {
-                  setRenamingProject(false);
+              >
+                <Icon name={v} />
+              </button>
+            ))}
+          </div>
+          <NewMenu open={menuOpen} busy={creating} onOpenChange={setMenuOpen} onCreate={create} />
+        </header>
+
+        {scope === 'trash' ? (
+          <TrashView
+            client={client}
+            query={appliedQuery}
+            onBack={() => {
+              setScope('active');
+              load();
+            }}
+            onCount={setTrashCount}
+            projects={projectList}
+          />
+        ) : (
+          <>
+            {project !== null && store !== null && (
+              <ProjectOverview
+                store={store}
+                project={project}
+                refresh={works}
+                onOpenAssets={() => {
+                  onOpenProjectAssets?.(project.id);
                 }}
               />
-            ) : (
-              <span
-                className="proj-title__name"
-                onDoubleClick={() => {
-                  setRenamingProject(true);
+            )}
+            <div className="filters">
+              <div className="seg" role="group" aria-label={t('library.type')}>
+                {TYPE_FILTERS.map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    aria-pressed={type === f}
+                    onClick={() => {
+                      setType(f);
+                    }}
+                  >
+                    {f === 'all' ? t('library.all') : WORK_TYPE[f].label}
+                    <span className="fchip__n">{typeCounts[f]}</span>
+                  </button>
+                ))}
+              </div>
+              <span className="filters__divider" aria-hidden="true" />
+              <div className="filters__chips" role="group" aria-label={t('library.status')}>
+                {STATUS_FILTERS.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className="fchip"
+                    aria-pressed={status === s}
+                    onClick={() => {
+                      setStatus(s);
+                    }}
+                  >
+                    {s === 'all' ? t('library.all') : WORK_STATUS[s].label}
+                    <span className="fchip__n">{counts[s]}</span>
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="fchip filters__trash"
+                onClick={() => {
+                  setSelection(EMPTY_SELECTION);
+                  setScope('trash');
                 }}
               >
-                {project.name}
-              </span>
-            )}
-          </h1>
-        ) : (
-          <h1 className="page__title">
-            {unassigned ? t('projects.unassigned') : t('library.library')}
-          </h1>
-        )}
-        <span className="page__count">
-          {scope === 'trash' ? trashCount : feedState.total === null ? '' : feedState.total}
-        </span>
-        {project !== null && (
-          <button
-            type="button"
-            className="btn btn--icon btn--ghost proj-title__more"
-            aria-label={t('projects.projectOptions')}
-            aria-haspopup="menu"
-            aria-expanded={projectMenu.openId === project.id}
-            onClick={(e) => {
-              const r = e.currentTarget.getBoundingClientRect();
-              projectMenu.open(project, { x: r.left, y: r.bottom + 4 });
-            }}
-          >
-            <Icon name="more" />
-          </button>
-        )}
-        <label className="search">
-          <Icon name="search" />
-          <span className="visually-hidden">{t('library.searchWorks')}</span>
-          <input
-            ref={searchRef}
-            type="search"
-            placeholder={t('common.search')}
-            value={query}
-            aria-keyshortcuts="Meta+F"
-            onChange={(e) => {
-              onQuery(e.target.value, (e.nativeEvent as InputEvent).isComposing);
-            }}
-            onCompositionEnd={(e) => {
-              onQuery(e.currentTarget.value, false);
-            }}
-          />
-          <kbd>⌘F</kbd>
-        </label>
-        <div className="seg" role="group" aria-label={t('library.view')}>
-          {(['grid', 'list'] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              aria-label={v === 'grid' ? t('library.viewGrid') : t('library.viewList')}
-              aria-pressed={view === v}
-              onClick={() => {
-                setView(v);
-                writeView(v);
-              }}
-            >
-              <Icon name={v} />
-            </button>
-          ))}
-        </div>
-        <NewMenu open={menuOpen} busy={creating} onOpenChange={setMenuOpen} onCreate={create} />
-      </header>
-
-      {scope === 'trash' ? (
-        <TrashView
-          client={client}
-          query={appliedQuery}
-          onBack={() => {
-            setScope('active');
-            load();
-          }}
-          onCount={setTrashCount}
-          projects={projectList}
-        />
-      ) : (
-        <>
-          {project !== null && store !== null && (
-            <ProjectOverview
-              store={store}
-              project={project}
-              refresh={works}
-              onOpenAssets={() => {
-                onOpenProjectAssets?.(project.id);
-              }}
-            />
-          )}
-          <div className="filters">
-            <div className="seg" role="group" aria-label={t('library.type')}>
-              {TYPE_FILTERS.map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  aria-pressed={type === f}
-                  onClick={() => {
-                    setType(f);
-                  }}
-                >
-                  {f === 'all' ? t('library.all') : WORK_TYPE[f].label}
-                  <span className="fchip__n">{typeCounts[f]}</span>
-                </button>
-              ))}
+                <Icon name="trash" size={14} />
+                {t('workActions.trash')}
+                <span className="fchip__n">{trashCount}</span>
+              </button>
             </div>
-            <span className="filters__divider" aria-hidden="true" />
-            <div className="filters__chips" role="group" aria-label={t('library.status')}>
-              {STATUS_FILTERS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className="fchip"
-                  aria-pressed={status === s}
-                  onClick={() => {
-                    setStatus(s);
-                  }}
-                >
-                  {s === 'all' ? t('library.all') : WORK_STATUS[s].label}
-                  <span className="fchip__n">{counts[s]}</span>
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              className="fchip filters__trash"
-              onClick={() => {
-                setSelection(EMPTY_SELECTION);
-                setScope('trash');
-              }}
-            >
-              <Icon name="trash" size={14} />
-              {t('workActions.trash')}
-              <span className="fchip__n">{trashCount}</span>
-            </button>
-          </div>
 
-          <Presence>
-            {selectedWorks.length > 0 && (
-              <Animated
-                key="batch-bar"
-                preset={{ kind: 'toast' }}
-                className="batch-bar"
-                role="toolbar"
-                aria-label={t('workActions.selected', { count: selectedWorks.length })}
-              >
-                <span className="batch-bar__count" aria-live="polite">
-                  {t('workActions.selected', { count: selectedWorks.length })}
-                </span>
-                <button
-                  type="button"
-                  className="btn btn--small"
-                  aria-haspopup="menu"
-                  aria-expanded={barMenu !== null}
-                  disabled={selectedWorks.every(isMissing)}
-                  onClick={(e) => {
-                    const r = e.currentTarget.getBoundingClientRect();
-                    setBarMenu({ x: r.left, y: r.bottom + 4 });
-                  }}
+            <Presence>
+              {selectedWorks.length > 0 && (
+                <Animated
+                  key="batch-bar"
+                  preset={{ kind: 'toast' }}
+                  className="batch-bar"
+                  role="toolbar"
+                  aria-label={t('workActions.selected', { count: selectedWorks.length })}
                 >
-                  {t('workActions.changeStatus')}
-                  <Icon name="chevronDown" size={14} />
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--small"
-                  disabled={busy || selectedWorks.every(isMissing)}
-                  onClick={() => {
-                    setConfirm({
-                      kind: 'tags',
-                      mode: 'add',
-                      works: selectedWorks.filter((w) => !isMissing(w)),
-                    });
-                  }}
-                >
-                  {t('workActions.addTags')}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--small"
-                  disabled={
-                    busy || unionTags(selectedWorks.filter((w) => !isMissing(w))).length === 0
-                  }
-                  onClick={() => {
-                    setConfirm({
-                      kind: 'tags',
-                      mode: 'remove',
-                      works: selectedWorks.filter((w) => !isMissing(w)),
-                    });
-                  }}
-                >
-                  {t('workActions.removeTags')}
-                </button>
-                {store !== null && (
+                  <span className="batch-bar__count" aria-live="polite">
+                    {t('workActions.selected', { count: selectedWorks.length })}
+                  </span>
                   <button
                     type="button"
                     className="btn btn--small"
                     aria-haspopup="menu"
-                    aria-expanded={projectBar !== null}
+                    aria-expanded={barMenu !== null}
+                    disabled={selectedWorks.every(isMissing)}
                     onClick={(e) => {
                       const r = e.currentTarget.getBoundingClientRect();
-                      setProjectBar({ x: r.left, y: r.bottom + 4 });
+                      setBarMenu({ x: r.left, y: r.bottom + 4 });
                     }}
                   >
-                    {t('projects.projectButton')}
+                    {t('workActions.changeStatus')}
                     <Icon name="chevronDown" size={14} />
                   </button>
-                )}
-                {store !== null && project !== null && (
                   <button
                     type="button"
                     className="btn btn--small"
+                    disabled={busy || selectedWorks.every(isMissing)}
                     onClick={() => {
-                      void removeFromProject(store, project, selectedWorks, notifyProject, load);
+                      setConfirm({
+                        kind: 'tags',
+                        mode: 'add',
+                        works: selectedWorks.filter((w) => !isMissing(w)),
+                      });
                     }}
                   >
-                    {t('projects.removeFromThis')}
+                    {t('workActions.addTags')}
                   </button>
-                )}
-                <button
-                  type="button"
-                  className="btn btn--small btn--danger"
-                  disabled={busy}
-                  aria-keyshortcuts="Meta+Backspace"
-                  onClick={() => {
-                    setConfirm({ kind: 'delete', works: selectedWorks });
-                  }}
-                >
-                  <Icon name="trash" size={14} />
-                  {t('workActions.deleteItem')}
-                </button>
-                <span className="batch-bar__hint">{t('workActions.selectHint')}</span>
-                <button
-                  type="button"
-                  className="btn btn--small btn--ghost batch-bar__clear"
-                  onClick={() => {
-                    setSelection(EMPTY_SELECTION);
-                  }}
-                >
-                  {t('workActions.clearSelection')}
-                  <kbd>esc</kbd>
-                </button>
-              </Animated>
-            )}
-          </Presence>
-
-          <section
-            className="page__body"
-            aria-label={t('library.works')}
-            aria-busy={works === null && !failed}
-          >
-            {failed ? (
-              <div className="state-card" role="alert">
-                <Icon name="offline" size={28} />
-                <span className="state-card__title">{t('common.serviceDown')}</span>
-                <button type="button" className="btn btn--primary" onClick={load}>
-                  {t('common.retry')}
-                </button>
-              </div>
-            ) : works === null ? (
-              loadView !== 'skeleton' ? null : (
-                <div className="card-grid" aria-label={t('common.loading')}>
-                  {Array.from({ length: 8 }, (_, i) => (
-                    <div key={i} className="wcard wcard--skeleton">
-                      <div className="skel wcard__cover" />
-                      <div className="skel skel--line" style={{ width: '80%' }} />
-                      <div className="skel skel--line" style={{ width: '50%' }} />
-                    </div>
-                  ))}
-                </div>
-              )
-            ) : works.length === 0 && !filtering && project !== null ? (
-              <div className="state-card state-card--dashed">
-                <span
-                  className="proj-title__chip proj-title__chip--big"
-                  style={{ background: projectColor(project.color) }}
-                />
-                <span className="state-card__title">{t('projects.emptyProject')}</span>
-                <span className="state-card__detail">{t('projects.dragHint')}</span>
-                <div className="state-card__actions">
                   <button
                     type="button"
-                    className="btn btn--primary"
+                    className="btn btn--small"
+                    disabled={
+                      busy || unionTags(selectedWorks.filter((w) => !isMissing(w))).length === 0
+                    }
                     onClick={() => {
-                      setMenuOpen(true);
+                      setConfirm({
+                        kind: 'tags',
+                        mode: 'remove',
+                        works: selectedWorks.filter((w) => !isMissing(w)),
+                      });
                     }}
                   >
-                    {t('library.new')}
+                    {t('workActions.removeTags')}
                   </button>
+                  {store !== null && (
+                    <button
+                      type="button"
+                      className="btn btn--small"
+                      aria-haspopup="menu"
+                      aria-expanded={projectBar !== null}
+                      onClick={(e) => {
+                        const r = e.currentTarget.getBoundingClientRect();
+                        setProjectBar({ x: r.left, y: r.bottom + 4 });
+                      }}
+                    >
+                      {t('projects.projectButton')}
+                      <Icon name="chevronDown" size={14} />
+                    </button>
+                  )}
+                  {store !== null && project !== null && (
+                    <button
+                      type="button"
+                      className="btn btn--small"
+                      onClick={() => {
+                        void removeFromProject(store, project, selectedWorks, notifyProject, load);
+                      }}
+                    >
+                      {t('projects.removeFromThis')}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn--small btn--danger"
+                    disabled={busy}
+                    aria-keyshortcuts="Meta+Backspace"
+                    onClick={() => {
+                      setConfirm({ kind: 'delete', works: selectedWorks });
+                    }}
+                  >
+                    <Icon name="trash" size={14} />
+                    {t('workActions.deleteItem')}
+                  </button>
+                  <span className="batch-bar__hint">{t('workActions.selectHint')}</span>
+                  <button
+                    type="button"
+                    className="btn btn--small btn--ghost batch-bar__clear"
+                    onClick={() => {
+                      setSelection(EMPTY_SELECTION);
+                    }}
+                  >
+                    {t('workActions.clearSelection')}
+                    <kbd>esc</kbd>
+                  </button>
+                </Animated>
+              )}
+            </Presence>
+
+            <section
+              className="page__body"
+              aria-label={t('library.works')}
+              aria-busy={works === null && !failed}
+            >
+              {failed ? (
+                <div className="state-card" role="alert">
+                  <Icon name="offline" size={28} />
+                  <span className="state-card__title">{t('common.serviceDown')}</span>
+                  <button type="button" className="btn btn--primary" onClick={load}>
+                    {t('common.retry')}
+                  </button>
+                </div>
+              ) : works === null ? (
+                loadView !== 'skeleton' ? null : (
+                  <div className="card-grid" aria-label={t('common.loading')}>
+                    {Array.from({ length: 8 }, (_, i) => (
+                      <div key={i} className="wcard wcard--skeleton">
+                        <div className="skel wcard__cover" />
+                        <div className="skel skel--line" style={{ width: '80%' }} />
+                        <div className="skel skel--line" style={{ width: '50%' }} />
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : works.length === 0 && !filtering && project !== null ? (
+                <div className="state-card state-card--dashed">
+                  <span
+                    className="proj-title__chip proj-title__chip--big"
+                    style={{ background: projectColor(project.color) }}
+                  />
+                  <span className="state-card__title">{t('projects.emptyProject')}</span>
+                  <span className="state-card__detail">{t('projects.dragHint')}</span>
+                  <div className="state-card__actions">
+                    <button
+                      type="button"
+                      className="btn btn--primary"
+                      onClick={() => {
+                        setMenuOpen(true);
+                      }}
+                    >
+                      {t('library.new')}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => {
+                        onScope?.(ALL);
+                      }}
+                    >
+                      {t('projects.goAll')}
+                    </button>
+                  </div>
+                </div>
+              ) : works.length === 0 && !filtering && unassigned ? (
+                <div className="state-card state-card--dashed">
+                  <Icon name="inbox" size={28} />
+                  <span className="state-card__title">{t('projects.emptyUnassigned')}</span>
                   <button
                     type="button"
                     className="btn"
@@ -1333,315 +1353,306 @@ export function LibraryPage({
                     {t('projects.goAll')}
                   </button>
                 </div>
-              </div>
-            ) : works.length === 0 && !filtering && unassigned ? (
-              <div className="state-card state-card--dashed">
-                <Icon name="inbox" size={28} />
-                <span className="state-card__title">{t('projects.emptyUnassigned')}</span>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => {
-                    onScope?.(ALL);
-                  }}
+              ) : works.length === 0 && !filtering ? (
+                <div className="state-card state-card--dashed">
+                  <Icon name="library" size={28} />
+                  <span className="state-card__title">{t('library.empty')}</span>
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    onClick={() => {
+                      setMenuOpen(true);
+                    }}
+                  >
+                    {t('library.new')}
+                  </button>
+                </div>
+              ) : type !== 'all' && shown.length === 0 && appliedQuery.trim() === '' ? (
+                <TypeEmpty type={type} busy={creating} onCreate={create} />
+              ) : shown.length === 0 ? (
+                <div className="state-card state-card--dashed">
+                  <Icon name="search" size={28} />
+                  <span className="state-card__title">{t('library.noMatches')}</span>
+                  <button type="button" className="btn" onClick={clearFilters}>
+                    {t('library.clearFilters')}
+                  </button>
+                </div>
+              ) : view === 'grid' ? (
+                <motion.ul
+                  // Few cards: each slides to its new place. Many: the grid is drawn
+                  // anew and fades in once (DESIGN.md 動效 · 重排、篩選切換).
+                  key={fewCards ? 'cards' : gridKey}
+                  className="card-grid"
+                  aria-multiselectable="true"
+                  variants={presetVariants({ kind: 'fade' }, motionMode)}
+                  initial={fewCards ? false : 'initial'}
+                  animate="animate"
                 >
-                  {t('projects.goAll')}
-                </button>
-              </div>
-            ) : works.length === 0 && !filtering ? (
-              <div className="state-card state-card--dashed">
-                <Icon name="library" size={28} />
-                <span className="state-card__title">{t('library.empty')}</span>
-                <button
-                  type="button"
-                  className="btn btn--primary"
-                  onClick={() => {
-                    setMenuOpen(true);
-                  }}
-                >
-                  {t('library.new')}
-                </button>
-              </div>
-            ) : type !== 'all' && shown.length === 0 && appliedQuery.trim() === '' ? (
-              <TypeEmpty type={type} busy={creating} onCreate={create} />
-            ) : shown.length === 0 ? (
-              <div className="state-card state-card--dashed">
-                <Icon name="search" size={28} />
-                <span className="state-card__title">{t('library.noMatches')}</span>
-                <button type="button" className="btn" onClick={clearFilters}>
-                  {t('library.clearFilters')}
-                </button>
-              </div>
-            ) : view === 'grid' ? (
-              <motion.ul
-                // Few cards: each slides to its new place. Many: the grid is drawn
-                // anew and fades in once (DESIGN.md 動效 · 重排、篩選切換).
-                key={fewCards ? 'cards' : gridKey}
-                className="card-grid"
-                aria-multiselectable="true"
-                variants={presetVariants({ kind: 'fade' }, motionMode)}
-                initial={fewCards ? false : 'initial'}
-                animate="animate"
-              >
-                <Presence popLayout>
-                  {shown.map((w) => (
-                    <AnimatedItem key={w.id} layout={animateCards} quiet={!animateCards}>
-                      <WorkCard
-                        work={w}
-                        selected={selection.ids.has(w.id)}
-                        menuTarget={menu?.ids.includes(w.id) === true}
-                        renaming={renaming === w.id}
-                        source={externalSource(w, mounts, userHome)}
-                        imageUrl={imageUrl}
-                        onNeedsFrame={onNeedsFrame}
-                        dots={
-                          <ProjectDots
-                            projectIds={w.project_ids}
-                            projects={projectList}
-                            currentId={projectId}
-                          />
-                        }
-                        dragWorks={store === null ? undefined : dragWorks(w)}
-                        onClick={(e, onTitle) => {
-                          onItemClick(e, w, onTitle);
-                        }}
-                        onTitleDoubleClick={(e) => {
-                          onTitleDoubleClick(e, w);
-                        }}
-                        onMenu={(e) => {
-                          onItemMenu(e, w);
-                        }}
-                        onRename={(title) => {
-                          rename(w, title);
-                        }}
-                        onRenameCancel={() => {
-                          setRenaming(null);
-                          focusWork(w.id);
-                        }}
-                      />
-                    </AnimatedItem>
-                  ))}
-                </Presence>
-              </motion.ul>
-            ) : (
-              <div className="table-wrap">
-                <table className="tbl" aria-multiselectable="true">
-                  <thead>
-                    <tr>
-                      <th scope="col">{t('library.colTitle')}</th>
-                      <th scope="col">{t('library.colType')}</th>
-                      <th scope="col">{t('library.colStatus')}</th>
-                      <th scope="col">{t('library.colSource')}</th>
-                      <th scope="col">{t('library.colTags')}</th>
-                      <th scope="col" className="tbl__right">
-                        {t('library.colUpdated')}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                  <Presence popLayout>
                     {shown.map((w) => (
-                      <tr
-                        key={w.id}
-                        className={[
-                          selection.ids.has(w.id) ? 'tbl__row--selected' : '',
-                          menu?.ids.includes(w.id) === true ? 'tbl__row--menu' : '',
-                        ]
-                          .filter(Boolean)
-                          .join(' ')}
-                        aria-selected={selection.ids.has(w.id)}
-                        onContextMenu={(e) => {
-                          onItemMenu(e, w);
-                        }}
-                      >
-                        <td>
-                          <span className="tbl__title">
-                            {renaming === w.id ? (
-                              <span className="tbl__open tbl__open--renaming">
-                                <RowThumb work={w} />
-                                <RenameField
-                                  value={w.title}
-                                  label={t('workActions.renameField', { title: w.title })}
-                                  className="rename--row"
-                                  onCommit={(title) => {
-                                    rename(w, title);
-                                  }}
-                                  onCancel={() => {
-                                    setRenaming(null);
-                                    focusWork(w.id);
-                                  }}
-                                />
-                              </span>
-                            ) : (
-                              <DragWorksButton
-                                dragId={w.id}
-                                works={dragWorks(w)}
-                                disabled={store === null}
-                                className="tbl__open"
-                                data-work-id={w.id}
-                                onClick={(e) => {
-                                  onItemClick(e, w, false);
-                                }}
-                              >
-                                <RowThumb work={w} />
-                                <span
-                                  className="tbl__name"
-                                  title={isMissing(w) ? undefined : t('workActions.renameTip')}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onItemClick(e, w, true);
-                                  }}
-                                  onDoubleClick={(e) => {
-                                    onTitleDoubleClick(e, w);
-                                  }}
-                                >
-                                  {w.title}
-                                </span>
-                                {selection.ids.has(w.id) && (
-                                  <span className="visually-hidden">
-                                    {t('workActions.isSelected')}
-                                  </span>
-                                )}
-                              </DragWorksButton>
-                            )}
-                            {w.storage_mode === 'external' && (
-                              <span
-                                className="src-ext src-ext--small"
-                                title={externalSource(w, mounts, userHome)?.folder ?? undefined}
-                              >
-                                <Icon name="folder" size={11} />
-                                {t('library.externalBadge')}
-                              </span>
-                            )}
-                            {isMissing(w) && <MissingChip />}
+                      <AnimatedItem key={w.id} layout={animateCards} quiet={!animateCards}>
+                        <WorkCard
+                          work={w}
+                          selected={selection.ids.has(w.id)}
+                          menuTarget={menu?.ids.includes(w.id) === true}
+                          renaming={renaming === w.id}
+                          source={externalSource(w, mounts, userHome)}
+                          imageUrl={imageUrl}
+                          onNeedsFrame={onNeedsFrame}
+                          dots={
                             <ProjectDots
                               projectIds={w.project_ids}
                               projects={projectList}
                               currentId={projectId}
                             />
-                          </span>
-                        </td>
-                        <td className="muted">{WORK_TYPE[w.type].label}</td>
-                        <td>
-                          <Chip tone={WORK_STATUS[w.status].tone}>
-                            {WORK_STATUS[w.status].label}
-                          </Chip>
-                        </td>
-                        <td className="muted">
-                          {externalSource(w, mounts, userHome)?.label ?? sourceLabel(w)}
-                        </td>
-                        <td className="faint">{w.tags.map((tag) => `#${tag}`).join(' ')}</td>
-                        <td className="faint tbl__right">{formatWhen(w.updated_at)}</td>
-                      </tr>
+                          }
+                          dragWorks={store === null ? undefined : dragWorks(w)}
+                          onClick={(e, onTitle) => {
+                            onItemClick(e, w, onTitle);
+                          }}
+                          onTitleDoubleClick={(e) => {
+                            onTitleDoubleClick(e, w);
+                          }}
+                          onMenu={(e) => {
+                            onItemMenu(e, w);
+                          }}
+                          onRename={(title) => {
+                            rename(w, title);
+                          }}
+                          onRenameCancel={() => {
+                            setRenaming(null);
+                            focusWork(w.id);
+                          }}
+                        />
+                      </AnimatedItem>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            {works !== null && works.length > 0 && (
-              // The rest of the works load as the end of the list comes near (QC-067).
-              <LoadMore
-                hasMore={feedState.hasMore}
-                loading={feedState.loading}
-                failed={feedState.failed}
-                onMore={() => {
-                  // After a failure (a stale cursor, the service away) read again from the top.
-                  void (feedState.failed ? feed.refresh() : feed.loadMore());
-                }}
-              />
-            )}
-          </section>
-        </>
-      )}
+                  </Presence>
+                </motion.ul>
+              ) : (
+                <div className="table-wrap">
+                  <table className="tbl" aria-multiselectable="true">
+                    <thead>
+                      <tr>
+                        <th scope="col">{t('library.colTitle')}</th>
+                        <th scope="col">{t('library.colType')}</th>
+                        <th scope="col">{t('library.colStatus')}</th>
+                        <th scope="col">{t('library.colSource')}</th>
+                        <th scope="col">{t('library.colTags')}</th>
+                        <th scope="col" className="tbl__right">
+                          {t('library.colUpdated')}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shown.map((w) => (
+                        <tr
+                          key={w.id}
+                          className={[
+                            selection.ids.has(w.id) ? 'tbl__row--selected' : '',
+                            menu?.ids.includes(w.id) === true ? 'tbl__row--menu' : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
+                          aria-selected={selection.ids.has(w.id)}
+                          onContextMenu={(e) => {
+                            onItemMenu(e, w);
+                          }}
+                        >
+                          <td>
+                            <span className="tbl__title">
+                              {renaming === w.id ? (
+                                <span className="tbl__open tbl__open--renaming">
+                                  <RowThumb work={w} />
+                                  <RenameField
+                                    value={w.title}
+                                    label={t('workActions.renameField', { title: w.title })}
+                                    className="rename--row"
+                                    onCommit={(title) => {
+                                      rename(w, title);
+                                    }}
+                                    onCancel={() => {
+                                      setRenaming(null);
+                                      focusWork(w.id);
+                                    }}
+                                  />
+                                </span>
+                              ) : (
+                                <DragWorksButton
+                                  dragId={w.id}
+                                  works={dragWorks(w)}
+                                  disabled={store === null}
+                                  className="tbl__open"
+                                  data-work-id={w.id}
+                                  onClick={(e) => {
+                                    onItemClick(e, w, false);
+                                  }}
+                                >
+                                  <RowThumb work={w} />
+                                  <span
+                                    className="tbl__name"
+                                    title={isMissing(w) ? undefined : t('workActions.renameTip')}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onItemClick(e, w, true);
+                                    }}
+                                    onDoubleClick={(e) => {
+                                      onTitleDoubleClick(e, w);
+                                    }}
+                                  >
+                                    <Highlight text={w.title} />
+                                  </span>
+                                  {w.match_excerpt != null && (
+                                    <span className="tbl__hit">
+                                      <HitPassage text={w.match_excerpt} />
+                                    </span>
+                                  )}
+                                  {selection.ids.has(w.id) && (
+                                    <span className="visually-hidden">
+                                      {t('workActions.isSelected')}
+                                    </span>
+                                  )}
+                                </DragWorksButton>
+                              )}
+                              {w.storage_mode === 'external' && (
+                                <span
+                                  className="src-ext src-ext--small"
+                                  title={externalSource(w, mounts, userHome)?.folder ?? undefined}
+                                >
+                                  <Icon name="folder" size={11} />
+                                  {t('library.externalBadge')}
+                                </span>
+                              )}
+                              {isMissing(w) && <MissingChip />}
+                              <ProjectDots
+                                projectIds={w.project_ids}
+                                projects={projectList}
+                                currentId={projectId}
+                              />
+                            </span>
+                          </td>
+                          <td className="muted">{WORK_TYPE[w.type].label}</td>
+                          <td>
+                            <Chip tone={WORK_STATUS[w.status].tone}>
+                              {WORK_STATUS[w.status].label}
+                            </Chip>
+                          </td>
+                          <td className="muted">
+                            {externalSource(w, mounts, userHome)?.label ?? sourceLabel(w)}
+                          </td>
+                          <td className="faint">{w.tags.map((tag) => `#${tag}`).join(' ')}</td>
+                          <td className="faint tbl__right">{formatWhen(w.updated_at)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {works !== null && works.length > 0 && (
+                // The rest of the works load as the end of the list comes near (QC-067).
+                <LoadMore
+                  hasMore={feedState.hasMore}
+                  loading={feedState.loading}
+                  failed={feedState.failed}
+                  onMore={() => {
+                    // After a failure (a stale cursor, the service away) read again from the top.
+                    void (feedState.failed ? feed.refresh() : feed.loadMore());
+                  }}
+                />
+              )}
+            </section>
+          </>
+        )}
 
-      {menu !== null && menuTargets.length > 0 && (
-        <ContextMenu
-          anchor={menu.anchor}
-          label={
-            menuTargets.length === 1
-              ? t('workActions.menuFor', { title: menuTargets[0]?.title ?? '' })
-              : t('workActions.menuForMany', { count: menuTargets.length })
-          }
-          items={menuItems(menu.ids)}
-          onClose={() => {
-            setMenu(null);
-          }}
-        />
-      )}
-      {barMenu !== null && selectedWorks.length > 0 && (
-        <ContextMenu
-          anchor={barMenu}
-          label={t('workActions.changeStatus')}
-          items={STATUS_ORDER.map((st) => ({
-            kind: 'item',
-            id: `bar-status-${st}`,
-            label: WORK_STATUS[st].label,
-            checked: selectedWorks.every((w) => w.status === st),
-            onSelect: () => {
-              void changeStatus(
-                selectedWorks.filter((w) => !isMissing(w)),
-                st,
-              );
-            },
-          }))}
-          onClose={() => {
-            setBarMenu(null);
-          }}
-        />
-      )}
-      {projectBar !== null && selectedWorks.length > 0 && store !== null && (
-        <ContextMenu
-          anchor={projectBar}
-          label={t('projects.projectButton')}
-          items={projectEntries({
-            store,
-            projects: projectList,
-            works: selectedWorks,
-            notify: notifyProject,
-            onNew: () => {
-              setNewProjectFor(selectedWorks);
-            },
-            after: load,
-          })}
-          onClose={() => {
-            setProjectBar(null);
-          }}
-        />
-      )}
-      {newProjectFor !== null && (
-        <NewProjectDialog
-          onCancel={() => {
-            setNewProjectFor(null);
-          }}
-          onCreate={(name, color) => {
-            void createProjectWith(newProjectFor, name, color);
-          }}
-        />
-      )}
-      {projectMenu.node}
-      {confirm?.kind === 'delete' && (
-        <DeleteDialog
-          works={confirm.works}
-          onCancel={() => {
-            setConfirm(null);
-          }}
-          onConfirm={(moveOriginal) => {
-            void deleteWorks(confirm.works, moveOriginal);
-          }}
-        />
-      )}
-      {confirm?.kind === 'tags' && (
-        <TagsDialog
-          mode={confirm.mode}
-          works={confirm.works}
-          onCancel={() => {
-            setConfirm(null);
-          }}
-          onApply={(tags) => {
-            void changeTags(confirm.works, confirm.mode, tags);
-          }}
-        />
-      )}
-    </main>
+        {menu !== null && menuTargets.length > 0 && (
+          <ContextMenu
+            anchor={menu.anchor}
+            label={
+              menuTargets.length === 1
+                ? t('workActions.menuFor', { title: menuTargets[0]?.title ?? '' })
+                : t('workActions.menuForMany', { count: menuTargets.length })
+            }
+            items={menuItems(menu.ids)}
+            onClose={() => {
+              setMenu(null);
+            }}
+          />
+        )}
+        {barMenu !== null && selectedWorks.length > 0 && (
+          <ContextMenu
+            anchor={barMenu}
+            label={t('workActions.changeStatus')}
+            items={STATUS_ORDER.map((st) => ({
+              kind: 'item',
+              id: `bar-status-${st}`,
+              label: WORK_STATUS[st].label,
+              checked: selectedWorks.every((w) => w.status === st),
+              onSelect: () => {
+                void changeStatus(
+                  selectedWorks.filter((w) => !isMissing(w)),
+                  st,
+                );
+              },
+            }))}
+            onClose={() => {
+              setBarMenu(null);
+            }}
+          />
+        )}
+        {projectBar !== null && selectedWorks.length > 0 && store !== null && (
+          <ContextMenu
+            anchor={projectBar}
+            label={t('projects.projectButton')}
+            items={projectEntries({
+              store,
+              projects: projectList,
+              works: selectedWorks,
+              notify: notifyProject,
+              onNew: () => {
+                setNewProjectFor(selectedWorks);
+              },
+              after: load,
+            })}
+            onClose={() => {
+              setProjectBar(null);
+            }}
+          />
+        )}
+        {newProjectFor !== null && (
+          <NewProjectDialog
+            onCancel={() => {
+              setNewProjectFor(null);
+            }}
+            onCreate={(name, color) => {
+              void createProjectWith(newProjectFor, name, color);
+            }}
+          />
+        )}
+        {projectMenu.node}
+        {confirm?.kind === 'delete' && (
+          <DeleteDialog
+            works={confirm.works}
+            onCancel={() => {
+              setConfirm(null);
+            }}
+            onConfirm={(moveOriginal) => {
+              void deleteWorks(confirm.works, moveOriginal);
+            }}
+          />
+        )}
+        {confirm?.kind === 'tags' && (
+          <TagsDialog
+            mode={confirm.mode}
+            works={confirm.works}
+            onCancel={() => {
+              setConfirm(null);
+            }}
+            onApply={(tags) => {
+              void changeTags(confirm.works, confirm.mode, tags);
+            }}
+          />
+        )}
+      </main>
+    </SearchHighlight>
   );
 }
 
@@ -1782,8 +1793,11 @@ function WorkCard({
           }}
           onDoubleClick={onTitleDoubleClick}
         >
-          {work.title}
+          <Highlight text={work.title} />
         </span>
+        {work.match_excerpt != null && (
+          <span className="visually-hidden">{work.match_excerpt}</span>
+        )}
         {meta}
       </span>
       {selected && <span className="visually-hidden">{t('workActions.isSelected')}</span>}
