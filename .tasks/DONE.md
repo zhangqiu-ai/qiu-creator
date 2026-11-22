@@ -1,5 +1,11 @@
 # Done
 
+## QC-059: editor-tabs e2e 游標還原偶發失敗
+
+**Priority:** P2 | **Assignee:** qc-test（診斷）→ qc-bugfix（修正） | **Tags:** M3 | **Done:** 2026-11-21
+
+- 產品競態：游標只靠非同步 `selectionchange` 保存。修正為在離開前景的 layout cleanup 同步讀取游標（`rememberSelection()`），並把重現案例寫成永久 e2e。證據 `docs/evidence/qc059-caret-race.md`。
+
 ## QC-056: AI 工作台版面重整（捲動後錯位）
 
 **Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend | **Done:** 2026-11-21
