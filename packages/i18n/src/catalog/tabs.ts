@@ -31,6 +31,9 @@ export const tabs = defineMessages({
       '這個作品有尚未處理的衝突。不儲存並關閉後，還可以用提示裡的「重新開啟」找回你的修改。',
     retrySave: '重試儲存',
     discardClose: '不儲存並關閉',
+    candidateTitle: '「{title}」還有 AI 候選沒有保留',
+    candidateBody: '關閉後，這些候選會被捨棄；原稿不會改變。',
+    discardCandidatesClose: '捨棄並關閉',
     stillUnsaved: '還是沒有儲存成功，修改仍保留在分頁裡',
   },
   'zh-Hans': {
@@ -62,6 +65,9 @@ export const tabs = defineMessages({
       '这个作品有尚未处理的冲突。不保存并关闭后，还可以用提示里的“重新打开”找回你的修改。',
     retrySave: '重试保存',
     discardClose: '不保存并关闭',
+    candidateTitle: '「{title}」还有 AI 候选没有保留',
+    candidateBody: '关闭后，这些候选会被舍弃；原稿不会改变。',
+    discardCandidatesClose: '舍弃并关闭',
     stillUnsaved: '还是没有保存成功，修改仍保留在标签页里',
   },
   en: {
@@ -97,6 +103,9 @@ export const tabs = defineMessages({
       'This work has a conflict you haven’t resolved. If you close without saving, Reopen in the notice brings your changes back.',
     retrySave: 'Retry save',
     discardClose: 'Close without saving',
+    candidateTitle: '“{title}” has AI candidates you haven’t kept',
+    candidateBody: 'Closing discards them; your text stays as it is.',
+    discardCandidatesClose: 'Discard and close',
     stillUnsaved: 'Still couldn’t save. Your changes stay in the tab.',
   },
 });

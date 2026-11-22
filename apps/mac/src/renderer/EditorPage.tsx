@@ -1,7 +1,14 @@
 import { sessionHandle, type EditorTabHandle } from './tab-handle.js';
 import type { CreatorHubClient } from '@qiu-creator/api-client';
-import type { AssetRecord, Revision, WorkDetail, WorkStatus } from '@qiu-creator/contracts';
+import type {
+  AssetRecord,
+  Revision,
+  RewriteMode,
+  WorkDetail,
+  WorkStatus,
+} from '@qiu-creator/contracts';
 import {
+  blockEndAt,
   blockNumbers,
   MarkdownEditor,
   type EditorMode,
@@ -18,8 +25,12 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { codeText, t, useLocale } from './i18n.js';
-import { AiPanel, type AiSelection } from './AiPanel.js';
-import { AiProviders, RewriteSession, TitleSession } from './ai-session.js';
+import { AiPanel, type AiSelection, type AiTab } from './AiPanel.js';
+import { AI_BLOCK_LABEL, AiProviders, RewriteSession, TitleSession } from './ai-session.js';
+import { ImageGenSession, pendingCandidates } from './ai-images.js';
+import { chooseModel, useCostConfirm } from './AiImageTab.js';
+import { InlineAi } from './InlineAi.js';
+import { SelectionToolbar, type ToolbarAction } from './SelectionToolbar.js';
 import { Chip } from './Chip.js';
 import { SaveChip } from './SaveChip.js';
 import { ConflictDialog } from './ConflictDialog.js';
@@ -258,6 +269,17 @@ function SessionEditor({
   const [drawerOpen, setDrawerOpen] = useState(initialView?.panel === 'assets');
   const [slashAt, setSlashAt] = useState<{ x: number; y: number } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /** A quiet confirmation (an AI candidate kept), shown as an ok toast. */
+  const [okNotice, setOkNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (okNotice === null) return;
+    const timer = setTimeout(() => {
+      setOkNotice(null);
+    }, 4000);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [okNotice]);
   /** Where the next insert from the `/` menu goes (computed when `/` is pressed). */
   const pendingWhere = useRef<InsertWhere | null>(null);
   const takeWhere = (): InsertWhere => {
@@ -334,18 +356,43 @@ function SessionEditor({
     providers: AiProviders;
     rewrite: RewriteSession;
     titles: TitleSession;
+    images: ImageGenSession;
   } | null>(null);
   useEffect(() => {
     const providers = new AiProviders(client);
     const rewrite = new RewriteSession(client, session, providers);
     const titles = new TitleSession(client, work.id, providers);
-    setAi({ providers, rewrite, titles });
+    const images = new ImageGenSession(client, session, providers);
+    setAi({ providers, rewrite, titles, images });
     void rewrite.loadProvider();
+    void images.load();
     return () => {
       rewrite.dispose();
       titles.dispose();
+      images.dispose();
     };
   }, [client, session, work.id]);
+  /** A rewrite asked for from the selection toolbar in the visual editor: shown in place (QC-070). */
+  const [rewriteTarget, setRewriteTarget] = useState<{
+    range: MarkdownRange;
+    mode: RewriteMode;
+  } | null>(null);
+  const closeRewriteTarget = useCallback(() => {
+    setRewriteTarget(null);
+  }, []);
+  const [tabRequest, setTabRequest] = useState<{ tab: AiTab; n: number } | undefined>(undefined);
+  const showAiTab = (tab: AiTab) => {
+    setHistoryOpen(false);
+    setDrawerOpen(false);
+    setTabRequest((r) => ({ tab, n: (r?.n ?? 0) + 1 }));
+  };
+  const costConfirm = useCostConfirm();
+  const imageState = useSyncExternalStore(
+    useCallback((cb: () => void) => ai?.images.subscribe(cb) ?? (() => undefined), [ai]),
+    () => ai?.images.snapshot ?? null,
+  );
+  const unkeptImages = imageState === null ? 0 : pendingCandidates(imageState);
+  const imagesBusy = imageState?.jobs.some((j) => j.phase === 'generating') === true;
   const [selectionRange, setSelectionRange] = useState<MarkdownRange | null>(null);
   useEffect(() => {
     setSelectionRange(null);
@@ -370,6 +417,67 @@ function SessionEditor({
     return { range, label, words: countWords(md.slice(range.start, range.end)) };
   }, [selectionRange, state.draft.markdown, locale]);
 
+  /** Where 插入到游標處 puts an image: after the block holding the last caret. */
+  const insertOffset = useCallback((): number => {
+    const md = state.draft.markdown;
+    return blockEndAt(md, Math.min(selectionRange?.end ?? md.length, md.length));
+  }, [state.draft.markdown, selectionRange]);
+
+  /** 配圖 is off without New API or without an image model: say why. */
+  const imageDisabledReason =
+    imageState === null
+      ? null
+      : imageState.block !== null
+        ? AI_BLOCK_LABEL[imageState.block]
+        : imageState.models !== null && imageState.models.length === 0
+          ? t('ai.noImageModel')
+          : null;
+
+  /** The selection toolbar's actions (QC-070). */
+  const onToolbar = (action: ToolbarAction, range: MarkdownRange) => {
+    if (ai === null) return;
+    const md = state.draft.markdown;
+    if (action.kind === 'image') {
+      const model = chooseModel(imageState?.models ?? null);
+      if (model === '') {
+        setNotice(t('ai.noImageModel'));
+        return;
+      }
+      const prompt = md.slice(range.start, range.end).trim().slice(0, 4000);
+      const request = {
+        purpose: 'image' as const,
+        model,
+        prompt,
+        aspectRatio: '16:9' as const,
+        count: 2,
+      };
+      void ai.images.estimate(request).then(async (est) => {
+        const unknown = est !== null && est.estimate.max_cost_usd === null;
+        if (!(await costConfirm.confirm(model, unknown))) return;
+        if (mode === 'visual') {
+          await ai.images.generate(request, {
+            origin: 'inline',
+            anchor: blockEndAt(md, range.end),
+          });
+        } else {
+          // Source mode never covers the text: the images come in the side panel.
+          showAiTab('image');
+          await ai.images.generate(request, { origin: 'panel' });
+        }
+      });
+      return;
+    }
+    const input = {
+      mode: action.mode,
+      ...(action.mode === 'tone' ? { tone: action.tone } : {}),
+      ...(action.mode === 'custom' ? { instruction: action.instruction } : {}),
+      range,
+    };
+    if (mode === 'visual') setRewriteTarget({ range, mode: action.mode });
+    else showAiTab('rewrite');
+    void ai.rewrite.generate(input);
+  };
+
   const mounts = useMounts(client);
   const source = externalSource(work, mounts, userHome);
 
@@ -390,6 +498,7 @@ function SessionEditor({
     if (event.entity === 'job' && event.action.startsWith('ai_job.')) {
       void ai?.rewrite.jobChanged(event.entity_id);
       void ai?.titles.jobChanged(event.entity_id);
+      void ai?.images.jobChanged(event.entity_id);
       return;
     }
     if (event.entity !== 'work' || event.entity_id !== work.id) return;
@@ -495,13 +604,15 @@ function SessionEditor({
   );
   useEffect(() => {
     onTabStatus?.({
-      aiCandidate: rewriteState?.candidate != null || titleState?.phase === 'ready',
+      aiCandidate:
+        rewriteState?.candidate != null || titleState?.phase === 'ready' || unkeptImages > 0,
       aiBusy:
         rewriteState?.phase === 'loading' ||
         titleState?.phase === 'loading' ||
-        titleState?.writing === true,
+        titleState?.writing === true ||
+        imagesBusy,
     });
-  }, [rewriteState, titleState, onTabStatus]);
+  }, [rewriteState, titleState, unkeptImages, imagesBusy, onTabStatus]);
 
   const panel: TabPanel = historyOpen ? 'history' : drawerOpen ? 'assets' : 'ai';
   /** Kept up to date while the tab is in front, read when it goes to the background or unloads. */
@@ -685,15 +796,21 @@ function SessionEditor({
   }, [conflict]);
   const remoteN = state.remote === null ? undefined : numbers.get(state.remote.revisionId);
   // Notices go through the shared queue (QC-045); a background tab shows none.
-  const shownNotice = notice ?? insertState.notice?.message ?? null;
+  const shownNotice = notice ?? okNotice ?? insertState.notice?.message ?? null;
   useToast(
     !active || shownNotice === null
       ? null
       : {
           message: shownNotice,
-          tone: notice === null && insertState.notice?.tone === 'ok' ? 'ok' : 'bad',
+          tone:
+            notice !== null
+              ? 'bad'
+              : okNotice !== null || insertState.notice?.tone === 'ok'
+                ? 'ok'
+                : 'bad',
           onClose: () => {
             setNotice(null);
+            setOkNotice(null);
             insert?.dismissNotice();
           },
         },
@@ -747,6 +864,9 @@ function SessionEditor({
                 else void session.save();
               }}
             />
+            {(unkeptImages > 0 || rewriteState?.candidate != null) && (
+              <span className="chip chip--warn editor__unkept">{t('ai.unkept')}</span>
+            )}
           </span>
           {state.status === 'error' && (
             <button
@@ -1030,6 +1150,42 @@ function SessionEditor({
               void insert?.insertFiles(images, where);
             }}
           >
+            {ai !== null && (
+              <SelectionToolbar
+                editor={editor}
+                scroller={docRef}
+                mode={mode}
+                active={active}
+                disabled={
+                  readOnly ||
+                  rewriteTarget !== null ||
+                  rewriteState?.phase === 'loading' ||
+                  rewriteState?.phase === 'busy'
+                }
+                imageDisabledReason={imageDisabledReason}
+                onAction={onToolbar}
+              />
+            )}
+            {ai !== null && mode === 'visual' && (
+              <InlineAi
+                editor={editor}
+                scroller={docRef}
+                rewrite={ai.rewrite}
+                rewriteTarget={rewriteTarget}
+                images={ai.images}
+                layoutKey={`${state.draft.markdown.length}:${String(editorKey)}:${String(state.epoch)}`}
+                active={active}
+                readOnly={readOnly}
+                onRewriteClosed={closeRewriteTarget}
+                onNotice={setOkNotice}
+              />
+            )}
+            <CoverStrip
+              client={client}
+              workId={work.id}
+              markdown={state.saved.markdown}
+              revision={state.baseRevision}
+            />
             <PendingInserts
               pending={insertState.pending}
               onRetry={(key) => {
@@ -1090,6 +1246,15 @@ function SessionEditor({
               readOnly={readOnly}
               revisionNumber={(id) => numbers.get(id)}
               refreshToken={providersEpoch}
+              images={ai.images}
+              selectionText={
+                aiSelection.range === null
+                  ? ''
+                  : state.draft.markdown.slice(aiSelection.range.start, aiSelection.range.end)
+              }
+              insertOffset={insertOffset}
+              onNotice={setOkNotice}
+              {...(tabRequest === undefined ? {} : { tabRequest })}
               onOpenSettings={() => {
                 void session.save().finally(() => onOpenSettings?.());
               }}
@@ -1138,6 +1303,7 @@ function SessionEditor({
         />
       </main>
 
+      {costConfirm.node}
       {dialogOpen && (
         <ConflictDialog
           session={session}
@@ -1150,5 +1316,60 @@ function SessionEditor({
         />
       )}
     </>
+  );
+}
+
+/** The `cover:` of the front matter, if any (QC-070: an article's cover). */
+export function frontMatterCover(markdown: string): string | null {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(markdown);
+  if (m === null) return null;
+  const line = /^cover:\s*(.+?)\s*$/m.exec(m[1] ?? '');
+  const value = line?.[1]?.replace(/^['"]|['"]$/g, '') ?? '';
+  return value === '' ? null : value;
+}
+
+/**
+ * 封面 at the top of an article (QC-070, PT-20261122-002): once a cover is set
+ * (front-matter `cover:`), a slim strip above the text shows it. The image is
+ * the work's card image (QC-061), which is the front-matter cover for an
+ * article; the text itself is unchanged.
+ */
+function CoverStrip({
+  client,
+  workId,
+  markdown,
+  revision,
+}: {
+  client: CreatorHubClient;
+  workId: string;
+  markdown: string;
+  revision: string;
+}) {
+  const src = frontMatterCover(markdown);
+  const [shown, setShown] = useState<{ key: string; url: string } | null>(null);
+  const key = `${src ?? ''}@${revision}`;
+  useEffect(() => {
+    if (src === null) return;
+    let alive = true;
+    void client.works.list({ ids: [workId] }).then(
+      (res) => {
+        const url = res.items[0]?.card_image?.url ?? null;
+        if (alive && url !== null) setShown({ key, url: client.media.absoluteUrl(url) });
+      },
+      () => undefined,
+    );
+    return () => {
+      alive = false;
+    };
+  }, [client, workId, src, key]);
+  if (src === null || shown === null) return null;
+  return (
+    <figure className="cover-strip">
+      <img className="cover-strip__img" src={shown.url} alt="" />
+      <figcaption className="cover-strip__label">
+        {t('ai.coverLabel')}
+        <span className="cover-strip__src mono">{src}</span>
+      </figcaption>
+    </figure>
   );
 }

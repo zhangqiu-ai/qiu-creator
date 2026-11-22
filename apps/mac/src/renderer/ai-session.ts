@@ -92,7 +92,7 @@ export function pickProvider(
   return { provider: null, block: items.some((p) => p.key_configured) ? 'consent' : 'key' };
 }
 
-function blockOf(err: unknown): AiBlock | null {
+export function blockOf(err: unknown): AiBlock | null {
   if (!(err instanceof ApiError)) return null;
   if (err.code === 'ai_key_missing') return 'key';
   if (err.code === 'ai_consent_required') return 'consent';
@@ -104,7 +104,7 @@ function blockOf(err: unknown): AiBlock | null {
  * (English) message (QC-042). A failed fetch is reported as 「無法連線到服務」,
  * the wording these panels have always used.
  */
-function messageOf(err: unknown): string {
+export function messageOf(err: unknown): string {
   return err instanceof ApiError ? codeText(err.code) : t('common.cannotConnect');
 }
 

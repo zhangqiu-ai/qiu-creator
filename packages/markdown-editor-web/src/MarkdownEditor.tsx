@@ -22,6 +22,7 @@ import {
   type MarkdownRange,
 } from './selection.js';
 import { editorTranslation } from './translation.js';
+import { textareaLineRect } from './caret.js';
 
 export type EditorMode = 'visual' | 'source';
 
@@ -92,6 +93,19 @@ export interface MarkdownEditorHandle {
    * visual mode (the visual editor has no source offsets). Focuses the editor.
    */
   restoreSelection: (range: MarkdownRange) => void;
+  /**
+   * Where the selection is on screen (QC-070, the selection toolbar): the
+   * selected text's box in visual mode, the first selected line in source mode
+   * (`left` is the text area's left edge). Null without a selection inside the
+   * editor, or with only a caret.
+   */
+  selectionRect: () => { top: number; left: number; width: number; height: number } | null;
+  /**
+   * Visual mode: the rendered top-level elements of the blocks that `range`
+   * covers, in order (QC-070: to frame a paragraph or draw a placeholder after
+   * it). Null in source mode or when the rendered blocks cannot be matched.
+   */
+  blockElements: (range: MarkdownRange) => HTMLElement[] | null;
 }
 
 /**
@@ -389,6 +403,44 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       [mode, renderedBlocks],
     );
 
+    const selectionRect = useCallback((): {
+      top: number;
+      left: number;
+      width: number;
+      height: number;
+    } | null => {
+      if (mode === 'source') {
+        const t = textarea.current;
+        if (t === null || document.activeElement !== t || t.selectionStart === t.selectionEnd)
+          return null;
+        const line = textareaLineRect(t, t.selectionStart);
+        return { top: line.top, left: line.left, width: 0, height: line.height };
+      }
+      const root = container.current?.querySelector('.qc-md-editor__content');
+      const sel = window.getSelection();
+      if (root == null || sel === null || sel.rangeCount === 0 || sel.isCollapsed) return null;
+      const r = sel.getRangeAt(0);
+      if (!root.contains(r.startContainer) || !root.contains(r.endContainer)) return null;
+      const box = r.getBoundingClientRect();
+      return { top: box.top, left: box.left, width: box.width, height: box.height };
+    }, [mode]);
+
+    const blockElements = useCallback(
+      (range: MarkdownRange): HTMLElement[] | null => {
+        if (mode !== 'visual') return null;
+        const blocks = markdownBlocks(current.current);
+        const rendered = renderedBlocks();
+        if (rendered === null || rendered.length !== blocks.length) return null;
+        const out: HTMLElement[] = [];
+        blocks.forEach((b, i) => {
+          const el = rendered[i];
+          if (el instanceof HTMLElement && b.start < range.end && b.end > range.start) out.push(el);
+        });
+        return out.length === 0 ? null : out;
+      },
+      [mode, renderedBlocks],
+    );
+
     useImperativeHandle(
       ref,
       () => ({
@@ -404,8 +456,19 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         insertBlock,
         boundaryAt,
         restoreSelection,
+        selectionRect,
+        blockElements,
       }),
-      [mode, requestMode, selectionRange, insertBlock, boundaryAt, restoreSelection],
+      [
+        mode,
+        requestMode,
+        selectionRange,
+        insertBlock,
+        boundaryAt,
+        restoreSelection,
+        selectionRect,
+        blockElements,
+      ],
     );
 
     const locale = props.locale ?? SOURCE_LOCALE;
