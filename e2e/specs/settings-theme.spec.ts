@@ -120,13 +120,14 @@ test('設定：分類導覽、主題即時套用並記住、備份預設 3 份',
 
   await test.step('備份清單預設 3 份，可展開與收起', async () => {
     await cats.getByRole('button', { name: '備份與還原' }).click();
-    const list = page.getByRole('list', { name: '最近備份' });
-    await expect(list.getByRole('listitem')).toHaveCount(3);
+    // 設定 v4 (QC-057): the history is a table (when, kind, size, 還原…).
+    const list = page.getByRole('table', { name: '最近備份' });
+    await expect(list.getByRole('row')).toHaveCount(3);
     await page.getByRole('button', { name: '全部 5 份' }).click();
-    await expect(list.getByRole('listitem')).toHaveCount(5);
+    await expect(list.getByRole('row')).toHaveCount(5);
     await shot(page, '03-backups-expanded-light');
     await page.getByRole('button', { name: '收起', exact: true }).click();
-    await expect(list.getByRole('listitem')).toHaveCount(3);
+    await expect(list.getByRole('row')).toHaveCount(3);
   });
 
   await test.step('深色與窄視窗截圖', async () => {

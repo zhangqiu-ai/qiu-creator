@@ -4,7 +4,8 @@ import {
   backupSummary,
   formatStamp,
   KIND_LABEL,
-  nextDailyLabel,
+  dailyScheduleText,
+  firstBackupText,
   type BackupSession,
   type BackupState,
   type RestorePhase,
@@ -12,7 +13,7 @@ import {
 import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
 import { tildePath } from './format.js';
-import { t } from './i18n.js';
+import { formatBytes, t } from './i18n.js';
 import { backupReasonText } from './server-text.js';
 import { TechnicalDetails } from './TechnicalDetails.js';
 import { Icon } from './Icon.js';
@@ -44,7 +45,6 @@ export function BackupSection({
   const [showAll, setShowAll] = useState(false);
   const list = s.list;
   const busy = s.restore.phase === 'sending' || s.restore.phase === 'reloading';
-  const latest = list?.backups[0] ?? null;
   const rows = list === null ? [] : showAll ? list.backups : list.backups.slice(0, VISIBLE_ROWS);
 
   return (
@@ -73,8 +73,6 @@ export function BackupSection({
           )}
         </div>
       </header>
-      <p className="set-fn">{t('serviceSettings.backupSub')}</p>
-
       <RestoreNotice
         restore={s.restore}
         external={s.externalRestore}
@@ -86,197 +84,193 @@ export function BackupSection({
         }}
       />
 
-      <div className="card">
-        <div className="ln">
-          <div className="ln__main">
-            <span className="ln__k">{t('serviceSettings.backupLatest')}</span>
-            <span className="ln__v">
-              {list === null
-                ? '—'
-                : latest === null
-                  ? t('serviceSettings.backupNone')
-                  : `${formatStamp(latest.created_at)} · ${backupSummary(latest)}`}
-            </span>
-            {s.created !== null && !s.creating && (
-              <span className="ln__v backup__ok" role="status">
-                {t(
-                  s.created.integrity === 'failed'
-                    ? 'serviceSettings.backupDoneBroken'
-                    : 'serviceSettings.backupDone',
-                  { when: formatStamp(s.created.created_at) },
-                )}
-              </span>
-            )}
-            {s.createError !== null && (
-              <span className="ln__err" role="alert">
-                {s.createError.message}
-                {s.createError.reason != null && (
-                  <span className="err-reason">{s.createError.reason}</span>
-                )}
-                <TechnicalDetails text={s.createError.detail} />
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="ln">
-          <div className="ln__main">
-            <span className="ln__k">{t('serviceSettings.backupDaily')}</span>
-            <span className="ln__v">
-              {list === null
-                ? '—'
-                : t('serviceSettings.backupDailyTimes', {
-                    last:
-                      list.last_daily_at === null
-                        ? t('serviceSettings.backupDailyNever')
-                        : formatStamp(list.last_daily_at),
-                    next: nextDailyLabel(list.next_daily_at),
-                  })}
-            </span>
+      <section className="set-g" aria-labelledby="set-g-auto">
+        <h2 className="set-g__t" id="set-g-auto">
+          {t('settingsPages.gAuto')}
+        </h2>
+        <div className="set-list">
+          <div className="set-row set-row--top">
+            <div className="set-row__k">
+              <b>{t('serviceSettings.backupDaily')}</b>
+              <span className="set-row__wrap">{list === null ? '—' : dailyScheduleText(list)}</span>
+              {list?.last_error != null && (
+                <span className="set-err set-row__wrap" role="alert">
+                  {t('serviceSettings.backupDailyFailedLabel')}
+                  <span>{backupReasonText(list.last_error_reason)}</span>
+                  <TechnicalDetails text={list.last_error} />
+                </span>
+              )}
+            </div>
             {list !== null && (
-              <span className="ln__v faint backup__wrap">
-                {t('serviceSettings.backupRetention', { count: list.retention_per_kind })}
-              </span>
-            )}
-            {list?.last_error != null && (
-              <span className="ln__err" role="alert">
-                {t('serviceSettings.backupDailyFailedLabel')}
-                <span>{backupReasonText(list.last_error_reason)}</span>
-                <TechnicalDetails text={list.last_error} />
+              <span className={`set-st set-st--${list.last_error != null ? 'bad' : 'ok'}`}>
+                <i aria-hidden="true" />
+                {list.last_error != null
+                  ? t('serviceSettings.chipFailed')
+                  : t('serviceSettings.chipOn')}
               </span>
             )}
           </div>
-          {list?.last_error != null ? (
-            <Chip tone="bad">{t('serviceSettings.chipFailed')}</Chip>
-          ) : (
-            list !== null && <Chip tone="ok">{t('serviceSettings.chipOn')}</Chip>
-          )}
-        </div>
-
-        <div className="ln">
-          <div className="ln__main">
-            <span className="ln__k">{t('serviceSettings.backupLocation')}</span>
-            <span className="ln__v mono" title={list?.directory}>
-              {list === null ? '—' : tildePath(list.directory, userHome)}
+          <div className="set-row">
+            <div className="set-row__k">
+              <b>{t('settingsPages.keep')}</b>
+            </div>
+            <span className="set-row__v">
+              {list === null
+                ? '—'
+                : t('settingsPages.keepValue', { count: list.retention_per_kind })}
             </span>
           </div>
-          <button
-            type="button"
-            className="btn btn--ghost btn--small"
-            disabled={list === null}
-            onClick={() => {
-              void window.creatorhub?.reveal({ kind: 'backups' });
-            }}
-          >
-            {t('common.revealInFinder')}
-          </button>
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="ln ln--head">
-          <span className="ln__k ln__main">{t('serviceSettings.restoreFromBackup')}</span>
-          {list !== null && list.backups.length > 0 && (
-            <span className="ln__v faint">
-              {t('serviceSettings.backupCount', { count: list.backups.length })}
-            </span>
-          )}
-        </div>
-        {s.loadError !== null && list === null ? (
-          <div className="ln">
-            <span className="ln__main ln__err" role="alert">
-              {t('serviceSettings.backupListFailed')}
-            </span>
-            <button
-              type="button"
-              className="btn btn--small"
-              onClick={() => {
-                void session.load();
-              }}
-            >
-              {t('common.retry')}
-            </button>
-          </div>
-        ) : list === null ? (
-          <div className="ln" aria-busy="true">
-            <span className="skel skel--line" style={{ width: '60%' }} />
-          </div>
-        ) : list.backups.length === 0 ? (
-          <div className="ln backup__empty">
-            <Icon name="history" />
-            <span className="ln__main">
-              <span>{t('serviceSettings.backupEmptyTitle')}</span>
-              <span className="ln__v faint">
-                {t('serviceSettings.backupEmptyHint', {
-                  next: nextDailyLabel(list.next_daily_at),
-                })}
+          <div className="set-row">
+            <div className="set-row__k">
+              <b>{t('settingsPages.location')}</b>
+              <span className="mono" title={list?.directory}>
+                {list === null ? '—' : tildePath(list.directory, userHome)}
               </span>
-            </span>
-          </div>
-        ) : (
-          <ul className="backup__list" aria-label={t('serviceSettings.backupListLabel')}>
-            {rows.map((b) => (
-              <li key={b.id} className="ln backup__row">
-                <div className="ln__main">
-                  <span className="ln__k">{formatStamp(b.created_at)}</span>
-                  <span className="ln__v">
-                    {backupSummary(b)}
-                    {b.schema_version !== null &&
-                      ` · ${t('serviceSettings.backupSchema', { version: b.schema_version })}`}
-                  </span>
-                </div>
-                <Chip
-                  tone={
-                    b.kind === 'pre_restore' ? 'warn' : b.kind === 'manual' ? 'accent' : 'neutral'
-                  }
-                >
-                  {KIND_LABEL[b.kind]}
-                </Chip>
-                {b.integrity === 'ok' ? (
-                  <Chip tone="ok">
-                    <Icon name="check" size={12} />
-                    {t('serviceSettings.backupIntact')}
-                  </Chip>
-                ) : (
-                  <Chip tone="bad">{t('serviceSettings.backupBroken')}</Chip>
-                )}
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--small"
-                  disabled={b.integrity !== 'ok' || busy || s.externalRestore}
-                  title={
-                    b.integrity === 'ok' ? undefined : t('serviceSettings.restoreDisabledHint')
-                  }
-                  aria-label={t('serviceSettings.restoreTo', {
-                    when: formatStamp(b.created_at),
-                  })}
-                  onClick={() => {
-                    setConfirming(b);
-                  }}
-                >
-                  {t('serviceSettings.restore')}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {list !== null && list.backups.length > VISIBLE_ROWS && (
-          <div className="ln ln--more">
+            </div>
             <button
               type="button"
               className="btn btn--ghost btn--small"
+              disabled={list === null}
               onClick={() => {
-                setShowAll(!showAll);
+                void window.creatorhub?.reveal({ kind: 'backups' });
               }}
             >
-              <Icon name={showAll ? 'chevronUp' : 'chevronDown'} size={14} />
-              {showAll
-                ? t('serviceSettings.showLess')
-                : t('serviceSettings.showAllBackups', { count: list.backups.length })}
+              {t('common.revealInFinder')}
             </button>
           </div>
+        </div>
+        {s.created !== null && !s.creating && (
+          <p className="set-fn backup__ok" role="status">
+            {t(
+              s.created.integrity === 'failed'
+                ? 'serviceSettings.backupDoneBroken'
+                : 'serviceSettings.backupDone',
+              { when: formatStamp(s.created.created_at) },
+            )}
+          </p>
         )}
-      </div>
+        {s.createError !== null && (
+          <p className="set-err" role="alert">
+            {s.createError.message}
+            {s.createError.reason != null && (
+              <span className="err-reason">{s.createError.reason}</span>
+            )}
+            <TechnicalDetails text={s.createError.detail} />
+          </p>
+        )}
+        <p className="set-fn">{t('serviceSettings.backupSub')}</p>
+      </section>
+
+      <section className="set-g" aria-labelledby="set-g-history">
+        <h2 className="set-g__t" id="set-g-history">
+          {t('settingsPages.gHistory')}
+          {list !== null && list.backups.length > 0 && (
+            <span className="set-g__r num">
+              {t('serviceSettings.backupCount', { count: list.backups.length })}
+            </span>
+          )}
+        </h2>
+        <div className="set-list">
+          {s.loadError !== null && list === null ? (
+            <div className="set-row">
+              <span className="set-row__k set-err" role="alert">
+                {t('serviceSettings.backupListFailed')}
+              </span>
+              <button
+                type="button"
+                className="btn btn--small"
+                onClick={() => {
+                  void session.load();
+                }}
+              >
+                {t('common.retry')}
+              </button>
+            </div>
+          ) : list === null ? (
+            <div className="set-row" aria-busy="true">
+              <span className="skel skel--line" style={{ width: '60%' }} />
+            </div>
+          ) : list.backups.length === 0 ? (
+            <div className="set-row">
+              <span className="set-row__ic" aria-hidden="true">
+                <Icon name="history" />
+              </span>
+              <div className="set-row__k">
+                <b>{t('serviceSettings.backupEmptyTitle')}</b>
+                <span className="set-row__wrap">{firstBackupText(list)}</span>
+              </div>
+            </div>
+          ) : (
+            <table className="set-table" aria-label={t('serviceSettings.backupListLabel')}>
+              <tbody>
+                {rows.map((b) => (
+                  <tr key={b.id}>
+                    <td className="set-table__main">
+                      <span className="num">{formatStamp(b.created_at)}</span>
+                      {b.integrity !== 'ok' && (
+                        <span className="set-st set-st--bad">
+                          <i aria-hidden="true" />
+                          {t('serviceSettings.backupBroken')}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <Chip
+                        tone={
+                          b.kind === 'pre_restore'
+                            ? 'warn'
+                            : b.kind === 'manual'
+                              ? 'accent'
+                              : 'neutral'
+                        }
+                      >
+                        {KIND_LABEL[b.kind]}
+                      </Chip>
+                    </td>
+                    <td className="num faint">{formatBytes(b.size_bytes)}</td>
+                    <td className="set-table__act">
+                      <button
+                        type="button"
+                        className="btn btn--ghost btn--small"
+                        disabled={b.integrity !== 'ok' || busy || s.externalRestore}
+                        title={
+                          b.integrity === 'ok'
+                            ? undefined
+                            : t('serviceSettings.restoreDisabledHint')
+                        }
+                        aria-label={t('serviceSettings.restoreTo', {
+                          when: formatStamp(b.created_at),
+                        })}
+                        onClick={() => {
+                          setConfirming(b);
+                        }}
+                      >
+                        {t('serviceSettings.restore')}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {list !== null && list.backups.length > VISIBLE_ROWS && (
+            <div className="set-row set-row--more">
+              <button
+                type="button"
+                className="btn btn--ghost btn--small"
+                onClick={() => {
+                  setShowAll(!showAll);
+                }}
+              >
+                <Icon name={showAll ? 'chevronUp' : 'chevronDown'} size={14} />
+                {showAll
+                  ? t('serviceSettings.showLess')
+                  : t('serviceSettings.showAllBackups', { count: list.backups.length })}
+              </button>
+            </div>
+          )}
+        </div>
+      </section>
 
       {confirming !== null && (
         <Dialog

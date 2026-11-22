@@ -55,14 +55,35 @@ export function formatStamp(iso: string, now: Date = new Date()): string {
 }
 
 /**
- * When the next daily backup runs. It runs at the first check after
- * `next_daily_at`, so a time already past (after sleep, or a failed run)
- * reads 「即將執行」 rather than 「昨天 03:00」.
+ * The daily backup line (QC-057): last and next, as a sentence that reads
+ * right before the first backup ever ran and when the next one is due now.
  */
-export function nextDailyLabel(nextIso: string, now: Date = new Date()): string {
-  const next = Date.parse(nextIso);
-  if (!Number.isNaN(next) && next <= now.getTime()) return t('serviceSettings.backupRunningSoon');
-  return formatStamp(nextIso, now);
+export function dailyScheduleText(
+  list: Pick<ListBackupsResponse, 'last_daily_at' | 'next_daily_at'>,
+  now: Date = new Date(),
+): string {
+  const next = Date.parse(list.next_daily_at);
+  const due = !Number.isNaN(next) && next <= now.getTime();
+  if (list.last_daily_at === null) {
+    return due
+      ? t('settingsPages.dailyFirstSoon')
+      : t('settingsPages.dailyFirstAt', { next: formatStamp(list.next_daily_at, now) });
+  }
+  const last = formatStamp(list.last_daily_at, now);
+  return due
+    ? t('settingsPages.dailyLastSoon', { last })
+    : t('settingsPages.dailyBoth', { last, next: formatStamp(list.next_daily_at, now) });
+}
+
+/** What the empty backup list says about the first one. */
+export function firstBackupText(
+  list: Pick<ListBackupsResponse, 'next_daily_at'>,
+  now: Date = new Date(),
+): string {
+  const next = Date.parse(list.next_daily_at);
+  return !Number.isNaN(next) && next <= now.getTime()
+    ? t('settingsPages.emptySoon')
+    : t('settingsPages.emptyAt', { next: formatStamp(list.next_daily_at, now) });
 }
 
 /** 「48 MB · 每日」 */

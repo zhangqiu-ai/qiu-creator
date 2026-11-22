@@ -57,7 +57,7 @@ test('設定 New API、獨立確認使用告知，並切換供應商改寫', asy
     );
 
     await detail.getByLabel('New API Base URL', { exact: true }).fill(BASE_URL);
-    await detail.getByLabel('New API API 金鑰', { exact: true }).fill(FAKE_KEY);
+    await detail.getByLabel('New API 金鑰', { exact: true }).fill(FAKE_KEY);
     await detail.getByRole('button', { name: '存到鑰匙圈', exact: true }).click();
     await expect(pv('New API')).toContainText('待確認告知');
     await expect(detail.getByRole('combobox', { name: '文字模型', exact: true })).toHaveValue(

@@ -138,7 +138,7 @@ test('New API 模型：打開才查詢、只列對話／顯示全部、搜尋與
     await newApi.getByRole('button', { name: '更換', exact: true }).click();
     const base = newApi.getByLabel('New API Base URL', { exact: true });
     await base.fill('https://relay.example.test');
-    await newApi.getByLabel('New API API 金鑰', { exact: true }).fill(FAKE_KEY);
+    await newApi.getByLabel('New API 金鑰', { exact: true }).fill(FAKE_KEY);
     const suggest = newApi.getByText('少了 /v1？建議改成 https://relay.example.test/v1');
     await expect(suggest).toBeVisible();
     await shot(page, 'zh-Hant-5-base-url');

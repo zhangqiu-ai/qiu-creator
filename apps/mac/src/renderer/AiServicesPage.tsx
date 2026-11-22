@@ -20,6 +20,7 @@ import {
   type AiSettingsStore,
   type ProviderState,
 } from './ai-settings.js';
+import { pickProvider } from './ai-session.js';
 import { STATE_LABEL, testView, type TestAction } from './ai-test-view.js';
 import { Dialog } from './Dialog.js';
 import { formatWhen } from './format.js';
@@ -58,6 +59,13 @@ const ABBR: Readonly<Record<AiProvider, string>> = {
   openai: 'GP',
   'new-api': 'NA',
 };
+
+/** 「GPT API 金鑰」, but 「New API 金鑰」 (not 「New API API 金鑰」). */
+export function keyLabel(p: Pick<AiProviderStatus, 'provider' | 'name'>): string {
+  return p.provider === 'new-api'
+    ? t('settingsPages.newApiKey')
+    : t('serviceSettings.aiKeyLabel', { name: p.name });
+}
 
 /** Where a provider's content goes: the company, or the New API relay's host. */
 export function destination(p: AiProviderStatus): string {
@@ -728,7 +736,7 @@ function KeyForm({
         )}
         <div className="set-row">
           <div className="set-row__k">
-            <b>{t('serviceSettings.aiKeyLabel', { name: p.name })}</b>
+            <b>{keyLabel(p)}</b>
             <span>
               {p.key_updated_at === null
                 ? t('serviceSettings.aiKeySet')
@@ -827,7 +835,7 @@ function KeyForm({
       <div className="set-row set-row--top">
         <div className="set-field">
           <label className="set-field__l" htmlFor={keyId}>
-            {t('serviceSettings.aiKeyLabel', { name: p.name })}
+            {keyLabel(p)}
           </label>
           <div className="set-field__line">
             <input
@@ -837,7 +845,7 @@ function KeyForm({
               type="password"
               autoComplete="off"
               spellCheck={false}
-              placeholder={t('serviceSettings.aiKeyLabel', { name: p.name })}
+              placeholder={keyLabel(p)}
               disabled={busy}
               value={key}
               onChange={(e) => {
@@ -945,6 +953,8 @@ function UsePanel({
   const row = (task: 'rewrite' | 'title') => {
     const chosen = defaults?.[task] ?? null;
     const p = chosen === null ? null : (providers.find((x) => x.provider === chosen) ?? null);
+    // 自動: say which provider and model it picks right now (the app's own rule, `pickProvider`).
+    const auto = chosen === null ? pickProvider(providers).provider : null;
     const id = `ai-default-${task}`;
     return (
       <div className="set-row" key={task}>
@@ -952,7 +962,13 @@ function UsePanel({
           <label htmlFor={id}>
             <b>{t(task === 'rewrite' ? 'aiServices.taskRewrite' : 'aiServices.taskTitle')}</b>
           </label>
-          <span className="mono">{p?.text_model ?? '—'}</span>
+          <span className={p === null ? undefined : 'mono'}>
+            {p !== null
+              ? p.text_model
+              : auto !== null
+                ? t('settingsPages.autoUses', { name: auto.name, model: auto.text_model })
+                : t('settingsPages.autoNone')}
+          </span>
         </div>
         {p !== null && <StateChip state={providerState(p, s.tests[p.provider])} />}
         <select

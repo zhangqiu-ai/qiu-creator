@@ -31,7 +31,7 @@ test('設定 v4：每個分類一頁並記住、⌘,、AI 服務四分頁與測�
   await page.setViewportSize({ width: 1440, height: 900 });
   const nav = page.getByRole('navigation', { name: '主導航' });
   const cats = page.getByRole('navigation', { name: '設定分類' });
-  const cat = (name: string): Locator => cats.getByRole('button', { name, exact: true });
+  const cat = (name: string): Locator => cats.getByRole('button', { name });
   const h1 = (name: string): Locator => page.getByRole('heading', { level: 1, name });
 
   await test.step('每個分類一頁：切換只換右側，焦點到頁標題，重新開啟時回到上次的分類', async () => {
@@ -48,6 +48,50 @@ test('設定 v4：每個分類一頁並記住、⌘,、AI 服務四分頁與測�
     await nav.getByRole('button', { name: '作品庫', exact: true }).click();
     await nav.getByRole('button', { name: '設定', exact: true }).click();
     await expect(h1('備份與還原')).toBeVisible();
+  });
+
+  await test.step('五個分類照畫板重排；沒有備份時的句子完整（QC-057 v2）', async () => {
+    await cat('外觀').click();
+    await expect(page.getByRole('radiogroup', { name: '主題' }).getByRole('radio')).toHaveCount(3);
+    const lang = page.getByRole('radiogroup', { name: '語言', exact: true });
+    await expect(lang.getByRole('radio')).toHaveText([
+      '跟隨系統',
+      '简体中文',
+      '繁體中文',
+      'English',
+    ]);
+    await shot(page, 'zh-Hant-p1-appearance');
+
+    await cat('本機服務').click();
+    await expect(page.getByRole('heading', { level: 2, name: '服務' })).toBeVisible();
+    await expect(page.locator('.set-row', { hasText: '狀態' })).toContainText('執行中');
+    await expect(page.locator('.set-row', { hasText: '開機自動啟動' })).toContainText(
+      '由 launchd 管理',
+    );
+    await shot(page, 'zh-Hant-p2-service');
+
+    await cat('備份與還原').click();
+    const daily = page.locator('.set-row', { hasText: '每日自動備份' });
+    await expect(daily).toContainText('還沒有自動備份 · 第一份');
+    await expect(page.locator('.set-page')).not.toContainText('尚未執行');
+    await expect(page.locator('.set-page')).not.toContainText('在 即將執行');
+    await page.getByRole('button', { name: '立即備份' }).click();
+    const table = page.getByRole('table', { name: '最近備份' });
+    await expect(table.getByRole('row')).toHaveCount(1);
+    await expect(table.getByRole('row').first()).toContainText('手動');
+    await shot(page, 'zh-Hant-p3-backup');
+
+    await cat('資料夾').click();
+    await expect(page.getByRole('heading', { level: 2, name: '外部資料夾' })).toBeVisible();
+    await expect(page.getByText(/還沒有外部資料夾/)).toBeVisible();
+    await shot(page, 'zh-Hant-p4-folders');
+
+    await cat('關於').click();
+    await expect(page.locator('.set-about')).toContainText('qiu-creator');
+    await expect(page.getByRole('button', { name: '複製版本資訊' })).toBeEnabled();
+    await expect(page.locator('.set-row', { hasText: '建置時間' })).not.toContainText('—');
+    await shot(page, 'zh-Hant-p5-about');
+    await cat('備份與還原').click();
   });
 
   await test.step('⌘,（App 選單「設定…」）打開設定', async () => {
@@ -132,11 +176,11 @@ test('設定 v4：每個分類一頁並記住、⌘,、AI 服務四分頁與測�
   await test.step('New API：Base URL 少了 /v1 一鍵改正；存好後顯示完整 Base URL', async () => {
     await row('New API').click();
     await detail.getByLabel('New API Base URL').fill('https://relay.example.test');
-    await detail.getByLabel('New API API 金鑰').fill('fake-new-api-key-qc057');
+    await detail.getByLabel('New API 金鑰').fill('fake-new-api-key-qc057');
     await detail.getByRole('button', { name: '存到鑰匙圈' }).click();
     await detail.getByRole('button', { name: '改用這個網址' }).click();
     await expect(detail.getByLabel('New API Base URL')).toHaveValue(BASE_URL);
-    await detail.getByLabel('New API API 金鑰').fill('fake-new-api-key-qc057');
+    await detail.getByLabel('New API 金鑰').fill('fake-new-api-key-qc057');
     await detail.getByRole('button', { name: '存到鑰匙圈' }).click();
     await expect(detail.getByText(BASE_URL, { exact: true })).toBeVisible();
     await expect(detail.getByText('內容送到 你的中轉站 relay.example.test')).toBeVisible();
@@ -145,6 +189,10 @@ test('設定 v4：每個分類一頁並記住、⌘,、AI 服務四分頁與測�
 
   await test.step('用途：預設供應商存到服務；視頻理解鎖定 Gemini', async () => {
     await tabs.getByRole('tab', { name: '用途' }).click();
+    // 自動 says which provider and model it picks now, never a bare 「–」.
+    await expect(page.locator('.set-row', { hasText: '標題與簡介' })).toContainText(
+      '自動 · 目前會用 GPT 的 gpt-5.5',
+    );
     await page.getByLabel('文字改寫').selectOption('openai');
     await expect.poll(async () => (await backend.client.ai.defaults()).rewrite).toBe('openai');
     await expect(page.getByText('僅 Gemini')).toBeVisible();
@@ -180,6 +228,19 @@ test('設定 v4：每個分類一頁並記住、⌘,、AI 服務四分頁與測�
   });
 
   if (shooting()) {
+    await test.step('截圖：其他分類的 English 與深色', async () => {
+      await page.evaluate("window.creatorhub.setLanguage('en')");
+      await page.locator('.set-nav button').nth(2).click();
+      await shot(page, 'en-p3-backup');
+      await page.locator('.set-nav button').nth(5).click();
+      await page.emulateMedia({ colorScheme: 'dark' });
+      await shot(page, 'dark-en-p5-about');
+      await page.evaluate("window.creatorhub.setLanguage('zh-Hant')");
+      await page.locator('.set-nav button').nth(0).click();
+      await shot(page, 'dark-p1-appearance');
+      await page.emulateMedia({ colorScheme: null });
+      await page.locator('.set-nav button').nth(3).click();
+    });
     await test.step('截圖：简体、English、深色、窄視窗', async () => {
       await row('GPT').click();
       for (const lang of ['zh-Hans', 'en'] as const) {

@@ -234,7 +234,7 @@ export const aiServices = defineMessages({
     gConn: 'Connection',
     gModels: 'Models',
     gConsent: 'Data notice',
-    keyLine: 'Set · saved {when}',
+    keyLine: 'Saved · {when}',
     consentLine: 'Confirmed · {when}',
     noticeTitle: 'Please confirm before use',
     builtinHint: 'Built-in reference list; you can also type a model ID.',
