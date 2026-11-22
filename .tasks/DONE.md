@@ -1,5 +1,11 @@
 # Done
 
+## QC-060: 端到端測試在背景執行，不搶前景與焦點
+
+**Priority:** P1 | **Assignee:** qc-bugfix | **Tags:** M3 | **Done:** 2026-11-21
+
+- 只有 e2e fixture 設 `CREATORHUB_E2E_BACKGROUND=1`：App 設為 accessory、隱藏 Dock、`showInactive()`，原生對話框回「沒選」，不開 Finder 或外部連結；正式 App 行為不變。新增 background-run spec。整套 e2e 25／25，期間前景 App 為 Electron 0 次（對照組 2 次）。證據 `docs/evidence/qc060-e2e-background.md`。
+
 ## QC-057: 設定頁重新設計：每個分類獨立頁面，AI 服務重整並加連線測試
 
 **Priority:** P1 | **Assignee:** qc-prototype → qc-backend ＋ qc-frontend | **Tags:** M3, prototype, frontend, backend | **Done:** 2026-11-21
