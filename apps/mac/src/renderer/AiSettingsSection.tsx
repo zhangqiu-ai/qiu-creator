@@ -3,9 +3,11 @@ import {
   AI_DEFAULT_MODELS,
   PatchAiProviderRequestSchema,
   SetAiKeyRequestSchema,
+  suggestNewApiBaseUrl,
   type AiProviderStatus,
 } from '@qiu-creator/contracts';
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type Ref } from 'react';
+import { ModelCombobox } from './ModelCombobox.js';
 import { AiSettingsStore, formatUsd, keyState, modelOptions, PROVIDER_USE } from './ai-settings.js';
 import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
@@ -91,6 +93,8 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
   const [key, setKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [baseUrlError, setBaseUrlError] = useState<string | null>(null);
+  /** A corrected Base URL to offer before saving (QC-054), e.g. with /v1 added. */
+  const [suggested, setSuggested] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
   const isNewApi = p.provider === 'new-api';
@@ -105,6 +109,7 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
     setKey('');
     setBaseUrl('');
     setBaseUrlError(null);
+    setSuggested(null);
   };
 
   const save = () => {
@@ -116,6 +121,8 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
     }
     if (url !== undefined && !SetAiKeyRequestSchema.shape.base_url.safeParse(url).success) {
       setBaseUrlError(t('serviceSettings.aiBaseUrlInvalid'));
+      // Missing /v1 (or a pasted endpoint): offer the fixed URL; it is never changed silently.
+      setSuggested(suggestNewApiBaseUrl(url));
       return;
     }
     clearCredentials();
@@ -193,6 +200,10 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
                 onChange={(e) => {
                   setBaseUrl(e.target.value);
                   setBaseUrlError(null);
+                  setSuggested(null);
+                }}
+                onBlur={(e) => {
+                  setSuggested(suggestNewApiBaseUrl(e.target.value));
                 }}
               />
               <span className="ai-set__hint faint" id={`${baseUrlId}-hint`}>
@@ -201,6 +212,22 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
               {baseUrlError !== null && (
                 <span className="ln__err" id={`${baseUrlId}-error`} role="alert">
                   {baseUrlError}
+                </span>
+              )}
+              {suggested !== null && (
+                <span className="ai-set__suggest" role="status">
+                  <span>{t('modelPicker.baseUrlSuggest', { url: suggested })}</span>
+                  <button
+                    type="button"
+                    className="btn btn--small"
+                    onClick={() => {
+                      setBaseUrl(suggested);
+                      setSuggested(null);
+                      setBaseUrlError(null);
+                    }}
+                  >
+                    {t('modelPicker.baseUrlUseSuggested')}
+                  </button>
                 </span>
               )}
             </div>
@@ -410,6 +437,7 @@ function ProviderRow({ store, p }: { store: AiSettingsStore; p: AiProviderStatus
   );
 }
 
+/** New API's text model: picked from the relay's list, or typed (QC-054). */
 function NewApiModelForm({
   store,
   model,
@@ -419,59 +447,21 @@ function NewApiModelForm({
   model: string;
   busy: boolean;
 }) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const [invalid, setInvalid] = useState(false);
-  const value = draft ?? model;
-  const modelId = 'ai-text-model-new-api';
-  const defaultModel = AI_DEFAULT_MODELS['new-api'].text;
-
   return (
-    <form
-      className="ai-set__model-form field"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (busy) return;
-        const parsed = PatchAiProviderRequestSchema.safeParse({ text_model: value });
-        if (!parsed.success || parsed.data.text_model === undefined) {
-          setInvalid(true);
-          return;
-        }
-        void store.setModel('new-api', 'text', parsed.data.text_model).then((ok) => {
-          if (ok) setDraft(null);
-        });
+    <ModelCombobox
+      id="ai-text-model-new-api"
+      label={t('serviceSettings.aiNewApiModelLabel')}
+      hint={t('serviceSettings.aiNewApiModelHint', { model: AI_DEFAULT_MODELS['new-api'].text })}
+      saved={model}
+      busy={busy}
+      load={(refresh) => store.newApiModels(refresh)}
+      onSave={(next) => store.setModel('new-api', 'text', next)}
+      validate={(next) => {
+        const parsed = PatchAiProviderRequestSchema.safeParse({ text_model: next });
+        return parsed.success && parsed.data.text_model !== undefined;
       }}
-    >
-      <label className="field__label" htmlFor={modelId}>
-        {t('serviceSettings.aiNewApiModelLabel')}
-      </label>
-      <div className="ai-set__model-controls">
-        <input
-          id={modelId}
-          className="input"
-          autoComplete="off"
-          spellCheck={false}
-          aria-describedby={`${modelId}-hint${invalid ? ` ${modelId}-error` : ''}`}
-          aria-invalid={invalid}
-          disabled={busy}
-          value={value}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            setInvalid(false);
-          }}
-        />
-        <button type="submit" className="btn btn--small" disabled={busy || value.trim() === model}>
-          {t('serviceSettings.aiSaveModel')}
-        </button>
-      </div>
-      <span className="ai-set__hint faint" id={`${modelId}-hint`}>
-        {t('serviceSettings.aiNewApiModelHint', { model: defaultModel })}
-      </span>
-      {invalid && (
-        <span className="ln__err" id={`${modelId}-error`} role="alert">
-          {t('serviceSettings.aiModelInvalid')}
-        </span>
-      )}
-    </form>
+      invalidMessage={t('serviceSettings.aiModelInvalid')}
+    />
   );
 }
 
