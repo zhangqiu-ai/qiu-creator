@@ -2316,7 +2316,7 @@
             ]
           },
           "states": [
-            "側欄「工具」：AI 工作台、Prompt、平台預覽（沿用 PT-20261122-001 的分組）",
+            "側欄「工具」：AI 工作台、Prompt（「平台預覽」依 PT-20261122-004 移除）",
             "頁首：Prompt＋「N 個內建 · M 個自訂」、⋯（匯出全部自訂指令 JSON、匯入 JSON；同名另存副本不覆蓋）、新建指令",
             "左欄清單：搜尋（命中高亮）、分組（內建、小紅書、公眾號…，可收合）、每列圖示代表適用場景、內建帶鎖",
             "內建指令唯讀，「複製成自訂」後才可改",
@@ -2399,7 +2399,7 @@
             "語言選單：跟隨原文（顯示偵測結果「這段是繁體中文」）、简体中文、繁體中文、English；選了全域保存並提示",
             "模型選單：搜尋、依供應商分組、只列已設定可用的，失效供應商（金鑰無效）停用並標狀態；「上次用」；底部「AI 服務 ›」",
             "生成中膠囊寫出「動作 · 語言 · 模型」；候選列標示語言與模型",
-            "右側面板「改寫」分頁：頂部語言與模型兩個選擇（與工具列同步）、選取內容、Prompt 膠囊（含自訂）與「管理」、補充指令、生成"
+            "右側面板只有「改寫」「圖片」兩個分頁（依 PT-20261122-004）；「改寫」頂部語言與模型兩個選擇（與工具列同步）、選取內容、Prompt 膠囊（含自訂）與「管理」、補充指令、生成"
           ]
         },
         {
@@ -2577,6 +2577,279 @@
       "approvalDecisions": [
         "decisions 與 openQuestions 六項全部採用原型建議（保留「跟隨原文」為預設、語言與模型全域同步、「更多」改名「Prompt」、場景不符淡化、內建唯讀可複製、AI 建議走候選＋diff）。",
         "右側 AI 面板的分頁結構以 QC-076 原型為準（編輯區只留改寫與圖片）。"
+      ],
+      "consistentWith": "PT-20261122-004",
+      "boardsUpdatedAfterApproval": "2026-11-22: PromptLib sidebar without 平台預覽 and PromptToolbar panel tabs 改寫／圖片, to match PT-20261122-004 (QC-076)."
+    },
+    {
+      "id": "PT-20261122-004",
+      "title": "平台預覽併入作品編輯頁；編輯區 AI 只留改寫與圖片，標題與封面移到預覽",
+      "date": "2026-11-22",
+      "status": "pending",
+      "model": "claude-opus-5-5",
+      "session": "qc-prototype",
+      "requestedBy": "使用者 via 開發總監",
+      "userRequest": "我之前好像搞錯了，在作品編輯區應該只有改寫和圖片，標題和封面應該是在平台預覽才對。平台預覽其實不應該單獨起子頁面，而是在作品編輯頁面快速預覽、切換。（2026-11-22，見 docs/decisions.md QC-076）",
+      "tasks": ["QC-076"],
+      "consistentWith": "PT-20261122-003",
+      "approvedBy": null,
+      "approvedAt": null,
+      "approvalNote": "總監代為核准（docs/decisions.md 2026-11-22 QC-076）",
+      "supersedes": [
+        "PT-20261122-002 的「圖片」分頁封面模式與右側「標題」分頁（移到預覽）",
+        "PT-20261122-001 側欄「工具」中的「平台預覽」"
+      ],
+      "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "baseCanvasVersion": "41 (version id 1795275033-35aa) + every unpublished canvas.json up to PT-20261122-003",
+      "canvasVersion": "NOT_PUBLISHED: canvas uploads are on hold. Files are in the shared notes folder pt-20261122-004-boards/; its canvas.json is the latest and includes every unpublished PT.",
+      "sharedStylesheets": [
+        "/_blob/ce383cde01b175413fc4b99a21feb132 (qc-v2.css)",
+        "/_blob/a801184fe6d1b75f3cf8e2f73e8e3dc4 (qc-v3.css)",
+        "qc-v4…v9.css inlined in each board"
+      ],
+      "boards": [
+        {
+          "file": "EditorPreview.dc.html",
+          "title": "v9 · 編輯頁預覽：標題候選",
+          "tweaks": {
+            "dark": "boolean",
+            "reduced": "boolean",
+            "narrow": "boolean",
+            "lang": ["繁中", "简中", "English"],
+            "state": [
+              "小紅書",
+              "公眾號",
+              "抖音（尚未建立）",
+              "視頻號（標題超出）",
+              "標題候選",
+              "封面生成",
+              "封面候選",
+              "重新從原稿生成",
+              "AI 面板（改寫／圖片）"
+            ]
+          },
+          "states": [
+            "編輯頁頂部「預覽」（⌘⇧P）打開右側分欄，寬 720，和 AI 面板互斥（同既有歷史、素材抽屜的規則）；側欄以圖示列顯示，正文仍有約 660px",
+            "分欄頂部：平台切換（小紅書、公眾號、抖音、視頻號），←→ 切換；尚未建立的平台與超出上限的平台各有狀態點",
+            "左欄「版本」：版本狀態（已儲存 · 不影響原稿）＋重新從原稿生成（確認框，舊版留在歷史可還原）",
+            "標題：字數 n / 上限（小紅書 20、公眾號 64、抖音 30、視頻號 16；超出顯示 warn，不阻擋），「AI 標題」產生依平台上限的候選清單，點一個即換上並可復原",
+            "正文（字數 n / 上限）、封面（依平台比例：3:4、2.35:1、3:4、6:7）＋ AI 封面／從作品封面裁切／上傳、圖片順序（張數 n / 上限）、標籤（n / 上限）",
+            "AI 封面：比例固定為目前平台、提示詞由標題＋正文帶入、生成 4 張（骨架 → 淡入）、選一張後「保留」才成為這個平台的封面，可復原；費用無法預估照 PT-20261122-002 標示",
+            "右欄手機模擬（固定白／黑底，不跟主題）：小紅書圖文、公眾號訊息卡＋文章開頭、抖音直式、視頻號；標「排版模擬，不是平台實際效果」",
+            "尚未建立的平台：「從原稿建立」（不用 AI，依上限整理），之後在此編輯",
+            "窄視窗：分欄 400 寬、單欄，頂部「版本｜手機」切換",
+            "AI 面板只剩「改寫」「圖片」；「圖片」只做插圖，說明標題與封面在預覽"
+          ]
+        },
+        {
+          "file": "PvXhs.dc.html",
+          "title": "v9 · 預覽：小紅書",
+          "wraps": "EditorPreview.dc.html",
+          "props": {
+            "state": "小紅書"
+          }
+        },
+        {
+          "file": "PvWx.dc.html",
+          "title": "v9 · 預覽：公眾號",
+          "wraps": "EditorPreview.dc.html",
+          "props": {
+            "state": "公眾號"
+          }
+        },
+        {
+          "file": "PvDy.dc.html",
+          "title": "v9 · 預覽：抖音（尚未建立）",
+          "wraps": "EditorPreview.dc.html",
+          "props": {
+            "state": "抖音（尚未建立）"
+          }
+        },
+        {
+          "file": "PvCh.dc.html",
+          "title": "v9 · 預覽：視頻號（標題超出）",
+          "wraps": "EditorPreview.dc.html",
+          "props": {
+            "state": "視頻號（標題超出）"
+          }
+        },
+        {
+          "file": "PvCoverGen.dc.html",
+          "title": "v9 · AI 封面（依平台比例）",
+          "wraps": "EditorPreview.dc.html",
+          "props": {
+            "state": "封面生成"
+          }
+        },
+        {
+          "file": "PvCoverCand.dc.html",
+          "title": "v9 · 封面候選：保留",
+          "wraps": "EditorPreview.dc.html",
+          "props": {
+            "state": "封面候選"
+          }
+        },
+        {
+          "file": "PvRedraft.dc.html",
+          "title": "v9 · 重新從原稿生成",
+          "wraps": "EditorPreview.dc.html",
+          "props": {
+            "state": "重新從原稿生成"
+          }
+        },
+        {
+          "file": "PvAiPanel.dc.html",
+          "title": "v9 · AI 面板只剩改寫／圖片",
+          "wraps": "EditorPreview.dc.html",
+          "props": {
+            "state": "AI 面板（改寫／圖片）"
+          }
+        },
+        {
+          "file": "PvNarrow.dc.html",
+          "title": "v9 · 窄視窗：版本／手機切換",
+          "wraps": "EditorPreview.dc.html",
+          "props": {
+            "narrow": true,
+            "state": "小紅書"
+          }
+        },
+        {
+          "file": "EntryAudit.dc.html",
+          "title": "v9 · 入口盤點",
+          "tweaks": {
+            "dark": "boolean",
+            "lang": ["繁中", "简中", "English"]
+          },
+          "states": [
+            "側欄、AI 面板、頂部「預覽」的之前／之後",
+            "文章、貼圖、視頻十項重複入口的處理（移到預覽／留在編輯頁）"
+          ]
+        },
+        {
+          "file": "EditorPreviewDark.dc.html",
+          "title": "v9 · 封面候選（深色）",
+          "wraps": "EditorPreview.dc.html",
+          "props": {
+            "dark": true,
+            "state": "封面候選"
+          }
+        },
+        {
+          "file": "PvWxDark.dc.html",
+          "title": "v9 · 公眾號（深色）",
+          "wraps": "EditorPreview.dc.html",
+          "props": {
+            "dark": true,
+            "state": "公眾號"
+          }
+        },
+        {
+          "file": "EntryAuditDark.dc.html",
+          "title": "v9 · 入口盤點（深色）",
+          "wraps": "EntryAudit.dc.html",
+          "props": {
+            "dark": true
+          }
+        }
+      ],
+      "decisions": [
+        "預覽用右側分欄，與 AI 面板互斥，不用浮層或整頁切換：使用者要「快速預覽、切換」，分欄讓原稿與平台版本並排；互斥沿用既有右側面板（AI／歷史／素材）的規則，不新增第三欄。預設 720 寬（表單＋手機兩欄），窄視窗變 400 單欄並以「版本｜手機」切換。",
+        "一條規則決定入口：編輯頁＝原稿；預覽＝各平台版本。據此處理十項重複入口（見 EntryAudit）。",
+        "作品封面（原稿）留在編輯頁：貼圖從圖片選、視頻選幀；平台封面預設由它依平台比例裁切，要換或 AI 生成才在預覽裡做。這樣作品庫縮圖有一個穩定來源。",
+        "視頻的「共用／抖音／視頻號」文案分頁拆開：共用文案留在編輯頁，平台文案只在預覽，避免兩處編輯同一份平台文案。",
+        "貼圖的各平台張數／字數膠囊保留為提示，點擊即打開該平台的預覽，不在編輯頁另做平台編輯。",
+        "「重新從原稿生成」不是 AI：依原稿與平台上限整理，覆蓋前確認，舊版留在歷史。AI 標題與 AI 封面才走候選＋保留。",
+        "標題候選選一個即套用並給復原，不另按「保留」：標題是短欄位、平台版本本身不影響原稿，多一步確認沒有增加安全性。"
+      ],
+      "backendNeeds": {
+        "api": [
+          "Reuse the platform variants API (QC-045/046): GET/PATCH /api/v1/works/:id/variants/:platform with title, body, cover, images order, tags, inherit; POST …/variants/:platform/redraft (deterministic, from source, previous version kept in history).",
+          "Title candidates: existing title job gains platform (limit from PLATFORM_LIMITS) and accepts prompt_id/language/model from PT-20261122-003; video works may pass the video understanding summary as context.",
+          "Cover generation: the PT-20261122-002 image job with purpose=cover and platform → ratio (xhs 3:4, wechat_mp 2.35:1, douyin 3:4, wechat_channels 6:7); keep sets the variant cover (temp → assets/), not the work cover.",
+          "Default platform cover = crop of the work cover at the platform ratio (client-side or server-side; no change to the source file)."
+        ],
+        "limits": {
+          "titleMaxChars": {
+            "xiaohongshu": 20,
+            "wechat_mp": 64,
+            "douyin": 30,
+            "wechat_channels": 16
+          },
+          "coverRatio": {
+            "xiaohongshu": "3:4",
+            "wechat_mp": "2.35:1",
+            "douyin": "3:4",
+            "wechat_channels": "6:7"
+          },
+          "source": "packages/contracts PLATFORM_LIMITS (titles); cover ratios per the QC-076 card"
+        }
+      },
+      "references": [
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/codex-project-chat-artifact-workspace/case.md",
+          "kind": "product",
+          "borrowed": "Keep the result preview next to the working area; separate preview, edit and review.",
+          "adaptation": "Preview opens as a split beside the source; the platform version form and the phone simulation sit side by side."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-020-choice-controls/case.md",
+          "kind": "concept",
+          "borrowed": "Segmented control for 2–5 short options that switch a view.",
+          "adaptation": "Four platforms as a segmented tab row with status dots."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/layout-before-helper-copy/case.md",
+          "kind": "concept",
+          "borrowed": "Fix the layout before adding hints.",
+          "adaptation": "One rule (editor = source, Preview = platforms) removes the duplicate entries instead of explaining them."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-ai-writing-panel/case.md",
+          "kind": "concept",
+          "borrowed": "Keep AI results next to the field they change, with a clear adopt step.",
+          "adaptation": "Title candidates open under the title field; cover candidates open under the cover."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/wechat-format-preview-before-publish/case.md",
+          "kind": "concept",
+          "borrowed": "Show a visual preview of the formatted result before publishing.",
+          "adaptation": "Every platform version is checked in its phone simulation inside the editor, labelled as a simulation."
+        }
+      ],
+      "verified": [
+        "Static check on all 14 boards; Node harness ran every handler and timer in every tweak combination: 0 handler errors; every template hole resolves in all 9 states plus the narrow window.",
+        "PT-20261122-003 boards updated for consistency (sidebar without 平台預覽, AI panel tabs 改寫／圖片) and re-checked: 0 handler errors."
+      ],
+      "notVerified": [
+        "NOT_VERIFIED: canvas upload (on hold), rendering, and three-language fit by screenshot.",
+        "Phone simulations are layout sketches, not the platforms’ real UI."
+      ],
+      "openQuestions": [
+        {
+          "q": "預覽要分欄還是浮層？",
+          "recommendation": "分欄（右側、與 AI 面板互斥），預設 720、窄視窗 400 單欄。"
+        },
+        {
+          "q": "預覽打開時側欄要不要自動收成圖示列？",
+          "recommendation": "不自動；使用者的側欄偏好不變。畫板以圖示列示意正文寬度。"
+        },
+        {
+          "q": "標題候選要不要「保留」一步？",
+          "recommendation": "不要，選了就套用並可復原（平台版本不影響原稿）。"
+        },
+        {
+          "q": "AI 封面能不能一次套用到所有平台？",
+          "recommendation": "第一版只套用目前平台；其他平台仍由作品封面裁切。"
+        },
+        {
+          "q": "作品封面在哪裡改？",
+          "recommendation": "編輯頁（原稿）；文章目前沒有作品封面入口，建議用正文第一張圖或在預覽裡「設為作品封面」（另議）。"
+        },
+        {
+          "q": "舊的平台預覽頁連結（例如外部捷徑）？",
+          "recommendation": "導到作品編輯頁並打開預覽分欄。"
+        }
       ]
     }
   ]
