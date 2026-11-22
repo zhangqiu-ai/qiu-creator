@@ -1,0 +1,203 @@
+{
+  "at": "2026-11-22T08:59:06.264Z",
+  "app": "/Users/feature/code/qiu-creator-release/apps/mac/release/mac-arm64/qiu-creator.app/Contents/MacOS/qiu-creator",
+  "motion": "full",
+  "seeded": 300,
+  "shown": 200,
+  "filterCounts": {
+    "posts": 100,
+    "articles": 100,
+    "all": 200
+  },
+  "pictures": 160,
+  "vsyncMs": 16.7,
+  "idleIntervalMs": {
+    "p5": 15.4,
+    "p95": 18
+  },
+  "results": [
+    {
+      "name": "捲動作品庫（滾輪到底再回頂）",
+      "wallMs": 5987,
+      "frames": 382,
+      "vsyncMs": 16.7,
+      "intervalMs": {
+        "median": 16.7,
+        "p95": 18.2,
+        "p99": 18.7,
+        "max": 168.2
+      },
+      "droppedByRaf": 12,
+      "longTasks": {
+        "count": 0,
+        "maxMs": 0,
+        "totalMs": 0
+      },
+      "loafs": {
+        "count": 1,
+        "maxMs": 166.8,
+        "maxBlockingMs": 0,
+        "detail": [
+          {
+            "start": 3168.699999988079,
+            "duration": 166.80000001192093,
+            "blocking": 0,
+            "render": 1,
+            "styleLayout": 0.20000000298023224,
+            "scripts": []
+          }
+        ]
+      },
+      "cdp": {
+        "scriptMs": 16.1,
+        "layoutMs": 23,
+        "styleMs": 18.6,
+        "taskMs": 1229.9,
+        "layouts": 103
+      },
+      "trace": {
+        "BeginFrame": 360,
+        "DroppedFrame": 14
+      }
+    },
+    {
+      "name": "切換篩選（貼圖→文章→全部，三輪）",
+      "wallMs": 1027,
+      "frames": 71,
+      "vsyncMs": 16.7,
+      "intervalMs": {
+        "median": 16.7,
+        "p95": 18.1,
+        "p99": 18.6,
+        "max": 18.6
+      },
+      "droppedByRaf": 0,
+      "longTasks": {
+        "count": 0,
+        "maxMs": 0,
+        "totalMs": 0
+      },
+      "loafs": {
+        "count": 0,
+        "maxMs": 0,
+        "maxBlockingMs": 0,
+        "detail": []
+      },
+      "cdp": {
+        "scriptMs": 82,
+        "layoutMs": 19.6,
+        "styleMs": 14.9,
+        "taskMs": 323.4,
+        "layouts": 28
+      },
+      "trace": {
+        "BeginFrame": 62,
+        "DroppedFrame": 1
+      }
+    },
+    {
+      "name": "多選（⌘ 點 30 張）與批量刪除",
+      "wallMs": 2457,
+      "frames": 166,
+      "vsyncMs": 16.7,
+      "intervalMs": {
+        "median": 16.7,
+        "p95": 18.4,
+        "p99": 18.6,
+        "max": 18.7
+      },
+      "droppedByRaf": 0,
+      "longTasks": {
+        "count": 0,
+        "maxMs": 0,
+        "totalMs": 0
+      },
+      "loafs": {
+        "count": 0,
+        "maxMs": 0,
+        "maxBlockingMs": 0,
+        "detail": []
+      },
+      "cdp": {
+        "scriptMs": 266.7,
+        "layoutMs": 14.3,
+        "styleMs": 20.1,
+        "taskMs": 755.2,
+        "layouts": 47
+      },
+      "trace": {
+        "BeginFrame": 148,
+        "DroppedFrame": 1
+      }
+    },
+    {
+      "name": "全選（⌘A）再取消",
+      "wallMs": 779,
+      "frames": 66,
+      "vsyncMs": 16.7,
+      "intervalMs": {
+        "median": 16.7,
+        "p95": 17.7,
+        "p99": 18.5,
+        "max": 18.5
+      },
+      "droppedByRaf": 0,
+      "longTasks": {
+        "count": 0,
+        "maxMs": 0,
+        "totalMs": 0
+      },
+      "loafs": {
+        "count": 0,
+        "maxMs": 0,
+        "maxBlockingMs": 0,
+        "detail": []
+      },
+      "cdp": {
+        "scriptMs": 46.8,
+        "layoutMs": 2.3,
+        "styleMs": 15.4,
+        "taskMs": 192.8,
+        "layouts": 4
+      },
+      "trace": {
+        "BeginFrame": 47,
+        "DroppedFrame": 1
+      }
+    },
+    {
+      "name": "拖卡片到項目（三次）",
+      "wallMs": 3026,
+      "frames": 198,
+      "vsyncMs": 16.7,
+      "intervalMs": {
+        "median": 16.7,
+        "p95": 18.3,
+        "p99": 18.7,
+        "max": 18.7
+      },
+      "droppedByRaf": 0,
+      "longTasks": {
+        "count": 0,
+        "maxMs": 0,
+        "totalMs": 0
+      },
+      "loafs": {
+        "count": 0,
+        "maxMs": 0,
+        "maxBlockingMs": 0,
+        "detail": []
+      },
+      "cdp": {
+        "scriptMs": 160.5,
+        "layoutMs": 6.7,
+        "styleMs": 14.5,
+        "taskMs": 525.5,
+        "layouts": 33
+      },
+      "trace": {
+        "BeginFrame": 181
+      }
+    }
+  ]
+}
