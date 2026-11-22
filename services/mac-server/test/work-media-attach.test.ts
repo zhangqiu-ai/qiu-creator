@@ -117,6 +117,7 @@ describe('attach an asset to a managed work (QC-039)', () => {
         { work_id: work.id, title: '書房改造', role: 'body', position: 0, independent_copy: true },
       ],
       variants: [],
+      in_trash: { works: [], variants: [] },
     });
   });
 

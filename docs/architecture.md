@@ -28,7 +28,7 @@
 | `packages/contracts` | Zod 4 契約：第三章全部實體（Work、Asset、WorkAsset、PlatformVariant、Revision、ImportJob、AIJob）與第四章 API DTO、統一錯誤格式、平台列舉 | zod |
 | `packages/domain` | 純函式：sha256 內容雜湊、revision 衝突判定與 `If-Match` 解析、檔名／路徑安全、HTTP Range 解析 | 無 |
 | `packages/api-client` | 型別安全的 fetch 用戶端（base URL + Bearer 權杖），回應以契約驗證；409 時帶出 `currentRevision` | contracts |
-| `packages/agent-sdk` | `creatorhub` CLI（`works create`、`works list`），只走 api-client；`mcp/` 預留 | api-client、commander |
+| `packages/agent-sdk` | `creatorhub` CLI（`works create`、`works list [--trash]`、`works delete`／`restore`／`batch`），只走 api-client；`mcp/` 預留 | api-client、commander |
 | `services/mac-server` | Fastify 服務、SQLite、檔案系統、OpenAPI | contracts、domain |
 | `apps/mac` | Electron Mac App（見下節） | api-client、contracts、design-tokens、i18n、markdown-editor-web、platform-preview |
 | `packages/markdown-editor-web` | MDXEditor 視覺模式 + `<textarea>` 原始碼模式；可能有損語法偵測與原文保護；不依賴 Electron，第二期可嵌進 WebView | @mdxeditor/editor、mdast 工具、i18n |
@@ -223,13 +223,13 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/assets/:id` | 素材詳情（含縮圖、元資料狀態）；`ETag` 為素材 revision |
 | PATCH | `/api/v1/assets/:id` | 改顯示名稱、標籤、替代文字、備註（QC-037）；必須帶 `base_revision` 或 `If-Match`，沒帶回 428，過期回 409；磁碟檔名不變 |
 | DELETE | `/api/v1/assets/:id` | 移到最近刪除（QC-037）；被引用時要 `confirm: true`，否則 409 `asset_in_use`；外部素材加 `move_original_to_trash: true` 才把原檔移到系統垃圾桶 |
-| GET | `/api/v1/assets/:id/references` | 使用此素材的作品連結與平台版本（封面、圖片）（QC-037）；作品連結帶 `independent_copy`：正文連結且託管作品的 `assets/` 有同內容複本時為 true（QC-039） |
+| GET | `/api/v1/assets/:id/references` | 使用此素材的作品連結與平台版本（封面、圖片）（QC-037）；作品連結帶 `independent_copy`：正文連結且託管作品的 `assets/` 有同內容複本時為 true（QC-039）；最近刪除中作品的引用另列在 `in_trash`（QC-053） |
 | POST | `/api/v1/assets/:id/restore` | 從最近刪除恢復，引用一併回來；檔案不在原路徑回 409 `asset_file_missing`（QC-037） |
 | POST | `/api/v1/assets/batch` | 最多 200 個素材批次加標籤、移除標籤或移到最近刪除；全部成功或全部不做（QC-037） |
 | DELETE | `/api/v1/trash/:id` | 永久刪除最近刪除中的一個素材；回應附 Markdown 仍連到該檔的作品（QC-037） |
 | DELETE | `/api/v1/trash` | 清空最近刪除，須帶 `confirm: true`（QC-037） |
 | GET | `/api/v1/assets/:id/thumbnail` | WebP 縮圖；`cache/` 被刪時即時重建 |
-| GET | `/api/v1/assets/:id/works` | 反查使用此素材的作品：作品 id、標題、用途、位置，依作品更新時間新到舊 |
+| GET | `/api/v1/assets/:id/works` | 反查使用此素材的作品：作品 id、標題、用途、位置，依作品更新時間新到舊；不含最近刪除中的作品（QC-053） |
 | GET | `/api/v1/works/:id/assets` | 作品的素材，依用途與順序 |
 | POST | `/api/v1/works/:id/assets` | 關聯素材（`cover`／`body`／`video`，可指定位置；重複關聯即移動） |
 | DELETE | `/api/v1/works/:id/assets/:assetId?role=` | 移除關聯，順序自動補齊 |
@@ -307,6 +307,10 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
   - `GET /works/:id` 仍可讀，給最近刪除預覽用。
   - PATCH、恢復版本、`/works/:id/…` 底下的所有寫入（平台版本、素材連結、attach、文字 AI）回 409 `work_in_trash`。PATCH 在 `WorkService` 檢查，其他由 `server.ts` 的 `preHandler` 統一檢查，之後新增的子路由也自動受保護。
   - 掛載的作品數（`work_count`）不計入。
+  - **素材引用（QC-053）**：素材的 `references` 把這些作品（含它們的平台版本）的引用另列在 `in_trash`，`GET /assets/:id/works` 不列出。它們**不算「使用中」**：只被最近刪除中的作品使用的素材，刪除時不需要 `confirm`（單筆或批量都一樣），刪除回應的 `references.in_trash` 仍會列出它們，App 可標「在最近刪除中」。
+    - 理由：刪除素材本身 30 天內可恢復；使用者看不到、也沒在編輯的作品不該擋住清理。作品連結與平台版本的 id 都保留，素材和作品各自恢復後，引用都會回來。
+    - 代價：素材**永久刪除**時，這些連結和一般作品一樣被移除，作品之後再恢復就會缺這個素材。永久刪除前可以先看 `references.in_trash`。
+  - **URL 匯入（QC-053）**：`work_id` 是最近刪除中的作品時，建立任務就回 409 `work_in_trash`（`details.work_id`、`deleted_at`），不會建立任務。任務建立後作品才被刪除的情況，下載完仍照原本設定連結；這條連結和其他連結一樣保留，作品恢復後就在。
 - **託管與外部**：
   - 託管作品的資料夾在 30 天內都留在 `library/works/<id>/`，從不直接 `rm`。
   - 外部作品預設只取消索引（`unindexed`），檔案不動；重新掃描不會把它加回來（既有的資料列保持刪除狀態，搬移偵測也略過已刪除作品）。

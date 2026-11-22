@@ -200,8 +200,21 @@ export const AssetVariantReferenceSchema = z.object({
 export type AssetVariantReference = z.infer<typeof AssetVariantReferenceSchema>;
 
 export const AssetReferencesSchema = z.object({
+  /** Works that are not in 最近刪除 (QC-053). Only these make a delete need `confirm`. */
   works: z.array(AssetWorkReferenceSchema),
   variants: z.array(AssetVariantReferenceSchema),
+  /**
+   * The same kinds of references from works in 最近刪除 (QC-053), listed
+   * apart so the app can label them 「在最近刪除中」. They do not make the
+   * asset count as in use: deleting it is reversible for 30 days. Purging the
+   * asset removes these links too, so a work restored afterwards is missing it.
+   */
+  in_trash: z
+    .object({
+      works: z.array(AssetWorkReferenceSchema),
+      variants: z.array(AssetVariantReferenceSchema),
+    })
+    .optional(),
 });
 export type AssetReferences = z.infer<typeof AssetReferencesSchema>;
 

@@ -141,7 +141,11 @@ describe('delete and 最近刪除 for managed assets (QC-037)', () => {
     const file = path.join(s.home, a.path);
 
     const res = await s.client.assets.trash(a.id);
-    expect(res.references).toEqual({ works: [], variants: [] });
+    expect(res.references).toEqual({
+      works: [],
+      variants: [],
+      in_trash: { works: [], variants: [] },
+    });
     expect(res.asset).toMatchObject({ removal: 'trashed' });
     const deletedAt = Date.parse(res.asset.deleted_at ?? '');
     expect(Date.parse(res.asset.purge_at ?? '') - deletedAt).toBe(30 * 24 * 60 * 60 * 1000);
@@ -208,6 +212,7 @@ describe('delete and 最近刪除 for managed assets (QC-037)', () => {
         { work_id: work.id, title: '京都秋天', platform: 'xiaohongshu', usage: 'cover' },
         { work_id: work.id, title: '京都秋天', platform: 'xiaohongshu', usage: 'image' },
       ],
+      in_trash: { works: [], variants: [] },
     });
     expect((await s.client.assets.list({ scope: 'unreferenced' })).items).toEqual([]);
 
@@ -568,7 +573,11 @@ describe('access (QC-037)', () => {
     const agent = s.tokens.create({ name: 'agent', scopes: ['read', 'import', 'write'] });
     const asAgent = createClient({ baseUrl: s.baseUrl, token: agent.secret });
 
-    expect(await asAgent.assets.references(a.id)).toEqual({ works: [], variants: [] });
+    expect(await asAgent.assets.references(a.id)).toEqual({
+      works: [],
+      variants: [],
+      in_trash: { works: [], variants: [] },
+    });
     expect((await asAgent.assets.list({ scope: 'trash' })).total).toBe(0);
     for (const call of [
       () => asAgent.assets.update(a.id, { base_revision: 1, note: 'x' }),

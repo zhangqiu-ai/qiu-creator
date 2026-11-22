@@ -34,6 +34,17 @@ function parseLimit(value: string): number {
   return n;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** `<id>` or `<id>:<revision>` (QC-053 batch items). */
+export function parseWorkItem(value: string): { id: string; revision?: string } {
+  const [id = '', revision, ...rest] = value.split(':');
+  if (!UUID.test(id) || rest.length > 0 || (revision !== undefined && !UUID.test(revision))) {
+    throw new InvalidArgumentError(`"${value}" is not <work-id> or <work-id>:<revision>`);
+  }
+  return revision === undefined ? { id } : { id, revision };
+}
+
 function parseTags(value: string): string[] {
   return value
     .split(',')
@@ -118,10 +129,12 @@ export function buildProgram(io: CliIo): Command {
     .option('--q <query>', 'full-text search')
     .option('--status <status>', `filter by status (${WorkStatusSchema.options.join('|')})`)
     .option('--limit <n>', 'page size (1-200)', parseLimit, 50)
-    .action(async (opts: { q?: string; status?: string; limit: number }) => {
+    .option('--trash', 'list works in 最近刪除 instead (newest deletion first)')
+    .action(async (opts: { q?: string; status?: string; limit: number; trash?: boolean }) => {
       const status = opts.status === undefined ? undefined : WorkStatusSchema.parse(opts.status);
       const page = await client().works.list({
         limit: opts.limit,
+        ...(opts.trash === true ? { scope: 'trash' as const } : {}),
         ...(opts.q ? { q: opts.q } : {}),
         ...(status ? { status } : {}),
       });
@@ -130,10 +143,157 @@ export function buildProgram(io: CliIo): Command {
         return;
       }
       for (const w of page.items) {
-        io.stdout(`${w.id}\t${w.status}\t${w.updated_at}\t${w.title}\n`);
+        // With --trash the date is when it was deleted. Revisions: use --json.
+        io.stdout(`${w.id}\t${w.status}\t${w.deleted_at ?? w.updated_at}\t${w.title}\n`);
       }
       io.stdout(`${page.items.length} of ${page.total}\n`);
     });
+
+  /**
+   * The revision a write is based on: the one the caller saw (`--base-revision`
+   * or `<id>:<revision>`), or with `--use-current-revision` whatever the server
+   * has now, which gives up the protection against overwriting someone else's change.
+   */
+  const baseRevision = async (
+    api: CreatorHubClient,
+    id: string,
+    given: string | undefined,
+    useCurrent: boolean | undefined,
+  ): Promise<string> => {
+    if (given !== undefined) return given;
+    if (useCurrent !== true) {
+      throw new Error(
+        `no revision for ${id}: pass --base-revision (or <id>:<revision>), or --use-current-revision`,
+      );
+    }
+    return (await api.works.get(id)).current_revision_id;
+  };
+
+  const trashNote =
+    'needs a token with the "write" scope. Deleting moves works to 最近刪除 for 30 days; ' +
+    'works in a mounted folder are only removed from the library, their files are never touched. ' +
+    'Permanent deletion is not available from the CLI.';
+
+  works
+    .command('delete <id>')
+    .description(`move a work to 最近刪除 (${trashNote})`)
+    .option('--base-revision <revision>', 'the revision you last saw (409 if it changed since)')
+    .option('--use-current-revision', 'use the revision the server has now instead')
+    .action(async (id: string, opts: { baseRevision?: string; useCurrentRevision?: boolean }) => {
+      const api = client();
+      const base = await baseRevision(api, id, opts.baseRevision, opts.useCurrentRevision);
+      const res = await api.works.trash(id, { base_revision: base });
+      io.stdout(
+        json()
+          ? `${JSON.stringify(res, null, 2)}\n`
+          : `deleted ${res.work.id} (${res.work.removal ?? 'trashed'}) until ${res.work.purge_at ?? ''}\n`,
+      );
+    });
+
+  works
+    .command('restore <id>')
+    .description('bring a work back from 最近刪除 with its history (needs the "write" scope)')
+    .option('--base-revision <revision>', 'the revision you last saw (409 if it changed since)')
+    .option('--use-current-revision', 'use the revision the server has now instead')
+    .action(async (id: string, opts: { baseRevision?: string; useCurrentRevision?: boolean }) => {
+      const api = client();
+      const base = await baseRevision(api, id, opts.baseRevision, opts.useCurrentRevision);
+      const work = await api.works.restoreFromTrash(id, { base_revision: base });
+      io.stdout(
+        json()
+          ? `${JSON.stringify(work, null, 2)}\n`
+          : `restored ${work.id} revision ${work.current_revision_id}\n`,
+      );
+    });
+
+  const BATCH_ACTIONS = ['trash', 'restore', 'set-status', 'add-tags', 'remove-tags'] as const;
+  works
+    .command('batch <action> <items...>')
+    .description(
+      `${BATCH_ACTIONS.join('|')} for up to 200 works, each <id> or <id>:<revision>; ` +
+        `items succeed or fail one by one and the exit code is 1 if any failed (${trashNote})`,
+    )
+    .option('--status <status>', `for set-status (${WorkStatusSchema.options.join('|')})`)
+    .option('--tags <tags>', 'for add-tags / remove-tags: comma-separated tags', parseTags)
+    .option(
+      '--use-current-revision',
+      'items without :<revision> use the revision the server has now',
+    )
+    .option(
+      '--idempotency-key <key>',
+      'reuse to make retries safe: the same key returns the first result (default: a new random key)',
+    )
+    .action(
+      async (
+        action: string,
+        rawItems: string[],
+        opts: {
+          status?: string;
+          tags?: string[];
+          useCurrentRevision?: boolean;
+          idempotencyKey?: string;
+        },
+      ) => {
+        if (!(BATCH_ACTIONS as readonly string[]).includes(action)) {
+          throw new InvalidArgumentError(`action must be one of ${BATCH_ACTIONS.join('|')}`);
+        }
+        const api = client();
+        const items = await Promise.all(
+          rawItems.map(async (raw) => {
+            const item = parseWorkItem(raw);
+            return {
+              id: item.id,
+              base_revision: await baseRevision(
+                api,
+                item.id,
+                item.revision,
+                opts.useCurrentRevision,
+              ),
+            };
+          }),
+        );
+        const needsTags = action === 'add-tags' || action === 'remove-tags';
+        if (needsTags && (opts.tags === undefined || opts.tags.length === 0)) {
+          throw new Error(`${action} needs --tags`);
+        }
+        if (action === 'set-status' && opts.status === undefined) {
+          throw new Error('set-status needs --status');
+        }
+        const request =
+          action === 'trash'
+            ? { action: 'trash' as const, items }
+            : action === 'restore'
+              ? { action: 'restore' as const, items }
+              : action === 'set-status'
+                ? {
+                    action: 'set_status' as const,
+                    status: WorkStatusSchema.parse(opts.status),
+                    items,
+                  }
+                : {
+                    action:
+                      action === 'add-tags' ? ('add_tags' as const) : ('remove_tags' as const),
+                    tags: opts.tags ?? [],
+                    items,
+                  };
+        const res = await api.works.batch(request, {
+          idempotencyKey: opts.idempotencyKey ?? randomUUID(),
+        });
+        if (json()) {
+          io.stdout(`${JSON.stringify(res, null, 2)}\n`);
+        } else {
+          for (const r of res.results) {
+            io.stdout(
+              r.ok
+                ? `ok\t${r.id}\t${r.work.current_revision_id}\n`
+                : `failed\t${r.id}\t${r.error.code}\t${r.error.message}\n`,
+            );
+          }
+          io.stdout(`${String(res.succeeded)} succeeded, ${String(res.failed)} failed\n`);
+        }
+        if (res.failed > 0) throw new CommanderError(1, 'batch.failed', '');
+      },
+    );
 
   const describeJob = (job: ImportJobRecord): string =>
     [
