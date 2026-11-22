@@ -1,5 +1,17 @@
 # Done
 
+## QC-078: 「最近刪除」改名為「回收站」
+
+**Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M3, frontend | **Done:** 2026-11-22
+
+- 作品與素材全部文案改為回收站／Trash（含動作、確認框、提示、空狀態、無障礙名稱），文件同步，i18n 測試鎖住三語不殘留舊詞；API 與資料欄位不變。
+
+## QC-077: 素材庫支援查看大圖（Quick Look 式預覽）
+
+**Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M3, frontend | **Done:** 2026-11-22
+
+- 雙擊／空白鍵／點預覽開啟，Esc／空白鍵／遮罩關閉；縮放、拖曳平移、視頻播放、←→ 切換、檔名尺寸序號；先縮圖後原圖；從縮圖位置展開、減少動態效果時淡入；關閉焦點回卡片。單元 1136／0，e2e 兩種模式 47／0。
+
 ## QC-074: AI 圖片生成動畫簡化；縮寫／擴寫候選與下方圖片重疊
 
 **Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend | **Done:** 2026-11-22
