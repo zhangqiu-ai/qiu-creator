@@ -1,5 +1,11 @@
 # Done
 
+## QC-073: 動效開啟時 7 個 e2e 失敗（發版阻擋）
+
+**Priority:** P0 | **Assignee:** qc-frontend | **Tags:** M3, frontend | **Done:** 2026-11-22
+
+- 根因：淡出副本保留 role／aria-modal 被當成開著的圖層（吞掉 ⌘A、⌘⌫、⌘W）→ 副本加 data-leaving、`hasOpenLayer` 排除；ContextMenu 任何 capture scroll 都關閉 → 只在來源捲動區域真的捲動時關；右鍵「改狀態 ▸」子選單因 onClose 每次換新而被清掉計時器 → ref；提示堆疊前 115ms 重疊 → 新提示自 150% 下方以 snappy 升起；視窗變窄時側欄過渡未停 → 非使用者觸發時立即停止；sidebar 測試 locator 排除 ghost。新增 library-status-menu.spec（130 件）。e2e 一般與動效模式各 46 passed／9 skipped／0 failed。共用規則加「e2e 兩種模式都要跑」。
+
 ## QC-070: 文章編輯加 AI 圖片／封面生成與選取浮動工具列
 
 **Priority:** P1 | **Assignee:** qc-prototype → qc-backend ＋ qc-frontend | **Tags:** M3, prototype, backend, frontend | **Done:** 2026-11-22

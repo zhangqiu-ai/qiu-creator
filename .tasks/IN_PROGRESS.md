@@ -1,14 +1,3 @@
-## QC-073: 動效開啟時 7 個 e2e 失敗（發版阻擋）
-
-**Priority:** P0 | **Assignee:** qc-frontend | **Tags:** M3, frontend
-
-發版前檢查（main b723071）：一般模式全綠，但 `QC_E2E_MOTION=on` 全套有 7 個 spec 失敗、重跑一致。實際 App 預設開著動效，所以要當成使用者會遇到的缺陷處理。
-- 上一版 18dff82 已存在（已安裝給使用者）：editor-tabs「關閉未存的分頁」；image-post「兩則提示上下堆疊」；library-actions「⌘A 後工具列」與「⌘⌫ 刪除時頁面已關閉」。
-- 本版新增：(a) sidebar-logo-toggle：側欄過渡的靜態副本也是 `nav.sb`，locator 撞兩個；(b) ai-image-editor「有候選時關閉」：對話框淡出期間 EditorTabs 因 `[aria-modal]` 仍在而忽略 ⌘W；(c) library-paging：⌘A 後批量列「改狀態」選單打不開。
-- 要求：逐一找出根因；產品問題修產品（例如淡出中的副本不應仍算 `aria-modal`、批量列選單在動效下可開），測試問題修測試（locator 排除 ghost），不准加長逾時、重試或放寬斷言。
-- 閘門補強：之後交付與發版前檢查，e2e 一律跑兩遍：一般模式＋`QC_E2E_MOTION=on` 全套，兩遍都要 0 failed。寫進共用規則與 AGENTS 交付段。
-- 修好前不發版。
-
 ## QC-033: Mac 生產可用實機驗收
 
 **Priority:** P1 | **Assignee:** qc-test | **Tags:** M3
