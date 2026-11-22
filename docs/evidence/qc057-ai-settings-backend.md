@@ -69,3 +69,28 @@ rebase 前在 c690b18 上也跑過一次：961／0／961，e2e 21／21。沒有�
 - 全套與 e2e 的鎖都已釋放。
 - 沒有改 `.tasks/`。
 - worktree 與分支保留，等總監驗收合併後再刪除。
+
+## 7. 後續小修：Gemini 429 的判斷（2026-11-21）
+
+分支 `fix/qc057-gemini-rate-limit`，從 `origin/main` 284a631 開出。
+
+- **問題**：原本把 Gemini 的 `RESOURCE_EXHAUSTED` 一律當成 `quota`，但每分鐘限流也會回這個碼，訊息還寫「check your plan and billing details」，使用者因此會被誤導成「額度不足」。
+- **改法**：新增 `classifyTooManyRequests`（`src/ai/providers/relay-models.ts`）。
+  - Gemini：只看結構化的 `details`。
+    - 每分鐘、每日的請求數上限，以及 token 上限，算 `rate_limited`。
+    - 只有 `ErrorInfo` 的 reason，或 `QuotaFailure` 的違規項目明確提到 billing、credit、prepay，才算 `quota`。
+    - 訊息文字只認明確的「點數已用完」說法。
+  - GPT 與 New API：先看錯誤碼，再看明確的餘額或額度用完字樣。
+  - 判斷不了一律算 `rate_limited`。
+- **測試**：`ai-provider-test.test.ts` 用假的 Gemini 錯誤內容（形狀照 google.rpc 的 details）新增 4 個單元測試：
+  - Gemini 每分鐘、每日、token 上限都算 `rate_limited`。
+  - `BILLING_DISABLED`、prepayment 違規項目、明確的「credits depleted」訊息算 `quota`。
+  - 沒有 details、details 格式不對，或訊息含糊時，都是 `rate_limited`。
+  - OpenAI 錯誤碼、Claude `rate_limit_error`、中轉站的中文訊息與純文字回應。
+  - 端對端案例同時涵蓋：Gemini 每分鐘限流顯示 `rate_limited`，`BILLING_DISABLED` 顯示 `quota`。
+  - 原本「Gemini 沒有 details 的 RESOURCE_EXHAUSTED 是 quota」這條斷言，依新規則改成真實的每分鐘限流內容並預期 `rate_limited`；這是核准的行為修正，不是放寬。
+- **閘門**（持有鎖、1 分鐘負載低於 15 才開始）：
+  - typecheck、lint、prettier 全部通過。
+  - 全套 **981 passed／0 failed／981 total**（20:50，負載 3.99→4.59，一次一個套件）：mac-server 449（本次新增 4 個）、apps/mac 331，其餘套件與前一次相同。
+  - e2e **23／23** 通過（20:50–20:51，負載 4.03）。
+  - 沒有加長逾時、加重試或放寬斷言。

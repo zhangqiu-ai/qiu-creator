@@ -5,7 +5,7 @@ import { ApiError, createClient } from '@qiu-creator/api-client';
 import { AI_TEST_TIMEOUT_MS, type AiProvider } from '@qiu-creator/contracts';
 import { afterEach, describe, expect, it } from 'vitest';
 import { MemorySecretStore } from '../src/ai/secret-store.js';
-import { effectiveTimeout } from '../src/ai/providers/relay-models.js';
+import { classifyTooManyRequests, effectiveTimeout } from '../src/ai/providers/relay-models.js';
 import { makeTempHome, startTestServer, type StartOptions, type TestServer } from './helpers.js';
 
 /**
@@ -248,7 +248,14 @@ describe('測試連線 (QC-057)', () => {
       },
       {
         provider: 'gemini',
-        reply: { status: 429, body: { error: { code: 429, status: 'RESOURCE_EXHAUSTED' } } },
+        // QC-057 follow-up: Gemini's per-minute limit, with the misleading "billing" hint.
+        reply: { status: 429, body: GEMINI_PER_MINUTE },
+        code: 'ai_gateway_unreachable',
+        details: { reason: 'rate_limited', status: 429 },
+      },
+      {
+        provider: 'gemini',
+        reply: { status: 429, body: GEMINI_BILLING_DISABLED },
         code: 'ai_gateway_unreachable',
         details: { reason: 'quota', status: 429 },
       },
@@ -335,6 +342,140 @@ describe('測試連線 (QC-057)', () => {
     const asAgent = createClient({ baseUrl: s.baseUrl, token: agent.secret });
     expect((await apiError(asAgent.ai.testProvider('openai'))).status).toBe(403);
     expect(fake.seen).toHaveLength(0);
+  });
+});
+
+/** Gemini 429 bodies in the shape of the Gemini API (google.rpc details); made up for tests. */
+const GEMINI_PER_MINUTE = {
+  error: {
+    code: 429,
+    message:
+      'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits.',
+    status: 'RESOURCE_EXHAUSTED',
+    details: [
+      {
+        '@type': 'type.googleapis.com/google.rpc.QuotaFailure',
+        violations: [
+          {
+            quotaMetric: 'generativelanguage.googleapis.com/generate_content_free_tier_requests',
+            quotaId: 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier',
+            quotaDimensions: { location: 'global', model: 'gemini-3.8-flash' },
+            quotaValue: '10',
+          },
+        ],
+      },
+      { '@type': 'type.googleapis.com/google.rpc.Help', links: [{ description: 'Learn more' }] },
+      { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '31s' },
+    ],
+  },
+};
+
+const GEMINI_BILLING_DISABLED = {
+  error: {
+    code: 429,
+    message: 'Billing is not enabled for this project.',
+    status: 'RESOURCE_EXHAUSTED',
+    details: [
+      {
+        '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
+        reason: 'BILLING_DISABLED',
+        domain: 'googleapis.com',
+      },
+    ],
+  },
+};
+
+describe('429: quota or rate limited (QC-057 follow-up)', () => {
+  const violation = (quotaId: string, quotaMetric = 'generativelanguage.googleapis.com/x') =>
+    JSON.stringify({
+      error: {
+        code: 429,
+        status: 'RESOURCE_EXHAUSTED',
+        message: 'You exceeded your current quota, please check your plan and billing details.',
+        details: [
+          {
+            '@type': 'type.googleapis.com/google.rpc.QuotaFailure',
+            violations: [{ quotaMetric, quotaId }],
+          },
+        ],
+      },
+    });
+
+  it('treats Gemini per-minute, per-day, request and token limits as rate limits', () => {
+    expect(classifyTooManyRequests(JSON.stringify(GEMINI_PER_MINUTE))).toBe('rate_limited');
+    expect(
+      classifyTooManyRequests(violation('GenerateRequestsPerDayPerProjectPerModel-FreeTier')),
+    ).toBe('rate_limited');
+    expect(
+      classifyTooManyRequests(
+        violation(
+          'GenerateContentInputTokensPerModelPerMinute-FreeTier',
+          'generativelanguage.googleapis.com/generate_content_free_tier_input_token_count',
+        ),
+      ),
+    ).toBe('rate_limited');
+  });
+
+  it('treats only explicit Gemini billing or credit exhaustion as quota', () => {
+    expect(classifyTooManyRequests(JSON.stringify(GEMINI_BILLING_DISABLED))).toBe('quota');
+    expect(classifyTooManyRequests(violation('PrepaymentCreditsPerProject'))).toBe('quota');
+    expect(
+      classifyTooManyRequests(
+        JSON.stringify({
+          error: {
+            code: 429,
+            status: 'RESOURCE_EXHAUSTED',
+            message: 'Your prepayment credits are depleted. Please add credits to continue.',
+          },
+        }),
+      ),
+    ).toBe('quota');
+  });
+
+  it('defaults to rate limited when Gemini gives no usable detail', () => {
+    for (const body of [
+      { error: { code: 429, status: 'RESOURCE_EXHAUSTED' } },
+      {
+        error: {
+          code: 429,
+          status: 'RESOURCE_EXHAUSTED',
+          message: 'Resource has been exhausted (e.g. check quota).',
+        },
+      },
+      { error: { code: 429, status: 'RESOURCE_EXHAUSTED', details: 'not a list' } },
+    ]) {
+      expect(classifyTooManyRequests(JSON.stringify(body))).toBe('rate_limited');
+    }
+  });
+
+  it('uses error codes, then explicit wording, for OpenAI-compatible and other providers', () => {
+    const openai = (code: string, type = 'x', message = 'x') =>
+      JSON.stringify({ error: { code, type, message } });
+    expect(classifyTooManyRequests(openai('insufficient_quota'))).toBe('quota');
+    expect(classifyTooManyRequests(openai('billing_hard_limit_reached'))).toBe('quota');
+    expect(
+      classifyTooManyRequests(openai('rate_limit_exceeded', 'requests', 'check your billing plan')),
+    ).toBe('rate_limited');
+    expect(classifyTooManyRequests(JSON.stringify({ error: { type: 'tokens' } }))).toBe(
+      'rate_limited',
+    );
+    expect(
+      classifyTooManyRequests(
+        JSON.stringify({ type: 'error', error: { type: 'rate_limit_error' } }),
+      ),
+    ).toBe('rate_limited');
+    // New API relays often answer in Chinese.
+    expect(
+      classifyTooManyRequests(
+        JSON.stringify({ error: { message: '用户额度不足，剩余额度：$0.00' } }),
+      ),
+    ).toBe('quota');
+    expect(
+      classifyTooManyRequests(JSON.stringify({ error: { message: '请求过于频繁，请稍后再试' } })),
+    ).toBe('rate_limited');
+    expect(classifyTooManyRequests('当前分组上游负载已饱和')).toBe('rate_limited');
+    expect(classifyTooManyRequests('余额不足')).toBe('quota');
+    expect(classifyTooManyRequests('')).toBe('rate_limited');
   });
 });
 

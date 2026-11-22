@@ -549,7 +549,9 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 - **錯誤**：都附 `details`，三語文案在 App。
   - 沒有憑證：409 `ai_key_missing`。
   - 401／403：502 `ai_key_invalid`，附 `status`。
-  - 連不上：502 `ai_gateway_unreachable`，`reason` 是 `timeout`／`dns`／`tls`／`connection`，`unavailable`（5xx，附 `status`），`quota`（402，或錯誤內容提到額度、帳單、餘額的 429，例如 `insufficient_quota`、`RESOURCE_EXHAUSTED`），或 `rate_limited`（其他 429，稍後再試）；後兩者附 `status`（QC-057）。可能附 `detail`：Node 的錯誤碼，例如 `ECONNREFUSED`。
+  - 連不上：502 `ai_gateway_unreachable`，`reason` 是 `timeout`／`dns`／`tls`／`connection`，`unavailable`（5xx，附 `status`），`quota`（402，或明確表示帳單、點數、餘額已用完的 429），或 `rate_limited`（其他 429，稍後再試）；後兩者附 `status`（QC-057）。429 的判斷在 `classifyTooManyRequests`，判斷不了一律當 `rate_limited`，因為「暫時受限，稍後重試」對使用者較安全：
+    - Gemini（`RESOURCE_EXHAUSTED`）：只看結構化的 `details`。`QuotaFailure` 的每分鐘、每日請求數或 token 上限是 `rate_limited`；`ErrorInfo` 的 reason 或違規項目提到 billing、credit、prepay 的才是 `quota`。訊息文字只認明確的「點數已用完」說法，因為 Gemini 遇到每分鐘限流也會寫 "check your plan and billing details"。
+    - GPT 與 New API：先看 `error.code`／`type`（`insufficient_quota`、`billing_hard_limit_reached` 算 `quota`；`rate_limit_exceeded` 算 `rate_limited`），再看明確的餘額或額度不足字樣（包含中轉站常用的「额度不足」「余额不足」）。可能附 `detail`：Node 的錯誤碼，例如 `ECONNREFUSED`。
   - 回應不是模型清單：502 `ai_gateway_bad_response`，`reason` 是 `not_json`／`missing_data`／`too_large`／`redirect`，或 `unexpected_status`（例如 Base URL 路徑錯了的 404，附 `status`）。
   - 其他供應商：400。Gemini／Claude／GPT 是否也改成線上查詢不在範圍內。
 
