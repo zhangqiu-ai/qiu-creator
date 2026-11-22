@@ -1,5 +1,11 @@
 # Done
 
+## QC-063: 側欄收合按鈕併入 Logo（hover 切換）
+
+**Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M3, frontend | **Done:** 2026-11-21
+
+- 移除獨立按鈕；Logo hover／focus-visible 時換成切換圖示，帶三語 tooltip 與 ⌃⌘S；收合狀態同位置展開；VoiceOver 名稱；服務綠點保留。e2e `sidebar-logo-toggle.spec.ts`（26 passed，於暫停規則前）。證據 `docs/evidence/qc063-logo-sidebar-toggle.md`。待與 QC-061 一起發版。
+
 ## QC-060: 端到端測試在背景執行，不搶前景與焦點
 
 **Priority:** P1 | **Assignee:** qc-bugfix | **Tags:** M3 | **Done:** 2026-11-21

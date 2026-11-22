@@ -1,3 +1,32 @@
+## QC-065: 全面引入動效設計（Motion／Framer Motion、dnd-kit）
+
+**Priority:** P1 | **Assignee:** qc-frontend（主）＋ qc-prototype（動效規格） | **Tags:** M3, frontend, prototype
+
+使用者 2026-11-21：「我先發現此項目很少用到動效來提升UI、UX質量，現在你要全面的引入動效設計，Framer Motion、dnd-kit 這是兩個動效庫，來大幅提升產品的優雅和舒適性。」
+
+**步驟一：動效規格（寫進 DESIGN.md「動效」一節，總監核准）**
+- 動效 tokens：時長（例如 120／180／240／320 ms）、曲線（標準、進入、離開、彈簧參數）、距離；macOS 的克制風格，避免花俏與彈跳過度。
+- 每類互動的規則：頁面與分頁切換、側欄收合、彈出層／選單／對話框／抽屜、toast 堆疊、列表新增／刪除／重排（layout 動畫）、卡片 hover／選取、載入骨架到內容、狀態變化（儲存、測試連線、AI 任務進度）、拖放（拿起、經過目標、放下、取消）。
+- 無障礙：尊重 `prefers-reduced-motion`（系統「減少動態效果」），改為淡入或無動畫；動畫不阻擋輸入、不延遲焦點；中文輸入法組字中不觸發會搶焦點的動畫。
+- 效能：只動 transform／opacity；大量卡片時的 layout 動畫上限；120 Hz ProMotion 與低電量模式下的表現。
+- 查 qiuge-design（`visual`、`feedback`、`navigation`、`data-display`），引用卡片。
+
+**步驟二：基礎建設**
+- 依賴：`motion`（Framer Motion 的現行套件名，MIT）、`@dnd-kit/core`／`@dnd-kit/sortable`（MIT）；寫進 `docs/dependencies.md`（授權、版本、替代方案、體積）。只放在 `apps/mac` 的 renderer；`packages/*` 不依賴它們（共用套件不綁死）。
+- 共用動效元件與 hooks（例如 `<Presence>`、`<Reorder>`、`useReducedMotion` 封裝、tokens 常數），既有 CSS transition 統一改用 tokens。
+- 拖放：統一用 dnd-kit（鍵盤拖放、觸控板、無障礙播報三語），取代目前各處自寫的拖曳。
+
+**步驟三：分區落地（每區一個 commit，可分次合併）**
+1. 殼層：側欄收合（QC-063 Logo 切換）、頁面切換、編輯分頁開關與重排（分頁可拖曳排序）。
+2. 浮層：選單、右鍵選單、對話框、抽屜、toast。
+3. 作品庫：卡片進出與篩選切換的 layout 動畫、多選、批量列、最近刪除。
+4. 貼圖編輯：圖片格拖曳排序（dnd-kit sortable）、封面設定。
+5. 設定與 AI：分頁切換、測試連線狀態、AI 工作台結果載入。
+6. 項目（QC-062）：側欄項目排序、拖卡片到項目的放下回饋。
+
+- 時序：與 QC-061、QC-062 同區域；先做步驟一、二與 1、2 區，作品庫與項目區等 QC-061／QC-062 合併後再做，避免衝突。
+- 驗收：每區附前後對照錄影（GIF 或 mp4）、reduced-motion 截圖；e2e 背景模式（QC-064 後），測試要能關閉動畫（測試模式直接用 reduced motion）以免時序不穩。
+
 ## QC-064: e2e 視窗完全不出現在螢幕上（QC-060 不足）
 
 **Priority:** P0 | **Assignee:** qc-test | **Tags:** M3
@@ -8,18 +37,6 @@
 - 方向（評估後選一個並說明）：視窗維持隱藏（`show: false`）＋`webPreferences.backgroundThrottling: false`＋`paintWhenInitiallyHidden: true`，Playwright 經 CDP 操作與截圖；需要 focus／visibility 的測試用 CDP `Emulation.setFocusEmulationEnabled` 等模擬。或移到所有螢幕範圍外（注意 macOS 會把視窗夾回螢幕，需實測）。不可用透明度 0（仍會攔截點擊）。
 - 驗收：整套 e2e 期間用 `CGWindowListCopyWindowInfo`（或 `osascript`／`screencapture` 比對）證明沒有任何 qiu-creator／Electron 測試視窗出現在螢幕上；前景 App 不變；全部 e2e 通過，不放寬斷言、不加逾時。
 - 修好前：各子會話**暫停整套 e2e**，只在必要時跑最少的單一 spec。
-
-## QC-063: 側欄收合按鈕併入 Logo（hover 切換）
-
-**Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M3, frontend
-
-使用者 2026-11-21（截圖箭頭指向側欄頂部的 Logo 與右側收合按鈕）：「這個側邊欄控制按鈕可以簡化設計，比如放到LOGO上，使用鼠標HOVER來控制切換。」
-- 移除 Logo 列右側獨立的收合按鈕。滑鼠移到 Logo 上時，Logo 圖示換成「收合／展開側欄」圖示（帶 tooltip 與快捷鍵提示），點擊切換；移開恢復 Logo。參考 ChatGPT、Claude 桌面版的做法（查 qiuge-design `navigation`）。
-- 收合狀態下同一位置仍可 hover 展開；鍵盤可聚焦（focus-visible 時同樣顯示切換圖示）、VoiceOver 名稱為「收合側欄／展開側欄」；保留既有快捷鍵與選單項，沒有就加 ⌘⌥S 或依 macOS 慣例並說明。
-- 服務狀態綠點保留在原位。三語 tooltip；淺／深色；動畫克制。
-- 與 QC-062（側欄加項目）同區域：先做這張、改動只限 Logo 列，盡快合併。
-- 補 e2e（背景模式）：hover 顯示切換、點擊收合與展開、鍵盤操作。附截圖。
-- 屬既有元件的小改，不另開原型。使用者授權做完與 QC-061 一起發版（若 QC-061 先好就先發，這張下次跟上）。
 
 ## QC-062: 作品庫加「項目」分類
 
