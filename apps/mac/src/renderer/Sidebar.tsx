@@ -197,7 +197,26 @@ export function Sidebar({
     >
       <div className="sb__top">
         <div className="sb__brand">
-          <BrandMark />
+          <button
+            type="button"
+            className="sb__logo"
+            aria-label={rail ? t('shell.expandSidebar') : t('shell.collapseSidebar')}
+            aria-keyshortcuts="Control+Meta+S"
+            data-tip={
+              narrow
+                ? t('shell.narrowRail')
+                : rail
+                  ? t('shell.expandSidebarTip')
+                  : t('shell.collapseSidebarTip')
+            }
+            disabled={narrow}
+            onClick={toggle}
+          >
+            <BrandMark />
+            <span className="sb__logo-swap" aria-hidden="true">
+              <Icon name="sidebar" size={16} />
+            </span>
+          </button>
           <span className="sb__name">qiu-creator</span>
         </div>
         <span className={`sb__svc sb__svc--${service.tone}`}>
@@ -243,23 +262,6 @@ export function Sidebar({
             )}
           </div>
         </span>
-        <button
-          type="button"
-          className="btn btn--ghost btn--icon btn--small sb__toggle"
-          aria-label={rail ? t('shell.expandSidebar') : t('shell.collapseSidebar')}
-          aria-keyshortcuts="Control+Meta+S"
-          title={
-            narrow
-              ? t('shell.narrowRail')
-              : rail
-                ? t('shell.expandSidebarTip')
-                : t('shell.collapseSidebarTip')
-          }
-          disabled={narrow}
-          onClick={toggle}
-        >
-          <Icon name="sidebar" size={16} />
-        </button>
       </div>
 
       <div className="sb__scroll">
