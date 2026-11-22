@@ -47,6 +47,16 @@
 - 授權與打包：FFmpeg 為 LGPL-2.1+，啟用 GPL 元件（例如 Homebrew 預設建置含 x264／x265）時整體為 GPL。為避免把 GPL 二進位檔隨 App 散布，**目前不打包 ffprobe**，由使用者自行安裝（`brew install ffmpeg`）。若日後要內建，需改用 LGPL-only 建置並附原始碼取得方式，屆時另行決定。
 - 本機實測：Homebrew ffprobe 9.0.2。測試一律用假 ffprobe 腳本，不依賴本機安裝。
 
+### 視頻卡片幀：ffmpeg（外部程式，不打包）＋ App 截幀（QC-061）
+
+- 作品庫視頻卡的封面幀，有 ffmpeg 時由伺服器用 ffmpeg 取（`-ss <封面時間> -frames:v 1`，輸出 PNG 再用 sharp 轉 WebP 512）。尋找順序比照 ffprobe：`CREATORHUB_FFMPEG` → `PATH` → `/opt/homebrew/bin`、`/usr/local/bin`。授權與打包同上：**不打包**。
+- 沒有 ffmpeg，或 ffmpeg 解不開某支視頻時，列表標 `needs_frame`，由 App 用隱藏的 `<video>` 加 canvas 截取封面那一幀，上傳到 `PUT /works/:id/thumbnail-frame`。Chromium 本身就能解 H.264、HEVC、VP9、AV1，所以不靠 GPL 工具也能拿到準確的封面幀。
+- 評估過但沒採用：
+  - macOS Quick Look（`qlmanage -t`）：內建、0.15 秒，但無法指定時間，取到的幀不準。
+  - 用 `osascript -l JavaScript` 呼叫 AVFoundation 的 `AVAssetImageGenerator`：傳 `CMTime` 結構時 osascript 直接崩潰（exit 139），不可靠。
+  - 內建一個小的 Swift 工具：準確，也沒有授權問題，但需要發版流程在打包時編譯並簽章；以後如果要讓伺服器在沒開 App 時也能產生，再另外評估。
+- 測試一律用假 ffmpeg 腳本，或關閉 ffmpeg（`ffmpeg: null`），不依賴本機安裝。
+
 ### 資料夾監控：chokidar 6
 
 - chokidar 6.0.0（MIT，Node ≥ 22.22，唯一依賴 readdirp）。用 `awaitWriteFinish`：檔案大小在設定時間內（預設 2 秒）不再變化才觸發 add／change，寫一半的檔案不會被索引；`atomic: true` 把編輯器「刪除＋重建」式的存檔合併成一次 change；`followSymlinks: false`。

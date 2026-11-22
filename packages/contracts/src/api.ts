@@ -69,6 +69,10 @@ export const ErrorCodeSchema = z.enum([
   'front_matter_invalid',
   /** The work is in 最近刪除; restore it before editing (409, QC-051). */
   'work_in_trash',
+  /** No card image to serve: `details.reason` none/missing/needs_frame/decode_failed (404, QC-061). */
+  'thumbnail_unavailable',
+  /** The uploaded frame is for a video or time the work no longer uses as its card; reload (409, QC-061). */
+  'thumbnail_frame_stale',
   /** The New API relay refused the stored key (401/403) while listing models (502, QC-054). */
   'ai_key_invalid',
   /** The relay could not be reached: `details.reason` timeout/dns/tls/connection/unavailable (502, QC-054). */
@@ -253,6 +257,45 @@ export const WorkThumbnailSchema = z.object({
 });
 export type WorkThumbnail = z.infer<typeof WorkThumbnailSchema>;
 
+/** Longest `excerpt` on a library card, in characters (QC-061). */
+export const WORK_EXCERPT_MAX_CHARS = 120;
+/** Largest frame the app may upload for a video card (QC-061). */
+export const THUMBNAIL_FRAME_MAX_BYTES = 2 * 1024 * 1024;
+
+/**
+ * The image a library card shows (QC-061), served as WebP by
+ * `GET /api/v1/works/:id/thumbnail?v=<version>`.
+ */
+export const WorkCardImageSchema = z.object({
+  /** Fingerprint of the source (file, size, mtime, frame time); changes whenever the image would. */
+  version: z.string().regex(/^[0-9a-f]{16}$/),
+  /**
+   * A video work without an image cover whose frame the server cannot take
+   * (no ffmpeg, or ffmpeg could not decode it): the app captures the frame at
+   * `frame_source` and uploads it with `PUT /works/:id/thumbnail-frame`. Until
+   * then GET answers 404 `thumbnail_unavailable` (`needs_frame`).
+   */
+  needs_frame: z.boolean(),
+  /**
+   * Signed, server-relative URL of the image for `<img src>` (use
+   * `media.absoluteUrl`); no Authorization header needed. Null while
+   * `needs_frame`. Valid until at least an hour after the list was served,
+   * and the same for every list served within the same hour (cacheable).
+   */
+  url: z.string().nullable(),
+  frame_source: z
+    .object({
+      /** Library asset of the video when known; otherwise use `path` (as in `works.media`). */
+      asset_id: IdSchema.nullable(),
+      /** Relative to the work's Markdown file, as in front matter and `works.media` items. */
+      path: z.string(),
+      /** The cover time, or 0 without one. */
+      time_seconds: z.number().nonnegative(),
+    })
+    .optional(),
+});
+export type WorkCardImage = z.infer<typeof WorkCardImageSchema>;
+
 export const WorkListItemSchema = WorkSchema.extend({
   /** Cover, else the first image, else the video; null for articles and empty works. */
   thumbnail: WorkThumbnailSchema.nullable().optional(),
@@ -264,6 +307,18 @@ export const WorkListItemSchema = WorkSchema.extend({
   orientation: z.enum(['portrait', 'landscape', 'square']).nullable().optional(),
   /** How many image or video files named in the front matter are missing. */
   missing_media: z.number().int().nonnegative().optional(),
+  /**
+   * The card image (QC-061): image cover, first image, video frame, or for
+   * articles the front-matter cover or first local Markdown image. Null when
+   * there is none or its file is missing (show the type icon).
+   */
+  card_image: WorkCardImageSchema.nullable().optional(),
+  /**
+   * Plain-text preview for text cards (QC-061), at most `WORK_EXCERPT_MAX_CHARS`:
+   * articles without front matter, the first H1, images and Markdown syntax;
+   * image and video works use their description. Null when there is no text.
+   */
+  excerpt: z.string().nullable().optional(),
 });
 export type WorkListItem = z.infer<typeof WorkListItemSchema>;
 
@@ -334,3 +389,28 @@ export const RevisionListResponseSchema = z.object({ items: z.array(RevisionSche
 export type RevisionListResponse = z.infer<typeof RevisionListResponseSchema>;
 
 export const AssetIdParamsSchema = z.object({ id: IdSchema });
+
+/** `GET /api/v1/works/:id/thumbnail` (QC-061); `v` is the card's `version`, for caching. */
+export const WorkThumbnailQuerySchema = z.object({
+  v: z
+    .string()
+    .regex(/^[0-9a-f]{16}$/)
+    .optional(),
+});
+
+/** `PUT /api/v1/works/:id/thumbnail-frame` query (QC-061): which frame the body is. */
+export const ThumbnailFrameQuerySchema = z.object({
+  /**
+   * `card_image.version` the frame was captured for. A frame captured before
+   * the video or cover changed is refused (409), never stored over the new one.
+   */
+  version: z.string().regex(/^[0-9a-f]{16}$/),
+  /** `card_image.frame_source.path`. */
+  source: z.string().min(1).max(1024),
+  /** `card_image.frame_source.time_seconds`. */
+  time_seconds: z.coerce.number().nonnegative().max(86_400),
+});
+export type ThumbnailFrameQuery = z.input<typeof ThumbnailFrameQuerySchema>;
+
+export const ThumbnailFrameResponseSchema = z.object({ card_image: WorkCardImageSchema });
+export type ThumbnailFrameResponse = z.infer<typeof ThumbnailFrameResponseSchema>;

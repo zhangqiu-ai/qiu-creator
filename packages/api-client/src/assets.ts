@@ -1,4 +1,6 @@
 import {
+  ThumbnailFrameResponseSchema,
+  type ThumbnailFrameResponse,
   AssetRecordSchema,
   AssetReferencesSchema,
   AssetWorkListResponseSchema,
@@ -439,6 +441,64 @@ export function createEventsApi(ctx: Ctx): CreatorHubEventsApi {
         if (options.signal?.aborted) return;
         throw err;
       }
+    },
+  };
+}
+
+/** Library card images (QC-061). */
+export interface CreatorHubWorkThumbnailsApi {
+  /** Server-relative path of a card image, for `<img>` through an authenticating proxy. */
+  path(workId: string, version?: string): string;
+  /** The card image (WebP). 404 `thumbnail_unavailable` with `details.reason` when there is none. */
+  get(workId: string, version?: string): Promise<Uint8Array>;
+  /**
+   * Upload the frame the app captured for a card with `needs_frame`; `source`
+   * and `timeSeconds` come from `card_image.frame_source`. 409 `thumbnail_frame_stale` when outdated.
+   */
+  putFrame(
+    workId: string,
+    bytes: Uint8Array,
+    frame: {
+      /** `card_image.version` the frame was captured for. */
+      version: string;
+      source: string;
+      timeSeconds: number;
+      contentType: 'image/jpeg' | 'image/png' | 'image/webp';
+    },
+  ): Promise<ThumbnailFrameResponse>;
+}
+
+export function createWorkThumbnailsApi(ctx: Ctx): CreatorHubWorkThumbnailsApi {
+  const path = (workId: string, version?: string): string =>
+    `/api/v1/works/${encodeURIComponent(workId)}/thumbnail${query({ v: version })}`;
+  return {
+    path,
+    get: async (workId, version) => {
+      const res = await ctx.doFetch(`${ctx.baseUrl}${path(workId, version)}`, {
+        headers: { authorization: `Bearer ${ctx.options.token}` },
+      });
+      if (!res.ok) throw await toApiError(res);
+      return new Uint8Array(await res.arrayBuffer());
+    },
+    putFrame: async (workId, bytes, frame) => {
+      const url = `${ctx.baseUrl}/api/v1/works/${encodeURIComponent(workId)}/thumbnail-frame${query(
+        {
+          version: frame.version,
+          source: frame.source,
+          time_seconds: frame.timeSeconds,
+        },
+      )}`;
+      const res = await ctx.doFetch(url, {
+        method: 'PUT',
+        headers: {
+          authorization: `Bearer ${ctx.options.token}`,
+          'content-type': frame.contentType,
+          accept: 'application/json',
+        },
+        body: asBody(bytes),
+      });
+      if (!res.ok) throw await toApiError(res);
+      return ThumbnailFrameResponseSchema.parse(await res.json());
     },
   };
 }

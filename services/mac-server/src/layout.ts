@@ -58,6 +58,15 @@ export class Layout {
     );
   }
 
+  /** Library card image of a work (QC-061), named by its source fingerprint. Rebuildable. */
+  workThumbnailRel(workId: string, version: string): string {
+    return path.join(
+      'cache',
+      'work-thumbnails',
+      `${assertSafeFileName(workId)}-${assertSafeFileName(version)}.webp`,
+    );
+  }
+
   /** Rebuildable thumbnail cache. */
   thumbnailRel(assetId: string): string {
     return path.join('cache', 'thumbnails', `${assertSafeFileName(assetId)}.webp`);

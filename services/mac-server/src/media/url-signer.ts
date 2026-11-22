@@ -58,6 +58,15 @@ export class MediaUrlSigner {
     return new Date(Math.floor((this.now() + this.ttlMs) / 1000) * 1000);
   }
 
+  /**
+   * Expiry at the end of the next whole TTL period (QC-061 card images): at
+   * least one TTL away, and the same for every URL signed within one period,
+   * so the URL stays stable and browsers can cache the image.
+   */
+  alignedExpiry(): Date {
+    return new Date((Math.floor(this.now() / this.ttlMs) + 2) * this.ttlMs);
+  }
+
   sign(pathname: string, principalId: string, expiresAt: Date = this.expiry()): SignedUrl {
     const exp = Math.floor(expiresAt.getTime() / 1000);
     const params = new URLSearchParams({
@@ -81,7 +90,8 @@ export class MediaUrlSigner {
     const expSeconds = Number(exp);
     const secondsLeft = expSeconds - Math.floor(this.now() / 1000);
     // Expired, or further out than this server would ever sign (forged/old key).
-    if (secondsLeft <= 0 || secondsLeft > Math.ceil(this.ttlMs / 1000) + 1) throw invalid();
+    // `alignedExpiry` reaches up to two TTL periods ahead.
+    if (secondsLeft <= 0 || secondsLeft > Math.ceil((2 * this.ttlMs) / 1000) + 1) throw invalid();
     const expected = Buffer.from(this.mac(pathname, p, expSeconds), 'base64url');
     const given = Buffer.from(sig, 'base64url');
     if (given.length !== expected.length || !timingSafeEqual(given, expected)) throw invalid();

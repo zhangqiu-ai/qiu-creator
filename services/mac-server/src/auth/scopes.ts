@@ -15,6 +15,8 @@ const WRITE_ROUTES = new Set([
   'DELETE /api/v1/works/:id',
   'POST /api/v1/works/:id/restore',
   'POST /api/v1/works/batch',
+  // QC-061: a captured video frame for a card image; writes only the cache.
+  'PUT /api/v1/works/:id/thumbnail-frame',
   'POST /api/v1/works/:id/assets',
   // QC-039: copies an asset into the work's own folder and links it (like linking an asset).
   'POST /api/v1/works/:id/media/attach',

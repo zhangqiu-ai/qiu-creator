@@ -16,6 +16,7 @@ import {
   type RevisionSource,
   type Work,
   type WorkDetail,
+  type WorkCardImage,
   type WorkListItem,
   type WorkRemoval,
 } from '@qiu-creator/contracts';
@@ -38,6 +39,7 @@ import {
 } from '../fs/atomic.js';
 import type { Layout } from '../layout.js';
 import { isTypedWork, TypedWorkMedia, type WorkLocation } from './typed-media.js';
+import { WorkCardImages, workExcerpt, type CardImageOptions } from './card-images.js';
 
 interface WorkRow {
   id: string;
@@ -166,11 +168,14 @@ export class WorkService {
     private readonly layout: Layout,
     private readonly fsOps: AtomicFsOps = nodeFsOps,
     private readonly feed?: ChangeFeed,
+    cardOptions: CardImageOptions = { ffmpeg: null },
   ) {
     this.typed = new TypedWorkMedia(db, layout);
+    this.cards = new WorkCardImages(layout, this.typed, cardOptions);
   }
 
   private readonly typed: TypedWorkMedia;
+  private readonly cards: WorkCardImages;
 
   create(input: CreateWorkRequest): WorkDetail {
     const req = CreateWorkRequestSchema.parse(input);
@@ -323,17 +328,50 @@ export class WorkService {
     };
   }
 
-  /** A list row; image and video works add their card fields (QC-045/046). */
+  /**
+   * A list row; image and video works add their card fields (QC-045/046), and
+   * every work its card image and excerpt (QC-061).
+   */
   private listItem(row: WorkRow): WorkListItem {
     const work = toWork(row);
-    if (!isTypedWork(row.type)) return work;
     let markdown: string;
     try {
       markdown = this.readCurrent(row);
     } catch {
       return work;
     }
-    return { ...work, ...this.typed.summary(location(row), markdown) };
+    const loc = location(row);
+    const card = {
+      card_image: this.cards.cardImage(loc, markdown),
+      excerpt: workExcerpt(row.type, markdown),
+    };
+    if (!isTypedWork(row.type)) {
+      const image = card.card_image === null ? null : this.articleThumbnail(loc, markdown);
+      return { ...work, ...card, ...(image === null ? {} : { thumbnail: image }) };
+    }
+    return { ...work, ...this.typed.summary(loc, markdown), ...card };
+  }
+
+  /** Articles' `thumbnail` mirrors their card image source (QC-061). */
+  private articleThumbnail(loc: WorkLocation, markdown: string): WorkListItem['thumbnail'] {
+    const path = this.cards.sourcePath(loc, markdown);
+    return path === null ? null : { asset_id: null, path, kind: 'image' };
+  }
+
+  /** The card image file (QC-061), rendered if it is not cached. */
+  cardImageFile(id: string): Promise<{ file: string; version: string }> {
+    const row = this.reconcileExternalChange(this.requireRow(id));
+    return this.cards.file(location(row), this.readCurrent(row));
+  }
+
+  /** Store a frame the app captured for a video card (QC-061). */
+  async putCardFrame(
+    id: string,
+    frame: { version: string; source: string; timeSeconds: number; bytes: Buffer },
+  ): Promise<WorkCardImage> {
+    const row = this.reconcileExternalChange(this.requireRow(id));
+    this.requireActiveRow(row);
+    return this.cards.putFrame(location(row), this.readCurrent(row), frame);
   }
 
   /** Current state of an image or video work for a write, after the revision check. */

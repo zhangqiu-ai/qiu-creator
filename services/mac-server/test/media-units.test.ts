@@ -88,6 +88,26 @@ describe('MediaUrlSigner', () => {
     expect(() => signer.verify('/media/v1/x', q)).toThrow();
   });
 
+  it('aligns card-image expiries to the next period plus one, and still refuses anything further out', () => {
+    let now = Date.parse('2026-11-21T10:20:00.000Z');
+    const signer = new MediaUrlSigner(key, 60 * 60_000, () => now);
+    expect(signer.alignedExpiry().toISOString()).toBe('2026-11-21T12:00:00.000Z');
+    now = Date.parse('2026-11-21T10:59:59.000Z');
+    expect(signer.alignedExpiry().toISOString()).toBe('2026-11-21T12:00:00.000Z');
+    const aligned = signer.sign('/media/v1/x', 'owner', signer.alignedExpiry());
+    const q = Object.fromEntries(new URL(aligned.url, 'http://h').searchParams);
+    expect(signer.verify('/media/v1/x', q).principalId).toBe('owner');
+    // A signature claiming more than two periods ahead is never one this server made.
+    now = Date.parse('2026-11-21T10:00:00.000Z');
+    const tooFar = signer.sign('/media/v1/x', 'owner', new Date(now + 2 * 60 * 60_000 + 5_000));
+    expect(() =>
+      signer.verify(
+        '/media/v1/x',
+        Object.fromEntries(new URL(tooFar.url, 'http://h').searchParams),
+      ),
+    ).toThrow();
+  });
+
   it('creates a 0600 key once and reuses it', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'creatorhub-key-'));
     dirs.push(dir);

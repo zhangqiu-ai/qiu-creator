@@ -42,6 +42,8 @@ export const errors = defineMessages({
     ai_key_invalid: 'AI 服務拒絕了這組 API 金鑰，請檢查金鑰是否正確或有權限',
     ai_gateway_unreachable: '連不上 AI 服務，請檢查網路（New API 另請檢查 Base URL）',
     ai_gateway_bad_response: 'AI 服務的回應不是模型清單（New API 請檢查 Base URL）',
+    thumbnail_unavailable: '這個作品沒有可用的縮圖',
+    thumbnail_frame_stale: '作品的封面已經變更，請重新整理',
   },
   'zh-Hans': {
     unauthorized: '令牌无效，无法访问本机服务',
@@ -79,6 +81,8 @@ export const errors = defineMessages({
     ai_key_invalid: 'AI 服务拒绝了这个 API 密钥，请检查密钥是否正确或有权限',
     ai_gateway_unreachable: '连不上 AI 服务，请检查网络（New API 另请检查 Base URL）',
     ai_gateway_bad_response: 'AI 服务的响应不是模型列表（New API 请检查 Base URL）',
+    thumbnail_unavailable: '这个作品没有可用的缩略图',
+    thumbnail_frame_stale: '作品的封面已经更改，请刷新',
   },
   en: {
     unauthorized: 'The access token is invalid, so the local service can’t be reached',
@@ -120,5 +124,7 @@ export const errors = defineMessages({
       'Couldn’t reach the AI service. Check your network (and the Base URL for New API).',
     ai_gateway_bad_response:
       'The AI service didn’t return a model list. For New API, check the Base URL.',
+    thumbnail_unavailable: 'This work has no thumbnail to show.',
+    thumbnail_frame_stale: 'The work’s cover changed. Refresh and try again.',
   },
 });

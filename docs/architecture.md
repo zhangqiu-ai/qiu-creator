@@ -211,6 +211,9 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/works/:id/revisions` | 版本歷史 |
 | GET | `/api/v1/works/:id/revisions/:rid` | 單一歷史版本：標題與完整 Markdown 快照 |
 | POST | `/api/v1/works/:id/revisions/:rid/restore` | 恢復某版本：追加一個 `restore` revision；需要 `base_revision` 或 `If-Match` |
+| GET | `/api/v1/works/:id/thumbnail?v=` | 作品庫卡片圖（WebP，最長邊 512），`ETag` 是卡片的 `version`，`v` 相符時可長期快取；404 `thumbnail_unavailable`（QC-061） |
+| PUT | `/api/v1/works/:id/thumbnail-frame?version=&source=&time_seconds=` | App 上傳截取的視頻幀（JPEG／PNG／WebP，≤ 2 MiB，伺服器實際解碼驗證），存成卡片圖快取；需要 `write`（QC-061） |
+| GET | `/media/v1/works/:id/thumbnail?exp&p&sig&v` | 卡片圖的簽名網址（列表的 `card_image.url`），不需 Authorization（QC-061） |
 | GET | `/api/v1/works/:id/media` | 解析 Markdown 引用的圖片／影音，回每項狀態與簽名網址；外部作品的引用登記成素材 |
 | POST | `/api/v1/works/:id/media/attach` | 把素材複製進託管作品的 `assets/`、連結到作品，回 `src` 給 `![](src)` 用（QC-039）；不寫 Markdown；外部作品回 409 `attach_external_unsupported` |
 | GET | `/api/v1/works/:id/files/*` | 以 Bearer 讀作品內的媒體檔，支援 Range（規則同簽名路由） |
@@ -298,6 +301,29 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 - **託管與外部**：託管檔在 30 天內都留在原位。外部素材預設只解除索引；`move_original_to_trash` 用 macOS 內建的 `/usr/bin/trash`（與 Finder「移到垃圾桶」相同，可「放回原處」），失敗或找不到指令時回 500 `trash_failed`，資料庫不改。伺服器不會從垃圾桶取回檔案：使用者在 Finder 放回原處後再按恢復。測試注入假的 `SystemTrash`，測試執行器下預設的實作一律失敗，不會碰真實垃圾桶。
 - **永久刪除**：手動、清空，或刪除 30 天後由每小時一次的檢查自動執行。刪資料列後，作品連結由外鍵刪除、平台版本封面變 NULL，平台版本的 `image_asset_ids` 移除該 id（不產生新的版本，歷史保留原值）。託管檔與縮圖快取一併刪除；外部原檔永遠不動。刪除前若作品目前的 Markdown 還連到該檔，回應的 `markdown_referrers` 會列出（只提示，不阻擋）。
 - **權限**：讀取（列表、詳情、`references`）需要 `read`；所有變更只限 owner 權杖。
+
+## 作品庫卡片圖與摘要（QC-061）
+
+實作在 `src/works/card-images.ts`。卡片只載入一張圖片，列表裡不開 `<video>`。
+- **來源**：一律用路徑解析，不靠 `asset_id`。規則與 `WorkMediaService` 相同：託管作品只能用自己的 `assets/`，外部作品只能用掛載點內的檔案，而且不跟隨符號連結。
+  - 貼圖與視頻作品：依序取圖片封面、第一張圖、視頻幀（封面時間，沒有封面時取第 0 秒）。
+  - 文章：依序取 front matter 的 `cover`、正文第一張本機 Markdown 圖片。只認圖片副檔名，`http(s)` 圖片不取。
+  - 來源檔不見了就不給卡片圖；`missing_media` 徽章照舊顯示。
+- **列表欄位**：
+  - `card_image: { version, needs_frame, url, frame_source? }`：
+    - `version` 是來源的指紋（種類、真實路徑、大小、mtime、幀時間）。
+    - `url` 是列表路由為呼叫者簽的網址，直接用在 `<img>`；`needs_frame` 時為 null。
+    - 到期時間對齊「下一個整點再加一小時」，所以至少還有 60 分鐘，而且同一小時內每次列表的網址都相同，瀏覽器可以快取。`MediaUrlSigner.verify` 因此最多接受兩個 TTL 之後的到期時間；超過的仍拒絕。
+    - 金鑰不進網址；日誌的 `sig` 一律遮蔽。
+  - `excerpt`：純文字摘要，最多 120 字。
+  - 文章的 `thumbnail` 也會填（`asset_id: null`、`path`），沒有圖片時照舊不出現這個欄位。
+- **快取**：產生的圖存在 `cache/work-thumbnails/<作品 id>-<version>.webp`，第一次請求時產生，同時最多產生 2 張；同一張圖同時有多個請求時只產生一次。產生新的版本後，舊的會被刪除。整個目錄都可以刪除，會重建。原稿和原始檔只讀不寫。
+- **視頻幀**：
+  - 有 ffmpeg 就由伺服器產生（見 `docs/dependencies.md`）。
+  - 沒有 ffmpeg，或 ffmpeg 解不開這支視頻（同一版本只試一次）時，`needs_frame: true`，並附上 `frame_source`（`path`、`asset_id`、`time_seconds`）。App 截取那一幀後上傳，並帶上當時的 `version`。伺服器只接受 `version`、視頻路徑、時間點都和目前相同的幀，否則回 409 `thumbnail_frame_stale`；所以在換封面或換視頻之前截的幀，不會蓋掉新的。接受後用 sharp 實際解碼，再轉成 WebP 512 存進快取。
+  - 圖片和文章的卡片圖完全由伺服器產生，不需要 App 開著。
+- **錯誤**：404 `thumbnail_unavailable`，`details.reason` 為 `none`／`missing`／`needs_frame`／`decode_failed`。上傳的幀超過 2 MiB 回 413，不是圖片回 415。最近刪除中的作品回 409 `work_in_trash`。
+- **權限**：讀取需要 `read`；上傳幀需要 `write`，作品必須存在，而且不在最近刪除中。上傳只寫入 `cache/`，不碰作品。
 
 ## 作品刪除、最近刪除與批量操作（QC-051）
 

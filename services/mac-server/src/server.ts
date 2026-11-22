@@ -44,6 +44,8 @@ import { JobQueue, type JobQueueOptions } from './jobs/job-queue.js';
 import { Layout } from './layout.js';
 import { DEFAULT_SIZE_LIMITS, type SizeLimits } from './media/detect.js';
 import { resolveFfprobe } from './media/ffprobe.js';
+import { resolveFfmpeg } from './media/ffmpeg.js';
+import { registerWorkThumbnailRoutes } from './routes/work-thumbnails.js';
 import { registerAssetLibraryRoutes } from './routes/asset-library.js';
 import { registerAssetRoutes } from './routes/assets.js';
 import { registerEventRoutes } from './routes/events.js';
@@ -74,7 +76,7 @@ import {
   MediaUrlSigner,
   redactSignedUrl,
 } from './media/url-signer.js';
-import { WorkMediaService } from './media/work-media.js';
+import { WorkMediaService, workThumbnailPath } from './media/work-media.js';
 import { MountService, type MountServiceOptions } from './mounts/mount-service.js';
 import { ImportService, type DownloadSettings } from './imports/import-service.js';
 import { WorkService } from './works/work-service.js';
@@ -112,6 +114,12 @@ export interface BuildServerOptions {
    * `CREATORHUB_FFPROBE`, PATH and Homebrew locations; `null` disables probing.
    */
   ffprobe?: string | null;
+  /**
+   * ffmpeg for video card frames (QC-061). `undefined` resolves from
+   * `CREATORHUB_FFMPEG`, PATH and Homebrew; `null` disables it (the app then
+   * uploads frames).
+   */
+  ffmpeg?: string | null;
   /** Background job queue tuning; `start: false` leaves queued jobs untouched (tests). */
   jobs?: JobQueueOptions & { start?: boolean };
   /** SSE heartbeat interval. */
@@ -213,7 +221,12 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   const tokens = new TokenService(db, config.token);
   const idempotency = new IdempotencyService(db);
   const jobs = new JobQueue(db, feed, options.jobs);
-  const works = new WorkService(db, layout, undefined, feed);
+  const works = new WorkService(db, layout, undefined, feed, {
+    ffmpeg:
+      options.ffmpeg === undefined
+        ? resolveFfmpeg(process.env['CREATORHUB_FFMPEG'])
+        : options.ffmpeg,
+  });
   const assets = new AssetService(db, layout, feed, jobs, {
     limits: { ...DEFAULT_SIZE_LIMITS, ...options.limits },
     ffprobe:
@@ -434,7 +447,26 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
         response: { 200: ListWorksResponseSchema, ...errorResponses },
       },
     },
-    (req) => works.list(req.query),
+    (req) => {
+      // QC-061: card images get a signed URL for <img>, stable within a signing period.
+      const principal = requirePrincipal(req.principal);
+      const expiresAt = signer.alignedExpiry();
+      const page = works.list(req.query);
+      return {
+        ...page,
+        items: page.items.map((item) =>
+          item.card_image == null || item.card_image.needs_frame
+            ? item
+            : {
+                ...item,
+                card_image: {
+                  ...item.card_image,
+                  url: `${signer.sign(workThumbnailPath(item.id), principal.id, expiresAt).url}&v=${item.card_image.version}`,
+                },
+              },
+        ),
+      };
+    },
   );
 
   app.get(
@@ -543,11 +575,12 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerAssetRoutes(app, assets, layout, { tusIdleTimeoutMs: options.tusIdleTimeoutMs });
   registerAssetLibraryRoutes(app, assetLibrary);
   registerWorkTrashRoutes(app, workTrash, works, idempotency);
+  await registerWorkThumbnailRoutes(app, works);
   registerEventRoutes(app, feed, options.heartbeatMs);
   registerImportRoutes(app, imports, idempotency);
   registerTokenRoutes(app, tokens);
   registerMountRoutes(app, mounts);
-  registerMediaRoutes(app, media, assets, signer, tokens, attacher);
+  registerMediaRoutes(app, media, assets, signer, tokens, attacher, works);
   registerVariantRoutes(app, variants);
   registerAiRoutes(app, ai, idempotency);
   registerAiTextRoutes(app, new TextAiService(ai, works, variants), ai, idempotency);
