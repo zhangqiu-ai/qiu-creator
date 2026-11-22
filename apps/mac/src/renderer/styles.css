@@ -5684,3 +5684,139 @@ kbd {
 .lib-dialog__pick .lib-dialog__opt {
   margin-top: 6px;
 }
+
+/* ---- New API 模型下拉 (QC-054; reused by the settings redesign) ---- */
+.mcombo__box {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+.mcombo__input {
+  flex: 1;
+  min-width: 0;
+  padding-right: 30px;
+}
+.mcombo__toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--qc-ink3);
+  cursor: pointer;
+}
+.mcombo__toggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+.mcombo__pop {
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  min-width: 320px;
+  max-height: 360px;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+.mcombo__bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 12px;
+  border-bottom: 1px solid var(--qc-line);
+  font-size: 12px;
+}
+.mcombo__all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.mcombo__count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.mcombo__refresh {
+  flex: none;
+}
+.mcombo__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+}
+.mcombo__opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.mcombo__opt[aria-selected='true'] {
+  background: var(--qc-accent-soft);
+}
+.mcombo__id {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+.mcombo__kind {
+  flex: none;
+  font-size: 11.5px;
+}
+.mcombo__kind {
+  min-width: 32px;
+  text-align: right;
+}
+.mcombo__status,
+.mcombo__foot {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.mcombo__foot {
+  border-top: 1px solid var(--qc-line);
+}
+.mcombo__error {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+}
+.mcombo__error-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--qc-bad);
+}
+.mcombo__flags {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mcombo__flag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.ai-set__suggest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}

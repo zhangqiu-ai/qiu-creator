@@ -131,6 +131,12 @@ export class FakeAiServer {
   };
   private server: http.Server | undefined;
   private port = 0;
+  /**
+   * New API's `GET /v1/models` (QC-054 model list): null answers 404, as
+   * before the list existed. `modelRequests` counts how often it was asked.
+   */
+  modelsReply: FakeReply | null = null;
+  modelRequests = 0;
 
   script(provider: Provider, ...replies: FakeReply[]): void {
     this.queues[provider].push(...replies);
@@ -151,6 +157,17 @@ export class FakeAiServer {
       req.on('data', (c: Buffer) => chunks.push(c));
       req.on('end', () => {
         const path = req.url ?? '';
+        if (req.method === 'GET' && path === '/v1/models') {
+          this.modelRequests += 1;
+          const reply = this.modelsReply;
+          if (reply === null) {
+            res.writeHead(404).end();
+            return;
+          }
+          res.writeHead(reply.status ?? 200, { 'content-type': 'application/json' });
+          res.end(JSON.stringify(reply.body));
+          return;
+        }
         const provider: Provider | undefined = path.startsWith('/v1/messages')
           ? 'anthropic'
           : path.startsWith('/v1/responses')

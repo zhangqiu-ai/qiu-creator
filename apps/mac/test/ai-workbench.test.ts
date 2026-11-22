@@ -116,6 +116,21 @@ const videoJobs = async () =>
   );
 
 describe('AiSettingsStore', () => {
+  it('saving the New API model from the picker tells open video panels (QC-054, QC-055)', async () => {
+    const store = new AiSettingsStore(client);
+    await store.load();
+    let notified = 0;
+    const off = watchAiStatus(() => {
+      notified += 1;
+    });
+    expect(await store.setModel('new-api', 'text', 'claude-sonnet-5-5')).toBe(true);
+    off();
+    expect(notified).toBe(1);
+    expect(store.snapshot.providers?.find((p) => p.provider === 'new-api')?.text_model).toBe(
+      'claude-sonnet-5-5',
+    );
+  });
+
   it('stores a key write-only, needs the notice, and can withdraw and delete', async () => {
     const store = new AiSettingsStore(client);
     await store.load();

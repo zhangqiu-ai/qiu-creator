@@ -6,6 +6,7 @@ import {
   AI_DEFAULT_MODELS,
   AI_PRICE_TABLE,
   type AiProvider,
+  type AiProviderModelsResponse,
   type AiProviderStatus,
   type AiSettings,
   type AiUsageResponse,
@@ -198,6 +199,15 @@ export class AiSettingsStore {
     return this.run(provider, async () => {
       this.replace(await this.client.ai.withdrawConsent(provider));
     });
+  }
+
+  /**
+   * The models the New API relay offers to the stored key (QC-054). This goes
+   * to the user's relay, so call it only when the user opens the list or
+   * presses 重新整理; the service caches it for 10 minutes unless `refresh`.
+   */
+  newApiModels(refresh: boolean): Promise<AiProviderModelsResponse> {
+    return this.client.ai.newApiModels({ refresh });
   }
 
   setModel(provider: AiProvider, kind: 'text' | 'video', model: string): Promise<boolean> {
