@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
 import { test } from '../fixtures/desktop.js';
+import { trashRow } from '../fixtures/library.js';
 
 /*
  * QC-052 作品庫: compact cards (six to a row at 1440), in-place rename on a
@@ -70,7 +71,7 @@ test('作品庫：卡片縮小、原地改名、右鍵選單、改狀態復原�
     return w;
   };
 
-  await nav(page).getByRole('button', { name: '作品庫', exact: true }).click();
+  await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
   await expect(works(page).locator('.wcard')).toHaveCount(TITLES.length);
 
   await test.step('1440 寬時一列至少 6 張卡片', async () => {
@@ -283,7 +284,7 @@ test('作品庫：卡片縮小、原地改名、右鍵選單、改狀態復原�
 
   if (shooting()) {
     await test.step('截圖：簡中、English、深色', async () => {
-      await nav(page).getByRole('button', { name: '作品庫', exact: true }).click();
+      await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
       await expect(works(page)).toBeVisible();
       for (const lang of ['zh-Hans', 'en'] as const) {
         await page.evaluate(`window.creatorhub.setLanguage('${lang}')`);
@@ -329,11 +330,11 @@ test('作品庫：刪除確認與復原、批量標籤、分頁關閉、最近�
       if (w === undefined) throw new Error(`no work ${title}`);
       return w;
     };
-    const trashChip = () => page.locator('.filters__trash');
+    const trashChip = () => trashRow(page);
 
-    await nav(page).getByRole('button', { name: '作品庫', exact: true }).click();
+    await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
     await expect(works(page).locator('.wcard')).toHaveCount(5);
-    await expect(trashChip()).toContainText('最近刪除0');
+    await expect(trashChip()).toHaveText('最近刪除');
 
     await test.step('右鍵刪除：確認框寫明可還原 30 天，刪除後可復原', async () => {
       await card(page, '春季選題').click({ button: 'right' });
@@ -344,7 +345,7 @@ test('作品庫：刪除確認與復原、批量標籤、分頁關閉、最近�
       await shot(page, 'zh-Hant-9-delete-confirm');
       await page.keyboard.press('Enter');
       await expect(card(page, '春季選題')).toHaveCount(0);
-      await expect(trashChip()).toContainText('最近刪除1');
+      await expect(trashChip()).toHaveText('最近刪除1');
       const toast = page.getByRole('status').filter({ hasText: '已刪除「春季選題」' });
       await expect(toast).toBeVisible();
       await shot(page, 'zh-Hant-10-deleted-undo');
@@ -403,7 +404,7 @@ test('作品庫：刪除確認與復原、批量標籤、分頁關閉、最近�
       await page.keyboard.press('Meta+Backspace');
       const dialog = page.getByRole('dialog', { name: '刪除 2 個作品？' });
       await dialog.getByRole('button', { name: '刪除', exact: true }).click();
-      await expect(trashChip()).toContainText('最近刪除2');
+      await expect(trashChip()).toHaveText('最近刪除2');
       await expect(page.getByRole('toolbar')).toHaveCount(0);
       expect((await active()).map((w) => w.title).sort()).toEqual([
         '外部筆記',
@@ -413,7 +414,7 @@ test('作品庫：刪除確認與復原、批量標籤、分頁關閉、最近�
       // The background tab of 冬至食譜 closed with it.
       await card(page, '秋天散步').locator('.wcard__cover').click();
       await expect(tabBar(page).getByRole('tab')).toHaveCount(1);
-      await nav(page).getByRole('button', { name: '作品庫', exact: true }).click();
+      await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
     });
 
     await test.step('外部作品：只從作品庫移除，原檔不動', async () => {
@@ -425,7 +426,7 @@ test('作品庫：刪除確認與復原、批量標籤、分頁關閉、最近�
         dialog.getByRole('checkbox', { name: /原檔也移到 macOS 垃圾桶/ }),
       ).not.toBeChecked();
       await dialog.getByRole('button', { name: '刪除', exact: true }).click();
-      await expect(trashChip()).toContainText('最近刪除3');
+      await expect(trashChip()).toHaveText('最近刪除3');
       expect(existsSync(externalFile)).toBe(true);
       expect(desktop.systemTrash.moved).toEqual([]);
     });
@@ -469,8 +470,8 @@ test('作品庫：刪除確認與復原、批量標籤、分頁關閉、最近�
       // Purging an unindexed external work never touches its file.
       expect(existsSync(externalFile)).toBe(true);
 
-      await page.getByRole('button', { name: '返回作品庫' }).click();
-      await expect(trashChip()).toContainText('最近刪除0');
+      await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
+      await expect(trashChip()).toHaveText('最近刪除');
       await expect(works(page).locator('.wcard')).toHaveCount(3);
     });
 

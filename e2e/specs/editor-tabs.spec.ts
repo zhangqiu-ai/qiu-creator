@@ -33,7 +33,7 @@ function tab(page: Page, title: string, bar = '已開啟的作品'): Locator {
 }
 
 async function openFromLibrary(page: Page, title: string): Promise<void> {
-  await nav(page).getByRole('button', { name: '作品庫', exact: true }).click();
+  await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
   await page
     .getByRole('region', { name: '作品', exact: true })
     .getByRole('button', { name: new RegExp(title) })

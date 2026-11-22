@@ -32,7 +32,7 @@ export function CardCover({
   }, [needsFrame, onNeedsFrame, work]);
   const showImage = url !== null && failed !== url;
   const excerpt = work.excerpt ?? null;
-  /** A search hit only in the body (QC-068): the passage around it, shown on the cover. */
+  /** A search hit only in the text (QC-068): a text card shows the passage on its cover. */
   const hit = work.match_excerpt ?? null;
   return (
     <span
@@ -58,11 +58,6 @@ export function CardCover({
         </span>
       ) : (
         <Icon name={WORK_TYPE[work.type].icon} size={28} />
-      )}
-      {hit !== null && (showImage || work.type !== 'article') && (
-        <span className="wcard__hit">
-          <HitPassage text={hit} />
-        </span>
       )}
       {work.type === 'image' && work.image_count != null && work.image_count > 0 && (
         <span className="wcard__badge">

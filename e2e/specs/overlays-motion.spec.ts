@@ -98,7 +98,7 @@ test('浮層動效錄影（正常速度）與減少動態效果', async ({ deskt
   await nav(page).getByRole('button', { name: '新建項目', exact: true }).first().click();
   await page.keyboard.type('春季選題');
   await page.keyboard.press('Enter');
-  await nav(page).getByRole('button', { name: '作品庫', exact: true }).click();
+  await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
   await card(page, '京都散步路線').click({ button: 'right' });
   await page.getByRole('menuitem', { name: '項目' }).hover();
   await page.getByRole('menuitemcheckbox', { name: '春季選題' }).click();
@@ -124,7 +124,7 @@ test('浮層動效錄影（正常速度）與減少動態效果', async ({ deskt
 
   // Reduce Motion: overlays only fade (no scale, no slide).
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await nav(page).getByRole('button', { name: '作品庫', exact: true }).click();
+  await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
   await card(page, '秋天的咖啡店').click({ button: 'right' });
   await page.getByRole('menuitem', { name: /^刪除…/ }).click();
   await expect(page.getByRole('dialog')).toBeVisible();

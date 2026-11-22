@@ -45,7 +45,7 @@ test('設定 v4：每個分類一頁並記住、⌘,、AI 服務四分頁與測�
     await expect(page.locator('.set-page h1')).toHaveCount(1);
     await expect(page.getByRole('button', { name: '立即備份' })).toBeVisible();
     await shot(page, 'zh-Hant-1-backup');
-    await nav.getByRole('button', { name: '作品庫', exact: true }).click();
+    await nav.getByRole('button', { name: '全部作品', exact: true }).click();
     await nav.getByRole('button', { name: '設定', exact: true }).click();
     await expect(h1('備份與還原')).toBeVisible();
   });
@@ -95,7 +95,7 @@ test('設定 v4：每個分類一頁並記住、⌘,、AI 服務四分頁與測�
   });
 
   await test.step('⌘,（App 選單「設定…」）打開設定', async () => {
-    await nav.getByRole('button', { name: '作品庫', exact: true }).click();
+    await nav.getByRole('button', { name: '全部作品', exact: true }).click();
     await app.evaluate(({ Menu }) => {
       const item = Menu.getApplicationMenu()?.getMenuItemById('tab-settings');
       if (item?.accelerator !== 'CommandOrControl+,') throw new Error('no ⌘, item');

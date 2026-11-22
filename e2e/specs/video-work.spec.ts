@@ -65,7 +65,7 @@ const side = (page: Page): Locator =>
 async function newVideoWork(page: Page): Promise<void> {
   await page
     .getByRole('navigation', { name: '主導航' })
-    .getByRole('button', { name: '作品庫', exact: true })
+    .getByRole('button', { name: '全部作品', exact: true })
     .click();
   await page.keyboard.press('Meta+n');
   await page.getByRole('menu', { name: '新建作品' }).getByRole('menuitem').first().focus();
@@ -342,7 +342,7 @@ test('視頻：金鑰在開著的頁面之後才設定，AI 面板跟著更新�
   await test.step('離開再回到這個分頁：金鑰與同意在別處完成後，面板讀到新狀態', async () => {
     await page
       .getByRole('navigation', { name: '主導航' })
-      .getByRole('button', { name: '作品庫', exact: true })
+      .getByRole('button', { name: '全部作品', exact: true })
       .click();
     await backend.client.ai.setKey('gemini', GEMINI_KEY);
     const gemini = (await backend.client.ai.providers()).items.find((p) => p.provider === 'gemini');

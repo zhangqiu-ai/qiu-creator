@@ -36,7 +36,11 @@ interface NavItem {
   icon: IconName;
 }
 
-/** Groups from the approved board; 設定 is pinned at the bottom, 發布中心 waits for M4. */
+/**
+ * Groups (QC-069, PT-20261122-001): the works' scopes and the projects come
+ * first (from App), then 素材 and 工具; 最近刪除 and 設定 sit in the fixed foot.
+ * 發布中心 waits for M4.
+ */
 const nav = (page: NavPage, key: MessageKey, icon: IconName): NavItem => ({
   page,
   get label() {
@@ -46,14 +50,6 @@ const nav = (page: NavPage, key: MessageKey, icon: IconName): NavItem => ({
 });
 const GROUPS: readonly { id: string; title: MessageKey; items: readonly NavItem[] }[] = [
   {
-    id: 'create',
-    title: 'shell.groupCreate',
-    items: [
-      nav('library', 'shell.navLibrary', 'library'),
-      nav('preview', 'shell.navPreview', 'phone'),
-    ],
-  },
-  {
     id: 'assets',
     title: 'shell.groupAssets',
     items: [
@@ -61,8 +57,14 @@ const GROUPS: readonly { id: string; title: MessageKey; items: readonly NavItem[
       nav('imports', 'shell.navImports', 'imports'),
     ],
   },
-  { id: 'ai', title: 'shell.groupAi', items: [nav('ai', 'shell.navAi', 'spark')] },
+  {
+    id: 'tools',
+    title: 'shell.groupTools',
+    items: [nav('ai', 'shell.navAi', 'spark'), nav('preview', 'shell.navPreview', 'phone')],
+  },
 ];
+/** 全部作品 while the service is not there to list projects. */
+const ALL_WORKS: NavItem = nav('library', 'shell.navAllWorks', 'library');
 const SETTINGS: NavItem = nav('settings', 'shell.navSettings', 'settings');
 
 function storage(): PrefStorage | null {
@@ -119,10 +121,10 @@ export interface SidebarProps {
   /** `127.0.0.1:7420` */
   address: string;
   onRecheck: () => void;
-  /** 未分類 and the 項目 section, under 作品庫 (QC-062). */
+  /** 全部作品, 未分類 and the 項目 section, at the top (QC-062, QC-069). */
   projects?: (rail: boolean) => ReactNode;
-  /** 作品庫 shows one project or 未分類, so its own row is not the current one. */
-  libraryScoped?: boolean;
+  /** 最近刪除, in the foot above 設定 (QC-069). */
+  foot?: (rail: boolean) => ReactNode;
 }
 
 /**
@@ -138,7 +140,7 @@ export function Sidebar({
   address,
   onRecheck,
   projects,
-  libraryScoped = false,
+  foot,
 }: SidebarProps) {
   const [prefs, setPrefs] = useState(() => loadPrefs(storage()));
   const narrow = useNarrowWindow();
@@ -196,9 +198,7 @@ export function Sidebar({
       key={it.page}
       type="button"
       className="sb__nav"
-      aria-current={
-        current === it.page && !(it.page === 'library' && libraryScoped) ? 'page' : undefined
-      }
+      aria-current={current === it.page ? 'page' : undefined}
       aria-label={it.label}
       data-tip={
         it.page === 'imports' && importsCount > 0
@@ -297,26 +297,25 @@ export function Sidebar({
       </div>
 
       <div className="sb__scroll" ref={railArea}>
+        {projects === undefined ? (
+          <div className="sb__grp" role="group" aria-label={t('shell.groupWorks')}>
+            {item(ALL_WORKS)}
+          </div>
+        ) : (
+          projects(rail)
+        )}
         {GROUPS.map((g) => (
           <div key={g.id} className="sb__grp" role="group" aria-label={t(g.title)}>
             <div className="sb__grp-h" aria-hidden="true">
               {t(g.title)}
             </div>
-            {g.items.map((it) =>
-              it.page === 'library' && projects !== undefined ? (
-                <div key={it.page} className="sb__library">
-                  {item(it)}
-                  {projects(rail)}
-                </div>
-              ) : (
-                item(it)
-              ),
-            )}
+            {g.items.map((it) => item(it))}
           </div>
         ))}
       </div>
 
       <div className="sb__foot" ref={railFoot}>
+        {foot?.(rail)}
         {item(SETTINGS)}
       </div>
       {rail && tip !== null && (

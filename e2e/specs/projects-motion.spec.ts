@@ -111,21 +111,21 @@ test('項目頁：深色、English、简体', async ({ desktop }) => {
   await page.reload();
 
   await row(page, '春季選題').click();
-  await expect(page.getByRole('group', { name: '項目概覽' })).toContainText('2 個作品');
-  // The other project shows as a dot on the card it shares.
-  await expect(card(page, '京都散步路線').locator('.wcard__dot')).toHaveCount(1);
+  // QC-069: the counts are one light line by the title; a shared card names the other project.
+  await expect(page.locator('main .page__sub')).toContainText('2 個作品');
+  await expect(card(page, '京都散步路線').locator('.plabel')).toHaveText('旅行');
 
   await page.emulateMedia({ colorScheme: 'dark' });
   await shot(page, 'project-dark');
   await page.emulateMedia({ colorScheme: 'light' });
 
   await page.evaluate("window.creatorhub.setLanguage('en')");
-  await expect(page.getByRole('group', { name: 'Project overview' })).toContainText('2 works');
+  await expect(page.locator('main .page__sub')).toContainText('2 works');
   await expect(nav(page).getByRole('button', { name: 'Unsorted' })).toBeVisible();
   await shot(page, 'project-en');
 
   await page.evaluate("window.creatorhub.setLanguage('zh-Hans')");
-  await expect(page.getByRole('group', { name: '项目概览' })).toContainText('2 个作品');
+  await expect(page.locator('main .page__sub')).toContainText('2 个作品');
   await expect(nav(page).getByRole('button', { name: '未分类' })).toBeVisible();
   await shot(page, 'project-zh-Hans');
   await page.evaluate("window.creatorhub.setLanguage('zh-Hant')");

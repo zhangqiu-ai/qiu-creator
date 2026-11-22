@@ -8,6 +8,7 @@ import type {
   WorkType,
   WorkRef,
 } from '@qiu-creator/contracts';
+import { WORK_TRASH_RETENTION_DAYS } from '@qiu-creator/contracts';
 import {
   useCallback,
   useEffect,
@@ -33,7 +34,8 @@ import {
   type ByTypeStatus,
 } from './library-counts.js';
 import { LibraryFeed } from './library-feed.js';
-import { Highlight, HitPassage, SearchHighlight } from './Highlight.js';
+import { Highlight, HitLine, SearchHighlight } from './Highlight.js';
+import { ActiveFilters, FilterMenu, type StatusFilter, type TypeFilter } from './LibraryFilter.js';
 import { LoadMore } from './LoadMore.js';
 import { RenameField } from './RenameField.js';
 import { useToast, type ToastAction } from './toasts.js';
@@ -68,32 +70,26 @@ import { motion } from 'motion/react';
 import { codeText, errorText, t } from './i18n.js';
 import { Icon } from './Icon.js';
 import { externalSource, useMounts } from './mounts.js';
-import { ProjectDots, ProjectOverview, projectEntries } from './LibraryProjects.js';
+import { ProjectLabel, projectEntries, useProjectAssetCount } from './LibraryProjects.js';
 import { DragWorksButton } from './projects-dnd.js';
 import { removeFromProject, renameProject, useNotice } from './project-actions.js';
 import { NewProjectDialog, useProjectMenu } from './project-menu.js';
-import { projectColor, type ProjectsState, type ProjectsStore } from './projects-store.js';
+import {
+  nextProjectColor,
+  projectColor,
+  projectLabel,
+  type ProjectsState,
+  type ProjectsStore,
+} from './projects-store.js';
 import type { LibraryScope } from './SidebarProjects.js';
 
 type View = 'grid' | 'list';
-type TypeFilter = 'all' | WorkType;
-type StatusFilter = 'all' | WorkStatus;
-
-// 混合 works keep their label but only show under 全部 (PT-20261121-001 decision).
-const TYPE_FILTERS: readonly TypeFilter[] = ['all', 'article', 'image', 'video'];
 
 /** What 新建 can make (QC-045; video since QC-046). */
 export const NEW_TYPES: readonly { type: WorkType; enabled: boolean }[] = [
   { type: 'article', enabled: true },
   { type: 'image', enabled: true },
   { type: 'video', enabled: true },
-];
-const STATUS_FILTERS: readonly StatusFilter[] = [
-  'all',
-  'drafting',
-  'in_review',
-  'ready',
-  'published',
 ];
 const VIEW_KEY = 'qc.library.view';
 
@@ -189,6 +185,8 @@ export function LibraryPage({
       : null;
   const projectId = libraryScope.kind === 'project' ? libraryScope.id : null;
   const unassigned = libraryScope.kind === 'unassigned';
+  /** 最近刪除, opened from the foot of the sidebar (QC-069). */
+  const inTrash = libraryScope.kind === 'trash';
   const notifyProject = useNotice();
   // 作品庫分頁 (QC-067): the works matching the filter, a page at a time.
   const [feed] = useState(
@@ -211,12 +209,14 @@ export function LibraryPage({
   const [status, setStatus] = useState<StatusFilter>('all');
   const [view, setView] = useState<View>(readView);
   const [creating, setCreating] = useState(false);
-  const [scope, setScope] = useState<'active' | 'trash'>('active');
-  const [trashCount, setTrashCount] = useState(0);
-  const scopeRef = useRef(scope);
+  /** Where 最近刪除 puts its 清空 button (the header's tool area). */
+  const [trashTools, setTrashTools] = useState<HTMLDivElement | null>(null);
+  /** Works in the scope before searching or filtering (「共 M 個」, QC-069). */
+  const [scopeTotal, setScopeTotal] = useState<number | null>(null);
+  const trashRef = useRef(inTrash);
   useEffect(() => {
-    scopeRef.current = scope;
-  }, [scope]);
+    trashRef.current = inTrash;
+  }, [inTrash]);
   const searchRef = useRef<HTMLInputElement>(null);
   const request = useRef(0);
 
@@ -232,27 +232,32 @@ export function LibraryPage({
     };
   }, [appliedQuery, projectId, unassigned, type, status]);
 
-  /** Counts and the 最近刪除 total (these follow every change). */
+  /**
+   * The filter's counts (these follow every change): works per type and
+   * status among the search results, and how many the scope holds in all.
+   */
   const loadCounts = useCallback(() => {
     const id = request.current;
     const q = appliedQuery.trim();
+    const inScope = {
+      ...(projectId === null ? {} : { project_id: projectId }),
+      ...(unassigned ? { unassigned: '1' as const } : {}),
+    };
     client.works
-      .facets({
-        ...(q === '' ? {} : { q }),
-        ...(projectId === null ? {} : { project_id: projectId }),
-        ...(unassigned ? { unassigned: '1' as const } : {}),
-      })
+      .facets({ ...(q === '' ? {} : { q }), ...inScope })
       .then((res) => {
-        if (id === request.current) setFacets(res.by_type_status);
+        if (id !== request.current) return;
+        setFacets(res.by_type_status);
+        if (q === '') setScopeTotal(res.total);
       })
       .catch(() => undefined);
-    // How many works 最近刪除 holds, for its entry in the filter row.
-    client.works
-      .list({ scope: 'trash', limit: 1 })
-      .then((res) => {
-        if (id === request.current) setTrashCount(res.total);
-      })
-      .catch(() => undefined);
+    if (q !== '')
+      client.works
+        .facets(inScope)
+        .then((res) => {
+          if (id === request.current) setScopeTotal(res.total);
+        })
+        .catch(() => undefined);
   }, [client, appliedQuery, projectId, unassigned]);
 
   /** A new filter: start again from its first page. */
@@ -378,8 +383,14 @@ export function LibraryPage({
 
   // The service filters by type and status; what is loaded is what is shown.
   const shown = useMemo(() => works ?? [], [works]);
-  const typeCounts = useMemo(() => countByType(facets), [facets]);
+  // Faceted (QC-069): the type counts follow the chosen status, the status counts the
+  // chosen type, and both count only what the search found.
+  const typeCounts = useMemo(
+    () => countByType(facets, status === 'all' ? null : status),
+    [facets, status],
+  );
   const counts = useMemo(() => countByStatus(facets, type), [facets, type]);
+  const assetCount = useProjectAssetCount(store, project, works);
 
   // ---- Selection, rename, right-click menu (QC-052) ----
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
@@ -595,7 +606,6 @@ export function LibraryPage({
       feed.remove(gone);
       setAllRefs(null);
       if (next !== null) focusWork(next);
-      setTrashCount((n) => n + gone.size);
       setSelection(EMPTY_SELECTION);
       if (gone.size > 0) onTrashed([...gone]);
       const firstFailed = res.failed[0];
@@ -627,7 +637,6 @@ export function LibraryPage({
         undo: () => {
           setNotice(null);
           void restoreWorks(client, trashed).then((back) => {
-            setTrashCount((n) => Math.max(0, n - back.ok.length));
             const failedBack = back.failed[0];
             setNotice(
               failedBack === undefined
@@ -751,7 +760,7 @@ export function LibraryPage({
   // ⌘A selects every work shown, esc clears; never while typing or with a dialog open.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.isComposing || isEditable(e.target) || scopeRef.current !== 'active') return;
+      if (e.isComposing || isEditable(e.target) || trashRef.current) return;
       if (document.querySelector('[aria-modal="true"], .ctx-menu') !== null) return;
       if (e.metaKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
@@ -1048,11 +1057,37 @@ export function LibraryPage({
             </h1>
           ) : (
             <h1 className="page__title">
-              {unassigned ? t('projects.unassigned') : t('library.library')}
+              {inTrash
+                ? t('shell.navTrash')
+                : unassigned
+                  ? t('projects.unassigned')
+                  : t('shell.navAllWorks')}
             </h1>
           )}
-          <span className="page__count">
-            {scope === 'trash' ? trashCount : feedState.total === null ? '' : feedState.total}
+          <span className="page__sub" role="status" aria-live="polite">
+            {inTrash ? (
+              t('workActions.trashHint', { days: WORK_TRASH_RETENTION_DAYS })
+            ) : feedState.total === null ? null : filtering ? (
+              t('library.resultsOf', { count: feedState.total, total: scopeTotal ?? '–' })
+            ) : (
+              <>
+                {t('projects.worksCount', { count: feedState.total })}
+                {project !== null && assetCount !== null && (
+                  <>
+                    <span aria-hidden="true"> · </span>
+                    <button
+                      type="button"
+                      className="page__sub-link"
+                      onClick={() => {
+                        onOpenProjectAssets?.(project.id);
+                      }}
+                    >
+                      {t('library.assetsCount', { count: assetCount })}
+                    </button>
+                  </>
+                )}
+              </>
+            )}
           </span>
           {project !== null && (
             <button
@@ -1069,112 +1104,68 @@ export function LibraryPage({
               <Icon name="more" />
             </button>
           )}
-          <label className="search">
-            <Icon name="search" />
-            <span className="visually-hidden">{t('library.searchWorks')}</span>
-            <input
-              ref={searchRef}
-              type="search"
-              placeholder={t('common.search')}
-              value={query}
-              aria-keyshortcuts="Meta+F"
-              onChange={(e) => {
-                onQuery(e.target.value, (e.nativeEvent as InputEvent).isComposing);
-              }}
-              onCompositionEnd={(e) => {
-                onQuery(e.currentTarget.value, false);
-              }}
-            />
-            <kbd>⌘F</kbd>
-          </label>
-          <div className="seg" role="group" aria-label={t('library.view')}>
-            {(['grid', 'list'] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                aria-label={v === 'grid' ? t('library.viewGrid') : t('library.viewList')}
-                aria-pressed={view === v}
-                onClick={() => {
-                  setView(v);
-                  writeView(v);
-                }}
-              >
-                <Icon name={v} />
-              </button>
-            ))}
-          </div>
-          <NewMenu open={menuOpen} busy={creating} onOpenChange={setMenuOpen} onCreate={create} />
+          {inTrash && <div className="page__tools" ref={setTrashTools} />}
+          {!inTrash && (
+            <div className="page__tools">
+              <label className="search">
+                <Icon name="search" />
+                <span className="visually-hidden">{t('library.searchWorks')}</span>
+                <input
+                  ref={searchRef}
+                  type="search"
+                  placeholder={t('common.search')}
+                  value={query}
+                  aria-keyshortcuts="Meta+F"
+                  onChange={(e) => {
+                    onQuery(e.target.value, (e.nativeEvent as InputEvent).isComposing);
+                  }}
+                  onCompositionEnd={(e) => {
+                    onQuery(e.currentTarget.value, false);
+                  }}
+                />
+                <kbd>⌘F</kbd>
+              </label>
+              <FilterMenu
+                type={type}
+                status={status}
+                typeCounts={typeCounts}
+                statusCounts={counts}
+                onType={setType}
+                onStatus={setStatus}
+              />
+              <div className="seg" role="group" aria-label={t('library.view')}>
+                {(['grid', 'list'] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-label={v === 'grid' ? t('library.viewGrid') : t('library.viewList')}
+                    aria-pressed={view === v}
+                    onClick={() => {
+                      setView(v);
+                      writeView(v);
+                    }}
+                  >
+                    <Icon name={v} />
+                  </button>
+                ))}
+              </div>
+              <NewMenu
+                open={menuOpen}
+                busy={creating}
+                onOpenChange={setMenuOpen}
+                onCreate={create}
+              />
+            </div>
+          )}
         </header>
 
-        {scope === 'trash' ? (
-          <TrashView
-            client={client}
-            query={appliedQuery}
-            onBack={() => {
-              setScope('active');
-              load();
-            }}
-            onCount={setTrashCount}
-            projects={projectList}
-          />
+        {inTrash ? (
+          <TrashView client={client} projects={projectList} tools={trashTools} />
         ) : (
           <>
-            {project !== null && store !== null && (
-              <ProjectOverview
-                store={store}
-                project={project}
-                refresh={works}
-                onOpenAssets={() => {
-                  onOpenProjectAssets?.(project.id);
-                }}
-              />
+            {(type !== 'all' || status !== 'all') && (
+              <ActiveFilters type={type} status={status} onType={setType} onStatus={setStatus} />
             )}
-            <div className="filters">
-              <div className="seg" role="group" aria-label={t('library.type')}>
-                {TYPE_FILTERS.map((f) => (
-                  <button
-                    key={f}
-                    type="button"
-                    aria-pressed={type === f}
-                    onClick={() => {
-                      setType(f);
-                    }}
-                  >
-                    {f === 'all' ? t('library.all') : WORK_TYPE[f].label}
-                    <span className="fchip__n">{typeCounts[f]}</span>
-                  </button>
-                ))}
-              </div>
-              <span className="filters__divider" aria-hidden="true" />
-              <div className="filters__chips" role="group" aria-label={t('library.status')}>
-                {STATUS_FILTERS.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    className="fchip"
-                    aria-pressed={status === s}
-                    onClick={() => {
-                      setStatus(s);
-                    }}
-                  >
-                    {s === 'all' ? t('library.all') : WORK_STATUS[s].label}
-                    <span className="fchip__n">{counts[s]}</span>
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                className="fchip filters__trash"
-                onClick={() => {
-                  setSelection(EMPTY_SELECTION);
-                  setScope('trash');
-                }}
-              >
-                <Icon name="trash" size={14} />
-                {t('workActions.trash')}
-                <span className="fchip__n">{trashCount}</span>
-              </button>
-            </div>
 
             <Presence>
               {selectedWorks.length > 0 && (
@@ -1367,14 +1358,42 @@ export function LibraryPage({
                     {t('library.new')}
                   </button>
                 </div>
-              ) : type !== 'all' && shown.length === 0 && appliedQuery.trim() === '' ? (
+              ) : type !== 'all' &&
+                status === 'all' &&
+                shown.length === 0 &&
+                appliedQuery.trim() === '' ? (
                 <TypeEmpty type={type} busy={creating} onCreate={create} />
-              ) : shown.length === 0 ? (
+              ) : shown.length === 0 && appliedQuery.trim() !== '' ? (
+                // Nothing found (QC-069): the search and filters stay; clear the search, or
+                // look for the same words in every work.
                 <div className="state-card state-card--dashed">
                   <Icon name="search" size={28} />
-                  <span className="state-card__title">{t('library.noMatches')}</span>
+                  <span className="state-card__title">
+                    {t('library.noMatchQuery', { query: appliedQuery.trim() })}
+                  </span>
+                  <div className="state-card__actions">
+                    <button type="button" className="btn" onClick={clearFilters}>
+                      {t('library.clearSearch')}
+                    </button>
+                    {libraryScope.kind !== 'all' && (
+                      <button
+                        type="button"
+                        className="btn btn--ghost"
+                        onClick={() => {
+                          onScope?.(ALL);
+                        }}
+                      >
+                        {t('library.searchAll')}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : shown.length === 0 ? (
+                <div className="state-card state-card--dashed">
+                  <Icon name="filter" size={28} />
+                  <span className="state-card__title">{t('library.noMatchFilter')}</span>
                   <button type="button" className="btn" onClick={clearFilters}>
-                    {t('library.clearFilters')}
+                    {t('library.clearFilter')}
                   </button>
                 </div>
               ) : view === 'grid' ? (
@@ -1399,8 +1418,8 @@ export function LibraryPage({
                           source={externalSource(w, mounts, userHome)}
                           imageUrl={imageUrl}
                           onNeedsFrame={onNeedsFrame}
-                          dots={
-                            <ProjectDots
+                          label={
+                            <ProjectLabel
                               projectIds={w.project_ids}
                               projects={projectList}
                               currentId={projectId}
@@ -1434,6 +1453,7 @@ export function LibraryPage({
                     <thead>
                       <tr>
                         <th scope="col">{t('library.colTitle')}</th>
+                        <th scope="col">{t('library.colProject')}</th>
                         <th scope="col">{t('library.colType')}</th>
                         <th scope="col">{t('library.colStatus')}</th>
                         <th scope="col">{t('library.colSource')}</th>
@@ -1501,11 +1521,12 @@ export function LibraryPage({
                                   >
                                     <Highlight text={w.title} />
                                   </span>
-                                  {w.match_excerpt != null && (
-                                    <span className="tbl__hit">
-                                      <HitPassage text={w.match_excerpt} />
-                                    </span>
-                                  )}
+                                  <HitLine
+                                    title={w.title}
+                                    tags={w.tags}
+                                    excerpt={w.match_excerpt}
+                                    className="hitline hitline--row"
+                                  />
                                   {selection.ids.has(w.id) && (
                                     <span className="visually-hidden">
                                       {t('workActions.isSelected')}
@@ -1523,12 +1544,19 @@ export function LibraryPage({
                                 </span>
                               )}
                               {isMissing(w) && <MissingChip />}
-                              <ProjectDots
-                                projectIds={w.project_ids}
-                                projects={projectList}
-                                currentId={projectId}
-                              />
                             </span>
+                          </td>
+                          <td className="tbl__proj">
+                            <ProjectLabel
+                              projectIds={w.project_ids}
+                              projects={projectList}
+                              currentId={projectId}
+                            />
+                            {projectLabel(w.project_ids, projectList, projectId) === null && (
+                              <span className="faint" aria-hidden="true">
+                                —
+                              </span>
+                            )}
                           </td>
                           <td className="muted">{WORK_TYPE[w.type].label}</td>
                           <td>
@@ -1619,6 +1647,7 @@ export function LibraryPage({
         )}
         {newProjectFor !== null && (
           <NewProjectDialog
+            initialColor={nextProjectColor(projectList)}
             onCancel={() => {
               setNewProjectFor(null);
             }}
@@ -1701,12 +1730,12 @@ function WorkCard({
   onRenameCancel,
   imageUrl,
   onNeedsFrame,
-  dots,
+  label,
   dragWorks,
 }: {
   work: WorkListItem;
-  /** The work's other projects as colour dots (QC-062). */
-  dots?: ReactNode;
+  /** The work's projects as a label: colour, first name, +N (QC-069). */
+  label?: ReactNode;
   /** What dragging this card onto a sidebar project adds; undefined: not draggable. */
   dragWorks?: readonly LibraryWork[] | undefined;
   selected: boolean;
@@ -1743,8 +1772,8 @@ function WorkCard({
           <Icon name="folder" size={11} />
         </span>
       )}
+      <span className="wcard__proj">{label}</span>
       <span className="wcard__when">{formatWhen(work.updated_at)}</span>
-      {dots}
     </span>
   );
   const tooltip = [work.title, source?.file ?? source?.label ?? sourceLabel(work)].join('\n');
@@ -1795,9 +1824,12 @@ function WorkCard({
         >
           <Highlight text={work.title} />
         </span>
-        {work.match_excerpt != null && (
-          <span className="visually-hidden">{work.match_excerpt}</span>
-        )}
+        <HitLine
+          title={work.title}
+          tags={work.tags}
+          excerpt={work.match_excerpt}
+          inCover={work.type === 'article' && (work.card_image?.url ?? null) === null}
+        />
         {meta}
       </span>
       {selected && <span className="visually-hidden">{t('workActions.isSelected')}</span>}

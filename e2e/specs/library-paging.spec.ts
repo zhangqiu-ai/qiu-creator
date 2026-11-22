@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
 import { test } from '../fixtures/desktop.js';
+import { chooseFilter, filterButton, filterOption, trashRow } from '../fixtures/library.js';
 
 /*
  * QC-067 作品庫分頁: with more works than one page, the library loads the
@@ -24,10 +25,19 @@ async function shot(page: Page, name: string): Promise<void> {
 
 const grid = (page: Page) => page.getByRole('region', { name: '作品', exact: true });
 const cards = (page: Page) => grid(page).locator('.wcard');
-const typeChip = (page: Page, name: RegExp) =>
-  page.getByRole('group', { name: '類型' }).getByRole('button', { name });
-const statusChip = (page: Page, name: RegExp) =>
-  page.getByRole('group', { name: '狀態' }).getByRole('button', { name });
+/** The count beside a type or status in 篩選 (QC-069); leaves the popover open. */
+async function expectCount(
+  page: Page,
+  group: '類型' | '狀態',
+  name: RegExp,
+  n: number,
+): Promise<void> {
+  if ((await page.getByRole('dialog', { name: '篩選' }).count()) === 0)
+    await filterButton(page).click();
+  await expect(filterOption(page, group, name).locator('.fmenu__n')).toHaveText(String(n));
+}
+const closeFilter = (page: Page) => page.keyboard.press('Escape');
+const total = (page: Page) => page.locator('main .page__sub');
 
 /** Scroll the list to its end until no page is left to load. */
 async function scrollToEnd(
@@ -72,12 +82,13 @@ test('作品庫：超過一頁時捲到底載入全部、數量是全體、⌘A 
 
   await test.step('一開始只載入第一頁，標題旁是全部的數量', async () => {
     await expect(cards(page)).toHaveCount(60);
-    await expect(page.locator('.page__count')).toHaveText(String(ALL));
-    await expect(typeChip(page, /^全部/)).toContainText(String(ALL));
-    await expect(typeChip(page, /^文章/)).toContainText(String(ARTICLES));
-    await expect(typeChip(page, /^貼圖/)).toContainText(String(POSTS));
-    await expect(statusChip(page, /^創作中/)).toContainText(String(ALL));
+    await expect(total(page)).toHaveText(`${String(ALL)} 個作品`);
+    await expectCount(page, '類型', /^全部/, ALL);
+    await expectCount(page, '類型', /^文章/, ARTICLES);
+    await expectCount(page, '類型', /^貼圖/, POSTS);
+    await expectCount(page, '狀態', /^創作中/, ALL);
     await shot(page, '1-first-page');
+    await closeFilter(page);
   });
 
   await test.step('捲到底：一頁一頁載入，看得到最舊的作品', async () => {
@@ -87,17 +98,18 @@ test('作品庫：超過一頁時捲到底載入全部、數量是全體、⌘A 
   });
 
   await test.step('篩選「貼圖」：數量正確，捲到底是全部貼圖', async () => {
-    await typeChip(page, /^貼圖/).click();
-    await expect(page.locator('.page__count')).toHaveText(String(POSTS));
-    await expect(statusChip(page, /^全部/)).toContainText(String(POSTS));
+    await chooseFilter(page, '類型', /^貼圖/);
+    await expect(total(page)).toHaveText(`${String(POSTS)} 個結果 · 共 ${String(ALL)} 個`);
+    await expectCount(page, '狀態', /^全部/, POSTS);
+    await closeFilter(page);
     await scrollToEnd(page, POSTS);
     await expect(grid(page).getByText('貼圖 001', { exact: true })).toBeVisible();
-    await typeChip(page, /^全部/).click();
+    await chooseFilter(page, '類型', /^全部/);
     await expect(cards(page)).toHaveCount(60);
   });
 
   await test.step('⌘A 選取篩選下的全部（不只已載入），批量改狀態改到全部', async () => {
-    await typeChip(page, /^文章/).click();
+    await chooseFilter(page, '類型', /^文章/);
     await expect(cards(page)).toHaveCount(60);
     await page.locator('main .page__title').click();
     await page.keyboard.press('Meta+a');
@@ -112,14 +124,16 @@ test('作品庫：超過一頁時捲到底載入全部、數量是全體、⌘A 
         async () => (await c.works.list({ type: 'article', status: 'in_review', limit: 1 })).total,
       )
       .toBe(ARTICLES);
-    await expect(statusChip(page, /^待審核/)).toContainText(String(ARTICLES));
-    await expect(statusChip(page, /^創作中/)).toContainText('0');
-    await typeChip(page, /^全部/).click();
-    await expect(statusChip(page, /^創作中/)).toContainText(String(POSTS));
+    await expectCount(page, '狀態', /^待審核/, ARTICLES);
+    await expectCount(page, '狀態', /^創作中/, 0);
+    await closeFilter(page);
+    await chooseFilter(page, '類型', /^全部/);
+    await expectCount(page, '狀態', /^創作中/, POSTS);
+    await closeFilter(page);
   });
 
   await test.step('⌘A 後刪除：篩選下的全部都進最近刪除', async () => {
-    await typeChip(page, /^貼圖/).click();
+    await chooseFilter(page, '類型', /^貼圖/);
     await expect(cards(page)).toHaveCount(60);
     await page.locator('main .page__title').click();
     await page.keyboard.press('Meta+a');
@@ -133,12 +147,12 @@ test('作品庫：超過一頁時捲到底載入全部、數量是全體、⌘A 
     await expect
       .poll(async () => (await c.works.list({ scope: 'trash', limit: 1 })).total)
       .toBe(POSTS);
-    await expect(page.locator('.page__count')).toHaveText('0');
-    await expect(page.locator('.filters__trash')).toContainText(String(POSTS));
+    await expect(total(page)).toHaveText(`0 個結果 · 共 ${String(ARTICLES)} 個`);
+    await expect(trashRow(page)).toHaveText(`最近刪除${String(POSTS)}`);
   });
 
   await test.step('最近刪除也分頁；⌘A 選取全部刪除的作品', async () => {
-    await page.locator('.filters__trash').click();
+    await trashRow(page).click();
     const trashCards = (p: Page) => p.locator('.card-grid .wcard');
     await expect(trashCards(page)).toHaveCount(60);
     await scrollToEnd(page, POSTS, trashCards);

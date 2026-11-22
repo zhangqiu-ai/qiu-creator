@@ -51,25 +51,32 @@ test('側欄：分組、調寬上下限、收起圖示列、記住狀態與服�
   const { page, backend } = desktop;
   await page.setViewportSize({ width: 1440, height: 900 });
   const nav = page.getByRole('navigation', { name: '主導航' });
-  await expect(nav.getByRole('button', { name: '作品庫', exact: true })).toBeVisible();
+  await expect(nav.getByRole('button', { name: '全部作品', exact: true })).toBeVisible();
 
   await test.step('分組與預設寬度', async () => {
     const groups = await nav.getByRole('group').all();
     const names = await Promise.all(groups.map((g) => g.getAttribute('aria-label')));
-    expect(names).toEqual(['創作', '素材', 'AI']);
-    // 作品庫, then 未分類 and the 項目 section (QC-062: no projects yet, so 新建項目), then 平台預覽.
-    await expect(nav.getByRole('group', { name: '創作' }).getByRole('button')).toHaveText([
-      '作品庫',
+    // QC-069: the works' scopes (no heading), 項目, 素材, 工具; 最近刪除 and 設定 in the foot.
+    expect(names).toEqual(['作品', '項目', '素材', '工具']);
+    await expect(nav.getByRole('group', { name: '作品' }).getByRole('button')).toHaveText([
+      /^全部作品\d*$/,
       /^未分類\d*$/,
+    ]);
+    // No projects yet, so 新建項目.
+    await expect(nav.getByRole('group', { name: '項目' }).getByRole('button')).toHaveText([
       '項目',
       '',
       '新建項目',
-      '平台預覽',
     ]);
     await expect(nav.getByRole('group', { name: '素材' }).getByRole('button')).toHaveText([
       '素材庫',
       '匯入任務',
     ]);
+    await expect(nav.getByRole('group', { name: '工具' }).getByRole('button')).toHaveText([
+      'AI 工作台',
+      '平台預覽',
+    ]);
+    await expect(nav.locator('.sb__foot').getByRole('button')).toHaveText(['最近刪除', '設定']);
     await expect(nav.getByText('發布中心')).toHaveCount(0);
     // 設定 is pinned at the bottom, below the groups.
     const settings = await nav.getByRole('button', { name: '設定', exact: true }).boundingBox();
@@ -98,26 +105,26 @@ test('側欄：分組、調寬上下限、收起圖示列、記住狀態與服�
     await page.keyboard.press('Control+Meta+s');
     await expectNavWidth(page, 56);
     await expect(nav.getByRole('button', { name: '展開側欄' })).toBeVisible();
-    const library = nav.getByRole('button', { name: '作品庫', exact: true });
+    const library = nav.getByRole('button', { name: '全部作品', exact: true });
     await expect(library).toBeVisible();
     // Keyboard focus shows the tooltip (the rail hides the text label).
     await library.focus();
     await page.keyboard.press('Tab');
     await page.keyboard.press('Shift+Tab');
-    await expect(library).toHaveAttribute('data-tip', '作品庫');
+    await expect(library).toHaveAttribute('data-tip', '全部作品');
     // QC-065: the rail's tooltip is one floating element, so a scrolling rail cannot clip it.
-    await expect(nav.locator('.sb__railtip')).toHaveText('作品庫');
+    await expect(nav.locator('.sb__railtip')).toHaveText('全部作品');
     await shot(page, '03-rail-tooltip');
   });
 
   await test.step('重新載入後仍是收起；展開後回到 248', async () => {
     await page.reload();
-    await expect(nav.getByRole('button', { name: '作品庫', exact: true })).toBeVisible();
+    await expect(nav.getByRole('button', { name: '全部作品', exact: true })).toBeVisible();
     await expectNavWidth(page, 56);
     await nav.getByRole('button', { name: '展開側欄' }).click();
     await expectNavWidth(page, 248);
     await page.reload();
-    await expect(nav.getByRole('button', { name: '作品庫', exact: true })).toBeVisible();
+    await expect(nav.getByRole('button', { name: '全部作品', exact: true })).toBeVisible();
     await expectNavWidth(page, 248);
     await page.getByRole('separator', { name: '調整側欄寬度' }).dblclick();
   });

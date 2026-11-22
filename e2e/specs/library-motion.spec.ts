@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { expect, type Page } from '@playwright/test';
 import { test } from '../fixtures/desktop.js';
+import { chooseFilter } from '../fixtures/library.js';
 import { startScreencast } from '../fixtures/screencast.js';
 
 /*
@@ -19,8 +20,6 @@ const grid = (page: Page) => page.getByRole('region', { name: '作品', exact: t
 const card = (page: Page, title: string) =>
   grid(page).locator('.wcard', { has: page.locator('.wcard__title', { hasText: title }) });
 const titles = (page: Page) => grid(page).locator('.wcard__title').allTextContents();
-const typeFilter = (page: Page, name: RegExp) =>
-  page.getByRole('group', { name: '類型' }).getByRole('button', { name });
 
 async function shot(page: Page, name: string): Promise<void> {
   const dir = process.env['QC065_SHOTS'];
@@ -43,10 +42,10 @@ test('作品庫：刪除後焦點到下一張、篩選切換（少量與大量�
   await expect(grid(page).locator('.wcard')).toHaveCount(8);
 
   await test.step('篩選切換：卡片換成符合的那幾張', async () => {
-    await typeFilter(page, /貼圖/).click();
+    await chooseFilter(page, '類型', /貼圖/);
     await expect(grid(page).locator('.wcard')).toHaveCount(3);
     expect((await titles(page)).sort()).toEqual([...POSTS].sort());
-    await typeFilter(page, /全部/).click();
+    await chooseFilter(page, '類型', /全部/);
     await expect(grid(page).locator('.wcard')).toHaveCount(8);
   });
 
@@ -71,9 +70,9 @@ test('作品庫：刪除後焦點到下一張、篩選切換（少量與大量�
     for (let i = 1; i <= 40; i += 1)
       await c.works.create({ title: `大量 ${String(i)}`, markdown: '', source: 'mac-app' });
     await expect(grid(page).locator('.wcard')).toHaveCount(47);
-    await typeFilter(page, /文章/).click();
+    await chooseFilter(page, '類型', /文章/);
     await expect(grid(page).locator('.wcard')).toHaveCount(articlesLeft + 40);
-    await typeFilter(page, /全部/).click();
+    await chooseFilter(page, '類型', /全部/);
     await expect(grid(page).locator('.wcard')).toHaveCount(47);
   });
 });
@@ -100,9 +99,9 @@ test('作品庫動效錄影（正常速度）與減少動態效果', async ({ de
   await page.keyboard.press('Escape');
   await expect(page.getByRole('toolbar', { name: '已選 2 個' })).toHaveCount(0);
   // Filter: the cards that stay slide to their new places, the others fade.
-  await typeFilter(page, /貼圖/).click();
+  await chooseFilter(page, '類型', /貼圖/);
   await expect(grid(page).locator('.wcard')).toHaveCount(3);
-  await typeFilter(page, /全部/).click();
+  await chooseFilter(page, '類型', /全部/);
   await expect(grid(page).locator('.wcard')).toHaveCount(8);
   // Delete two: they fade out and the others close the gap; 復原 brings them back.
   await card(page, '秋天的咖啡店').click({ modifiers: ['Meta'] });
@@ -123,9 +122,9 @@ test('作品庫動效錄影（正常速度）與減少動態效果', async ({ de
   for (let i = 1; i <= 40; i += 1)
     await c.works.create({ title: `大量 ${String(i)}`, markdown: '', source: 'mac-app' });
   await expect(grid(page).locator('.wcard')).toHaveCount(48);
-  await typeFilter(page, /貼圖/).click();
+  await chooseFilter(page, '類型', /貼圖/);
   await expect(grid(page).locator('.wcard')).toHaveCount(3);
-  await typeFilter(page, /全部/).click();
+  await chooseFilter(page, '類型', /全部/);
   await expect(grid(page).locator('.wcard')).toHaveCount(48);
   // A hover repaints the window, so the recording's last frame shows the settled grid.
   await card(page, '京都散步路線').hover();
