@@ -17,7 +17,14 @@ import {
   redactKey,
 } from '../src/renderer/ai-settings.js';
 import { watchAiStatus } from '../src/renderer/ai-status.js';
-import { AiActivity, runLabel, uploadPercent, VideoSession } from '../src/renderer/ai-video.js';
+import {
+  AiActivity,
+  canOpenJob,
+  runLabel,
+  selectedJobId,
+  uploadPercent,
+  VideoSession,
+} from '../src/renderer/ai-video.js';
 
 /**
  * Integration (QC-025): AI settings and the AI 工作台 video flow against a
@@ -436,5 +443,55 @@ describe('AiActivity', () => {
     const gemini = a.snapshot.usage?.by_provider.find((p) => p.provider === 'gemini');
     expect(gemini?.jobs).toBe(1);
     expect(a.snapshot.usage?.budget.spent_usd).toBeGreaterThan(0);
+  });
+});
+
+describe('最近任務 (QC-056)', () => {
+  it('opens a finished run, a failed one with 重試, and marks the one shown', async () => {
+    await client.ai.setKey('gemini', FAKE_KEY);
+    const v = session();
+    await v.loadProvider();
+    await v.select(asset);
+    v.analyze();
+    await v.confirm();
+    await until(() => v.snapshot.phase === 'done', 'first result');
+    const first = v.snapshot.shown;
+    expect(selectedJobId(v.snapshot)).toBe(first?.id);
+
+    fake.generateReplies.push({ status: 400, body: { error: { code: 400, message: 'bad' } } });
+    v.analyze();
+    v.rerun();
+    await v.confirm();
+    await until(() => v.snapshot.phase === 'failed', 'failure');
+    const failedId = v.snapshot.job?.id ?? null;
+    expect(selectedJobId(v.snapshot)).toBe(failedId);
+
+    const a = new AiActivity(client);
+    await a.load();
+    const jobs = a.snapshot.jobs ?? [];
+    const ok = jobs.find((j) => j.status === 'succeeded');
+    const bad = jobs.find((j) => j.status === 'failed');
+    if (ok === undefined || bad === undefined) throw new Error('jobs missing');
+    expect(canOpenJob(ok) && canOpenJob(bad)).toBe(true);
+    expect(canOpenJob({ ...ok, status: 'cancelled' })).toBe(false);
+
+    await v.open(ok, asset);
+    expect(v.snapshot.phase).toBe('done');
+    expect(selectedJobId(v.snapshot)).toBe(ok.id);
+
+    await v.open(bad, asset);
+    expect(v.snapshot.phase).toBe('failed');
+    expect(v.snapshot.failure?.code).toBe('bad_request');
+    expect(selectedJobId(v.snapshot)).toBe(bad.id);
+
+    // A status refresh (QC-055, e.g. the window comes back) keeps the opened run shown.
+    await v.refresh();
+    expect(v.snapshot.phase).toBe('failed');
+    expect(selectedJobId(v.snapshot)).toBe(bad.id);
+
+    // 重試 from the opened failure works like after a fresh one.
+    fake.generateReplies.push({ body: videoResult({ summary: '從最近任務重試' }) });
+    await v.retry();
+    await until(() => v.snapshot.result?.summary === '從最近任務重試', 'retried from history');
   });
 });

@@ -6,13 +6,23 @@ import {
   type AiJobRecord,
   type AssetRecord,
 } from '@qiu-creator/contracts';
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type RefObject,
+} from 'react';
 import { assetMediaUrl, thumbnailUrl } from '../shared/bridge.js';
 import { FAILURE_LABEL } from './ai-session.js';
 import { formatUsd, modelOptions } from './ai-settings.js';
 import {
   AiActivity,
+  canOpenJob,
   jobActionLabel,
+  selectedJobId,
   runLabel,
   uploadPercent,
   VideoSession,
@@ -89,6 +99,13 @@ function Workbench({
     if (event.action !== 'ai_job.progress') void activity.load();
   });
 
+  // Another result (or state) starts at its top, not where the last one was scrolled to.
+  const resultRef = useRef<HTMLElement>(null);
+  const shownKey = `${s.phase}:${selectedJobId(s) ?? ''}`;
+  useEffect(() => {
+    resultRef.current?.scrollTo({ top: 0 });
+  }, [shownKey]);
+
   const openJob = (job: AiJobRecord) => {
     if (job.task?.type !== 'video_understanding') return;
     void client.assets
@@ -98,81 +115,92 @@ function Workbench({
   };
 
   return (
-    <main className="page" aria-label={t('ai.page')}>
+    <main className="page page--aiw" aria-label={t('ai.page')}>
       <header className="page__header">
         <h1 className="page__title">{t('ai.page')}</h1>
       </header>
+      {/* QC-056: two columns that scroll on their own; the left one holds setup, 最近任務 and 用量. */}
       <div className="aiw">
-        <section className="aiw__setup" aria-label={t('ai.setupLabel')}>
-          <VideoCard
-            asset={s.asset}
-            onPick={() => {
-              setPicking(true);
-            }}
+        <div className="aiw__side">
+          <section className="aiw__setup" aria-label={t('ai.setupLabel')}>
+            <VideoCard
+              asset={s.asset}
+              onPick={() => {
+                setPicking(true);
+              }}
+            />
+            <fieldset className="aiw__fs">
+              <legend className="aiw__h">{t('ai.taskLegend')}</legend>
+              <span className="aiw__opt aiw__opt--static">
+                <Icon name="video" size={14} />
+                {t('ai.taskVideo')}
+              </span>
+            </fieldset>
+            <ModelPicker session={video} s={s} />
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={
+                s.asset === null ||
+                s.estimate === null ||
+                s.noKey ||
+                s.phase === 'running' ||
+                s.phase === 'estimating'
+              }
+              onClick={() => {
+                video.analyze();
+              }}
+            >
+              <Icon name="spark" />
+              {s.phase === 'running'
+                ? t('ai.phaseAnalyzing')
+                : s.result !== null
+                  ? t('ai.reanalyze')
+                  : t('ai.analyze')}
+            </button>
+            {s.estimate !== null && (
+              <span className="aiw__est">
+                {t(
+                  s.estimate.duration_source === 'size_guess'
+                    ? 'ai.estimateLineGuess'
+                    : 'ai.estimateLine',
+                  {
+                    duration: formatDuration(s.estimate.duration_seconds),
+                    size: formatBytes(s.estimate.size_bytes),
+                    cost: formatUsd(s.estimate.estimate.max_cost_usd),
+                  },
+                )}
+              </span>
+            )}
+            {s.estimateError !== null && (
+              <p className="aiw__err" role="alert">
+                {s.estimateError}
+              </p>
+            )}
+          </section>
+          <RecentJobs
+            activity={a}
+            selectedId={selectedJobId(s)}
+            onOpenJob={openJob}
+            onRetry={() => void activity.load()}
           />
-          <fieldset className="aiw__fs">
-            <legend className="aiw__h">{t('ai.taskLegend')}</legend>
-            <span className="aiw__opt aiw__opt--static">
-              <Icon name="video" size={14} />
-              {t('ai.taskVideo')}
-            </span>
-          </fieldset>
-          <ModelPicker session={video} s={s} />
-          <button
-            type="button"
-            className="btn btn--primary"
-            disabled={
-              s.asset === null ||
-              s.estimate === null ||
-              s.noKey ||
-              s.phase === 'running' ||
-              s.phase === 'estimating'
-            }
-            onClick={() => {
-              video.analyze();
-            }}
-          >
-            <Icon name="spark" />
-            {s.phase === 'running'
-              ? t('ai.phaseAnalyzing')
-              : s.result !== null
-                ? t('ai.reanalyze')
-                : t('ai.analyze')}
-          </button>
-          {s.estimate !== null && (
-            <span className="aiw__est">
-              {t(
-                s.estimate.duration_source === 'size_guess'
-                  ? 'ai.estimateLineGuess'
-                  : 'ai.estimateLine',
-                {
-                  duration: formatDuration(s.estimate.duration_seconds),
-                  size: formatBytes(s.estimate.size_bytes),
-                  cost: formatUsd(s.estimate.estimate.max_cost_usd),
-                },
-              )}
-            </span>
-          )}
-          {s.estimateError !== null && (
-            <p className="aiw__err" role="alert">
-              {s.estimateError}
-            </p>
-          )}
-        </section>
+          <UsageSummary activity={a} />
+        </div>
 
-        <section className="card aiw__result" aria-label={t('ai.resultLabel')}>
-          <ResultArea
-            s={s}
-            session={video}
-            onOpenSettings={onOpenSettings}
-            onPick={() => {
-              setPicking(true);
-            }}
-            onOpenAsset={onOpenAsset}
-          />
+        <section ref={resultRef} className="aiw__result" aria-label={t('ai.resultLabel')}>
+          <div className="card aiw__result-card">
+            <ResultArea
+              s={s}
+              session={video}
+              onOpenSettings={onOpenSettings}
+              onPick={() => {
+                setPicking(true);
+              }}
+              onOpenAsset={onOpenAsset}
+              scroller={resultRef}
+            />
+          </div>
         </section>
-
-        <UsageCard activity={a} onOpenJob={openJob} onRetry={() => void activity.load()} />
       </div>
 
       {picking && (
@@ -323,12 +351,15 @@ function ResultArea({
   onOpenSettings,
   onPick,
   onOpenAsset,
+  scroller,
 }: {
   s: VideoState;
   session: VideoSession;
   onOpenSettings: () => void;
   onPick: () => void;
   onOpenAsset: (assetId: string, at: number) => void;
+  /** The result column, which scrolls on its own (for the section jumps). */
+  scroller: RefObject<HTMLElement | null>;
 }) {
   if (s.noKey) {
     return (
@@ -443,9 +474,23 @@ function ResultArea({
   }
   const r = s.result;
   const asset = s.asset;
+  const sections: { id: SectionId; label: string }[] = [
+    { id: 'summary', label: t('ai.summary') },
+    ...(r.key_moments.length > 0 ? [{ id: 'moments' as const, label: t('ai.keyMoments') }] : []),
+    ...(r.cover_suggestions.length > 0
+      ? [{ id: 'covers' as const, label: t('ai.coverSuggestions') }]
+      : []),
+    ...(r.title_suggestions.length > 0
+      ? [{ id: 'titles' as const, label: t('ai.titleSuggestions') }]
+      : []),
+    ...(r.description_suggestions.length > 0
+      ? [{ id: 'descriptions' as const, label: t('ai.descriptionSuggestions') }]
+      : []),
+  ];
   return (
     <div className="aiw__done">
-      <div className="aiw__row aiw__done-head">
+      <SectionNav sections={sections} scroller={scroller} />
+      <div className="aiw__row aiw__done-head" id={sectionDomId('summary')}>
         <h2 className="aiw__title">{t('ai.summary')}</h2>
         <Chip>
           {s.shown.cost_usd === null
@@ -463,7 +508,7 @@ function ResultArea({
       <p className="aiw__summary">{r.summary}</p>
 
       {r.key_moments.length > 0 && (
-        <div className="aiw__block">
+        <div className="aiw__block" id={sectionDomId('moments')}>
           <h3 className="aiw__h">{t('ai.keyMoments')}</h3>
           {r.key_moments.map((m, i) => (
             <button
@@ -487,7 +532,7 @@ function ResultArea({
       )}
 
       {r.cover_suggestions.length > 0 && (
-        <div className="aiw__block">
+        <div className="aiw__block" id={sectionDomId('covers')}>
           <h3 className="aiw__h">{t('ai.coverSuggestions')}</h3>
           <div className="aiw__frames" role="group" aria-label={t('ai.coverSuggestions')}>
             {r.cover_suggestions.map((m, i) => (
@@ -513,17 +558,33 @@ function ResultArea({
         </div>
       )}
 
-      <Suggestions title={t('ai.titleSuggestions')} items={r.title_suggestions} />
-      <Suggestions title={t('ai.descriptionSuggestions')} items={r.description_suggestions} />
+      <Suggestions
+        id={sectionDomId('titles')}
+        title={t('ai.titleSuggestions')}
+        items={r.title_suggestions}
+      />
+      <Suggestions
+        id={sectionDomId('descriptions')}
+        title={t('ai.descriptionSuggestions')}
+        items={r.description_suggestions}
+      />
     </div>
   );
 }
 
-function Suggestions({ title, items }: { title: string; items: readonly string[] }) {
+function Suggestions({
+  id,
+  title,
+  items,
+}: {
+  id: string;
+  title: string;
+  items: readonly string[];
+}) {
   const [copied, setCopied] = useState<number | null>(null);
   if (items.length === 0) return null;
   return (
-    <div className="aiw__block">
+    <div className="aiw__block" id={id}>
       <h3 className="aiw__h">{title}</h3>
       {items.map((text, i) => (
         <div key={`${String(i)}:${text}`} className="aiw__cand">
@@ -555,48 +616,97 @@ function Suggestions({ title, items }: { title: string; items: readonly string[]
   );
 }
 
-function UsageCard({
+type SectionId = 'summary' | 'moments' | 'covers' | 'titles' | 'descriptions';
+
+const sectionDomId = (id: SectionId) => `aiw-sec-${id}`;
+
+/** Space the sticky section bar takes at the top of the result column. */
+const NAV_OFFSET = 56;
+
+/**
+ * Jumps between the parts of a result (QC-056,
+ * `qiuge-design/cases/kubai-999-008-responsive-wiki`): stays at the top of the
+ * result column and marks the part being read.
+ */
+function SectionNav({
+  sections,
+  scroller,
+}: {
+  sections: readonly { id: SectionId; label: string }[];
+  scroller: RefObject<HTMLElement | null>;
+}) {
+  const [current, setCurrent] = useState<SectionId>('summary');
+  const ids = sections.map((x) => x.id).join(',');
+  useEffect(() => {
+    const el = scroller.current;
+    if (el === null) return;
+    const list = ids.split(',') as SectionId[];
+    const onScroll = () => {
+      const top = el.getBoundingClientRect().top + NAV_OFFSET + 8;
+      let at: SectionId = list[0] ?? 'summary';
+      for (const id of list) {
+        const node = document.getElementById(sectionDomId(id));
+        if (node !== null && node.getBoundingClientRect().top <= top) at = id;
+      }
+      // At the very bottom the last part counts as read even when it is short.
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 2) at = list.at(-1) ?? at;
+      setCurrent(at);
+    };
+    onScroll();
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+    };
+  }, [ids, scroller]);
+  if (sections.length < 2) return null;
+  return (
+    <nav className="aiw__nav" aria-label={t('ai.resultSections')}>
+      {sections.map((x) => (
+        <button
+          key={x.id}
+          type="button"
+          className="aiw__nav-item"
+          aria-current={current === x.id ? 'location' : undefined}
+          onClick={() => {
+            const el = scroller.current;
+            const node = document.getElementById(sectionDomId(x.id));
+            if (el === null || node === null) return;
+            const delta = node.getBoundingClientRect().top - el.getBoundingClientRect().top;
+            // The first part is the top of the result, bar and all.
+            const top = x.id === sections[0]?.id ? 0 : el.scrollTop + delta - NAV_OFFSET;
+            el.scrollTo({ top, behavior: 'smooth' });
+            setCurrent(x.id);
+          }}
+        >
+          {x.label}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+/**
+ * 最近任務 (QC-056): under the setup in the left column, because picking one
+ * is how you choose what the result column shows. The one shown is marked;
+ * failed ones open with their reason and 重試.
+ */
+function RecentJobs({
   activity,
+  selectedId,
   onOpenJob,
   onRetry,
 }: {
   activity: AiActivity['snapshot'];
+  selectedId: string | null;
   onOpenJob: (job: AiJobRecord) => void;
   onRetry: () => void;
 }) {
-  const usage = activity.usage;
-  const budget = usage?.budget ?? null;
   return (
-    <section className="card aiw__usage" aria-labelledby="aiw-use">
-      <div className="aiw__row aiw__usage-head">
-        <h2 id="aiw-use" className="aiw__title">
-          {t('ai.usage')}
-        </h2>
-        <span className="aiw__total">{formatUsd(budget?.spent_usd ?? null)}</span>
-      </div>
-      <span className="aiw__usage-sub faint">
-        {budget?.budget_usd == null
-          ? t('ai.usageSub')
-          : t('ai.usageSubBudget', { budget: formatUsd(budget.budget_usd) })}
-      </span>
-      {budget !== null && budgetWarningText(budget) !== null && (
-        <p className="aiw__over" role="status">
-          <Icon name="alert" size={14} />
-          {budgetWarningText(budget)}
-        </p>
-      )}
-      {usage !== null && usage.by_provider.length > 0 && (
-        <div className="aiw__providers">
-          {usage.by_provider.map((p) => (
-            <span key={p.provider} className="aiw__prov">
-              <span>{AI_PROVIDER_NAMES[p.provider].name}</span>
-              <span className="faint">{t('ai.jobCount', { count: p.jobs })}</span>
-              <span className="aiw__num">{formatUsd(p.cost_usd)}</span>
-            </span>
-          ))}
-        </div>
-      )}
-      <h3 className="aiw__h aiw__recent">{t('ai.recentJobs')}</h3>
+    <section className="aiw__jobs-box" aria-labelledby="aiw-jobs">
+      <h2 id="aiw-jobs" className="aiw__h">
+        {t('ai.recentJobs')}
+      </h2>
+      <span className="aiw__jobs-hint faint">{t('ai.jobsHint')}</span>
       {activity.failed ? (
         <div className="aiw__row">
           <span className="muted">{t('ai.loadFailed')}</span>
@@ -611,7 +721,7 @@ function UsageCard({
       ) : (
         <ol className="aiw__jobs">
           {activity.jobs.map((job) => {
-            const openable = job.task?.type === 'video_understanding' && job.status === 'succeeded';
+            const current = job.id === selectedId;
             const body = (
               <>
                 <span className="aiw__job-k">{jobActionLabel(job)}</span>
@@ -630,14 +740,20 @@ function UsageCard({
                     <Chip tone="accent">{t('ai.statusRunning')}</Chip>
                   )}
                 </span>
+                {current && <span className="visually-hidden">{t('ai.jobShowing')}</span>}
               </>
             );
             return (
               <li key={job.id}>
-                {openable ? (
+                {canOpenJob(job) ? (
                   <button
                     type="button"
-                    className="aiw__job aiw__job--open"
+                    className={
+                      current
+                        ? 'aiw__job aiw__job--open aiw__job--current'
+                        : 'aiw__job aiw__job--open'
+                    }
+                    aria-current={current ? 'true' : undefined}
                     onClick={() => {
                       onOpenJob(job);
                     }}
@@ -651,6 +767,52 @@ function UsageCard({
             );
           })}
         </ol>
+      )}
+    </section>
+  );
+}
+
+/**
+ * 用量 (QC-056): one line at the foot of the left column, the month's total
+ * (and an over-budget warning) always visible; the per-service breakdown
+ * opens on demand, since it is checked rarely.
+ */
+function UsageSummary({ activity }: { activity: AiActivity['snapshot'] }) {
+  const usage = activity.usage;
+  const budget = usage?.budget ?? null;
+  const warning = budget === null ? null : budgetWarningText(budget);
+  return (
+    <section className="card aiw__usage" aria-labelledby="aiw-use">
+      <details className="aiw__usage-details">
+        <summary className="aiw__row aiw__usage-head">
+          <Icon name="chevronDown" size={14} />
+          <h2 id="aiw-use" className="aiw__title">
+            {t('ai.usage')}
+          </h2>
+          <span className="aiw__total">{formatUsd(budget?.spent_usd ?? null)}</span>
+        </summary>
+        <span className="aiw__usage-sub faint">
+          {budget?.budget_usd == null
+            ? t('ai.usageSub')
+            : t('ai.usageSubBudget', { budget: formatUsd(budget.budget_usd) })}
+        </span>
+        {usage !== null && usage.by_provider.length > 0 && (
+          <div className="aiw__providers">
+            {usage.by_provider.map((p) => (
+              <span key={p.provider} className="aiw__prov">
+                <span>{AI_PROVIDER_NAMES[p.provider].name}</span>
+                <span className="faint">{t('ai.jobCount', { count: p.jobs })}</span>
+                <span className="aiw__num">{formatUsd(p.cost_usd)}</span>
+              </span>
+            ))}
+          </div>
+        )}
+      </details>
+      {warning !== null && (
+        <p className="aiw__over" role="status">
+          <Icon name="alert" size={14} />
+          {warning}
+        </p>
       )}
     </section>
   );
