@@ -229,8 +229,6 @@ export function App() {
   // Segments and the AI tabs: the chosen highlight glides to its new place (QC-065).
   useEffect(() => installSegmentGlide(), []);
   const [scope, setScope] = useState<LibraryScope>({ kind: 'all' });
-  /** The sidebar is the 56 px rail (QC-065: the content slides to its new place). */
-  const [rail, setRail] = useState(false);
   // A project that went away (deleted, archived elsewhere): back to 全部作品.
   const scopedProject =
     scope.kind === 'project'
@@ -344,7 +342,6 @@ export function App() {
                 else checkHealth();
               }}
               libraryScoped={scope.kind !== 'all'}
-              onRailChange={setRail}
               projects={
                 projects === null || client === null
                   ? undefined
@@ -364,7 +361,7 @@ export function App() {
               }
             />
 
-            <ShellMain rail={rail}>
+            <ShellMain>
               {'state' in connection ? (
                 <main className="page page--center" aria-busy="true" />
               ) : !connection.ok ? (

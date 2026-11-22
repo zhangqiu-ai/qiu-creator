@@ -386,384 +386,391 @@ export function AssetsPage({
 
   return (
     <SearchHighlight query={appliedQuery}>
-    <main
-      className="page page--split"
-      aria-label={t('assets.title')}
-      onDragOver={(e) => {
-        if ([...e.dataTransfer.types].includes('Files')) {
-          e.preventDefault();
-          setDragging(true);
-        }
-      }}
-      onDragLeave={(e) => {
-        if (e.currentTarget === e.target) setDragging(false);
-      }}
-      onDrop={onDrop}
-    >
-      <div className="page__main">
-        <header className="page__header">
-          <h1 className="page__title">{t('assets.title')}</h1>
-          <span className="page__count">{listing === null ? '' : formatNumber(listing.total)}</span>
-          {picks.length > 0 ? (
-            <div className="batchbar" role="toolbar" aria-label={t('assets.batchActions')}>
-              <span className="batchbar__count">{t('assets.picked', { count: picks.length })}</span>
+      <main
+        className="page page--split"
+        aria-label={t('assets.title')}
+        onDragOver={(e) => {
+          if ([...e.dataTransfer.types].includes('Files')) {
+            e.preventDefault();
+            setDragging(true);
+          }
+        }}
+        onDragLeave={(e) => {
+          if (e.currentTarget === e.target) setDragging(false);
+        }}
+        onDrop={onDrop}
+      >
+        <div className="page__main">
+          <header className="page__header">
+            <h1 className="page__title">{t('assets.title')}</h1>
+            <span className="page__count">
+              {listing === null ? '' : formatNumber(listing.total)}
+            </span>
+            {picks.length > 0 ? (
+              <div className="batchbar" role="toolbar" aria-label={t('assets.batchActions')}>
+                <span className="batchbar__count">
+                  {t('assets.picked', { count: picks.length })}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--small"
+                  onClick={() => {
+                    setDialog({ kind: 'tags', ids: [...picks] });
+                  }}
+                >
+                  <Icon name="tag" size={14} />
+                  {t('assets.addTags')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--small"
+                  onClick={() => {
+                    setDialog({ kind: 'batch', ids: [...picks] });
+                  }}
+                >
+                  <Icon name="trash" size={14} />
+                  {t('assets.moveToTrash')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--small"
+                  onClick={() => {
+                    setPicks([]);
+                  }}
+                >
+                  {t('common.cancel')}
+                  <kbd>esc</kbd>
+                </button>
+              </div>
+            ) : (
+              <>
+                <label className="search">
+                  <Icon name="search" />
+                  <span className="visually-hidden">{t('assets.searchAssets')}</span>
+                  <input
+                    type="search"
+                    placeholder={t('assets.searchPlaceholder')}
+                    value={query}
+                    onChange={(e) => {
+                      setQuery(e.target.value);
+                      if (!(e.nativeEvent as InputEvent).isComposing)
+                        setAppliedQuery(e.target.value);
+                    }}
+                    onCompositionEnd={(e) => {
+                      setAppliedQuery(e.currentTarget.value);
+                    }}
+                  />
+                </label>
+                <div className="seg" role="group" aria-label={t('assets.scopeGroup')}>
+                  {SCOPES.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      aria-pressed={scope === s}
+                      onClick={() => {
+                        setScope(s);
+                        setPicks([]);
+                        setSelectedId(null);
+                      }}
+                    >
+                      {scopeLabel(s)}
+                      {s === 'trash' && trashTotal > 0 && (
+                        <span className="seg__n">{formatNumber(trashTotal)}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <button type="button" className="btn btn--primary" onClick={pick}>
+                  <Icon name="upload" />
+                  {t('assets.upload')}
+                </button>
+              </>
+            )}
+          </header>
+
+          {project !== null && scope !== 'trash' && (
+            <div className="proj-filter" role="status">
+              <span className="fchip proj-filter__chip" aria-pressed="true">
+                <span
+                  className="proj-filter__dot"
+                  style={{ background: projectColor(project.color) }}
+                />
+                {t('projects.usedIn', { name: project.name })}
+                <button
+                  type="button"
+                  className="proj-filter__clear"
+                  aria-label={t('projects.clearFilter')}
+                  onClick={onClearProject}
+                >
+                  <Icon name="close" size={12} />
+                </button>
+              </span>
               <button
                 type="button"
                 className="btn btn--ghost btn--small"
                 onClick={() => {
-                  setDialog({ kind: 'tags', ids: [...picks] });
+                  onBackToProject?.(project.id);
                 }}
               >
-                <Icon name="tag" size={14} />
-                {t('assets.addTags')}
-              </button>
-              <button
-                type="button"
-                className="btn btn--ghost btn--small"
-                onClick={() => {
-                  setDialog({ kind: 'batch', ids: [...picks] });
-                }}
-              >
-                <Icon name="trash" size={14} />
-                {t('assets.moveToTrash')}
-              </button>
-              <button
-                type="button"
-                className="btn btn--ghost btn--small"
-                onClick={() => {
-                  setPicks([]);
-                }}
-              >
-                {t('common.cancel')}
-                <kbd>esc</kbd>
+                <Icon name="back" size={14} />
+                {t('projects.backTo', { name: project.name })}
               </button>
             </div>
-          ) : (
-            <>
-              <label className="search">
-                <Icon name="search" />
-                <span className="visually-hidden">{t('assets.searchAssets')}</span>
-                <input
-                  type="search"
-                  placeholder={t('assets.searchPlaceholder')}
-                  value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value);
-                    if (!(e.nativeEvent as InputEvent).isComposing) setAppliedQuery(e.target.value);
-                  }}
-                  onCompositionEnd={(e) => {
-                    setAppliedQuery(e.currentTarget.value);
-                  }}
-                />
-              </label>
-              <div className="seg" role="group" aria-label={t('assets.scopeGroup')}>
-                {SCOPES.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    aria-pressed={scope === s}
-                    onClick={() => {
-                      setScope(s);
-                      setPicks([]);
-                      setSelectedId(null);
-                    }}
-                  >
-                    {scopeLabel(s)}
-                    {s === 'trash' && trashTotal > 0 && (
-                      <span className="seg__n">{formatNumber(trashTotal)}</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-              <button type="button" className="btn btn--primary" onClick={pick}>
-                <Icon name="upload" />
-                {t('assets.upload')}
-              </button>
-            </>
           )}
-        </header>
 
-        {project !== null && scope !== 'trash' && (
-          <div className="proj-filter" role="status">
-            <span className="fchip proj-filter__chip" aria-pressed="true">
-              <span
-                className="proj-filter__dot"
-                style={{ background: projectColor(project.color) }}
-              />
-              {t('projects.usedIn', { name: project.name })}
+          {queuedNote !== null && (
+            <div className="notice" role="status">
+              <Icon name="check" />
+              <span>{queuedNote}</span>
+              <button type="button" className="btn btn--ghost btn--small" onClick={onOpenImports}>
+                {t('assets.viewImports')}
+              </button>
               <button
                 type="button"
-                className="proj-filter__clear"
-                aria-label={t('projects.clearFilter')}
-                onClick={onClearProject}
+                className="btn btn--ghost btn--icon btn--small"
+                aria-label={t('assets.dismissNotice')}
+                onClick={() => {
+                  setQueuedNote(null);
+                }}
               >
-                <Icon name="close" size={12} />
+                <Icon name="close" />
               </button>
-            </span>
-            <button
-              type="button"
-              className="btn btn--ghost btn--small"
-              onClick={() => {
-                onBackToProject?.(project.id);
-              }}
-            >
-              <Icon name="back" size={14} />
-              {t('projects.backTo', { name: project.name })}
-            </button>
-          </div>
-        )}
+            </div>
+          )}
 
-        {queuedNote !== null && (
-          <div className="notice" role="status">
-            <Icon name="check" />
-            <span>{queuedNote}</span>
-            <button type="button" className="btn btn--ghost btn--small" onClick={onOpenImports}>
-              {t('assets.viewImports')}
-            </button>
-            <button
-              type="button"
-              className="btn btn--ghost btn--icon btn--small"
-              aria-label={t('assets.dismissNotice')}
-              onClick={() => {
-                setQueuedNote(null);
+          {scope === 'trash' ? (
+            <TrashView
+              client={client}
+              listing={listing}
+              failed={failed}
+              home={home}
+              mounts={mounts}
+              userHome={userHome}
+              onReload={load}
+              onPurge={(asset) => {
+                setDialog({ kind: 'purge', asset });
               }}
+              onEmpty={() => {
+                setDialog({ kind: 'empty', count: listing?.total ?? 0 });
+              }}
+              onToast={setToast}
+            />
+          ) : (
+            <section
+              className="page__body"
+              aria-label={t('assets.grid')}
+              aria-busy={listing === null && !failed}
             >
-              <Icon name="close" />
-            </button>
-          </div>
-        )}
+              <div className="asset-toolbar">
+                <div className="seg" role="group" aria-label={t('assets.kindGroup')}>
+                  {KIND_FILTERS.map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      aria-pressed={kind === k}
+                      onClick={() => {
+                        setKind(k);
+                      }}
+                    >
+                      {k === 'all' ? t('assets.all') : ASSET_KIND[k].label}
+                    </button>
+                  ))}
+                </div>
+                <span className="asset-toolbar__hint faint">{t('assets.multiHint')}</span>
+              </div>
+              {failed ? (
+                <div className="state-card" role="alert">
+                  <Icon name="offline" size={28} />
+                  <span className="state-card__title">{t('assets.loadFailed')}</span>
+                  <button type="button" className="btn btn--primary" onClick={load}>
+                    {t('common.retry')}
+                  </button>
+                </div>
+              ) : listing === null ? (
+                <div className="asset-grid" aria-label={t('assets.loading')}>
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <div key={i} className="atile atile--skeleton" aria-hidden="true">
+                      <span className="skel atile__thumb" />
+                      <span className="skel skel--line" style={{ width: '70%' }} />
+                    </div>
+                  ))}
+                </div>
+              ) : items.length === 0 ? (
+                filtering ? (
+                  <div className="state-card">
+                    <Icon name="search" size={28} />
+                    <span className="state-card__title">
+                      {scope === 'unreferenced'
+                        ? t('assets.emptyUnreferenced')
+                        : t('assets.emptyFiltered')}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => {
+                        setKind('all');
+                        setQuery('');
+                        setAppliedQuery('');
+                        setScope('active');
+                      }}
+                    >
+                      {t('assets.clearFilters')}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="state-card state-card--dashed">
+                    <Icon name="assets" size={32} />
+                    <span className="state-card__title">{t('assets.emptyTitle')}</span>
+                    <span className="muted">{t('assets.emptyHint')}</span>
+                    <div className="state-card__actions">
+                      <button type="button" className="btn btn--primary" onClick={pick}>
+                        {t('assets.upload')}
+                      </button>
+                      <button type="button" className="btn" onClick={onOpenSettings}>
+                        {t('assets.linkFolder')}
+                      </button>
+                    </div>
+                  </div>
+                )
+              ) : (
+                <>
+                  {groupAssets(items, mounts).map((g) => {
+                    const offline = g.mount !== null && g.mount.status !== 'active';
+                    const headId = `asset-group-${g.key}`;
+                    return (
+                      <section key={g.key} className="asset-section" aria-labelledby={headId}>
+                        <div className="asset-section__head">
+                          <Icon name={g.mount === null ? 'library' : 'folder'} />
+                          <h2 id={headId} className="asset-section__title">
+                            {g.mount === null
+                              ? t('assets.managed')
+                              : t('assets.groupExternal', { name: g.mount.name })}
+                          </h2>
+                          <span className="mono faint">
+                            {g.mount === null
+                              ? home === null
+                                ? ''
+                                : `${home}/library`
+                              : tildePath(g.mount.root_path, userHome)}
+                          </span>
+                          <span className="asset-section__chip">
+                            {g.mount === null ? (
+                              <Chip>{t('assets.chipRestorable')}</Chip>
+                            ) : offline ? (
+                              <Chip tone="bad">{t('assets.chipMissingFolder')}</Chip>
+                            ) : (
+                              <Chip tone="warn">{t('assets.chipOriginalStays')}</Chip>
+                            )}
+                          </span>
+                        </div>
+                        <div className={offline ? 'asset-grid asset-grid--offline' : 'asset-grid'}>
+                          {g.items.map((a) => (
+                            <AssetTile
+                              key={a.id}
+                              asset={a}
+                              selected={picks.length === 0 && a.id === selectedId}
+                              picked={picks.includes(a.id)}
+                              multi={picks.length > 0}
+                              onSelect={(e) => {
+                                if (e.metaKey || e.ctrlKey || e.shiftKey || picks.length > 0) {
+                                  togglePick(a.id);
+                                } else {
+                                  setSelectedId(a.id === selectedId ? null : a.id);
+                                }
+                              }}
+                              onTogglePick={() => {
+                                togglePick(a.id);
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </section>
+                    );
+                  })}
+                  {listing.total > items.length && (
+                    <div className="asset-more">
+                      <span className="faint">
+                        {t('assets.showing', { shown: items.length, total: listing.total })}
+                      </span>
+                      {limit.current < 200 && (
+                        <button
+                          type="button"
+                          className="btn"
+                          onClick={() => {
+                            limit.current = 200;
+                            load();
+                          }}
+                        >
+                          {t('assets.loadMore')}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+          )}
+        </div>
 
-        {scope === 'trash' ? (
-          <TrashView
+        {scope !== 'trash' && picks.length > 0 && <MultiInspector assets={picked} />}
+
+        {scope !== 'trash' && selected !== null && (
+          <AssetInspector
+            key={selected.id}
             client={client}
-            listing={listing}
-            failed={failed}
+            asset={selected}
+            home={home}
+            mount={
+              selected.mount_id === null || selected.mount_id === undefined
+                ? null
+                : (mounts.get(selected.mount_id) ?? null)
+            }
+            userHome={userHome}
+            onOpenWork={onOpenWork}
+            startAt={selected.id === focusAssetId ? (startAt ?? null) : null}
+            onSaved={(saved) => {
+              setListing((l) =>
+                l === null
+                  ? l
+                  : { ...l, items: l.items.map((a) => (a.id === saved.id ? saved : a)) },
+              );
+            }}
+            onDelete={() => {
+              deleteOne(selected);
+            }}
+            onClose={() => {
+              setSelectedId(null);
+            }}
+          />
+        )}
+
+        {dialog !== null && (
+          <AssetDialogs
+            client={client}
+            dialog={dialog}
+            items={items}
             home={home}
             mounts={mounts}
             userHome={userHome}
-            onReload={load}
-            onPurge={(asset) => {
-              setDialog({ kind: 'purge', asset });
+            onOpenWork={onOpenWork}
+            onClose={() => {
+              setDialog(null);
             }}
-            onEmpty={() => {
-              setDialog({ kind: 'empty', count: listing?.total ?? 0 });
+            onDone={(ids, t) => {
+              setDialog(null);
+              afterRemoval(ids);
+              if (t !== null) setToast(t);
             }}
-            onToast={setToast}
           />
-        ) : (
-          <section
-            className="page__body"
-            aria-label={t('assets.grid')}
-            aria-busy={listing === null && !failed}
-          >
-            <div className="asset-toolbar">
-              <div className="seg" role="group" aria-label={t('assets.kindGroup')}>
-                {KIND_FILTERS.map((k) => (
-                  <button
-                    key={k}
-                    type="button"
-                    aria-pressed={kind === k}
-                    onClick={() => {
-                      setKind(k);
-                    }}
-                  >
-                    {k === 'all' ? t('assets.all') : ASSET_KIND[k].label}
-                  </button>
-                ))}
-              </div>
-              <span className="asset-toolbar__hint faint">{t('assets.multiHint')}</span>
-            </div>
-            {failed ? (
-              <div className="state-card" role="alert">
-                <Icon name="offline" size={28} />
-                <span className="state-card__title">{t('assets.loadFailed')}</span>
-                <button type="button" className="btn btn--primary" onClick={load}>
-                  {t('common.retry')}
-                </button>
-              </div>
-            ) : listing === null ? (
-              <div className="asset-grid" aria-label={t('assets.loading')}>
-                {Array.from({ length: 12 }, (_, i) => (
-                  <div key={i} className="atile atile--skeleton" aria-hidden="true">
-                    <span className="skel atile__thumb" />
-                    <span className="skel skel--line" style={{ width: '70%' }} />
-                  </div>
-                ))}
-              </div>
-            ) : items.length === 0 ? (
-              filtering ? (
-                <div className="state-card">
-                  <Icon name="search" size={28} />
-                  <span className="state-card__title">
-                    {scope === 'unreferenced'
-                      ? t('assets.emptyUnreferenced')
-                      : t('assets.emptyFiltered')}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => {
-                      setKind('all');
-                      setQuery('');
-                      setAppliedQuery('');
-                      setScope('active');
-                    }}
-                  >
-                    {t('assets.clearFilters')}
-                  </button>
-                </div>
-              ) : (
-                <div className="state-card state-card--dashed">
-                  <Icon name="assets" size={32} />
-                  <span className="state-card__title">{t('assets.emptyTitle')}</span>
-                  <span className="muted">{t('assets.emptyHint')}</span>
-                  <div className="state-card__actions">
-                    <button type="button" className="btn btn--primary" onClick={pick}>
-                      {t('assets.upload')}
-                    </button>
-                    <button type="button" className="btn" onClick={onOpenSettings}>
-                      {t('assets.linkFolder')}
-                    </button>
-                  </div>
-                </div>
-              )
-            ) : (
-              <>
-                {groupAssets(items, mounts).map((g) => {
-                  const offline = g.mount !== null && g.mount.status !== 'active';
-                  const headId = `asset-group-${g.key}`;
-                  return (
-                    <section key={g.key} className="asset-section" aria-labelledby={headId}>
-                      <div className="asset-section__head">
-                        <Icon name={g.mount === null ? 'library' : 'folder'} />
-                        <h2 id={headId} className="asset-section__title">
-                          {g.mount === null
-                            ? t('assets.managed')
-                            : t('assets.groupExternal', { name: g.mount.name })}
-                        </h2>
-                        <span className="mono faint">
-                          {g.mount === null
-                            ? home === null
-                              ? ''
-                              : `${home}/library`
-                            : tildePath(g.mount.root_path, userHome)}
-                        </span>
-                        <span className="asset-section__chip">
-                          {g.mount === null ? (
-                            <Chip>{t('assets.chipRestorable')}</Chip>
-                          ) : offline ? (
-                            <Chip tone="bad">{t('assets.chipMissingFolder')}</Chip>
-                          ) : (
-                            <Chip tone="warn">{t('assets.chipOriginalStays')}</Chip>
-                          )}
-                        </span>
-                      </div>
-                      <div className={offline ? 'asset-grid asset-grid--offline' : 'asset-grid'}>
-                        {g.items.map((a) => (
-                          <AssetTile
-                            key={a.id}
-                            asset={a}
-                            selected={picks.length === 0 && a.id === selectedId}
-                            picked={picks.includes(a.id)}
-                            multi={picks.length > 0}
-                            onSelect={(e) => {
-                              if (e.metaKey || e.ctrlKey || e.shiftKey || picks.length > 0) {
-                                togglePick(a.id);
-                              } else {
-                                setSelectedId(a.id === selectedId ? null : a.id);
-                              }
-                            }}
-                            onTogglePick={() => {
-                              togglePick(a.id);
-                            }}
-                          />
-                        ))}
-                      </div>
-                    </section>
-                  );
-                })}
-                {listing.total > items.length && (
-                  <div className="asset-more">
-                    <span className="faint">
-                      {t('assets.showing', { shown: items.length, total: listing.total })}
-                    </span>
-                    {limit.current < 200 && (
-                      <button
-                        type="button"
-                        className="btn"
-                        onClick={() => {
-                          limit.current = 200;
-                          load();
-                        }}
-                      >
-                        {t('assets.loadMore')}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </section>
         )}
-      </div>
 
-      {scope !== 'trash' && picks.length > 0 && <MultiInspector assets={picked} />}
-
-      {scope !== 'trash' && selected !== null && (
-        <AssetInspector
-          key={selected.id}
-          client={client}
-          asset={selected}
-          home={home}
-          mount={
-            selected.mount_id === null || selected.mount_id === undefined
-              ? null
-              : (mounts.get(selected.mount_id) ?? null)
-          }
-          userHome={userHome}
-          onOpenWork={onOpenWork}
-          startAt={selected.id === focusAssetId ? (startAt ?? null) : null}
-          onSaved={(saved) => {
-            setListing((l) =>
-              l === null ? l : { ...l, items: l.items.map((a) => (a.id === saved.id ? saved : a)) },
-            );
-          }}
-          onDelete={() => {
-            deleteOne(selected);
-          }}
-          onClose={() => {
-            setSelectedId(null);
-          }}
-        />
-      )}
-
-      {dialog !== null && (
-        <AssetDialogs
-          client={client}
-          dialog={dialog}
-          items={items}
-          home={home}
-          mounts={mounts}
-          userHome={userHome}
-          onOpenWork={onOpenWork}
-          onClose={() => {
-            setDialog(null);
-          }}
-          onDone={(ids, t) => {
-            setDialog(null);
-            afterRemoval(ids);
-            if (t !== null) setToast(t);
-          }}
-        />
-      )}
-
-      {dragging && (
-        <div className="dropzone" aria-hidden="true">
-          <Icon name="upload" size={28} />
-          <span>{t('assets.dropToUpload')}</span>
-        </div>
-      )}
-    </main>
+        {dragging && (
+          <div className="dropzone" aria-hidden="true">
+            <Icon name="upload" size={28} />
+            <span>{t('assets.dropToUpload')}</span>
+          </div>
+        )}
+      </main>
     </SearchHighlight>
   );
 }

@@ -239,6 +239,7 @@ kbd {
   flex: 1;
   min-width: 0;
   display: flex;
+  background: var(--qc-bg);
 }
 /* The page title takes focus after a page switch; only a keyboard user needs to see it. */
 .page h1[tabindex='-1']:focus:not(:focus-visible) {
@@ -7285,4 +7286,11 @@ mark.hit {
     background: color-mix(in srgb, var(--qc-warn) 38%, transparent);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--qc-warn) 38%, transparent);
   }
+}
+
+/* The still copy of the sidebar while it collapses or expands (sidebar-morph.ts, QC-068). */
+.sb--ghost {
+  z-index: 5;
+  pointer-events: none;
+  will-change: transform, opacity;
 }

@@ -212,23 +212,12 @@ export function Animated({
 }
 
 /**
- * Everything right of the sidebar (DESIGN.md 動效 · 側欄收合): when the sidebar
- * collapses or expands, the content takes its final width at once and slides
- * from where it was (`layout="position"`, `moderate` / `inOut`), so nothing is
- * re-laid out frame by frame. Dragging the sidebar's edge does not animate.
+ * Everything right of the sidebar. When the sidebar collapses or expands the
+ * content takes its final width at once and slides from where it was
+ * (sidebar-morph.ts, QC-068); it is opaque so the sidebar can slide under it.
  */
-export function ShellMain({ rail, children }: { rail: boolean; children: ReactNode }) {
-  const mode = useMotionMode();
-  return (
-    <motion.div
-      className="shell__main"
-      layout={moves(mode) ? 'position' : false}
-      layoutDependency={rail}
-      transition={tween('moderate', 'inOut')}
-    >
-      {children}
-    </motion.div>
-  );
+export function ShellMain({ children }: { children: ReactNode }) {
+  return <div className="shell__main">{children}</div>;
 }
 
 /** How a leaving overlay goes: a plain fade, or a side panel sliding back out to the right. */

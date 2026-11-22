@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -25,6 +26,7 @@ import {
 } from './sidebar-prefs.js';
 import type { MessageKey } from '@qiu-creator/i18n';
 import { t } from './i18n.js';
+import { morphSidebar, snapshotSidebar, type SidebarSnapshot } from './sidebar-morph.js';
 
 export type NavPage = 'library' | 'assets' | 'imports' | 'ai' | 'preview' | 'settings';
 
@@ -121,8 +123,6 @@ export interface SidebarProps {
   projects?: (rail: boolean) => ReactNode;
   /** 作品庫 shows one project or 未分類, so its own row is not the current one. */
   libraryScoped?: boolean;
-  /** Told when the sidebar becomes the rail or expands again. */
-  onRailChange?: (rail: boolean) => void;
 }
 
 /**
@@ -139,14 +139,10 @@ export function Sidebar({
   onRecheck,
   projects,
   libraryScoped = false,
-  onRailChange,
 }: SidebarProps) {
   const [prefs, setPrefs] = useState(() => loadPrefs(storage()));
   const narrow = useNarrowWindow();
   const rail = prefs.collapsed || narrow;
-  useEffect(() => {
-    onRailChange?.(rail);
-  }, [rail, onRailChange]);
   const [dragging, setDragging] = useState(false);
   const drag = useRef<{ startX: number; startWidth: number } | null>(null);
 
@@ -158,7 +154,17 @@ export function Sidebar({
     });
   }, []);
 
+  const navRef = useRef<HTMLElement>(null);
+  /** The sidebar as it looked before a collapse or expand, for the transition (QC-068). */
+  const morph = useRef<SidebarSnapshot | null>(null);
+  useLayoutEffect(() => {
+    const snap = morph.current;
+    morph.current = null;
+    morphSidebar(navRef.current, snap);
+  }, [rail]);
+
   const toggle = useCallback(() => {
+    morph.current = snapshotSidebar(navRef.current);
     setPrefs((p) => {
       const merged = { ...p, collapsed: !p.collapsed };
       savePrefs(storage(), merged);
@@ -216,6 +222,7 @@ export function Sidebar({
 
   return (
     <nav
+      ref={navRef}
       className={rail ? 'sb sb--rail' : dragging ? 'sb sb--dragging' : 'sb'}
       style={style}
       aria-label={t('shell.mainNav')}
