@@ -2,7 +2,7 @@
 
 **Priority:** P1 | **Assignee:** qc-backend（API）＋ qc-frontend（設定頁） | **Tags:** M3, backend, frontend
 
-使用者 2026-11-21：設定頁 New API 文字模型 ID 要手動輸入，很笨拙，要能下拉選。依使用者自建中轉站的接入指南（https://api.hahaeng.app/integration.md）：OpenAI 相容，`GET {base_url}/models` 帶 `Authorization: Bearer <key>`，取 `data[].id`；清單依金鑰權限而定，可能混有對話與圖片模型（例如 gpt-image-2）。
+使用者 2026-11-21 授權：與 QC-052 一起驗收後直接發版安裝（「一起發版」）。設定頁 New API 文字模型 ID 要手動輸入，很笨拙，要能下拉選。依使用者自建中轉站的接入指南（https://api.hahaeng.app/integration.md）：OpenAI 相容，`GET {base_url}/models` 帶 `Authorization: Bearer <key>`，取 `data[].id`；清單依金鑰權限而定，可能混有對話與圖片模型（例如 gpt-image-2）。
 
 後端：
 - 新端點（例如 `GET /api/v1/ai/providers/new_api/models`，owner 權限）：用 Keychain 裡的金鑰在 Mac 端查詢，金鑰不出 Mac、不進日誌；回傳 `{ models: [{ id, kind: chat|image|unknown, priced: boolean }], fetched_at }`。短暫快取（例如 10 分鐘），支援 `?refresh=1`。
