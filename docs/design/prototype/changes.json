@@ -2279,14 +2279,14 @@
       "id": "PT-20261122-003",
       "title": "Prompt 庫、AI 輸出語言、工具列快速切換模型與插入 prompt",
       "date": "2026-11-22",
-      "status": "pending",
+      "status": "approved",
       "model": "claude-opus-5-5",
       "session": "qc-prototype",
       "requestedBy": "使用者 via 開發總監",
       "userRequest": "2. AI生成文字時加一個語言選項，並且設置要持久化，先支持簡體、繁體、和英語。4. 左側再增加\"prompt\"，prompt頁面支持自定義指令，指令也要支持AI建議和編輯。5. AI 編輯、擴寫等要支持快速切換模型，並且AI工具條要支持快速插入 prompt（2026-11-22，見 docs/decisions.md QC-074／QC-075）",
       "tasks": ["QC-075"],
-      "approvedBy": null,
-      "approvedAt": null,
+      "approvedBy": "開發總監（使用者 2026-11-22 授權代核准）",
+      "approvedAt": "2026-11-22",
       "approvalNote": "總監代為核准（docs/decisions.md 2026-11-22 QC-074、QC-075）",
       "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
       "baseCanvasVersion": "41 (version id 1795275033-35aa) + every unpublished canvas.json up to PT-20261122-002",
@@ -2572,6 +2572,11 @@
           "q": "匯入的 JSON 格式？",
           "recommendation": "{version, prompts:[{name, group, scene, content, model?, language?}]}；不含使用次數。"
         }
+      ],
+      "approvalCaveat": "畫布仍無法上傳，總監依帳本核准；實作以帳本為準。",
+      "approvalDecisions": [
+        "decisions 與 openQuestions 六項全部採用原型建議（保留「跟隨原文」為預設、語言與模型全域同步、「更多」改名「Prompt」、場景不符淡化、內建唯讀可複製、AI 建議走候選＋diff）。",
+        "右側 AI 面板的分頁結構以 QC-076 原型為準（編輯區只留改寫與圖片）。"
       ]
     }
   ]
