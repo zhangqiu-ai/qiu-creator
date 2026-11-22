@@ -1,0 +1,17 @@
+before: iPhone Mirroring
+21:41:30 front=iPhone Mirroring electron=[,]
+21:41:31 front=iPhone Mirroring electron=[,]
+21:41:31 front=iPhone Mirroring electron=[,]
+21:41:32 front=iPhone Mirroring electron=[,]
+21:41:33 front=iPhone Mirroring electron=[,]
+21:41:33 front=iPhone Mirroring electron=[,]
+21:41:34 front=iPhone Mirroring electron=[,]
+21:41:34 front=iPhone Mirroring electron=[,]
+21:41:35 front=iPhone Mirroring electron=[,]
+21:41:35 front=iPhone Mirroring electron=[,]
+21:41:36 front=iPhone Mirroring electron=[,]
+21:41:36 front=Antigravity electron=[,]
+21:41:37 front=Antigravity electron=[, false]
+21:41:38 front=Electron electron=[Electron, false]
+21:41:38 front=Electron electron=[Electron, false]
+after: Antigravity
