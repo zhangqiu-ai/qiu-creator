@@ -13,7 +13,8 @@ import {
   backupSummary,
   createErrorText,
   formatStamp,
-  nextDailyLabel,
+  dailyScheduleText,
+  firstBackupText,
   restoreErrorText,
   versionLabel,
   type BackupSessionOptions,
@@ -145,11 +146,36 @@ describe('backup helpers', () => {
     expect(formatStamp('not a date', now)).toBe('not a date');
   });
 
-  it('says an overdue daily backup runs soon instead of naming a past time', () => {
+  it('writes the daily line as a sentence before the first backup and when one is due (QC-057)', () => {
     const now = new Date(2026, 10, 18, 12, 0);
-    expect(nextDailyLabel(new Date(2026, 10, 17, 8, 41).toISOString(), now)).toBe('即將執行');
-    expect(nextDailyLabel(now.toISOString(), now)).toBe('即將執行');
-    expect(nextDailyLabel(new Date(2026, 10, 19, 3, 0).toISOString(), now)).toBe('明天 03:00');
+    const past = new Date(2026, 10, 17, 8, 41).toISOString();
+    const tomorrow = new Date(2026, 10, 19, 3, 0).toISOString();
+    const today3 = new Date(2026, 10, 18, 3, 0).toISOString();
+    expect(dailyScheduleText({ last_daily_at: null, next_daily_at: past }, now)).toBe(
+      '還沒有自動備份 · 第一份即將建立',
+    );
+    expect(dailyScheduleText({ last_daily_at: null, next_daily_at: tomorrow }, now)).toBe(
+      '還沒有自動備份 · 第一份會在 明天 03:00 建立',
+    );
+    expect(dailyScheduleText({ last_daily_at: today3, next_daily_at: tomorrow }, now)).toBe(
+      '上次 今天 03:00 · 下次 明天 03:00',
+    );
+    expect(
+      dailyScheduleText({ last_daily_at: today3, next_daily_at: now.toISOString() }, now),
+    ).toBe('上次 今天 03:00 · 下次即將開始');
+    expect(firstBackupText({ next_daily_at: past }, now)).toBe(
+      '第一份每日備份即將自動建立，也可以按「立即備份」。',
+    );
+    expect(firstBackupText({ next_daily_at: tomorrow }, now)).toBe(
+      '第一份每日備份會在 明天 03:00 自動建立，也可以按「立即備份」。',
+    );
+    // Never the old broken fragments.
+    for (const text of [
+      dailyScheduleText({ last_daily_at: null, next_daily_at: past }, now),
+      firstBackupText({ next_daily_at: past }, now),
+    ]) {
+      expect(text).not.toMatch(/尚未執行|在 即將執行/);
+    }
   });
 
   it('summarises size and kind', () => {

@@ -6382,3 +6382,71 @@ kbd {
     flex: 1 1 100%;
   }
 }
+
+/* ---- 設定 v4 pages (QC-057 follow-up): rows with icons, the backup table, 關於 ---- */
+.set-list--pad {
+  padding: 14px 16px;
+}
+.set-row__ic {
+  flex: none;
+  display: inline-flex;
+  color: var(--qc-ink3);
+}
+.set-row--top .set-row__ic {
+  padding-top: 2px;
+}
+.set-row__k > .set-row__wrap,
+.set-row__wrap {
+  white-space: normal;
+  overflow: visible;
+}
+.set-row--more {
+  min-height: 40px;
+  justify-content: center;
+}
+.set-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.set-table td {
+  height: 44px;
+  padding: 0 16px;
+  border-top: 1px solid var(--qc-line);
+  white-space: nowrap;
+}
+.set-table tr:first-child td {
+  border-top: 0;
+}
+.set-table__main {
+  width: 100%;
+}
+.set-table__main .set-st {
+  margin-left: 10px;
+}
+.set-table td.set-table__act {
+  padding-right: 8px;
+  text-align: right;
+}
+.set-about {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 16px;
+}
+.set-about__t {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.set-about__t b {
+  font-size: 16px;
+  font-weight: 600;
+}
+.set-about__t span {
+  color: var(--qc-ink3);
+}
+.set-about + .set-row {
+  border-top: 1px solid var(--qc-line);
+}

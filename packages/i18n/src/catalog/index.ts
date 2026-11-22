@@ -12,6 +12,7 @@ import { main } from './main.js';
 import { modelPicker } from './modelPicker.js';
 import { serviceSettings } from './serviceSettings.js';
 import { settings } from './settings.js';
+import { settingsPages } from './settingsPages.js';
 import { shell } from './shell.js';
 import { tabs } from './tabs.js';
 import { videoWork } from './videoWork.js';
@@ -39,6 +40,7 @@ export const catalog = {
   workActions,
   modelPicker,
   aiServices,
+  settingsPages,
 } as const;
 
 type Areas = typeof catalog;
