@@ -43,6 +43,8 @@ export interface AIProvider {
   generateText(request: AiTextRequest, apiKey: string, baseUrl?: string): Promise<AiTextResult>;
   /** File upload for multimodal prompts. Only Gemini needs it (QC-023 implements it). */
   uploadFile?(file: AiFileUpload, apiKey: string): Promise<AiUploadedFile>;
+  /** Model ids the key can use (QC-054). Only New API offers it; see `fetchRelayModels`. */
+  listModels?(apiKey: string, baseUrl: string): Promise<string[]>;
 }
 
 const RETRYABLE: ReadonlySet<AiFailureCode> = new Set([

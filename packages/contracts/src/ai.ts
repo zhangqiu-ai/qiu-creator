@@ -153,23 +153,64 @@ export type AiProviderListResponse = z.infer<typeof AiProviderListResponseSchema
 
 export const AiProviderParamsSchema = z.object({ provider: AiProviderSchema });
 
+const NEW_API_BASE_URL_MESSAGE =
+  'use an HTTPS Base URL ending in /v1, without credentials, query or fragment';
+
+function newApiBaseUrlValid(value: string): boolean {
+  const url = URL.parse(value);
+  return (
+    url !== null &&
+    url.protocol === 'https:' &&
+    url.username === '' &&
+    url.password === '' &&
+    !/[?#]/.test(value) &&
+    /\/v1\/?$/.test(url.pathname) &&
+    !url.pathname.endsWith('/v1/v1') &&
+    !url.pathname.endsWith('/v1/v1/')
+  );
+}
+
+/**
+ * The Base URL to offer when `value` is an otherwise valid HTTPS URL that only
+ * has the `/v1` version path missing or followed by more (QC-054), e.g.
+ * `https://relay.example` → `https://relay.example/v1`. Null when the value is fine already, or when it
+ * is wrong in another way (not HTTPS, credentials, query, fragment): those are
+ * never "fixed" for the user. The app can call this before saving; the server
+ * puts the same value in the 400 as `params.suggested_base_url`.
+ */
+export function suggestNewApiBaseUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (newApiBaseUrlValid(trimmed)) return null;
+  const url = URL.parse(trimmed);
+  if (
+    url === null ||
+    url.protocol !== 'https:' ||
+    url.username !== '' ||
+    url.password !== '' ||
+    /[?#]/.test(trimmed)
+  ) {
+    return null;
+  }
+  // A pasted endpoint (`…/v1/chat/completions`) keeps the path up to `/v1`;
+  // otherwise `/v1` is appended (`https://relay.example` → `…/v1`).
+  const upToV1 = /^(.*?\/v1)\//.exec(url.pathname)?.[1];
+  const candidate = `${url.origin}${upToV1 ?? `${url.pathname.replace(/\/+$/, '')}/v1`}`;
+  return newApiBaseUrlValid(candidate) ? candidate : null;
+}
+
 const NewApiBaseUrlSchema = z
   .string()
   .trim()
   .max(2048)
-  .refine((value) => {
-    const url = URL.parse(value);
-    return (
-      url !== null &&
-      url.protocol === 'https:' &&
-      url.username === '' &&
-      url.password === '' &&
-      !/[?#]/.test(value) &&
-      /\/v1\/?$/.test(url.pathname) &&
-      !url.pathname.endsWith('/v1/v1') &&
-      !url.pathname.endsWith('/v1/v1/')
-    );
-  }, 'use an HTTPS Base URL ending in /v1, without credentials, query or fragment')
+  .superRefine((value, ctx) => {
+    if (newApiBaseUrlValid(value)) return;
+    const suggested = suggestNewApiBaseUrl(value);
+    ctx.addIssue({
+      code: 'custom',
+      message: NEW_API_BASE_URL_MESSAGE,
+      ...(suggested === null ? {} : { params: { suggested_base_url: suggested } }),
+    });
+  })
   .transform((value) => new URL(value).href.replace(/\/$/, ''));
 
 /** Store a key in the Keychain. The New API key and base URL are written together. */

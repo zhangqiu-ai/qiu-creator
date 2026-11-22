@@ -69,6 +69,12 @@ export const ErrorCodeSchema = z.enum([
   'front_matter_invalid',
   /** The work is in 最近刪除; restore it before editing (409, QC-051). */
   'work_in_trash',
+  /** The New API relay refused the stored key (401/403) while listing models (502, QC-054). */
+  'ai_key_invalid',
+  /** The relay could not be reached: `details.reason` timeout/dns/tls/connection/unavailable (502, QC-054). */
+  'ai_gateway_unreachable',
+  /** The relay answered, but not with a model list: `details.reason` (502, QC-054). */
+  'ai_gateway_bad_response',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 

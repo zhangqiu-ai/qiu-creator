@@ -13,6 +13,9 @@ import {
   CreateAiJobRequestSchema,
   estimateTokens,
   SetAiKeyRequestSchema,
+  classifyModelKind,
+  suggestNewApiBaseUrl,
+  type AiModelKind,
 } from '../src/index.js';
 
 describe('AI contracts', () => {
@@ -124,5 +127,56 @@ describe('server text as codes (QC-043)', () => {
     expect(() =>
       ListBackupsResponseSchema.parse({ ...list, last_error_reason: 'cosmic_rays' }),
     ).toThrow();
+  });
+});
+
+describe('New API model list helpers (QC-054)', () => {
+  it('classifies model ids conservatively', () => {
+    const cases: [string, AiModelKind][] = [
+      ['gpt-4o-mini', 'chat'],
+      ['gpt-5.5', 'chat'],
+      ['o3-mini', 'chat'],
+      ['claude-sonnet-5-5', 'chat'],
+      ['gemini-3.8-flash', 'chat'],
+      ['deepseek-chat', 'chat'],
+      ['qwen-max', 'chat'],
+      ['openai/gpt-4o', 'chat'],
+      ['gpt-image-2', 'image'],
+      ['dall-e-3', 'image'],
+      ['flux-1.1-pro', 'image'],
+      ['gemini-2.5-flash-image', 'image'],
+      ['tts-1', 'unknown'],
+      ['whisper-1', 'unknown'],
+      ['gpt-4o-mini-tts', 'unknown'],
+      ['text-embedding-3-small', 'unknown'],
+      ['gpt-4o-realtime-preview', 'unknown'],
+      ['omni-moderation-latest', 'unknown'],
+      ['my-relay-special', 'unknown'],
+      ['o1x', 'unknown'],
+    ];
+    for (const [id, kind] of cases) expect([id, classifyModelKind(id)]).toEqual([id, kind]);
+  });
+
+  it('suggests a Base URL only when /v1 is missing or followed by more', () => {
+    expect(suggestNewApiBaseUrl('https://relay.example')).toBe('https://relay.example/v1');
+    expect(suggestNewApiBaseUrl(' https://relay.example/ ')).toBe('https://relay.example/v1');
+    expect(suggestNewApiBaseUrl('https://relay.example:8443/api')).toBe(
+      'https://relay.example:8443/api/v1',
+    );
+    expect(suggestNewApiBaseUrl('https://relay.example/v1/chat/completions')).toBe(
+      'https://relay.example/v1',
+    );
+    expect(suggestNewApiBaseUrl('https://relay.example/v1')).toBeNull();
+    expect(suggestNewApiBaseUrl('https://relay.example/v1/')).toBeNull();
+    expect(suggestNewApiBaseUrl('http://relay.example')).toBeNull();
+    expect(suggestNewApiBaseUrl('https://user:pw@relay.example')).toBeNull();
+    expect(suggestNewApiBaseUrl('https://relay.example?x=1')).toBeNull();
+    expect(suggestNewApiBaseUrl('not a url')).toBeNull();
+    // Every suggestion passes the strict schema it was made for.
+    const parsed = SetAiKeyRequestSchema.parse({
+      api_key: 'sk-relay-fake-0123',
+      base_url: suggestNewApiBaseUrl('https://relay.example/api'),
+    });
+    expect(parsed.base_url).toBe('https://relay.example/api/v1');
   });
 });

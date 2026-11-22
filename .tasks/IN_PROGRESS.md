@@ -51,6 +51,8 @@
 
 **Priority:** P1 | **Assignee:** qc-backend（API）＋ qc-frontend（設定頁） | **Tags:** M3, backend, frontend
 
+**後端已合併（2026-11-21，d21248d）**：`GET /api/v1/ai/providers/new-api/models`、10 分鐘快取、refresh=1、錯誤碼 ai_key_invalid／ai_gateway_unreachable／ai_gateway_bad_response；Base URL 少 /v1 不自動補，400 附建議網址＋`suggestNewApiBaseUrl()`。剩前端。
+
 使用者 2026-11-21 授權：與 QC-052 一起驗收後直接發版安裝（「一起發版」）。設定頁 New API 文字模型 ID 要手動輸入，很笨拙，要能下拉選。依使用者自建中轉站的接入指南（https://api.hahaeng.app/integration.md）：OpenAI 相容，`GET {base_url}/models` 帶 `Authorization: Bearer <key>`，取 `data[].id`；清單依金鑰權限而定，可能混有對話與圖片模型（例如 gpt-image-2）。
 
 後端：

@@ -9,6 +9,7 @@ import {
   type AiTextResult,
 } from '../provider.js';
 import type { AdapterOptions } from './anthropic.js';
+import { fetchRelayModels } from './relay-models.js';
 
 /** GPT via the official `openai` SDK (Responses API). */
 export class OpenAIProvider implements AIProvider {
@@ -80,6 +81,11 @@ export class NewApiProvider implements AIProvider {
   readonly id = 'new-api' as const;
 
   constructor(private readonly options: AdapterOptions) {}
+
+  /** `GET {base}/models` with the stored key (QC-054); the adapter's base URL wins in tests. */
+  listModels(apiKey: string, baseUrl: string): Promise<string[]> {
+    return fetchRelayModels(this.options.baseUrl ?? baseUrl, apiKey, this.options.timeoutMs);
+  }
 
   async generateText(req: AiTextRequest, apiKey: string, baseUrl?: string): Promise<AiTextResult> {
     const baseURL = this.options.baseUrl ?? baseUrl;
