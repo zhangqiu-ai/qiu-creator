@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 're
 import { assetMediaUrl, thumbnailUrl } from '../shared/bridge.js';
 import type { PendingInsert } from './editor-insert.js';
 import { assetName } from './format.js';
-import { ExitFade, useExitFade } from './motion.js';
+import { ExitFade, useExitFade, progressStyle } from './motion.js';
 import { t } from './i18n.js';
 import { Icon, type IconName } from './Icon.js';
 
@@ -514,9 +514,7 @@ export function PendingInserts({
                 </span>
               </span>
               <span className={p.progress === null ? 'bar bar--indeterminate' : 'bar'}>
-                <span
-                  style={p.progress === null ? undefined : { width: `${String(p.progress)}%` }}
-                />
+                <span style={progressStyle(p.progress)} />
               </span>
             </div>
             {p.state === 'uploading' && (

@@ -34,6 +34,7 @@ import { useChangeEvents } from './events.js';
 import { formatDuration, SAVE_STATUS, WORK_STATUS } from './format.js';
 import { FrameGrabber } from './frames.js';
 import { HistoryPanel } from './HistoryPanel.js';
+import { progressStyle } from './motion.js';
 import { codeText, formatBytes, t, useLocale } from './i18n.js';
 import { Icon } from './Icon.js';
 import { shortPlatform } from './image-post.js';
@@ -735,7 +736,7 @@ function VideoEditor({
                     {t('videoWork.uploading', { name: uploading.name })}
                   </span>
                   <span className="bar">
-                    <span style={{ width: `${String(uploading.progress ?? 0)}%` }} />
+                    <span style={progressStyle(uploading.progress ?? 0)} />
                   </span>
                   <span className="faint">
                     {uploading.progress === null ? '' : `${String(uploading.progress)}%`} ·{' '}
@@ -1419,7 +1420,7 @@ function Understanding({
             {pct !== null && ` · ${String(pct)}%`}
           </span>
           <span className={pct === null ? 'bar bar--indeterminate' : 'bar'}>
-            <span style={pct === null ? undefined : { width: `${String(pct)}%` }} />
+            <span style={progressStyle(pct)} />
           </span>
           <button
             type="button"

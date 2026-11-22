@@ -32,6 +32,7 @@ import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
 import { useChangeEvents } from './events.js';
 import { formatDuration } from './format.js';
+import { progressStyle } from './motion.js';
 import { formatBytes, formatNumber, formatWhen, t } from './i18n.js';
 import { budgetWarningText, noticeText } from './server-text.js';
 import { TechnicalDetails } from './TechnicalDetails.js';
@@ -398,7 +399,7 @@ function ResultArea({
           {pct !== null && <span className="aiw__pct">{pct}%</span>}
         </div>
         <div className={pct === null ? 'bar bar--indeterminate' : 'bar'}>
-          <span style={pct === null ? undefined : { width: `${String(pct)}%` }} />
+          <span style={progressStyle(pct)} />
         </div>
         <div className="skel aiw__skel" style={{ width: '92%' }} />
         <div className="skel aiw__skel" style={{ width: '80%' }} />
