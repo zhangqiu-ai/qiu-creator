@@ -1,5 +1,11 @@
 # Done
 
+## QC-067: 作品庫超過 200 件時舊作品看不到（缺分頁）
+
+**Priority:** P1 | **Assignee:** qc-frontend ＋ qc-backend | **Tags:** M3, frontend | **Done:** 2026-11-22
+
+- 後端 cursor 分頁、facets、refs、項目 sole_count（0f21547）；前端一頁 60 件捲到底自動載入、篩選與數量交給服務端、⌘A 以 refs 選取整個篩選、SSE 重讀保留捲動位置（bedb0e4）。e2e 37 passed／7 skipped，新增 320 件分頁 spec。首屏 60 張比原本 200 張快約 20%。未做虛擬化；refs 超過 10,000 件回 413 僅顯示錯誤（NOT_VERIFIED）。與 QC-068、069 同一版發。
+
 ## QC-065: 全面引入動效設計（Motion／Framer Motion、dnd-kit）
 
 **Priority:** P1 | **Assignee:** qc-prototype ＋ qc-frontend | **Tags:** M3, frontend, prototype | **Done:** 2026-11-22
