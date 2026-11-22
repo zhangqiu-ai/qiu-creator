@@ -128,6 +128,8 @@ describe('migration 0018 search_fold', () => {
     const home = makeTempHome();
     dirs.push(home);
     const upTo0017 = migrations.filter((m) => m.id <= '0017');
+    // Later migrations are not part of this rollback.
+    const upTo0018 = migrations.filter((m) => m.id <= '0018');
     const db = openDatabase(path.join(home, 'db.sqlite'), upTo0017);
     try {
       db.prepare('INSERT INTO works_fts (work_id, title, tags, body) VALUES (?, ?, ?, ?)').run(
@@ -136,7 +138,7 @@ describe('migration 0018 search_fold', () => {
         'Ｔａｇ',
         'Markdown 常用',
       );
-      expect(runMigrations(db, migrations)).toEqual(['0018']);
+      expect(runMigrations(db, upTo0018)).toEqual(['0018']);
       expect(db.prepare('SELECT title, tags, body FROM works_fts').get()).toEqual({
         title: '设计 abc',
         tags: 'tag',
@@ -146,7 +148,7 @@ describe('migration 0018 search_fold', () => {
       db.exec(SEARCH_FOLD_ROLLBACK_SQL);
       expect(runMigrations(db, upTo0017)).toEqual([]);
       // Re-applying is harmless: folding folded text changes nothing.
-      expect(runMigrations(db, migrations)).toEqual(['0018']);
+      expect(runMigrations(db, upTo0018)).toEqual(['0018']);
       expect(db.prepare('SELECT title FROM works_fts').get()).toEqual({ title: '设计 abc' });
     } finally {
       db.close();

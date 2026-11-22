@@ -1,5 +1,10 @@
 import { z } from 'zod';
 import { AiBudgetStatusSchema, AiCostEstimateSchema, AiJobRecordSchema } from './ai.js';
+import {
+  AiConcreteLanguageSchema,
+  AiLanguageRequestShape,
+  AiLanguageSourceSchema,
+} from './ai-prompts.js';
 import { IdSchema } from './entities.js';
 
 /**
@@ -46,6 +51,11 @@ export const VideoUnderstandingRequestSchema = z.object({
   reanalyze: z.boolean().default(false),
   /** Optional work to file the job under. */
   work_id: IdSchema.optional(),
+  /**
+   * Language of the summary and suggestions (QC-075); omitted: the
+   * preference. `follow` keeps the video's own language.
+   */
+  ...AiLanguageRequestShape,
 });
 export type VideoUnderstandingRequest = z.input<typeof VideoUnderstandingRequestSchema>;
 
@@ -94,5 +104,8 @@ export const VideoUnderstandingResultSchema = z.object({
   description_suggestions: z.array(z.string()),
   /** Cover frames as time points; the client grabs the frame itself. */
   cover_suggestions: z.array(MomentSchema),
+  /** Language asked for (QC-075); null = the video's own (跟隨原文); absent on older jobs. */
+  language: AiConcreteLanguageSchema.nullable().optional(),
+  language_source: AiLanguageSourceSchema.nullable().optional(),
 });
 export type VideoUnderstandingResult = z.infer<typeof VideoUnderstandingResultSchema>;

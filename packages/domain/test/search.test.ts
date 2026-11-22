@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  detectLanguage,
   findMatches,
   foldForSearch,
   matchesSearch,
@@ -55,5 +56,19 @@ describe('搜尋比對 (QC-068)', () => {
     expect(Array.from(passage ?? '').length).toBeLessThanOrEqual(42);
     expect(matchExcerpt('短文有關鍵詞', '關鍵詞', 40)).toBe('短文有關鍵詞');
     expect(matchExcerpt('沒有', '關鍵詞', 40)).toBeNull();
+  });
+});
+
+describe('detectLanguage (QC-075)', () => {
+  it('tells Traditional, Simplified and English apart, or gives up', () => {
+    expect(detectLanguage('今年的紅葉比往年早，清水寺人很多。')).toBe('zh-Hant');
+    expect(detectLanguage('今年的红叶比往年早，清水寺人很多。')).toBe('zh-Hans');
+    expect(detectLanguage('Autumn in Kyoto came early this year.')).toBe('en');
+    expect(detectLanguage('我用 Markdown 寫筆記')).toBe('zh-Hant');
+    expect(detectLanguage('This is a long English sentence with one 字.')).toBe('en');
+    expect(detectLanguage('2026-11-22 12:00')).toBeNull();
+    expect(detectLanguage('今天天氣')).toBe('zh-Hant');
+    expect(detectLanguage('今天')).toBeNull();
+    expect(detectLanguage('')).toBeNull();
   });
 });

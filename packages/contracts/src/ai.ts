@@ -1,4 +1,19 @@
 import { z } from 'zod';
+import {
+  AiConcreteLanguageSchema,
+  AiLanguageSourceSchema,
+  AiModelSourceSchema,
+  PromptIdSchema,
+  PromptSceneSchema,
+} from './ai-prompts.js';
+
+/** What a text job records about its language and model (QC-075); absent on older jobs. */
+const LanguageMarks = {
+  language: AiConcreteLanguageSchema.optional(),
+  language_source: AiLanguageSourceSchema.optional(),
+  model_source: AiModelSourceSchema.optional(),
+  prompt_id: PromptIdSchema.nullable().optional(),
+};
 import { AIActionSchema, IdSchema, PlatformSchema, TimestampSchema } from './entities.js';
 
 // ---- Providers ------------------------------------------------------------------
@@ -410,6 +425,7 @@ export const AiTaskSchema = z.discriminatedUnion('type', [
     count: z.number().int(),
     /** Each platform variant's revision when the job was created (null = no variant yet). */
     variant_revisions: z.record(z.string(), z.number().int().positive().nullable()),
+    ...LanguageMarks,
   }),
   z.object({
     type: z.literal('video_understanding'),
@@ -421,6 +437,9 @@ export const AiTaskSchema = z.discriminatedUnion('type', [
     size_bytes: z.number().int().nonnegative(),
     duration_seconds: z.number().nonnegative().nullable(),
     resolution: z.enum(['default', 'low']),
+    /** Asked language (QC-075); null = 跟隨原文 (the video's own). */
+    language: AiConcreteLanguageSchema.nullable().optional(),
+    language_source: AiLanguageSourceSchema.nullable().optional(),
   }),
   z.object({
     type: z.literal('rewrite'),
@@ -428,6 +447,7 @@ export const AiTaskSchema = z.discriminatedUnion('type', [
     tone: z.string().nullable(),
     instruction: z.string().nullable(),
     range: z.object({ start: z.number().int(), end: z.number().int() }),
+    ...LanguageMarks,
   }),
   z.object({
     type: z.literal('image_generation'),
@@ -437,6 +457,20 @@ export const AiTaskSchema = z.discriminatedUnion('type', [
     n: z.number().int().positive(),
     /** Size asked of the relay; results are then cropped to `aspect_ratio`. */
     size: z.string(),
+    prompt_id: PromptIdSchema.nullable().optional(),
+    /** The platform a cover was made for (QC-076). */
+    platform: z.string().nullable().optional(),
+  }),
+  z.object({
+    type: z.literal('prompt_suggestion'),
+    base_prompt_id: PromptIdSchema.nullable(),
+    base_revision: z.number().int().positive().nullable(),
+    original: z
+      .object({ name: z.string(), scene: PromptSceneSchema, content: z.string() })
+      .nullable(),
+    scene: PromptSceneSchema.nullable(),
+    language: AiConcreteLanguageSchema,
+    language_source: AiLanguageSourceSchema,
   }),
 ]);
 export type AiTask = z.infer<typeof AiTaskSchema>;

@@ -1,5 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import {
+  AiPreferencesSchema,
+  AiTaskKindSchema,
+  PatchAiPreferencesRequestSchema,
+  type AiOutputLanguage,
+  type AiModelsResponse,
+  type AiPreferences,
+  type AiTaskKind,
+  type PatchAiPreferencesRequest,
   AI_DEFAULT_MODELS,
   AI_MODELS_CACHE_SECONDS,
   classifyModelKind,
@@ -163,6 +171,8 @@ const SETTINGS_KEY = 'ai';
 const LAST_TEST_KEY = 'ai_last_test';
 /** Default provider per task (QC-057). */
 const DEFAULTS_KEY = 'ai_defaults';
+/** Output language and last model per task (QC-075). */
+const PREFERENCES_KEY = 'ai_preferences';
 const NewApiCredentialSchema = SetAiKeyRequestSchema.required().extend({ id: IdSchema });
 
 function localMonth(date: Date): string {
@@ -459,6 +469,87 @@ export class AiService {
     };
     this.writeSetting(DEFAULTS_KEY, next);
     return this.defaults();
+  }
+
+  // ---- Preferences: output language, last model per task (QC-075) -------------------
+
+  preferences(): AiPreferences {
+    const stored = AiPreferencesSchema.partial().safeParse(this.readSetting(PREFERENCES_KEY));
+    const value = stored.success ? stored.data : {};
+    return {
+      output_language: value.output_language ?? 'follow',
+      last_models: Object.fromEntries(
+        AiTaskKindSchema.options.map((k) => [k, value.last_models?.[k] ?? null]),
+      ) as AiPreferences['last_models'],
+    };
+  }
+
+  patchPreferences(request: PatchAiPreferencesRequest): AiPreferences {
+    const patch = PatchAiPreferencesRequestSchema.parse(request);
+    const current = this.preferences();
+    const next: AiPreferences = {
+      output_language: patch.output_language ?? current.output_language,
+      last_models: { ...current.last_models, ...patch.last_models },
+    };
+    this.writeSetting(PREFERENCES_KEY, next);
+    this.feed?.record('system', 'ai_preferences', 'ai_preferences.changed', {});
+    return this.preferences();
+  }
+
+  /**
+   * Models to switch between (QC-075 toolbar): every ready provider (key and
+   * notice); New API lists what the relay offers (QC-054 cache), the others
+   * their configured text model. Image models come from New API only.
+   */
+  async switchableModels(kind: 'chat' | 'image'): Promise<AiModelsResponse> {
+    const items: AiModelsResponse['items'] = [];
+    const errors: AiModelsResponse['errors'] = [];
+    for (const status of this.listProviders()) {
+      if (!status.key_configured || status.consent === null) continue;
+      if (status.provider !== 'new-api') {
+        if (kind === 'chat') {
+          items.push({
+            provider: status.provider,
+            model: status.text_model,
+            kind: 'chat',
+            default: true,
+          });
+        }
+        continue;
+      }
+      try {
+        const list = await this.listModels('new-api');
+        for (const m of list.models) {
+          const fits = kind === 'image' ? m.kind === 'image' : m.kind !== 'image';
+          if (!fits) continue;
+          items.push({
+            provider: 'new-api',
+            model: m.id,
+            kind: m.kind,
+            default: kind === 'chat' && m.id === status.text_model,
+          });
+        }
+      } catch (err) {
+        errors.push({
+          provider: 'new-api',
+          code: err instanceof ServiceError ? err.code : 'internal_error',
+        });
+      }
+    }
+    return { items, errors };
+  }
+
+  /** The `output_language` preference (QC-075). */
+  outputLanguage(): AiOutputLanguage {
+    return this.preferences().output_language;
+  }
+
+  /** Remember the model a job of this kind was sent with (QC-075). */
+  rememberModel(kind: AiTaskKind, provider: AiProvider, model: string): void {
+    const current = this.preferences();
+    const last = current.last_models[kind];
+    if (last?.provider === provider && last.model === model) return;
+    this.patchPreferences({ last_models: { [kind]: { provider, model } } });
   }
 
   private readSetting(key: string): unknown {

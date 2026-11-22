@@ -79,6 +79,7 @@ import { createBackupsApi, type CreatorHubBackupsApi } from './backups.js';
 export type { CreatorHubBackupsApi } from './backups.js';
 export {
   imageResultOf,
+  promptSuggestionOf,
   rewriteOf,
   suggestionsOf,
   videoUnderstandingOf,

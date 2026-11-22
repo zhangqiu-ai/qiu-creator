@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { AiBudgetStatusSchema, AiCostEstimateSchema } from './ai.js';
 import { WorkDetailSchema } from './api.js';
-import { IdSchema, TimestampSchema } from './entities.js';
+import { PromptIdSchema } from './ai-prompts.js';
+import { IdSchema, PlatformSchema, TimestampSchema } from './entities.js';
 
 /**
  * AI image and cover generation (QC-070), New API only: `POST
@@ -21,9 +22,18 @@ export const AI_IMAGE_ASPECT_RATIOS = [
   '2:3',
   '3:2',
   '2.35:1',
+  '6:7',
 ] as const;
 export const AiImageAspectRatioSchema = z.enum(AI_IMAGE_ASPECT_RATIOS);
 export type AiImageAspectRatio = z.infer<typeof AiImageAspectRatioSchema>;
+
+/** Cover ratio of each platform (QC-076): 小紅書 3:4, 公眾號 2.35:1, 抖音 3:4, 視頻號 6:7. */
+export const PLATFORM_COVER_RATIOS = {
+  xiaohongshu: '3:4',
+  wechat_mp: '2.35:1',
+  douyin: '3:4',
+  wechat_channels: '6:7',
+} as const satisfies Record<string, AiImageAspectRatio>;
 
 /** Most images one job asks for. */
 export const AI_IMAGE_MAX_COUNT = 4;
@@ -45,12 +55,24 @@ export const AiImageRequestSchema = z
     prompt: z.string().trim().min(1).max(4000).optional(),
     /** Style words, e.g. 「水彩」「扁平插畫」. */
     style: z.string().trim().min(1).max(200).optional(),
-    aspect_ratio: AiImageAspectRatioSchema.default('1:1'),
+    /** Omitted: the platform's cover ratio with `platform`, else 1:1. */
+    aspect_ratio: AiImageAspectRatioSchema.optional(),
+    /**
+     * A cover for this platform's version (QC-076): its cover ratio and name
+     * (`{平台}`) go into the request. Keep it with `placement: library`, then
+     * set it as the variant's cover with `PATCH /works/:id/variants/:platform`.
+     */
+    platform: PlatformSchema.optional(),
     n: z.number().int().min(1).max(AI_IMAGE_MAX_COUNT).default(1),
     /** The revision the prompt was taken from; defaults to the current one. */
     source_revision: IdSchema.optional(),
+    /**
+     * An `image` prompt-library entry (QC-075): its expanded body is the
+     * prompt (`cover`: added to the cover request); `prompt` then adds to it.
+     */
+    prompt_id: PromptIdSchema.optional(),
   })
-  .refine((r) => r.purpose !== 'image' || r.prompt !== undefined, {
+  .refine((r) => r.purpose !== 'image' || r.prompt !== undefined || r.prompt_id !== undefined, {
     message: 'image generation needs a prompt',
     path: ['prompt'],
   });

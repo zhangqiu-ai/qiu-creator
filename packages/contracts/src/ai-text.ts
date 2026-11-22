@@ -5,6 +5,22 @@ import {
   RewriteModeSchema,
   SuggestionFieldSchema,
 } from './ai.js';
+import {
+  AiConcreteLanguageSchema,
+  AiLanguageRequestShape,
+  AiLanguageSourceSchema,
+  AiModelSourceSchema,
+  PromptIdSchema,
+} from './ai-prompts.js';
+
+/** What a candidate says about how it was written (QC-075); absent on older jobs. */
+const CandidateMarks = {
+  /** The language the AI was told to write in (never `follow`). */
+  language: AiConcreteLanguageSchema.optional(),
+  /** `prompt` = 「prompt 指定」. */
+  language_source: AiLanguageSourceSchema.optional(),
+  model_source: AiModelSourceSchema.optional(),
+};
 import { IdSchema, PlatformSchema, TagSchema } from './entities.js';
 import { MarkdownSchema } from './api.js';
 import { VariantWarningSchema } from './variants.js';
@@ -17,7 +33,23 @@ import { VariantWarningSchema } from './variants.js';
  */
 
 const ModelSchema = z.string().trim().min(1).max(100);
-const AiRunSchema = { provider: AiProviderSchema, model: ModelSchema.optional() };
+const AiRunSchema = {
+  provider: AiProviderSchema,
+  /** Omitted: the prompt's default model (same provider), else the provider's text model. */
+  model: ModelSchema.optional(),
+  /**
+   * Output language (QC-075); omitted: the preference. A prompt with its own
+   * language wins; `follow` detects the source (the selection).
+   */
+  ...AiLanguageRequestShape,
+  /**
+   * A prompt-library entry (QC-075), its variables expanded on the server.
+   * Its own model and language win over the request's. Rewrites: its content
+   * is the instruction (built-ins map to their mode); suggestions: a `title`
+   * prompt adds to the request. Another scene: 400.
+   */
+  prompt_id: PromptIdSchema.optional(),
+};
 
 // ---- Platform suggestions ---------------------------------------------------------
 
@@ -66,6 +98,7 @@ export const PlatformSuggestionsResultSchema = z.object({
       tags: z.array(TagsCandidateSchema).optional(),
     }),
   ),
+  ...CandidateMarks,
 });
 export type PlatformSuggestionsResult = z.infer<typeof PlatformSuggestionsResultSchema>;
 
@@ -74,7 +107,8 @@ export type PlatformSuggestionsResult = z.infer<typeof PlatformSuggestionsResult
 export const RewriteRequestSchema = z
   .object({
     ...AiRunSchema,
-    mode: RewriteModeSchema,
+    /** Optional with `prompt_id` (then `custom`, or the built-in's own mode). */
+    mode: RewriteModeSchema.optional(),
     /** Target tone for `tone`, e.g. 「輕鬆口語」. */
     tone: z.string().trim().min(1).max(100).optional(),
     /** Extra instruction; required for `custom`, optional otherwise. */
@@ -88,10 +122,17 @@ export const RewriteRequestSchema = z
       .refine((s) => s.end > s.start, 'selection.end must be after selection.start')
       .optional(),
   })
-  .refine((r) => r.mode !== 'custom' || r.instruction !== undefined, {
-    message: 'custom rewrites need an instruction',
-    path: ['instruction'],
+  .refine((r) => r.mode !== undefined || r.prompt_id !== undefined, {
+    message: 'send a mode or a prompt_id',
+    path: ['mode'],
   })
+  .refine(
+    (r) =>
+      r.mode !== 'custom' ||
+      r.instruction !== undefined ||
+      (r.prompt_id !== undefined && !r.prompt_id.startsWith('builtin-')),
+    { message: 'custom rewrites need an instruction or a prompt', path: ['instruction'] },
+  )
   .refine((r) => r.mode !== 'tone' || r.tone !== undefined, {
     message: 'tone rewrites need a tone',
     path: ['tone'],
@@ -109,6 +150,7 @@ export const RewriteResultSchema = z.object({
   range: z.object({ start: z.number().int().nonnegative(), end: z.number().int().nonnegative() }),
   /** Full document with `text` spliced in, for "accept all". */
   full_markdown: z.string(),
+  ...CandidateMarks,
 });
 export type RewriteResult = z.infer<typeof RewriteResultSchema>;
 
