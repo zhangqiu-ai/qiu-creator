@@ -1,5 +1,11 @@
 # Done
 
+## QC-070: 文章編輯加 AI 圖片／封面生成與選取浮動工具列
+
+**Priority:** P1 | **Assignee:** qc-prototype → qc-backend ＋ qc-frontend | **Tags:** M3, prototype, backend, frontend | **Done:** 2026-11-22
+
+- 原型 PT-20261122-002（總監代核准）。後端：New API 生圖與封面作業、候選暫存 24h、保留寫 ai_accepted、URL 下載防 SSRF、費用估算或「無法預估」。前端：視覺模式選取浮動工具列（不搶焦點、⌘J 進入），原始碼模式直立工具列；文字原位 diff 候選（保留 ⌘↩／捨棄 esc）；配圖同比例佔位→淡入→保留寫入 assets；右側「圖片」分頁（插圖／封面、比例、張數、記錄、設為封面）。e2e 45 passed／9 skipped。真實 New API 呼叫 NOT_VERIFIED。
+
 ## QC-072: 拿掉切到視覺模式的「HTML 可能被改寫」確認，改成視覺模式保留原文
 
 **Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M3, frontend | **Done:** 2026-11-22
