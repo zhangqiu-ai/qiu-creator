@@ -116,7 +116,7 @@ QC-065 第 1 區的 `ShellMain` 用了 motion 的 `layout="position"`，但它�
 | --- | --- |
 | `pnpm typecheck`（含 e2e） | passed |
 | `pnpm lint`（根目錄 `eslint .`） | passed，0 errors |
-| `pnpm format:check` | passed（第一次失敗：前一輪被中止的 e2e 留下 `test-results/.last-run.json`，刪掉後重跑通過） |
+| `pnpm format:check` | passed（第一次失敗在 `test-results/.last-run.json`：這是 QC-067 的提交 `bedb0e4` 誤把 Playwright 產物提交進倉庫，main 上的 format:check 也因此失敗。本分支的 `3e3325d` 取消追蹤這個檔案，並在 `.gitignore` 加入 `test-results/`，之後重跑通過） |
 | 單元：mac | 376／376 passed |
 | 單元：mac-server | 484／484 passed |
 | 單元：domain | 39／39 passed |
