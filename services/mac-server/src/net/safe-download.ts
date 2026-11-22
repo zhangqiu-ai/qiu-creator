@@ -49,6 +49,17 @@ export interface DownloadOptions {
    * resolved address.
    */
   connectOverride?: (address: string, port: number) => { host: string; port: number };
+  /** Content types to accept instead of the import defaults (e.g. images only, QC-070). */
+  allowedContentTypes?: readonly RegExp[];
+  /** Cancels the download (QC-070: the user cancelled the AI job). */
+  signal?: AbortSignal;
+  /**
+   * An origin the user configured themselves (QC-070: the New API relay,
+   * which may live on the LAN): hops to exactly this origin skip the
+   * public-address check. Every other hop, including redirects away from it,
+   * is checked as usual.
+   */
+  trustedOrigin?: string;
 }
 
 export interface DownloadResult {
@@ -68,11 +79,14 @@ const ALLOWED_CONTENT_TYPES = [
   /^binary\/octet-stream$/,
 ];
 
-function contentTypeAllowed(header: string | undefined): boolean {
+function contentTypeAllowed(
+  header: string | undefined,
+  allowed: readonly RegExp[] = ALLOWED_CONTENT_TYPES,
+): boolean {
   // No Content-Type: let the magic-byte check decide.
   if (header === undefined || header.trim() === '') return true;
   const type = (header.split(';')[0] ?? '').trim().toLowerCase();
-  return ALLOWED_CONTENT_TYPES.some((re) => re.test(type));
+  return allowed.some((re) => re.test(type));
 }
 
 function filenameFrom(res: IncomingMessage, url: URL): string {
@@ -99,7 +113,7 @@ function filenameFrom(res: IncomingMessage, url: URL): string {
 }
 
 /** Validate scheme/host shape before any network activity. Throws `url_rejected`. */
-export function assertFetchableUrl(raw: string): URL {
+export function assertFetchableUrl(raw: string, trustedOrigin?: string): URL {
   let url: URL;
   try {
     url = new URL(raw);
@@ -115,6 +129,7 @@ export function assertFetchableUrl(raw: string): URL {
   if (url.username !== '' || url.password !== '') {
     throw new DownloadError('url_rejected', 'URLs with embedded credentials are not allowed');
   }
+  if (trustedOrigin !== undefined && url.origin === trustedOrigin) return url;
   const host = url.hostname.replace(/^\[|\]$/g, '');
   if (net.isIP(host) !== 0 && !checkAddress(host).allowed) {
     throw new DownloadError('blocked_address', `address ${host} is not publicly routable`);
@@ -126,12 +141,17 @@ export function assertFetchableUrl(raw: string): URL {
 }
 
 /** Resolve once and require every returned address to be public; the first is pinned. */
-async function resolvePinned(url: URL, resolver: Resolver): Promise<ResolvedAddress> {
+async function resolvePinned(
+  url: URL,
+  resolver: Resolver,
+  trustedOrigin?: string,
+): Promise<ResolvedAddress> {
+  const trusted = trustedOrigin !== undefined && url.origin === trustedOrigin;
   const host = url.hostname.replace(/^\[|\]$/g, '');
   const literal = net.isIP(host);
   if (literal !== 0) {
     const verdict = checkAddress(host);
-    if (!verdict.allowed)
+    if (!verdict.allowed && !trusted)
       throw new DownloadError('blocked_address', `address ${host} is not publicly routable`);
     return { address: host, family: literal === 6 ? 6 : 4 };
   }
@@ -148,7 +168,7 @@ async function resolvePinned(url: URL, resolver: Resolver): Promise<ResolvedAddr
   if (addresses.length === 0)
     throw new DownloadError('network_error', `no addresses for ${host}`, true);
   for (const a of addresses) {
-    if (!checkAddress(a.address).allowed) {
+    if (!trusted && !checkAddress(a.address).allowed) {
       throw new DownloadError(
         'blocked_address',
         `${host} resolves to non-public address ${a.address}`,
@@ -187,11 +207,16 @@ export async function safeDownload(
     },
     options.totalTimeoutMs ?? 30 * 60 * 1000,
   );
+  const cancel = (): void => {
+    total.abort(new DownloadError('network_error', 'download cancelled'));
+  };
+  if (options.signal?.aborted === true) cancel();
+  options.signal?.addEventListener('abort', cancel, { once: true });
 
   try {
-    let url = assertFetchableUrl(rawUrl);
+    let url = assertFetchableUrl(rawUrl, options.trustedOrigin);
     for (let hop = 0; ; hop++) {
-      const pinned = await resolvePinned(url, resolver);
+      const pinned = await resolvePinned(url, resolver, options.trustedOrigin);
       const { res, failure } = await request(url, pinned, options, total.signal);
       const status = res.statusCode ?? 0;
 
@@ -200,7 +225,10 @@ export async function safeDownload(
         if (hop >= maxRedirects) {
           throw new DownloadError('too_many_redirects', `more than ${maxRedirects} redirects`);
         }
-        url = assertFetchableUrl(new URL(res.headers.location, url).toString());
+        url = assertFetchableUrl(
+          new URL(res.headers.location, url).toString(),
+          options.trustedOrigin,
+        );
         continue;
       }
       if (status !== 200) {
@@ -209,7 +237,7 @@ export async function safeDownload(
         throw new DownloadError('http_error', `server answered HTTP ${status}`, retryable);
       }
       const contentType = res.headers['content-type'];
-      if (!contentTypeAllowed(contentType)) {
+      if (!contentTypeAllowed(contentType, options.allowedContentTypes)) {
         res.resume();
         throw new DownloadError(
           'unsupported_content_type',
@@ -258,6 +286,7 @@ export async function safeDownload(
     throw toDownloadError(err, total.signal);
   } finally {
     clearTimeout(totalTimer);
+    options.signal?.removeEventListener('abort', cancel);
   }
 }
 

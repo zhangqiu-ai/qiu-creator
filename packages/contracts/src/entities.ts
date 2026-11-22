@@ -149,6 +149,8 @@ export const AIActionSchema = z.enum([
   'rewrite',
   'platform_variant',
   'video_understanding',
+  /** New API `images/generations` (QC-070). */
+  'image_generation',
 ]);
 export type AIAction = z.infer<typeof AIActionSchema>;
 

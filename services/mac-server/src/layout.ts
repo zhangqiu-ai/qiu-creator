@@ -9,6 +9,7 @@ import { assertSafeFileName } from '@qiu-creator/domain';
  *   library/works/<work-id>/revisions/<revision-id>.md
  *   library/assets/<asset-id>/<file-name>   (uploaded assets, deduplicated by sha256)
  *   cache/thumbnails/<asset-id>.webp        (rebuildable)
+ *   cache/ai-images/<job-id>/<index>.<ext>  (unkept AI image candidates, QC-070; temporary)
  *   data/    (SQLite, token, data/uploads for tus, data/incoming for direct uploads)
  * All paths stored in SQLite are relative to home.
  */
@@ -80,6 +81,15 @@ export class Layout {
   /** Staging area for single-request uploads before validation. */
   get incomingDir(): string {
     return path.join(this.home, 'data', 'incoming');
+  }
+
+  /** Unkept candidates of one AI image job (QC-070); removed when kept, discarded or old. */
+  get aiImagesDir(): string {
+    return path.join(this.home, 'cache', 'ai-images');
+  }
+
+  aiImageJobDir(jobId: string): string {
+    return path.join(this.aiImagesDir, assertSafeFileName(jobId));
   }
 
   abs(relative: string): string {

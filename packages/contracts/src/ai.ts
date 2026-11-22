@@ -79,6 +79,8 @@ export interface AiModelPrice {
   input_per_mtok: number;
   /** USD per 1M output tokens (including thinking where the provider bills it). */
   output_per_mtok: number;
+  /** Image models (QC-070): USD per generated image. */
+  per_image_usd?: number;
 }
 
 /**
@@ -116,6 +118,8 @@ const ModelNameSchema = z
 export const AiModelPriceSchema = z.object({
   input_per_mtok: z.number().nonnegative().max(10_000),
   output_per_mtok: z.number().nonnegative().max(10_000),
+  /** Image models (QC-070): USD per generated image; image jobs are estimated from this. */
+  per_image_usd: z.number().nonnegative().max(1_000).optional(),
 });
 
 // ---- Provider status, keys, consent ------------------------------------------------
@@ -359,7 +363,12 @@ export const AiCostEstimateSchema = z.object({
   /** Rough count before sending (CJK ≈ 1 token/char, other text ≈ 4 chars/token). */
   input_tokens: z.number().int().nonnegative(),
   max_output_tokens: z.number().int().nonnegative(),
-  /** Upper bound if the full output budget is used; null when the model has no price. */
+  /** Image jobs (QC-070): how many images were asked for. */
+  image_count: z.number().int().positive().optional(),
+  /**
+   * Upper bound if the full output budget is used (image jobs: images ×
+   * `per_image_usd`); null when the model has no price (「無法預估」).
+   */
   max_cost_usd: z.number().nonnegative().nullable(),
   price: AiModelPriceSchema.nullable(),
   /** Always true: costs are estimates from reference prices. */
@@ -419,6 +428,15 @@ export const AiTaskSchema = z.discriminatedUnion('type', [
     tone: z.string().nullable(),
     instruction: z.string().nullable(),
     range: z.object({ start: z.number().int(), end: z.number().int() }),
+  }),
+  z.object({
+    type: z.literal('image_generation'),
+    /** `image`: from the user's prompt; `cover`: from the title and text (QC-070). */
+    purpose: z.enum(['image', 'cover']),
+    aspect_ratio: z.string(),
+    n: z.number().int().positive(),
+    /** Size asked of the relay; results are then cropped to `aspect_ratio`. */
+    size: z.string(),
   }),
 ]);
 export type AiTask = z.infer<typeof AiTaskSchema>;

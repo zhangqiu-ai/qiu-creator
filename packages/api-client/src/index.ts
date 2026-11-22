@@ -77,7 +77,13 @@ import { createVariantsApi, type CreatorHubVariantsApi } from './variants.js';
 import { createAiApi, type CreatorHubAiApi } from './ai.js';
 import { createBackupsApi, type CreatorHubBackupsApi } from './backups.js';
 export type { CreatorHubBackupsApi } from './backups.js';
-export { rewriteOf, suggestionsOf, videoUnderstandingOf, type CreatorHubAiApi } from './ai.js';
+export {
+  imageResultOf,
+  rewriteOf,
+  suggestionsOf,
+  videoUnderstandingOf,
+  type CreatorHubAiApi,
+} from './ai.js';
 export type { CreatorHubVariantsApi, VariantWriteOptions } from './variants.js';
 export type { CreatorHubMountsApi } from './mounts.js';
 

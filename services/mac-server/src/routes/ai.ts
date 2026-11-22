@@ -4,6 +4,7 @@ import {
   PutAiDefaultsRequestSchema,
   AiEstimateResponseSchema,
   AiJobRecordSchema,
+  type AiJobRecord,
   AiProviderListResponseSchema,
   AiProviderModelsQuerySchema,
   AiProviderModelsResponseSchema,
@@ -27,7 +28,7 @@ import {
 } from '@qiu-creator/contracts';
 import { z } from 'zod';
 import type { AiService } from '../ai/ai-service.js';
-import { requirePrincipal } from '../auth/token-service.js';
+import { requirePrincipal, type Principal } from '../auth/token-service.js';
 import type { App } from '../http/app-type.js';
 import type { IdempotencyService } from '../idempotency/idempotency-service.js';
 
@@ -44,7 +45,17 @@ const JobParamsSchema = z.object({ id: IdSchema });
  * AI routes. All of `/api/v1/ai/*` is owner-only (see `auth/scopes.ts`):
  * agent tokens can neither manage keys nor spend money on AI calls.
  */
-export function registerAiRoutes(app: App, ai: AiService, idempotency: IdempotencyService): void {
+/** Fills in what a job's stored result cannot hold (QC-070: signed candidate URLs). */
+export type AiJobDecorator = (job: AiJobRecord, principalId: string) => AiJobRecord;
+
+export function registerAiRoutes(
+  app: App,
+  ai: AiService,
+  idempotency: IdempotencyService,
+  decorate: AiJobDecorator = (job) => job,
+): void {
+  const shown = (job: AiJobRecord, principal: Principal | null): AiJobRecord =>
+    decorate(job, requirePrincipal(principal).id);
   // Provider status shows the New API Base URL (QC-057), which lives in the
   // Keychain credential: read it once before the first provider response.
   app.addHook('preHandler', async (req) => {
@@ -261,7 +272,10 @@ export function registerAiRoutes(app: App, ai: AiService, idempotency: Idempoten
         response: { 200: ListAiJobsResponseSchema, ...errorResponses },
       },
     },
-    (req) => ai.list(req.query),
+    (req) => {
+      const page = ai.list(req.query);
+      return { ...page, items: page.items.map((job) => shown(job, req.principal)) };
+    },
   );
 
   app.get(
@@ -269,7 +283,7 @@ export function registerAiRoutes(app: App, ai: AiService, idempotency: Idempoten
     {
       schema: { params: JobParamsSchema, response: { 200: AiJobRecordSchema, ...errorResponses } },
     },
-    (req) => ai.get(req.params.id),
+    (req) => shown(ai.get(req.params.id), req.principal),
   );
 
   app.post(
@@ -281,7 +295,7 @@ export function registerAiRoutes(app: App, ai: AiService, idempotency: Idempoten
         response: { 200: AiJobRecordSchema, ...conflict },
       },
     },
-    (req) => ai.cancel(req.params.id),
+    (req) => shown(ai.cancel(req.params.id), req.principal),
   );
 
   app.post(
@@ -293,7 +307,7 @@ export function registerAiRoutes(app: App, ai: AiService, idempotency: Idempoten
         response: { 200: AiJobRecordSchema, ...conflict },
       },
     },
-    (req) => ai.retry(req.params.id),
+    (req) => shown(ai.retry(req.params.id), req.principal),
   );
 
   app.get(
