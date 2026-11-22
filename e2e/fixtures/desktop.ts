@@ -80,7 +80,10 @@ export const test = base.extend<{ desktop: Desktop }>({
       });
       resources.defer(() => backend.close());
 
-      const executablePath: unknown = requireMacDependency('electron');
+      // CREATORHUB_E2E_APP=<…/qiu-creator.app/Contents/MacOS/qiu-creator> runs the specs against
+      // a packaged build made by qc-release (QC-061); it runs its own bundled main, so no entry.
+      const packaged = process.env['CREATORHUB_E2E_APP'] ?? '';
+      const executablePath: unknown = packaged !== '' ? packaged : requireMacDependency('electron');
       if (typeof executablePath !== 'string') throw new Error('Missing workspace Electron binary');
       const profile = path.join(home, 'electron-profile');
       await mkdir(profile);
@@ -94,7 +97,7 @@ export const test = base.extend<{ desktop: Desktop }>({
       const launch = () =>
         playwright._electron.launch({
           executablePath,
-          args: [entry],
+          args: packaged !== '' ? [] : [entry],
           env: {
             PATH: process.env['PATH'] ?? '',
             HOME: home,
@@ -103,7 +106,7 @@ export const test = base.extend<{ desktop: Desktop }>({
             CREATORHUB_PORT: address.port,
             CREATORHUB_TOKEN: TEST_TOKEN,
             CREATORHUB_E2E_PROFILE: profile,
-            // QC-060: no Dock icon, no focus, no native dialogs, no Finder.
+            // QC-060/QC-064: no Dock icon, no window on screen, no native dialogs, no Finder.
             CREATORHUB_E2E_BACKGROUND: '1',
           },
         });
