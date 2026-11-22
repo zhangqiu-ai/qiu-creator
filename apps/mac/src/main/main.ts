@@ -58,6 +58,11 @@ import { UploadManager, type UploadConnection } from './uploads.js';
  */
 
 const devServerUrl = process.env['VITE_DEV_SERVER_URL'] ?? null;
+/**
+ * e2e sets this so a run never takes the user's screen (QC-060): no Dock icon or ⌘Tab entry,
+ * windows show without focus, no native dialogs, Finder is not opened. The real app never sets it.
+ */
+const backgroundRun = process.env['CREATORHUB_E2E_BACKGROUND'] === '1';
 const config = resolveConfig(process.env, app.isPackaged);
 
 protocol.registerSchemesAsPrivileged([
@@ -156,15 +161,24 @@ async function serviceGet(pathname: string): Promise<unknown> {
  * mount id; the main process looks the path up, so a compromised renderer
  * cannot point Finder at arbitrary locations.
  */
+/** Opens Finder; a background run does not (QC-060), the answers stay what a real open gives. */
+const finder = {
+  openPath: (p: string): Promise<string> =>
+    backgroundRun ? Promise.resolve('') : shell.openPath(p),
+  showItemInFolder: (p: string): void => {
+    if (!backgroundRun) shell.showItemInFolder(p);
+  },
+};
+
 async function reveal(target: RevealTarget): Promise<boolean> {
   if (config.home === null) return false;
   if (target.kind === 'home') {
-    await shell.openPath(config.home);
+    await finder.openPath(config.home);
     return true;
   }
   if (target.kind === 'backups') {
     // shell.openPath answers with an error message (not a throw) when the folder is missing.
-    return (await shell.openPath(path.join(config.home, 'backups'))) === '';
+    return (await finder.openPath(path.join(config.home, 'backups'))) === '';
   }
   if (target.kind === 'asset') {
     const asset = AssetRecordSchema.safeParse(
@@ -183,7 +197,7 @@ async function reveal(target: RevealTarget): Promise<boolean> {
     }
     const full = resolveInsideHome(root, asset.data.path);
     if (full === null) return false;
-    shell.showItemInFolder(full);
+    finder.showItemInFolder(full);
     return true;
   }
   if (target.kind === 'work') {
@@ -200,14 +214,14 @@ async function reveal(target: RevealTarget): Promise<boolean> {
     if (!mount.success || !path.isAbsolute(mount.data.root_path)) return false;
     const full = resolveInsideHome(mount.data.root_path, rel);
     if (full === null) return false;
-    shell.showItemInFolder(full);
+    finder.showItemInFolder(full);
     return true;
   }
   const mount = MountSchema.safeParse(
     await serviceGet(`/api/v1/mounts/${encodeURIComponent(target.id)}`),
   );
   if (!mount.success || !path.isAbsolute(mount.data.root_path)) return false;
-  await shell.openPath(mount.data.root_path);
+  await finder.openPath(mount.data.root_path);
   return true;
 }
 
@@ -241,6 +255,8 @@ function registerIpc(): void {
       buttonLabel: language().t('main.pickUploadButton'),
       properties: ['openFile', 'multiSelections'] as ('openFile' | 'multiSelections')[],
     };
+    // No native dialog in a background run: it would take focus (QC-060).
+    if (backgroundRun) return 0;
     const result =
       win === null
         ? await dialog.showOpenDialog(options)
@@ -289,6 +305,7 @@ function registerIpc(): void {
       buttonLabel: language().t('main.pickFolderButton'),
       properties: ['openDirectory', 'createDirectory'] as ('openDirectory' | 'createDirectory')[],
     };
+    if (backgroundRun) return null;
     const result =
       win === null
         ? await dialog.showOpenDialog(options)
@@ -425,7 +442,9 @@ function createWindow(): void {
   });
 
   win.once('ready-to-show', () => {
-    win.show();
+    // e2e runs in the background (QC-060): the window appears without taking focus.
+    if (backgroundRun) win.showInactive();
+    else win.show();
   });
 
   // No in-app navigation away from the renderer; external links open in the browser.
@@ -434,7 +453,7 @@ function createWindow(): void {
     event.preventDefault();
   });
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://')) void shell.openExternal(url);
+    if (url.startsWith('https://') && !backgroundRun) void shell.openExternal(url);
     return { action: 'deny' };
   });
 
@@ -487,6 +506,12 @@ function applyMenu(): void {
 }
 
 void app.whenReady().then(() => {
+  if (backgroundRun) {
+    // An accessory app has no Dock icon and no ⌘Tab entry, and showing its windows does
+    // not activate it.
+    app.setActivationPolicy('accessory');
+    app.dock?.hide();
+  }
   // The packaged app gets its icon from the bundle; a dev run shows the same one in the Dock.
   if (!app.isPackaged) {
     const icon = path.join(__dirname, '..', 'build', 'icon.png');

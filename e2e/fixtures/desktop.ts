@@ -103,6 +103,8 @@ export const test = base.extend<{ desktop: Desktop }>({
             CREATORHUB_PORT: address.port,
             CREATORHUB_TOKEN: TEST_TOKEN,
             CREATORHUB_E2E_PROFILE: profile,
+            // QC-060: no Dock icon, no focus, no native dialogs, no Finder.
+            CREATORHUB_E2E_BACKGROUND: '1',
           },
         });
       const app = await launch();

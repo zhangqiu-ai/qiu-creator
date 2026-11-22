@@ -109,6 +109,7 @@ renderer（React，sandbox，無 Node）
     - 外部素材：預設只移出素材庫，勾選後才把原檔移到系統垃圾桶。
   - **最近刪除**：顯示剩餘天數，可恢復、永久刪除、清空。`markdown_referrers` 不是空的時候，提示哪些作品會出現缺圖。
   - **e2e**：fixture 以假的系統垃圾桶取代 `/usr/bin/trash`，測試不會動到使用者的垃圾桶。
+  - **e2e 在背景執行（QC-060）**：fixture 啟動 Electron 時設 `CREATORHUB_E2E_BACKGROUND=1`。主程序在這個模式下：activation policy 為 `accessory` 並隱藏 Dock 圖示（不在 Dock、不在 ⌘Tab）；視窗用 `showInactive()`，不取得焦點、不啟用 App；選檔與選資料夾的原生對話框直接回「沒選」；「在 Finder 顯示」與外部連結不實際開啟。正式 App 不設這個變數，行為不變。
 - **平台預覽（QC-013）。**
   - **套件。** `@qiu-creator/platform-preview` 的主入口沒有 DOM 或 Electron 依賴：`buildPreviewModel()` 依 contracts 的 `PLATFORM_LIMITS` 算出平台會顯示的標題（超限截斷加…）、正文（公眾號為 Markdown 區塊，其他為純文字）、標籤、圖片（超出張數的不顯示）與警告。Mac 用 `./react` 的 `PlatformPreview` 加手機框；第二期移動端可以用同一個 model 畫原生畫面，或在 WebView 用 DOM 模板。畫面固定中性配色、不跟 App 主題，不用平台標誌，平台名稱只用文字，每個畫面都有「模擬」標籤。
   - **頁面。** 從編輯頁「預覽」（⌘P，先存檔）或導航「平台預覽」（開最後編輯的作品，沒有則先選作品）進入。四個分頁各自一個 `VariantSession`，有自己的 revision：自動儲存帶 `base_revision`，組字時不存；封面、圖片順序與標籤立即儲存。409 不覆蓋，草稿留在視窗，使用者選「載入最新版本」或「以我的修改覆蓋」（以最新 revision 為基準明確寫入，若又被改則再 409）。SSE `work.variant_*` 事件：視窗沒有未儲存修改就直接更新，有則轉為同樣的選擇。分頁上以圓點標示超出上限（橘）與衝突（紅）。
