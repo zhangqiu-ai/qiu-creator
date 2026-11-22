@@ -45,6 +45,11 @@ export const assets = defineMessages({
 
     // Preview and tiles
     previewImageFailed: '無法顯示原圖',
+    lightbox: '大圖預覽：{name}',
+    lightboxPosition: '{n} / {total}',
+    lightboxPrev: '上一個',
+    lightboxNext: '下一個',
+    openLarge: '查看大圖',
     previewFormatFailed: '這個格式無法在 App 內播放',
     tileLabel: '{name}，{kind}',
     selectAsset: '選取 {name}',
@@ -221,6 +226,11 @@ export const assets = defineMessages({
     dropToUpload: '松开即上传',
 
     previewImageFailed: '无法显示原图',
+    lightbox: '大图预览：{name}',
+    lightboxPosition: '{n} / {total}',
+    lightboxPrev: '上一个',
+    lightboxNext: '下一个',
+    openLarge: '查看大图',
     previewFormatFailed: '这个格式无法在 App 内播放',
     tileLabel: '{name}，{kind}',
     selectAsset: '选取 {name}',
@@ -384,6 +394,11 @@ export const assets = defineMessages({
     dropToUpload: 'Drop to upload',
 
     previewImageFailed: 'Can’t show the original image',
+    lightbox: 'Large preview: {name}',
+    lightboxPosition: '{n} / {total}',
+    lightboxPrev: 'Previous',
+    lightboxNext: 'Next',
+    openLarge: 'View large',
     previewFormatFailed: 'This format can’t play in the app',
     tileLabel: '{name}, {kind}',
     selectAsset: 'Select {name}',
