@@ -2585,15 +2585,15 @@
       "id": "PT-20261122-004",
       "title": "平台預覽併入作品編輯頁；編輯區 AI 只留改寫與圖片，標題與封面移到預覽",
       "date": "2026-11-22",
-      "status": "pending",
+      "status": "approved",
       "model": "claude-opus-5-5",
       "session": "qc-prototype",
       "requestedBy": "使用者 via 開發總監",
       "userRequest": "我之前好像搞錯了，在作品編輯區應該只有改寫和圖片，標題和封面應該是在平台預覽才對。平台預覽其實不應該單獨起子頁面，而是在作品編輯頁面快速預覽、切換。（2026-11-22，見 docs/decisions.md QC-076）",
       "tasks": ["QC-076"],
       "consistentWith": "PT-20261122-003",
-      "approvedBy": null,
-      "approvedAt": null,
+      "approvedBy": "開發總監（使用者 2026-11-22 授權代核准）",
+      "approvedAt": "2026-11-22",
       "approvalNote": "總監代為核准（docs/decisions.md 2026-11-22 QC-076）",
       "supersedes": [
         "PT-20261122-002 的「圖片」分頁封面模式與右側「標題」分頁（移到預覽）",
@@ -2850,6 +2850,11 @@
           "q": "舊的平台預覽頁連結（例如外部捷徑）？",
           "recommendation": "導到作品編輯頁並打開預覽分欄。"
         }
+      ],
+      "approvalCaveat": "畫布仍無法上傳，總監依帳本核准；實作以帳本為準。",
+      "approvalDecisions": [
+        "decisions 與 openQuestions 全部採用原型建議。標題候選「點選即套用＋可復原」視為使用者明確確認，符合 AI 不直接覆蓋原則（只作用於平台版本，舊值可復原且留歷史）。",
+        "「在預覽裡設為作品封面」另議，不在本次範圍。"
       ]
     }
   ]
