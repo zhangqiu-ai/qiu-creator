@@ -25,7 +25,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { motion } from 'motion/react';
 import type { TabCommand } from '../shared/bridge.js';
 import { dropAnimationFor, sortTransition, useDragSensors, type Landing } from './dnd-motion.js';
-import { springOf, tween, ExitFade } from './motion.js';
+import { springOf, tween, ExitFade, hasOpenLayer } from './motion.js';
 import { moves, useMotionMode } from './motion-mode.js';
 import { anchorOf, ContextMenu, type MenuAnchor } from './ContextMenu.js';
 import { Dialog } from './Dialog.js';
@@ -176,12 +176,7 @@ export function EditorTabs(props: EditorTabsProps) {
     (command: TabCommand): boolean => {
       // 設定… is the App's; the tab bar leaves it alone.
       if (command === 'settings') return false;
-      if (
-        confirm !== null ||
-        confirmCandidates !== null ||
-        document.querySelector('[aria-modal="true"]') !== null
-      )
-        return false;
+      if (confirm !== null || confirmCandidates !== null || hasOpenLayer()) return false;
       if (command === 'close') {
         const active = model.active;
         if (!visible || active === null) return false;

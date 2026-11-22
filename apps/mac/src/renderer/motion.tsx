@@ -56,7 +56,8 @@ export type Preset =
   | { kind: 'dialog' }
   | { kind: 'scrim' }
   | { kind: 'panel'; from: 'left' | 'right' }
-  | { kind: 'toast' }
+  /** `stacked`: other toasts are showing, so this one comes up with them (no overlap). */
+  | { kind: 'toast'; stacked?: boolean }
   | { kind: 'listItem' }
   | { kind: 'fade' };
 
@@ -121,6 +122,15 @@ export function presetVariants(preset: Preset, mode: MotionMode): Variants {
       };
     }
     case 'toast':
+      // Joining a stack (QC-073): the others slide up by this toast's height and the gap on
+      // the `snappy` spring; this one rises on the same spring from a little more than its own
+      // height below (the layout slide starts a frame later), so the two never overlap.
+      if (preset.stacked === true)
+        return {
+          initial: { opacity: 0, y: '150%' },
+          animate: { opacity: 1, y: 0, transition: springOf('snappy') },
+          exit: fadeOut,
+        };
       return {
         initial: { opacity: 0, y: motionDistance.rise },
         animate: { opacity: 1, y: 0, transition: tween('base', 'out') },
@@ -246,6 +256,22 @@ export function exitAnimation(
   };
 }
 
+/** Marks a still copy that is fading away (useExitFade, the sidebar transition). */
+export const LEAVING = 'data-leaving';
+
+/**
+ * Whether a dialog (and, with `menus`, a right-click menu) is open, so a
+ * shortcut should leave the page alone. Still copies fading away after they
+ * closed do not count (QC-073): the person can go on at once.
+ */
+export function hasOpenLayer(menus = false): boolean {
+  const live = `:not([${LEAVING}])`;
+  const selector = menus
+    ? `[aria-modal="true"]${live}, .ctx-menu${live}`
+    : `[aria-modal="true"]${live}`;
+  return document.querySelector(selector) !== null;
+}
+
 /**
  * Exit animation for an overlay its parent simply stops rendering (menus,
  * dialogs, popovers, panels): when it unmounts, a still copy of it stays
@@ -269,6 +295,13 @@ export function useExitFade(ref: RefObject<HTMLElement | null>, kind: ExitKind =
       const clone = target.cloneNode(true) as HTMLElement;
       clone.removeAttribute('id');
       for (const el of clone.querySelectorAll('[id]')) el.removeAttribute('id');
+      // Only a picture of what left (QC-073): not a dialog or a menu any more, so nothing
+      // that asks whether a layer is open (⌘A, ⌘W, ⌘⌫) is held up while it fades.
+      for (const el of [clone, ...clone.querySelectorAll('[role], [aria-modal]')]) {
+        el.removeAttribute('role');
+        el.removeAttribute('aria-modal');
+      }
+      clone.setAttribute(LEAVING, '');
       clone.inert = true;
       clone.setAttribute('aria-hidden', 'true');
       Object.assign(clone.style, {

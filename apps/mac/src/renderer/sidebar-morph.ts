@@ -1,5 +1,6 @@
 import { duration, easing } from '@qiu-creator/design-tokens';
 import { currentMotionMode, moves } from './motion-mode.js';
+import { LEAVING } from './motion.js';
 
 /**
  * 側欄收合／展開的過渡 (DESIGN.md 動效 · 側欄收合, QC-068). The sidebar takes its
@@ -25,7 +26,16 @@ export interface SidebarSnapshot {
 
 let running: { ghost: HTMLElement; animations: Animation[] } | null = null;
 
-/** Stop a transition still on screen; the sidebar is already in its final place. */
+/**
+ * Stop a transition still on screen; the sidebar is already in its final place.
+ * Also called when the sidebar changes without its toggle (a narrow window
+ * forces the rail, QC-073): a transition worked out for the old widths would
+ * otherwise go on moving the sidebar off its new place.
+ */
+export function stopSidebarMorph(): void {
+  stopRunning();
+}
+
 function stopRunning(): void {
   if (running === null) return;
   for (const a of running.animations) a.cancel();
@@ -46,6 +56,7 @@ export function snapshotSidebar(nav: HTMLElement | null): SidebarSnapshot | null
   ghost.setAttribute('aria-hidden', 'true');
   ghost.inert = true;
   ghost.classList.add('sb--ghost');
+  ghost.setAttribute(LEAVING, '');
   Object.assign(ghost.style, {
     position: 'fixed',
     top: `${String(rect.top)}px`,

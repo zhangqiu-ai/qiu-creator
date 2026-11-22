@@ -170,7 +170,7 @@ export function ToastHost({ queue = toastQueue }: { queue?: ToastQueue }) {
           return (
             <Animated
               key={e.id}
-              preset={{ kind: 'toast' }}
+              preset={{ kind: 'toast', stacked: shown.length > 1 }}
               layout={moves(mode) ? 'position' : false}
               transition={springOf('snappy')}
               className={e.tone === 'bad' ? 'toast toast--bad' : 'toast'}
