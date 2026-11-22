@@ -1938,6 +1938,338 @@
         "追加：新建項目時預設顏色在 8 色中輪替，避免多個項目同色而無法分辨；既有同色項目不自動改色。"
       ],
       "boardsAddedAfterApproval": ["ProjLabels.dc.html"]
+    },
+    {
+      "id": "PT-20261122-002",
+      "title": "文章編輯：選取浮動工具列、原位文字候選、AI 配圖與封面生成",
+      "date": "2026-11-22",
+      "status": "pending",
+      "model": "claude-opus-5-5",
+      "session": "qc-prototype",
+      "requestedBy": "使用者 via 開發總監",
+      "userRequest": "文章編輯右側需要增加AI圖片生成和封面生成功能，New Api 支持生成圖片的。選中段落自動彈出各種功能圖標，AI擴寫、圖片生成等等，並且圖片要自動插入，文字替換和圖片生成和插入的時候都要有過渡動畫和等待動畫！（2026-11-22；使用者選擇「原位候選，一鍵保留」，見 docs/decisions.md QC-070）",
+      "tasks": ["QC-070"],
+      "approvedBy": null,
+      "approvedAt": null,
+      "approvalNote": "總監代為核准（docs/decisions.md 2026-11-22 QC-070）",
+      "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "baseCanvasVersion": "41 (version id 1795275033-35aa) + the unpublished canvas.json of PT-20261121-002, PT-20261121-003 and PT-20261122-001",
+      "canvasVersion": "NOT_PUBLISHED: the canvas server still refused connections on 2026-11-22. Files are in the shared notes folder pt-20261122-002-boards/; its canvas.json is the latest and includes every unpublished PT.",
+      "sharedStylesheets": [
+        "/_blob/ce383cde01b175413fc4b99a21feb132 (qc-v2.css)",
+        "/_blob/a801184fe6d1b75f3cf8e2f73e8e3dc4 (qc-v3.css)",
+        "qc-v4.css + qc-v7.css inlined in each board"
+      ],
+      "boards": [
+        {
+          "file": "AiEditor.dc.html",
+          "title": "v7 · 文字候選：原位 diff",
+          "tweaks": {
+            "dark": "boolean",
+            "reduced": "boolean",
+            "lang": ["繁中", "简中", "English"],
+            "state": [
+              "選取工具列",
+              "更多指令",
+              "文字生成中",
+              "文字候選",
+              "已保留文字",
+              "配圖生成中",
+              "圖片候選",
+              "圖片生成失敗",
+              "原始碼模式",
+              "圖片分頁",
+              "封面生成",
+              "已設封面",
+              "沒有圖片模型",
+              "費用無法預估"
+            ]
+          },
+          "states": [
+            "選取後約 200ms 在選取上方浮出工具列（潤色、擴寫、縮寫、語氣｜配圖｜更多），base 180／out、從觸發處縮放；⌘J 開啟並把焦點移入，←→ 移動、esc 收起並保留選取；拖曳選取、組字或打字時不出現",
+            "「更多」展開補充指令輸入框，↩ 送出",
+            "文字生成中：選取段落加虛線框鎖定並閃爍骨架，工具列換成「潤色中… 停止」小膠囊；其他段落照常可編輯",
+            "文字候選：原位 diff（刪除＝badSoft＋刪除線、新增＝okSoft＋底線），段落下方浮出「AI · 潤色 · Claude · +19」與 重試／捨棄 esc／保留 ⌘↩；保留才寫入成 ai_accepted 版本，提示可復原",
+            "頁首儲存狀態在有候選時顯示「有候選未保留」",
+            "配圖：在選取段落後插入同比例的虛線佔位，版面讓位（snappy），骨架閃爍＋不確定進度條＋「生成圖片中 · 約 20 秒」＋取消；完成後圖片 settle 淡入（moderate），帶 1／2 切換、圖說（由提示詞產生，可改）、重新生成／捨棄／保留",
+            "保留圖片：存到作品 assets/ 並寫入 Markdown 圖片，虛線框消失；捨棄：淡出後版面收回",
+            "失敗：錯誤留在佔位框內（重試、移除、技術詳情），原文不動",
+            "原始碼模式：工具列直立靠在選取行左側，不蓋住文字；結果在右側面板以 diff 呈現，保留後才寫回",
+            "右側面板分頁：改寫、標題、圖片。圖片分頁：插圖／封面切換、提示詞（帶入選取或標題＋摘要）、比例（16:9、公眾號 2.35:1、小紅書 3:4、1:1、9:16、公眾號分享 1:1）、張數 1–4、模型 gpt-image-2、費用（無法預估時標示）、生成、生成記錄縮圖（懸停：插入到游標處、設為封面），生成中的格子先顯示骨架",
+            "封面：比例預設公眾號 2.35:1，結果設為封面後文章頂部出現封面條，可復原",
+            "沒有圖片模型：「配圖」停用並在提示說明；圖片分頁顯示原因與「前往 AI 服務」",
+            "費用無法預估：第一次生成前確認對話框（取消／仍要生成，可勾「這個模型不再提示」）",
+            "減少動態效果（Tweak）：所有進場改為 120ms 淡入，無位移與縮放；骨架靜態；轉圈保留"
+          ]
+        },
+        {
+          "file": "AiSelToolbar.dc.html",
+          "title": "v7 · 選取浮動工具列",
+          "wraps": "AiEditor.dc.html",
+          "props": {
+            "state": "選取工具列"
+          }
+        },
+        {
+          "file": "AiMore.dc.html",
+          "title": "v7 · 更多：補充指令",
+          "wraps": "AiEditor.dc.html",
+          "props": {
+            "state": "更多指令"
+          }
+        },
+        {
+          "file": "AiTextGen.dc.html",
+          "title": "v7 · 文字生成中",
+          "wraps": "AiEditor.dc.html",
+          "props": {
+            "state": "文字生成中"
+          }
+        },
+        {
+          "file": "AiTextKept.dc.html",
+          "title": "v7 · 已保留（可復原）",
+          "wraps": "AiEditor.dc.html",
+          "props": {
+            "state": "已保留文字"
+          }
+        },
+        {
+          "file": "AiSource.dc.html",
+          "title": "v7 · 原始碼模式",
+          "wraps": "AiEditor.dc.html",
+          "props": {
+            "state": "原始碼模式"
+          }
+        },
+        {
+          "file": "AiImgGen.dc.html",
+          "title": "v7 · 配圖：骨架等待",
+          "wraps": "AiEditor.dc.html",
+          "props": {
+            "state": "配圖生成中"
+          }
+        },
+        {
+          "file": "AiImgCand.dc.html",
+          "title": "v7 · 圖片候選：淡入落位",
+          "wraps": "AiEditor.dc.html",
+          "props": {
+            "state": "圖片候選"
+          }
+        },
+        {
+          "file": "AiImgErr.dc.html",
+          "title": "v7 · 圖片生成失敗",
+          "wraps": "AiEditor.dc.html",
+          "props": {
+            "state": "圖片生成失敗"
+          }
+        },
+        {
+          "file": "AiPanelImage.dc.html",
+          "title": "v7 · 右側「圖片」分頁",
+          "wraps": "AiEditor.dc.html",
+          "props": {
+            "state": "圖片分頁"
+          }
+        },
+        {
+          "file": "AiCover.dc.html",
+          "title": "v7 · 封面生成",
+          "wraps": "AiEditor.dc.html",
+          "props": {
+            "state": "封面生成"
+          }
+        },
+        {
+          "file": "AiCoverSet.dc.html",
+          "title": "v7 · 已設為封面",
+          "wraps": "AiEditor.dc.html",
+          "props": {
+            "state": "已設封面"
+          }
+        },
+        {
+          "file": "AiNoModel.dc.html",
+          "title": "v7 · 沒有圖片模型",
+          "wraps": "AiEditor.dc.html",
+          "props": {
+            "state": "沒有圖片模型"
+          }
+        },
+        {
+          "file": "AiCostUnknown.dc.html",
+          "title": "v7 · 費用無法預估",
+          "wraps": "AiEditor.dc.html",
+          "props": {
+            "state": "費用無法預估"
+          }
+        },
+        {
+          "file": "AiReduced.dc.html",
+          "title": "v7 · 減少動態效果",
+          "wraps": "AiEditor.dc.html",
+          "props": {
+            "reduced": true,
+            "state": "圖片候選"
+          }
+        },
+        {
+          "file": "AiMotionStates.dc.html",
+          "title": "v7 · 動效分格與錯誤",
+          "tweaks": {
+            "dark": "boolean",
+            "lang": ["繁中", "简中", "English"]
+          },
+          "states": [
+            "文字流程六格、圖片流程五格、減少動態效果四格，每格標 token 與曲線",
+            "四種錯誤：沒有圖片模型、生成失敗、已取消、費用無法預估"
+          ]
+        },
+        {
+          "file": "AiEditorDark.dc.html",
+          "title": "v7 · 文字候選（深色）",
+          "wraps": "AiEditor.dc.html",
+          "props": {
+            "dark": true
+          }
+        },
+        {
+          "file": "AiImgDark.dc.html",
+          "title": "v7 · 圖片候選（深色）",
+          "wraps": "AiEditor.dc.html",
+          "props": {
+            "dark": true,
+            "state": "圖片候選"
+          }
+        },
+        {
+          "file": "AiCoverDark.dc.html",
+          "title": "v7 · 封面生成（深色）",
+          "wraps": "AiEditor.dc.html",
+          "props": {
+            "dark": true,
+            "state": "封面生成"
+          }
+        },
+        {
+          "file": "AiMotionStatesDark.dc.html",
+          "title": "v7 · 動效與錯誤（深色）",
+          "wraps": "AiMotionStates.dc.html",
+          "props": {
+            "dark": true
+          }
+        }
+      ],
+      "decisions": [
+        "工具列放選取上方、圖示加兩字標籤：使用者要「各種功能圖標」，但只有圖示要猜；兩字標籤在三語下都放得下（英文單字）。配圖與更多用分隔線隔開，因為它們不是改寫。",
+        "工具列不搶焦點：出現時焦點留在文字；⌘J 才進入。避免使用者繼續打字時被吃掉按鍵，也不打斷輸入法組字。",
+        "一次只有一個候選：候選中的段落鎖定（虛線框），其他段落可編輯；這樣保留時不會和使用者的修改衝突。",
+        "原始碼模式不做原位 diff：在 Markdown 原文上疊刪除線會和語法混在一起，改用右側面板 diff；工具列直立靠左，不蓋文字。",
+        "圖片候選先佔位再出圖：佔位框和最終圖片同比例，出圖時版面不跳；這是 DESIGN.md「骨架與最終版面同尺寸」的規則。",
+        "封面放在「圖片」分頁的「封面」模式，不另開分頁：兩者共用提示詞、比例、模型與記錄，只差預設比例與結果去處。",
+        "費用無法預估時只在第一次確認，之後在面板常駐標示：符合「首次使用要告知」，又不每次打斷。"
+      ],
+      "backendNeeds": {
+        "api": [
+          "POST /api/v1/ai/images {work_id, prompt, size or ratio, n (1–4), model, purpose: illustration|cover, source: selection|panel} → job id; runs POST {base_url}/images/generations on the Mac with the Keychain key (never logged). Only when the user presses a button.",
+          "Job events: queued, running (no fake percentage; indeterminate), done {candidates:[{candidate_id, temp_path, width, height, alt}]}, failed {code, http_status, detail}, cancelled. DELETE /api/v1/ai/jobs/:id cancels.",
+          "Candidates live in a temp area outside the work until kept: POST /api/v1/ai/images/candidates/:id/keep {work_id, base_revision, insert_at|as_cover} moves the file into the work's assets/ and writes the Markdown image or front-matter cover in one revisioned write (409 on stale base); discard deletes the temp file. Unkept candidates are cleaned up after a time limit.",
+          "Response handling: base64 or URL (URL download with the existing SSRF guard, size and type limits, timeout).",
+          "Model list reuses QC-054 with kind=image; price when known, otherwise unpriced and the client shows the first-use cost notice.",
+          "Text candidates reuse the existing rewrite job; keep writes an ai_accepted revision."
+        ],
+        "storage": [
+          "Kept images are normal asset files in the work's assets/; the Markdown references them by relative path. Covers set front-matter cover. No BLOBs in SQLite."
+        ],
+        "limits": {
+          "imagesPerRequest": 4,
+          "suggestedTimeoutSeconds": 120,
+          "ratiosToSizes": "map each ratio to the nearest size the model supports, then crop client-side or server-side (see open question)"
+        }
+      },
+      "references": [
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-ai-writing-panel/case.md",
+          "kind": "concept",
+          "borrowed": "Keep the selection context, the length change and the accept action next to the result; a clear primary 保留.",
+          "adaptation": "The candidate bar sits right under the paragraph with action, provider and length change; 保留 is the primary button with ⌘↩."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/emil-dropdown-trigger-transform-origin/case.md",
+          "kind": "concept",
+          "borrowed": "Popovers scale from the side of their trigger.",
+          "adaptation": "The floating toolbar grows from the bottom centre, right above the selection."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-017-waiting-states/case.md",
+          "kind": "concept",
+          "borrowed": "Pick skeleton vs spinner vs progress by task; keep waiting in place; never fake progress.",
+          "adaptation": "Image generation uses a same-ratio skeleton and an indeterminate bar with a time estimate, no percentage; text uses an in-place shimmer and a small pill."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/vibe-coding-dictionary-state-motion-examples/case.md",
+          "kind": "concept",
+          "borrowed": "Spell out trigger → wait → success/failure → recovery for each async action, plus a reduced-motion version.",
+          "adaptation": "The motion board shows each flow frame by frame with its token, plus a reduced-motion row and four error cases."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/vercel-ui-sdk-composable-interaction-behaviors/case.md",
+          "kind": "product",
+          "borrowed": "Write the open, move, confirm, Escape and focus-return contract before styling a popover.",
+          "adaptation": "Toolbar: appears without taking focus, ⌘J enters, ←→ moves, Escape closes and returns focus to the text with the selection intact."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-015-continuity/case.md",
+          "kind": "concept",
+          "borrowed": "One continuous anchor between before and after.",
+          "adaptation": "The placeholder becomes the image in the same box; the selected text becomes the diff in the same place."
+        }
+      ],
+      "referenceGaps": "No library card shows a selection toolbar for writing (e.g. Notion, Craft) or in-place image generation; those parts follow DESIGN.md and the existing rewrite flow.",
+      "verified": [
+        "Static check on all 20 boards; Node harness ran every handler and timer for all tweak combinations with no handler errors; every template hole resolves in all 14 states."
+      ],
+      "notVerified": [
+        "NOT_VERIFIED: canvas upload (server refused), so no canvas version.",
+        "NOT_VERIFIED: rendering and the animations on the canvas, and three-language fit by screenshot.",
+        "Generated images are colour placeholders; no image API was called."
+      ],
+      "openQuestions": [
+        {
+          "q": "工具列要自動出現，還是只在 ⌘J 或停頓後出現？",
+          "recommendation": "選取完成（放開滑鼠或放開 ⇧）後 200ms 自動出現；拖曳中、打字、組字時不出現。"
+        },
+        {
+          "q": "配圖插在哪裡？",
+          "recommendation": "插在選取所在段落之後；從面板「插入到游標處」則插在游標所在段落之後。"
+        },
+        {
+          "q": "比例怎麼對到模型支援的尺寸？",
+          "recommendation": "用最接近的支援尺寸生成，再裁成所選比例（伺服器裁，原檔不留）。"
+        },
+        {
+          "q": "一次生成幾張？",
+          "recommendation": "原位配圖預設 2 張可切換；面板 1–4 張。"
+        },
+        {
+          "q": "未保留的候選放多久？",
+          "recommendation": "放暫存區直到保留、捨棄或關閉作品；關閉時提示；App 重開不保留。"
+        },
+        {
+          "q": "取消後費用？",
+          "recommendation": "已送出的請求可能仍計費，取消提示不承諾免費。"
+        },
+        {
+          "q": "公眾號封面要不要同時產生 1:1 分享圖？",
+          "recommendation": "第一版只產生 2.35:1；分享圖之後可從同一張裁出。"
+        },
+        {
+          "q": "圖說（alt）由誰寫？",
+          "recommendation": "由提示詞自動產生，候選時可改；保留後寫進 Markdown alt。"
+        }
+      ]
     }
   ]
 }
