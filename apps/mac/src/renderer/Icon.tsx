@@ -48,11 +48,19 @@ export type IconName =
   | 'chevronRight'
   | 'tag'
   | 'trash'
-  | 'pulse';
+  | 'pulse'
+  | 'inbox'
+  | 'more';
 
 const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   library: ['M4 7.5 12 3l8 4.5-8 4.5Z', 'M4 12.5l8 4.5 8-4.5', 'M4 17l8 4 8-4'],
   plus: ['M12 5v14', 'M5 12h14'],
+  more: [
+    'M4.8 12a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0',
+    'M10.8 12a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0',
+    'M16.8 12a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0',
+  ],
+  inbox: ['M3 13h5l1.5 3h5L16 13h5', 'M5.5 5h13L21 13v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5Z'],
   sidebar: ['M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z', 'M9 4v16'],
   appearance: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z', 'M12 3v18'],
   server: ['M4 5h16v6H4Z', 'M4 13h16v6H4Z', 'M8 8h.01', 'M8 16h.01'],

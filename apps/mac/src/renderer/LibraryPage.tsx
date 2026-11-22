@@ -14,6 +14,7 @@ import {
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
+  type ReactNode,
 } from 'react';
 import { Chip } from './Chip.js';
 import { anchorOf, ContextMenu, type MenuAnchor, type MenuEntry } from './ContextMenu.js';
@@ -45,6 +46,12 @@ import { tagUndoGroups, unionTags } from './library-trash.js';
 import { codeText, t } from './i18n.js';
 import { Icon } from './Icon.js';
 import { externalSource, useMounts } from './mounts.js';
+import { ProjectDots, ProjectOverview, projectEntries } from './LibraryProjects.js';
+import { DragWorksButton } from './projects-dnd.js';
+import { removeFromProject, renameProject, useNotice } from './project-actions.js';
+import { NewProjectDialog, useProjectMenu } from './project-menu.js';
+import { projectColor, type ProjectsState, type ProjectsStore } from './projects-store.js';
+import type { LibraryScope } from './SidebarProjects.js';
 
 type View = 'grid' | 'list';
 type TypeFilter = 'all' | WorkType;
@@ -98,7 +105,16 @@ export interface LibraryPageProps {
   onRenamed: (id: string, title: string) => void;
   /** Works moved to 最近刪除 here: their tabs close. */
   onTrashed: (ids: readonly string[]) => void;
+  /** 全部作品, 未分類 or one project (QC-062). */
+  scope?: LibraryScope;
+  projects?: ProjectsStore | null;
+  projectsState?: ProjectsState;
+  onScope?: (scope: LibraryScope) => void;
+  /** 用到的素材 › of a project. */
+  onOpenProjectAssets?: (projectId: string) => void;
 }
+
+const ALL: LibraryScope = { kind: 'all' };
 
 /** A click on a card title waits this long for a second click (rename) before opening. */
 const OPEN_DELAY_MS = 260;
@@ -132,7 +148,20 @@ export function LibraryPage({
   handles,
   onRenamed,
   onTrashed,
+  scope: libraryScope = ALL,
+  projects: store = null,
+  projectsState,
+  onScope,
+  onOpenProjectAssets,
 }: LibraryPageProps) {
+  const projectList = projectsState?.projects ?? [];
+  const project =
+    libraryScope.kind === 'project'
+      ? (projectList.find((p) => p.id === libraryScope.id) ?? null)
+      : null;
+  const projectId = libraryScope.kind === 'project' ? libraryScope.id : null;
+  const unassigned = libraryScope.kind === 'unassigned';
+  const notifyProject = useNotice();
   const [works, setWorks] = useState<readonly WorkListItem[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState('');
@@ -159,6 +188,8 @@ export function LibraryPage({
       .list({
         limit: 200,
         ...(q === '' ? {} : { q }),
+        ...(projectId === null ? {} : { project_id: projectId }),
+        ...(unassigned ? { unassigned: '1' as const } : {}),
       })
       .then((res) => {
         if (id === request.current) setWorks(res.items);
@@ -173,10 +204,17 @@ export function LibraryPage({
         if (id === request.current) setTrashCount(res.total);
       })
       .catch(() => undefined);
-  }, [client, appliedQuery]);
+  }, [client, appliedQuery, projectId, unassigned]);
 
   useEffect(load, [load]);
-  useRefreshOn(['work'], load, 300);
+  useRefreshOn(['work', 'project'], load, 300);
+  // A new scope starts with nothing chosen and its own loading state.
+  const scopeKey = `${libraryScope.kind}:${projectId ?? ''}`;
+  const [loadedScope, setLoadedScope] = useState(scopeKey);
+  if (loadedScope !== scopeKey) {
+    setLoadedScope(scopeKey);
+    setWorks(null);
+  }
 
   // Card images (QC-061): signed URLs from the list; video frames the service could not
   // take are grabbed off-screen one at a time and uploaded, then the list is read again.
@@ -237,11 +275,13 @@ export function LibraryPage({
       setCreating(true);
       setMenuOpen(false);
       // The service never invents a title (QC-043): it is sent in the interface language.
+      // Made inside a project: it starts in that project (QC-062).
+      const inProject = projectId === null ? {} : { project_ids: [projectId] };
       client.works
         .create(
           kind === 'article'
-            ? { title: t('library.untitledWork'), markdown: '', source: 'mac-app' }
-            : { title: t('library.untitledWork'), type: kind, source: 'mac-app' },
+            ? { title: t('library.untitledWork'), markdown: '', source: 'mac-app', ...inProject }
+            : { title: t('library.untitledWork'), type: kind, source: 'mac-app', ...inProject },
         )
         .then(onCreated)
         .catch(() => {
@@ -251,7 +291,7 @@ export function LibraryPage({
           setCreating(false);
         });
     },
-    [client, creating, onCreated],
+    [client, creating, onCreated, projectId],
   );
 
   // ⌘N new work, ⌘F search; ignored during IME composition.
@@ -693,6 +733,7 @@ export function LibraryPage({
     if (one === undefined) {
       return [
         statusMenu,
+        ...projectItems(targets),
         {
           kind: 'item',
           id: 'add-tags',
@@ -749,6 +790,7 @@ export function LibraryPage({
         },
       },
       statusMenu,
+      ...projectItems(targets),
       ...(file === null
         ? []
         : ([
@@ -786,6 +828,87 @@ export function LibraryPage({
   });
   const [barMenu, setBarMenu] = useState<MenuAnchor | null>(null);
 
+  // ---- 項目 (QC-062) ----
+  const [projectBar, setProjectBar] = useState<MenuAnchor | null>(null);
+  const [newProjectFor, setNewProjectFor] = useState<readonly WorkListItem[] | null>(null);
+  const [renamingProject, setRenamingProject] = useState(false);
+  const projectMenu = useProjectMenu({
+    store,
+    client,
+    notify: notifyProject,
+    onRename: () => {
+      setRenamingProject(true);
+    },
+    onGone: () => {
+      onScope?.(ALL);
+    },
+  });
+  const projectItems = (targets: readonly WorkListItem[]): MenuEntry[] =>
+    store === null
+      ? []
+      : [
+          {
+            kind: 'sub',
+            id: 'projects',
+            label: t('projects.projectButton'),
+            disabled: targets.length === 0,
+            items: projectEntries({
+              store,
+              projects: projectList,
+              works: targets,
+              notify: notifyProject,
+              onNew: () => {
+                setNewProjectFor(targets);
+              },
+              after: load,
+            }),
+          },
+          ...(project === null
+            ? []
+            : [
+                {
+                  kind: 'item' as const,
+                  id: 'remove-from-project',
+                  label: t('projects.removeFrom', { name: project.name }),
+                  onSelect: () => {
+                    void removeFromProject(store, project, targets, notifyProject, load);
+                  },
+                },
+              ]),
+        ];
+  const createProjectWith = async (
+    targets: readonly WorkListItem[],
+    name: string,
+    color: number,
+  ) => {
+    setNewProjectFor(null);
+    if (store === null) return;
+    try {
+      const created = await store.create(name, color);
+      const added = await store.setMembership(
+        created.id,
+        targets.map((w) => w.id),
+        true,
+      );
+      load();
+      notifyProject({
+        message:
+          added.length > 0
+            ? t('projects.createdAdded', { name: created.name })
+            : t('projects.created', { name: created.name }),
+      });
+    } catch {
+      notifyProject({ message: t('common.cannotConnect'), tone: 'bad' });
+    }
+  };
+  const renameCurrentProject = (typed: string) => {
+    setRenamingProject(false);
+    if (store !== null && project !== null)
+      void renameProject(store, project, typed, notifyProject);
+  };
+  const dragWorks = (w: WorkListItem): readonly WorkListItem[] =>
+    selection.ids.has(w.id) ? selectedWorks : [w];
+
   const filtering = appliedQuery.trim() !== '' || type !== 'all' || status !== 'all';
   const clearFilters = () => {
     setQuery('');
@@ -797,10 +920,58 @@ export function LibraryPage({
   return (
     <main className="page" aria-label={t('library.library')}>
       <header className="page__header">
-        <h1 className="page__title">{t('library.library')}</h1>
+        {project !== null ? (
+          <h1 className="page__title proj-title">
+            <span
+              className="proj-title__chip"
+              style={{ background: projectColor(project.color) }}
+            />
+            {renamingProject ? (
+              <RenameField
+                value={project.name}
+                label={t('workActions.renameField', { title: project.name })}
+                className="rename--title"
+                onCommit={(name) => {
+                  renameCurrentProject(name);
+                }}
+                onCancel={() => {
+                  setRenamingProject(false);
+                }}
+              />
+            ) : (
+              <span
+                className="proj-title__name"
+                onDoubleClick={() => {
+                  setRenamingProject(true);
+                }}
+              >
+                {project.name}
+              </span>
+            )}
+          </h1>
+        ) : (
+          <h1 className="page__title">
+            {unassigned ? t('projects.unassigned') : t('library.library')}
+          </h1>
+        )}
         <span className="page__count">
           {scope === 'trash' ? trashCount : works === null ? '' : shown.length}
         </span>
+        {project !== null && (
+          <button
+            type="button"
+            className="btn btn--icon btn--ghost proj-title__more"
+            aria-label={t('projects.projectOptions')}
+            aria-haspopup="menu"
+            aria-expanded={projectMenu.openId === project.id}
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              projectMenu.open(project, { x: r.left, y: r.bottom + 4 });
+            }}
+          >
+            <Icon name="more" />
+          </button>
+        )}
         <label className="search">
           <Icon name="search" />
           <span className="visually-hidden">{t('library.searchWorks')}</span>
@@ -847,9 +1018,20 @@ export function LibraryPage({
             load();
           }}
           onCount={setTrashCount}
+          projects={projectList}
         />
       ) : (
         <>
+          {project !== null && store !== null && (
+            <ProjectOverview
+              store={store}
+              project={project}
+              refresh={works}
+              onOpenAssets={() => {
+                onOpenProjectAssets?.(project.id);
+              }}
+            />
+          )}
           <div className="filters">
             <div className="seg" role="group" aria-label={t('library.type')}>
               {TYPE_FILTERS.map((f) => (
@@ -950,6 +1132,32 @@ export function LibraryPage({
               >
                 {t('workActions.removeTags')}
               </button>
+              {store !== null && (
+                <button
+                  type="button"
+                  className="btn btn--small"
+                  aria-haspopup="menu"
+                  aria-expanded={projectBar !== null}
+                  onClick={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect();
+                    setProjectBar({ x: r.left, y: r.bottom + 4 });
+                  }}
+                >
+                  {t('projects.projectButton')}
+                  <Icon name="chevronDown" size={14} />
+                </button>
+              )}
+              {store !== null && project !== null && (
+                <button
+                  type="button"
+                  className="btn btn--small"
+                  onClick={() => {
+                    void removeFromProject(store, project, selectedWorks, notifyProject, load);
+                  }}
+                >
+                  {t('projects.removeFromThis')}
+                </button>
+              )}
               <button
                 type="button"
                 className="btn btn--small btn--danger"
@@ -999,6 +1207,49 @@ export function LibraryPage({
                   </div>
                 ))}
               </div>
+            ) : works.length === 0 && !filtering && project !== null ? (
+              <div className="state-card state-card--dashed">
+                <span
+                  className="proj-title__chip proj-title__chip--big"
+                  style={{ background: projectColor(project.color) }}
+                />
+                <span className="state-card__title">{t('projects.emptyProject')}</span>
+                <span className="state-card__detail">{t('projects.dragHint')}</span>
+                <div className="state-card__actions">
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    onClick={() => {
+                      setMenuOpen(true);
+                    }}
+                  >
+                    {t('library.new')}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      onScope?.(ALL);
+                    }}
+                  >
+                    {t('projects.goAll')}
+                  </button>
+                </div>
+              </div>
+            ) : works.length === 0 && !filtering && unassigned ? (
+              <div className="state-card state-card--dashed">
+                <Icon name="inbox" size={28} />
+                <span className="state-card__title">{t('projects.emptyUnassigned')}</span>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    onScope?.(ALL);
+                  }}
+                >
+                  {t('projects.goAll')}
+                </button>
+              </div>
             ) : works.length === 0 && !filtering ? (
               <div className="state-card state-card--dashed">
                 <Icon name="library" size={28} />
@@ -1035,6 +1286,14 @@ export function LibraryPage({
                       source={externalSource(w, mounts, userHome)}
                       imageUrl={imageUrl}
                       onNeedsFrame={onNeedsFrame}
+                      dots={
+                        <ProjectDots
+                          projectIds={w.project_ids}
+                          projects={projectList}
+                          currentId={projectId}
+                        />
+                      }
+                      dragWorks={store === null ? undefined : dragWorks(w)}
                       onClick={(e, onTitle) => {
                         onItemClick(e, w, onTitle);
                       }}
@@ -1104,8 +1363,10 @@ export function LibraryPage({
                                 />
                               </span>
                             ) : (
-                              <button
-                                type="button"
+                              <DragWorksButton
+                                dragId={w.id}
+                                works={dragWorks(w)}
+                                disabled={store === null}
                                 className="tbl__open"
                                 data-work-id={w.id}
                                 onClick={(e) => {
@@ -1131,7 +1392,7 @@ export function LibraryPage({
                                     {t('workActions.isSelected')}
                                   </span>
                                 )}
-                              </button>
+                              </DragWorksButton>
                             )}
                             {w.storage_mode === 'external' && (
                               <span
@@ -1143,6 +1404,11 @@ export function LibraryPage({
                               </span>
                             )}
                             {isMissing(w) && <MissingChip />}
+                            <ProjectDots
+                              projectIds={w.project_ids}
+                              projects={projectList}
+                              currentId={projectId}
+                            />
                           </span>
                         </td>
                         <td className="muted">{WORK_TYPE[w.type].label}</td>
@@ -1201,6 +1467,36 @@ export function LibraryPage({
           }}
         />
       )}
+      {projectBar !== null && selectedWorks.length > 0 && store !== null && (
+        <ContextMenu
+          anchor={projectBar}
+          label={t('projects.projectButton')}
+          items={projectEntries({
+            store,
+            projects: projectList,
+            works: selectedWorks,
+            notify: notifyProject,
+            onNew: () => {
+              setNewProjectFor(selectedWorks);
+            },
+            after: load,
+          })}
+          onClose={() => {
+            setProjectBar(null);
+          }}
+        />
+      )}
+      {newProjectFor !== null && (
+        <NewProjectDialog
+          onCancel={() => {
+            setNewProjectFor(null);
+          }}
+          onCreate={(name, color) => {
+            void createProjectWith(newProjectFor, name, color);
+          }}
+        />
+      )}
+      {projectMenu.node}
       {confirm?.kind === 'delete' && (
         <DeleteDialog
           works={confirm.works}
@@ -1273,8 +1569,14 @@ function WorkCard({
   onRenameCancel,
   imageUrl,
   onNeedsFrame,
+  dots,
+  dragWorks,
 }: {
   work: WorkListItem;
+  /** The work's other projects as colour dots (QC-062). */
+  dots?: ReactNode;
+  /** What dragging this card onto a sidebar project adds; undefined: not draggable. */
+  dragWorks?: readonly WorkListItem[] | undefined;
   selected: boolean;
   /** The right-click menu is open for it. */
   menuTarget: boolean;
@@ -1310,6 +1612,7 @@ function WorkCard({
         </span>
       )}
       <span className="wcard__when">{formatWhen(work.updated_at)}</span>
+      {dots}
     </span>
   );
   const tooltip = [work.title, source?.file ?? source?.label ?? sourceLabel(work)].join('\n');
@@ -1336,8 +1639,10 @@ function WorkCard({
     );
   }
   return (
-    <button
-      type="button"
+    <DragWorksButton
+      dragId={work.id}
+      works={dragWorks ?? []}
+      disabled={dragWorks === undefined}
       className={className}
       data-work-id={work.id}
       title={tooltip}
@@ -1366,7 +1671,7 @@ function WorkCard({
           <Icon name="check" size={12} />
         </span>
       )}
-    </button>
+    </DragWorksButton>
   );
 }
 

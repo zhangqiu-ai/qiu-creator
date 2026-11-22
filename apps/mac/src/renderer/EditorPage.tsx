@@ -30,6 +30,7 @@ import { useToast } from './toasts.js';
 import { WorkMediaResolver } from './media.js';
 import { externalSource, useMounts } from './mounts.js';
 import { TagEditor } from './TagEditor.js';
+import { ProjectTags } from './ProjectTags.js';
 import type { TabPanel, TabStatusPatch, TabView } from './tabs.js';
 import {
   WorkSession,
@@ -834,6 +835,12 @@ function SessionEditor({
             onChange={(tags) => {
               session.edit({ tags });
             }}
+          />
+          <ProjectTags
+            client={client}
+            workId={work.id}
+            title={state.draft.title}
+            initial={work.project_ids}
           />
         </div>
 

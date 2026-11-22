@@ -10,6 +10,7 @@ import { imagePost } from './imagePost.js';
 import { library } from './library.js';
 import { main } from './main.js';
 import { modelPicker } from './modelPicker.js';
+import { projects } from './projects.js';
 import { serviceSettings } from './serviceSettings.js';
 import { settings } from './settings.js';
 import { settingsPages } from './settingsPages.js';
@@ -41,6 +42,7 @@ export const catalog = {
   modelPicker,
   aiServices,
   settingsPages,
+  projects,
 } as const;
 
 type Areas = typeof catalog;

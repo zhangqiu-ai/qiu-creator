@@ -75,6 +75,11 @@ export interface CreatorHubBridge {
   /** HTTP request to the Mac service, sent by the main process (no CORS needed on the service). */
   request: (req: ProxyRequest) => Promise<ProxyResponse>;
   appInfo: () => Promise<AppInfo>;
+  /**
+   * 'off' while e2e runs or with CREATORHUB_MOTION=off (DESIGN.md 動效 · 測試模式):
+   * no transitions, animations, drop animations or toast timers.
+   */
+  motionMode: () => Promise<'off' | 'auto'>;
 
   /** Change events from the service's SSE feed. Returns an unsubscribe function. */
   onEvent: (listener: (event: ChangeEvent) => void) => () => void;
@@ -169,6 +174,7 @@ export const IPC = {
   getConnection: 'creatorhub:get-connection',
   request: 'creatorhub:request',
   appInfo: 'creatorhub:app-info',
+  motionMode: 'creatorhub:motion-mode',
   event: 'creatorhub:event',
   eventStatus: 'creatorhub:event-status',
   getEventStatus: 'creatorhub:get-event-status',

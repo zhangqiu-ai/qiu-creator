@@ -41,6 +41,7 @@ import { AssetDrawer } from './InsertUI.js';
 import { diffSentences } from './rewrite-diff.js';
 import type { TabPanel, TabStatusPatch, TabView } from './tabs.js';
 import { TagEditor } from './TagEditor.js';
+import { ProjectTags } from './ProjectTags.js';
 import { TechnicalDetails } from './TechnicalDetails.js';
 import { useToast } from './toasts.js';
 import { uploadBlob, uploadFile } from './upload-wait.js';
@@ -646,6 +647,12 @@ function VideoEditor({
             onChange={(tags) => {
               session.edit({ tags });
             }}
+          />
+          <ProjectTags
+            client={client}
+            workId={work.id}
+            title={draft.title}
+            initial={work.project_ids}
           />
           <span className="vw__chips">
             {videoTagCounts(draft.tags).map((c) => (
