@@ -1,9 +1,12 @@
+import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { ApiError, createClient } from '@qiu-creator/api-client';
-import type { AiProvider } from '@qiu-creator/contracts';
+import { AI_TEST_TIMEOUT_MS, type AiProvider } from '@qiu-creator/contracts';
 import { afterEach, describe, expect, it } from 'vitest';
-import { startTestServer, type StartOptions, type TestServer } from './helpers.js';
+import { MemorySecretStore } from '../src/ai/secret-store.js';
+import { effectiveTimeout } from '../src/ai/providers/relay-models.js';
+import { makeTempHome, startTestServer, type StartOptions, type TestServer } from './helpers.js';
 
 /**
  * QC-057: 測試連線. Every provider is a local fake HTTP server; no real
@@ -259,7 +262,7 @@ describe('測試連線 (QC-057)', () => {
         provider: 'anthropic',
         reply: { status: 429, body: { type: 'error', error: { type: 'rate_limit_error' } } },
         code: 'ai_gateway_unreachable',
-        details: { reason: 'unavailable', status: 429 },
+        details: { reason: 'rate_limited', status: 429 },
       },
       {
         provider: 'anthropic',
@@ -332,5 +335,100 @@ describe('測試連線 (QC-057)', () => {
     const asAgent = createClient({ baseUrl: s.baseUrl, token: agent.secret });
     expect((await apiError(asAgent.ai.testProvider('openai'))).status).toBe(403);
     expect(fake.seen).toHaveLength(0);
+  });
+});
+
+describe('last_test (QC-057)', () => {
+  it('is kept across restarts, never holds key material, and is cleared when the key changes', async () => {
+    const fake = new FakeProviders();
+    await fake.start();
+    fakes.push(fake);
+    const home = makeTempHome();
+    const secrets = new MemorySecretStore();
+    let now = new Date('2026-11-21T12:00:00.000Z');
+    const boot = async (): Promise<TestServer> => {
+      const s = await startTestServer({
+        home,
+        ai: {
+          baseUrls: fake.baseUrls(),
+          timeoutMs: 2000,
+          start: false,
+          secrets,
+          now: () => now,
+        },
+      });
+      servers.push(s);
+      return s;
+    };
+    try {
+      const s1 = await boot();
+      await storeKeys(s1);
+      const statusOf = async (s: TestServer, p: AiProvider) =>
+        (await s.client.ai.providers()).items.find((i) => i.provider === p);
+      expect((await statusOf(s1, 'openai'))?.last_test).toBeNull();
+
+      now = new Date('2026-11-21T12:01:00.000Z');
+      const okResult = await s1.client.ai.testProvider('openai');
+      fake.replies.anthropic = { status: 401, body: { error: { type: 'authentication_error' } } };
+      await s1.client.ai.testProvider('anthropic');
+      fake.replies['new-api'] = { status: 429, body: { error: { code: 'rate_limit_exceeded' } } };
+      await s1.client.ai.testProvider('new-api');
+
+      await s1.close();
+      servers.splice(servers.indexOf(s1), 1);
+      const s2 = await boot();
+      expect((await statusOf(s2, 'openai'))?.last_test).toEqual({
+        status: 'ok',
+        at: '2026-11-21T12:01:00.000Z',
+        latency_ms: okResult.latency_ms,
+        model_count: 3,
+        error_code: null,
+        reason: null,
+      });
+      expect((await statusOf(s2, 'anthropic'))?.last_test).toMatchObject({
+        status: 'failed',
+        model_count: null,
+        error_code: 'ai_key_invalid',
+        reason: null,
+      });
+      expect((await statusOf(s2, 'new-api'))?.last_test).toMatchObject({
+        status: 'failed',
+        error_code: 'ai_gateway_unreachable',
+        reason: 'rate_limited',
+      });
+      expect((await statusOf(s2, 'gemini'))?.last_test).toBeNull();
+      // Base URL comes back from the Keychain credential after the restart.
+      expect(await statusOf(s2, 'new-api')).toMatchObject({
+        base_url: 'https://relay.example.test/v1',
+        base_url_host: 'relay.example.test',
+      });
+
+      const stored = JSON.stringify(s2.db.prepare('SELECT * FROM app_settings').all());
+      for (const key of Object.values(KEYS)) expect(stored).not.toContain(key);
+
+      // A new key, a new Base URL or deleting the key: the old result no longer applies.
+      now = new Date('2026-11-21T12:05:00.000Z');
+      await s2.client.ai.setKey('openai', 'sk-proj-another-key-987654321');
+      await s2.client.ai.setKey('new-api', KEYS['new-api'], 'https://other.example.test/v1');
+      await s2.client.ai.deleteKey('anthropic');
+      for (const p of ['openai', 'new-api', 'anthropic'] as const) {
+        expect((await statusOf(s2, p))?.last_test).toBeNull();
+      }
+      expect(await statusOf(s2, 'new-api')).toMatchObject({
+        base_url: 'https://other.example.test/v1',
+        base_url_host: 'other.example.test',
+      });
+      await s2.client.ai.deleteKey('new-api');
+      expect(await statusOf(s2, 'new-api')).toMatchObject({ base_url: null, base_url_host: null });
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it('caps the test at 10 seconds even when the adapter allows longer', () => {
+    expect(AI_TEST_TIMEOUT_MS).toBe(10_000);
+    expect(effectiveTimeout(120_000, AI_TEST_TIMEOUT_MS)).toBe(10_000);
+    expect(effectiveTimeout(2_000, AI_TEST_TIMEOUT_MS)).toBe(2_000);
+    expect(effectiveTimeout(120_000, undefined)).toBe(120_000);
   });
 });

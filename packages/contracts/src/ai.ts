@@ -120,6 +120,26 @@ export const AiModelPriceSchema = z.object({
 
 // ---- Provider status, keys, consent ------------------------------------------------
 
+/**
+ * The last 測試連線 of a provider (QC-057), kept across restarts so the list
+ * can say 「連線正常 · 2 分鐘前」. Never holds key material. Cleared when the
+ * key (or the New API Base URL) changes, because it no longer describes it.
+ */
+export const AiLastTestSchema = z.object({
+  status: z.enum(['ok', 'failed']),
+  at: TimestampSchema,
+  latency_ms: z.number().int().nonnegative(),
+  /** Null when the test failed. */
+  model_count: z.number().int().nonnegative().nullable(),
+  /** When failed: `ai_key_invalid`, `ai_gateway_unreachable` or `ai_gateway_bad_response`. */
+  error_code: z
+    .enum(['ai_key_invalid', 'ai_gateway_unreachable', 'ai_gateway_bad_response'])
+    .nullable(),
+  /** When failed: `details.reason` of the error (e.g. `quota`, `rate_limited`, `timeout`), or null. */
+  reason: z.string().nullable(),
+});
+export type AiLastTest = z.infer<typeof AiLastTestSchema>;
+
 export const AiProviderStatusSchema = z.object({
   provider: AiProviderSchema,
   name: z.string(),
@@ -145,6 +165,15 @@ export const AiProviderStatusSchema = z.object({
   consent: z.object({ version: z.number().int().positive(), at: TimestampSchema }).nullable(),
   /** Key and current consent present: jobs can be submitted. */
   ready: z.boolean(),
+  /** Result of the last 測試連線, or null if never tested with the current key (QC-057). */
+  last_test: AiLastTestSchema.nullable().optional(),
+  /**
+   * New API only (QC-057): the stored Base URL, which is not a secret, and its
+   * host name for the privacy page (where content is sent). Null without a
+   * credential; absent for other providers.
+   */
+  base_url: z.string().nullable().optional(),
+  base_url_host: z.string().nullable().optional(),
 });
 export type AiProviderStatus = z.infer<typeof AiProviderStatusSchema>;
 
@@ -485,6 +514,11 @@ export const AiUsageResponseSchema = z.object({
       input_tokens: z.number().int().nonnegative(),
       output_tokens: z.number().int().nonnegative(),
       cost_usd: z.number().nonnegative(),
+      /**
+       * Finished jobs with usage but no price (e.g. New API models without a
+       * price override, QC-057): their cost is not in `cost_usd`; show 無法預估.
+       */
+      unpriced_jobs: z.number().int().nonnegative(),
     }),
   ),
   budget: AiBudgetStatusSchema,
@@ -516,3 +550,25 @@ export function estimateTokens(text: string): number {
 export function costUsd(price: AiModelPrice, input: number, output: number): number {
   return (input * price.input_per_mtok + output * price.output_per_mtok) / 1_000_000;
 }
+
+// ---- Defaults per task (QC-057) -----------------------------------------------------
+
+/**
+ * Which provider each task uses by default, set on the 用途 page (QC-057).
+ * Null = not set: the app keeps choosing as before (the first ready provider).
+ * Provider ids only; models stay per provider. Video understanding is Gemini only.
+ */
+export const AiDefaultsSchema = z.object({
+  rewrite: AiProviderSchema.nullable(),
+  title: AiProviderSchema.nullable(),
+  video: z.literal('gemini').nullable(),
+});
+export type AiDefaults = z.infer<typeof AiDefaultsSchema>;
+
+/** `PUT /api/v1/ai/defaults` replaces all three; an omitted field is cleared to null. */
+export const PutAiDefaultsRequestSchema = z.object({
+  rewrite: AiProviderSchema.nullable().optional(),
+  title: AiProviderSchema.nullable().optional(),
+  video: z.literal('gemini').nullable().optional(),
+});
+export type PutAiDefaultsRequest = z.input<typeof PutAiDefaultsRequestSchema>;

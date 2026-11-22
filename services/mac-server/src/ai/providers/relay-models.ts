@@ -53,7 +53,7 @@ export async function fetchModelList(req: ModelListRequest): Promise<string[]> {
     // (OpenAI `insufficient_quota`, Gemini `RESOURCE_EXHAUSTED`…). Only a
     // match is kept; the body itself goes nowhere.
     const quota = res.status === 402 || (await bodyMentionsQuota(res));
-    throw unreachable(quota ? 'quota' : 'unavailable', undefined, res.status);
+    throw unreachable(quota ? 'quota' : 'rate_limited', undefined, res.status);
   }
   if (res.status >= 500) {
     await discard(res);
@@ -129,6 +129,11 @@ async function bodyMentionsQuota(res: Response): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** The shorter of the adapter's timeout and a per-call limit (QC-057 test: 10 s). */
+export function effectiveTimeout(adapterMs: number, callMs: number | undefined): number {
+  return callMs === undefined ? adapterMs : Math.min(adapterMs, callMs);
 }
 
 /** Network failure → reason. Exported for tests (DNS and TLS cannot be faked locally). */

@@ -5,6 +5,13 @@ import {
   classifyModelKind,
   type AiProviderModelsResponse,
   type AiProviderTestResponse,
+  AI_TEST_TIMEOUT_MS,
+  AiDefaultsSchema,
+  AiLastTestSchema,
+  PutAiDefaultsRequestSchema,
+  type AiDefaults,
+  type AiLastTest,
+  type PutAiDefaultsRequest,
   AI_NOTICE_VERSION,
   AI_PRICE_TABLE,
   AI_PRICES_AS_OF,
@@ -150,10 +157,23 @@ export type AiTaskFinalizer = (
 ) => { text: string; json?: unknown };
 
 const SETTINGS_KEY = 'ai';
+/** Last 測試連線 per provider, `{ [provider]: AiLastTest }` (QC-057). No key material. */
+const LAST_TEST_KEY = 'ai_last_test';
+/** Default provider per task (QC-057). */
+const DEFAULTS_KEY = 'ai_defaults';
 const NewApiCredentialSchema = SetAiKeyRequestSchema.required().extend({ id: IdSchema });
 
 function localMonth(date: Date): string {
   return `${String(date.getFullYear())}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** JSON or null; never throws (settings written by older builds, damaged values). */
+function safeJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return null;
+  }
 }
 
 function parseJson(raw: string | null): unknown {
@@ -181,6 +201,12 @@ export class AiService {
   /** Last New API model list, per credential (QC-054). Ids only; `priced` is computed per read. */
   private modelCache: { credentialId: string; fetchedAt: Date; ids: string[] } | undefined;
   private modelFetch: { credentialId: string; promise: Promise<string[]> } | undefined;
+  /**
+   * The New API Base URL (not a secret) for provider status (QC-057). It lives
+   * in the Keychain credential, so it is read once (`loadNewApiBaseUrl`) and
+   * kept in step on every credential change. `undefined` = not read yet.
+   */
+  private newApiBaseUrl: string | null | undefined;
   private active = 0;
   private readonly inflight = new Set<Promise<void>>();
   private readonly finalizers = new Map<AiTask['type'], AiTaskFinalizer>();
@@ -230,7 +256,28 @@ export class AiService {
           ? { version: row.consent_version, at: row.consent_at }
           : null,
       ready: keyConfigured && consentValid,
+      last_test: this.lastTests()[provider] ?? null,
+      ...(provider === 'new-api'
+        ? {
+            base_url: this.newApiBaseUrl ?? null,
+            base_url_host:
+              this.newApiBaseUrl == null ? null : (URL.parse(this.newApiBaseUrl)?.hostname ?? null),
+          }
+        : {}),
     };
+  }
+
+  /** Read the New API Base URL from the Keychain once, for provider status (QC-057). */
+  async loadNewApiBaseUrl(): Promise<void> {
+    if (this.newApiBaseUrl !== undefined) return;
+    let saved: string | null;
+    try {
+      saved = await this.secrets.get('new-api');
+    } catch {
+      return; // try again on the next request
+    }
+    const credential = NewApiCredentialSchema.safeParse(saved === null ? null : safeJson(saved));
+    this.newApiBaseUrl = credential.success ? credential.data.base_url : null;
   }
 
   /**
@@ -240,7 +287,11 @@ export class AiService {
    * list is reused for `AI_MODELS_CACHE_SECONDS` for the same credential, and
    * concurrent requests share one call. No consent is needed: no content is sent.
    */
-  async listModels(provider: AiProvider, refresh = false): Promise<AiProviderModelsResponse> {
+  async listModels(
+    provider: AiProvider,
+    refresh = false,
+    timeoutMs?: number,
+  ): Promise<AiProviderModelsResponse> {
     if (provider !== 'new-api') {
       throw new ServiceError(400, 'validation_error', 'model lists are only available for New API');
     }
@@ -263,7 +314,7 @@ export class AiService {
     }
     let running = this.modelFetch;
     if (running?.credentialId !== credentialId) {
-      const promise = adapter.listModels(apiKey, baseUrl);
+      const promise = adapter.listModels(apiKey, baseUrl, timeoutMs);
       running = { credentialId, promise };
       this.modelFetch = running;
       void promise
@@ -297,7 +348,8 @@ export class AiService {
     const listModels = adapter.listModels.bind(adapter);
     let probe: () => Promise<string[]>;
     if (provider === 'new-api') {
-      probe = async () => (await this.listModels('new-api', true)).models.map((m) => m.id);
+      probe = async () =>
+        (await this.listModels('new-api', true, AI_TEST_TIMEOUT_MS)).models.map((m) => m.id);
     } else {
       const apiKey = status.key_configured ? await this.secrets.get(provider) : null;
       if (apiKey === null || apiKey === '') {
@@ -305,13 +357,13 @@ export class AiService {
           provider,
         });
       }
-      probe = () => listModels(apiKey);
+      probe = () => listModels(apiKey, undefined, AI_TEST_TIMEOUT_MS);
     }
     const started = performance.now();
     const elapsed = (): number => Math.max(0, Math.round(performance.now() - started));
     try {
       const ids = await probe();
-      return {
+      return this.recordTest({
         provider,
         ok: true,
         latency_ms: elapsed(),
@@ -319,7 +371,7 @@ export class AiService {
         text_model_listed: ids.includes(status.text_model),
         error: null,
         tested_at: this.now().toISOString(),
-      };
+      });
     } catch (err) {
       if (
         !(err instanceof ServiceError) ||
@@ -329,7 +381,7 @@ export class AiService {
       ) {
         throw err;
       }
-      return {
+      return this.recordTest({
         provider,
         ok: false,
         latency_ms: elapsed(),
@@ -341,8 +393,86 @@ export class AiService {
           ...(err.details === undefined ? {} : { details: err.details }),
         },
         tested_at: this.now().toISOString(),
-      };
+      });
     }
+  }
+
+  /** Keep the result as the provider's `last_test` (QC-057), unless the key changed meanwhile. */
+  private recordTest(result: AiProviderTestResponse): AiProviderTestResponse {
+    const keySetAt = this.providerRow(result.provider)?.key_set_at ?? null;
+    if (keySetAt === null || keySetAt > result.tested_at) return result;
+    const reason = result.error?.details?.['reason'];
+    const entry: AiLastTest = {
+      status: result.ok ? 'ok' : 'failed',
+      at: result.tested_at,
+      latency_ms: result.latency_ms,
+      model_count: result.model_count,
+      error_code: result.error?.code ?? null,
+      reason: typeof reason === 'string' ? reason : null,
+    };
+    this.writeSetting(LAST_TEST_KEY, { ...this.lastTests(), [result.provider]: entry });
+    return result;
+  }
+
+  private lastTests(): Partial<Record<AiProvider, AiLastTest>> {
+    const stored = this.readSetting(LAST_TEST_KEY);
+    const out: Partial<Record<AiProvider, AiLastTest>> = {};
+    if (stored === null || typeof stored !== 'object') return out;
+    for (const provider of AiProviderSchema.options) {
+      const entry = AiLastTestSchema.safeParse((stored as Record<string, unknown>)[provider]);
+      if (entry.success) out[provider] = entry.data;
+    }
+    return out;
+  }
+
+  private clearLastTest(provider: AiProvider): void {
+    const tests = this.lastTests();
+    if (tests[provider] === undefined) return;
+    this.writeSetting(
+      LAST_TEST_KEY,
+      Object.fromEntries(Object.entries(tests).filter(([p]) => p !== provider)),
+    );
+  }
+
+  // ---- Defaults per task (QC-057) ------------------------------------------------
+
+  /** Which provider each task uses by default; null fields keep the app's own choice. */
+  defaults(): AiDefaults {
+    const stored = this.readSetting(DEFAULTS_KEY);
+    const parsed = AiDefaultsSchema.safeParse({
+      rewrite: null,
+      title: null,
+      video: null,
+      ...(stored !== null && typeof stored === 'object' ? stored : {}),
+    });
+    return parsed.success ? parsed.data : { rewrite: null, title: null, video: null };
+  }
+
+  putDefaults(request: PutAiDefaultsRequest): AiDefaults {
+    const body = PutAiDefaultsRequestSchema.parse(request);
+    const next: AiDefaults = {
+      rewrite: body.rewrite ?? null,
+      title: body.title ?? null,
+      video: body.video ?? null,
+    };
+    this.writeSetting(DEFAULTS_KEY, next);
+    return this.defaults();
+  }
+
+  private readSetting(key: string): unknown {
+    const row = this.db
+      .prepare<[string], { value: string }>('SELECT value FROM app_settings WHERE key = ?')
+      .get(key);
+    return row === undefined ? null : safeJson(row.value);
+  }
+
+  private writeSetting(key: string, value: unknown): void {
+    this.db
+      .prepare(
+        `INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      )
+      .run(key, JSON.stringify(value), this.now().toISOString());
   }
 
   private modelsResponse(ids: string[], fetchedAt: Date): AiProviderModelsResponse {
@@ -369,6 +499,7 @@ export class AiService {
     }
     await this.secrets.set(provider, apiKey);
     this.upsertProvider(provider, { key_set_at: this.now().toISOString() });
+    this.clearLastTest(provider);
     return this.providerStatus(provider);
   }
 
@@ -376,6 +507,7 @@ export class AiService {
     if (provider === 'new-api') return this.changeNewApiCredential(null);
     await this.secrets.delete(provider);
     this.upsertProvider(provider, { key_set_at: null });
+    this.clearLastTest(provider);
     return this.providerStatus(provider);
   }
 
@@ -407,6 +539,8 @@ export class AiService {
         consent_version: null,
         consent_at: null,
       });
+      this.newApiBaseUrl = credential?.base_url ?? null;
+      this.clearLastTest('new-api');
       return this.providerStatus('new-api');
     } finally {
       this.changingNewApiCredential = false;
@@ -550,11 +684,23 @@ export class AiService {
       .all(month);
     const by = new Map<
       AiProvider,
-      { jobs: number; input_tokens: number; output_tokens: number; cost_usd: number }
+      {
+        jobs: number;
+        input_tokens: number;
+        output_tokens: number;
+        cost_usd: number;
+        unpriced_jobs: number;
+      }
     >();
     for (const row of rows) {
       const provider = AiProviderSchema.parse(row.provider);
-      const entry = by.get(provider) ?? { jobs: 0, input_tokens: 0, output_tokens: 0, cost_usd: 0 };
+      const entry = by.get(provider) ?? {
+        jobs: 0,
+        input_tokens: 0,
+        output_tokens: 0,
+        cost_usd: 0,
+        unpriced_jobs: 0,
+      };
       const usage = parseJson(row.usage) as {
         input_tokens?: number;
         output_tokens?: number;
@@ -563,6 +709,8 @@ export class AiService {
       entry.input_tokens += usage?.input_tokens ?? 0;
       entry.output_tokens += usage?.output_tokens ?? 0;
       entry.cost_usd += row.cost ?? 0;
+      // Usage recorded but no price to turn it into a cost (QC-057).
+      if (row.cost === null && usage !== null) entry.unpriced_jobs += 1;
       by.set(provider, entry);
     }
     return {

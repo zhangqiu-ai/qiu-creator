@@ -253,18 +253,19 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/mounts`、`/api/v1/mounts/:id` | 掛載列表與狀態、作品數 |
 | POST | `/api/v1/mounts/:id/rescan` | 重新掃描（新增、變更、遺失） |
 | DELETE | `/api/v1/mounts/:id` | 卸載；檔案不動，作品與歷史保留並標成 `unmounted` |
-| GET | `/api/v1/ai/providers` | 供應商的金鑰狀態、模型、首次使用告知、確認狀態與 `ready` |
+| GET | `/api/v1/ai/providers` | 供應商的金鑰狀態、模型、首次使用告知、確認狀態與 `ready`；`last_test`（上次測試連線）；New API 另有 `base_url`、`base_url_host`（QC-057） |
 | PATCH | `/api/v1/ai/providers/:provider` | 設定文字模型（Gemini 另可設視頻模型） |
 | POST | `/api/v1/ai/providers/:provider/test` | 測試連線：用 Keychain 的金鑰呼叫一次供應商的列模型端點（不送內容、不計費），回 `ok`、`latency_ms`、`model_count`、`text_model_listed`、`error`（QC-057） |
 | GET | `/api/v1/ai/providers/new-api/models` | 用 Keychain 的金鑰向中轉站查可用模型，回 `models[{id, kind, priced}]` 與 `fetched_at`；快取 10 分鐘，`refresh=1` 重新查（QC-054） |
 | PUT／DELETE | `/api/v1/ai/providers/:provider/key` | 存入／刪除 Keychain 憑證；New API 的 PUT 同時接收 `base_url` 與 `api_key`，兩欄都是唯寫 |
 | POST／DELETE | `/api/v1/ai/providers/:provider/consent` | 確認／撤回使用告知；POST 須傳目前的 `notice_version`，New API 另須傳 `notice.credential_id` |
 | GET／PATCH | `/api/v1/ai/settings` | 月度提醒金額、價格覆寫 |
+| GET／PUT | `/api/v1/ai/defaults` | 各任務的預設供應商 `{ rewrite, title, video }`，只存供應商 id，`video` 只能是 `gemini`；null 表示沿用 App 目前的選擇方式（QC-057） |
 | POST | `/api/v1/ai/estimate` | 送出前的費用估算與本月累計，不送出任何內容 |
 | POST | `/api/v1/ai/jobs` | 建立 AI 任務（202），回估算與預算提醒；缺金鑰或未確認告知回 409；支援 `Idempotency-Key` |
 | GET | `/api/v1/ai/jobs`、`/api/v1/ai/jobs/:id` | AI 任務列表與詳情（結果、用量、估算成本、失敗原因） |
 | POST | `/api/v1/ai/jobs/:id/cancel`、`/retry` | 取消排隊或進行中的任務（中止供應商請求）；重跑失敗或已取消的任務 |
-| GET | `/api/v1/ai/usage?month=YYYY-MM` | 各供應商的 token 與估算費用、本月提醒狀態 |
+| GET | `/api/v1/ai/usage?month=YYYY-MM` | 各供應商的 token 與估算費用、本月提醒狀態；`unpriced_jobs` 是有用量但沒有價格的任務數，費用不在 `cost_usd` 裡（QC-057） |
 | POST | `/api/v1/works/:id/ai/suggestions` | 四平台標題／簡介／標籤候選（202，AI 任務）；不寫入任何東西；相同請求進行中回原任務（`in_progress: true`），支援 `Idempotency-Key` |
 | POST | `/api/v1/works/:id/ai/rewrite` | 改寫候選：潤色、縮寫、擴寫、語氣、自訂指令；全文或選取範圍（202，AI 任務）；相同請求進行中回原任務（`in_progress: true`），支援 `Idempotency-Key` |
 | POST | `/api/v1/assets/:id/ai/video-understanding/estimate` | 視頻送出前的上限檢查與費用估算，並告知有無可沿用的舊結果；不送出 |
@@ -548,7 +549,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 - **錯誤**：都附 `details`，三語文案在 App。
   - 沒有憑證：409 `ai_key_missing`。
   - 401／403：502 `ai_key_invalid`，附 `status`。
-  - 連不上：502 `ai_gateway_unreachable`，`reason` 是 `timeout`／`dns`／`tls`／`connection`，`unavailable`（429／5xx，附 `status`），或 `quota`（402，或錯誤內容提到額度、帳單、餘額的 429，附 `status`；QC-057）。可能附 `detail`：Node 的錯誤碼，例如 `ECONNREFUSED`。
+  - 連不上：502 `ai_gateway_unreachable`，`reason` 是 `timeout`／`dns`／`tls`／`connection`，`unavailable`（5xx，附 `status`），`quota`（402，或錯誤內容提到額度、帳單、餘額的 429，例如 `insufficient_quota`、`RESOURCE_EXHAUSTED`），或 `rate_limited`（其他 429，稍後再試）；後兩者附 `status`（QC-057）。可能附 `detail`：Node 的錯誤碼，例如 `ECONNREFUSED`。
   - 回應不是模型清單：502 `ai_gateway_bad_response`，`reason` 是 `not_json`／`missing_data`／`too_large`／`redirect`，或 `unexpected_status`（例如 Base URL 路徑錯了的 404，附 `status`）。
   - 其他供應商：400。Gemini／Claude／GPT 是否也改成線上查詢不在範圍內。
 
@@ -560,14 +561,21 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
   - Claude：`GET /v1/models?limit=1000`，`x-api-key` 加 `anthropic-version: 2023-06-01`。
   - GPT：`GET /v1/models`，`Authorization: Bearer`。
   - New API：走模型清單的流程（`GET {base_url}/models`），順便更新模型清單的快取。
-  - 規則與模型清單相同：不跟隨重新導向、最多 2 MiB、逾時沿用轉接器的 `timeoutMs`；金鑰只放在標頭，不進回應、錯誤與日誌。
+  - 規則與模型清單相同：不跟隨重新導向、最多 2 MiB；逾時 10 秒（`AI_TEST_TIMEOUT_MS`，轉接器的 `timeoutMs` 更短時用它）；金鑰只放在標頭，不進回應、錯誤與日誌。
 - **回應**：探測本身失敗也回 200，帶 `ok: false` 和 `error`（形狀同錯誤回應的 `error`，錯誤碼同模型清單：`ai_key_invalid`、`ai_gateway_unreachable`、`ai_gateway_bad_response`），方便畫面直接顯示結果與延遲。
   - `latency_ms`：到收到完整回應或失敗為止的毫秒數。
   - `model_count`：可用模型數。
   - `text_model_listed`：目前設定的文字模型在不在清單裡，只是提示；有些中轉站列出的模型比實際能用的少。
   - 沒有金鑰：409 `ai_key_missing`。
 - **限制**：列模型不消耗額度，所以額度用完時探測多半仍會成功；只有供應商在這個端點就回 402，或回提到額度、帳單、餘額的 429，才會顯示 `quota`。真正的額度問題會在實際任務失敗時出現（`rate_limited` 等）。
-- **不保存結果**：伺服器不記錄上次測試的結果，畫面上要顯示「上次測試」的話，由 App 保留 `tested_at`。
+- **上次測試（`last_test`）**：每次測試的結果存在 `app_settings` 的 `ai_last_test`（`status`、`at`、`latency_ms`、`model_count`、`error_code`、`reason`，不含金鑰），並放進供應商狀態，重開後清單仍能顯示「連線正常 · 2 分鐘前」。換金鑰、換 New API Base URL 或刪除金鑰時清掉，因為舊結果已不代表新設定；測試進行中換了金鑰，那次的結果不保存。
+
+### AI 設定的其他欄位（QC-057）
+
+- **New API Base URL**：Base URL 不是秘密。供應商狀態回傳完整的 `base_url` 和主機名 `base_url_host`（給隱私頁說明內容送往哪裡），金鑰仍然不回傳。Base URL 仍與金鑰一起存在 Keychain，SQLite 沒有存；伺服器在第一個 `/api/v1/ai/providers…` 請求前讀一次 Keychain，之後隨每次憑證變更更新記憶體中的值。
+- **各任務的預設供應商**：`GET／PUT /api/v1/ai/defaults`，存在 `app_settings` 的 `ai_defaults`。只存供應商 id，不存模型；`video` 只能是 `gemini`。PUT 會整份取代，省略的欄位變成 null；null 表示沿用 App 目前的選擇方式（第一個 `ready` 的供應商）。伺服器本身不依它挑選供應商，建立任務時仍由 App 指定。
+- **未定價的任務**：用量 `by_provider[].unpriced_jobs` 是有用量但沒有價格的任務數（例如沒有設定價格覆寫的 New API 模型）。它們的費用不在 `cost_usd` 裡，App 顯示「無法預估」。
+- **儲存相容性**：以上都存在既有的 `app_settings`，各用一個 key，不需要遷移。舊版不認得這些 key，會直接略過；值損壞時當作沒設定。已存的金鑰、模型和價格設定都不變。
 
 ## 文字 AI：平台候選與改寫（QC-022）
 

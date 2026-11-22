@@ -8,7 +8,7 @@ import {
   type AiTextResult,
 } from '../provider.js';
 import type { AdapterOptions } from './anthropic.js';
-import { fetchModelList } from './relay-models.js';
+import { effectiveTimeout, fetchModelList } from './relay-models.js';
 
 /** Finish reasons that mean the content was blocked rather than completed. */
 const BLOCKED_FINISH = new Set([
@@ -28,7 +28,7 @@ export class GeminiProvider implements AIProvider {
   constructor(private readonly options: AdapterOptions) {}
 
   /** `GET /v1beta/models` (QC-057 connection test); free, sends no content. Ids drop `models/`. */
-  listModels(apiKey: string): Promise<string[]> {
+  listModels(apiKey: string, _baseUrl?: string, timeoutMs?: number): Promise<string[]> {
     const origin = (this.options.baseUrl ?? 'https://generativelanguage.googleapis.com').replace(
       /\/+$/,
       '',
@@ -36,7 +36,7 @@ export class GeminiProvider implements AIProvider {
     return fetchModelList({
       url: `${origin}/v1beta/models?pageSize=1000`,
       headers: { 'x-goog-api-key': apiKey },
-      timeoutMs: this.options.timeoutMs,
+      timeoutMs: effectiveTimeout(this.options.timeoutMs, timeoutMs),
       listKey: 'models',
       idKey: 'name',
     });
