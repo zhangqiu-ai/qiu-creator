@@ -2,6 +2,7 @@
 
 **Priority:** P1 | **Assignee:** qc-frontend（主）＋ qc-prototype（動效規格） | **Tags:** M3, frontend, prototype
 
+使用者 2026-11-21 授權：完成驗收後直接發版安裝（「做完直接發版」）。
 使用者 2026-11-21：「我先發現此項目很少用到動效來提升UI、UX質量，現在你要全面的引入動效設計，Framer Motion、dnd-kit 這是兩個動效庫，來大幅提升產品的優雅和舒適性。」
 
 **步驟一：動效規格（寫進 DESIGN.md「動效」一節，總監核准）**
