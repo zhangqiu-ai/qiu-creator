@@ -1,5 +1,11 @@
 # Done
 
+## QC-081: new-api.spec、settings-v4.spec 偶發失敗（發版前要清掉）
+
+**Priority:** P1 | **Assignee:** qc-test | **Tags:** M3 | **Done:** 2026-11-22
+
+- 皆為測試端競態：假服務的模型清單忽略 delayMs；「AI 服務」按鈕的無障礙名稱在狀態點出現後改變。修正後兩支各 20／20（兩種模式），未修改的 main 在負載下 14／20、3／20 失敗。
+
 ## QC-076: 平台預覽併入作品編輯頁；編輯區 AI 只留改寫與圖片，標題與封面移到平台預覽
 
 **Priority:** P1 | **Assignee:** qc-prototype → qc-backend ＋ qc-frontend | **Tags:** M3, prototype, frontend | **Done:** 2026-11-22

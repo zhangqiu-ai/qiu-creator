@@ -4,14 +4,6 @@
 
 QC-075 前端回報：New API 中轉站的模型清單讀取失敗時，`/ai/models` 不列出 New API，模型選單就選不到它，使用者被卡住。改為：清單失敗時仍列出已設定的 New API 文字／圖片模型（標示「清單讀取失敗，使用已存模型」），並帶錯誤原因供前端顯示；有快取就用快取。補測試。併入 QC-074–079 同一版。
 
-## QC-081: new-api.spec、settings-v4.spec 偶發失敗（發版前要清掉）
-
-**Priority:** P1 | **Assignee:** qc-test | **Tags:** M3
-
-QC-077、QC-078 的整套 e2e（動效關閉）各出現一次 `new-api.spec.ts` 等 30 秒找不到設定頁「AI 服務」按鈕，單跑 6 次全過、整套重跑 0 failed。查根因（測試時序或產品），不准加長逾時或重試。
-
-- 2026-11-22 補充：qc-frontend 在未改動的 origin/main 上量到 `settings-v4.spec` 偶發失敗 5／20（機器較忙時）。這兩支要在 QC-074–079 發版前查清根因並修好；產品問題回報總監轉派，測試問題直接修，不准加逾時或重試。
-
 ## QC-033: Mac 生產可用實機驗收
 
 **Priority:** P1 | **Assignee:** qc-test | **Tags:** M3
