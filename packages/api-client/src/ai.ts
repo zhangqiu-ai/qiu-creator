@@ -1,5 +1,27 @@
 import { z } from 'zod';
 import {
+  AiModelsResponseSchema,
+  AiPreferencesSchema,
+  PromptExportSchema,
+  PromptImportResponseSchema,
+  PromptListResponseSchema,
+  PromptPreviewResponseSchema,
+  PromptSchema,
+  PromptSuggestionResultSchema,
+  type AiModelsResponse,
+  type AiPreferences,
+  type CreatePromptRequest,
+  type PatchAiPreferencesRequest,
+  type PatchPromptRequest,
+  type Prompt,
+  type PromptExport,
+  type PromptImportRequest,
+  type PromptImportResponse,
+  type PromptListResponse,
+  type PromptPreviewRequest,
+  type PromptPreviewResponse,
+  type PromptSuggestionResult,
+  type SuggestPromptRequest,
   AiImageEstimateResponseSchema,
   AiImageKeepResponseSchema,
   AiImageRequestSchema,
@@ -138,6 +160,28 @@ export interface CreatorHubAiApi {
     input?: VideoUnderstandingRequest,
   ): Promise<VideoUnderstandingResponse>;
 
+  // ---- Output language, remembered models, prompt library (QC-075) ----
+  preferences(): Promise<AiPreferences>;
+  /** Models to switch between in the toolbar, across ready providers. */
+  models(kind?: 'chat' | 'image'): Promise<AiModelsResponse>;
+  patchPreferences(input: PatchAiPreferencesRequest): Promise<AiPreferences>;
+  prompts: {
+    /** Built-ins first (read-only), then custom prompts in order. */
+    list(): Promise<PromptListResponse>;
+    create(input: CreatePromptRequest): Promise<Prompt>;
+    /** Needs `base_revision`; 409 when stale, 403 for built-ins. */
+    patch(id: string, input: PatchPromptRequest): Promise<Prompt>;
+    remove(id: string): Promise<void>;
+    reorder(ids: string[]): Promise<PromptListResponse>;
+    /** A custom copy named 「…（副本）」 (built-ins too). */
+    duplicate(id: string): Promise<Prompt>;
+    exportAll(): Promise<PromptExport>;
+    import(file: PromptImportRequest): Promise<PromptImportResponse>;
+    preview(input: PromptPreviewRequest): Promise<PromptPreviewResponse>;
+    /** Queue an AI draft or rewrite; read it with `promptSuggestionOf(await ai.job(id))`. */
+    suggest(input: SuggestPromptRequest, options?: IdempotencyOptions): Promise<WorkAiJobResponse>;
+  };
+
   // ---- New API image and cover generation (QC-070) ----
   images: {
     /** Cost before sending: `max_cost_usd` is null when the model has no per-image price. */
@@ -153,6 +197,13 @@ export interface CreatorHubAiApi {
     /** Discard a candidate; its temporary file is deleted. */
     discard(workId: string, jobId: string, index: number): Promise<void>;
   };
+}
+
+/** Typed candidate of a succeeded prompt suggestion, or null. */
+export function promptSuggestionOf(job: AiJobRecord): PromptSuggestionResult | null {
+  if (job.status !== 'succeeded' || job.task?.type !== 'prompt_suggestion') return null;
+  const parsed = PromptSuggestionResultSchema.safeParse(job.result?.json);
+  return parsed.success ? parsed.data : null;
 }
 
 /** Typed result of a succeeded image job (candidates with signed URLs), or null. */
@@ -268,6 +319,38 @@ export function createAiApi(ctx: Ctx): CreatorHubAiApi {
         `/api/v1/works/${encodeURIComponent(workId)}/ai/jobs/${encodeURIComponent(jobId)}/accept`,
         input,
       ),
+    preferences: () => call(ctx, AiPreferencesSchema, 'GET', '/api/v1/ai/preferences'),
+    models: (kind = 'chat') =>
+      call(ctx, AiModelsResponseSchema, 'GET', `/api/v1/ai/models?kind=${kind}`),
+    patchPreferences: (input) =>
+      call(ctx, AiPreferencesSchema, 'PATCH', '/api/v1/ai/preferences', input),
+    prompts: {
+      list: () => call(ctx, PromptListResponseSchema, 'GET', '/api/v1/ai/prompts'),
+      create: (input) => call(ctx, PromptSchema, 'POST', '/api/v1/ai/prompts', input),
+      patch: (id, input) =>
+        call(ctx, PromptSchema, 'PATCH', `/api/v1/ai/prompts/${encodeURIComponent(id)}`, input),
+      remove: async (id) => {
+        await call(ctx, z.null(), 'DELETE', `/api/v1/ai/prompts/${encodeURIComponent(id)}`);
+      },
+      reorder: (ids) =>
+        call(ctx, PromptListResponseSchema, 'PUT', '/api/v1/ai/prompts/order', { ids }),
+      duplicate: (id) =>
+        call(ctx, PromptSchema, 'POST', `/api/v1/ai/prompts/${encodeURIComponent(id)}/duplicate`),
+      exportAll: () => call(ctx, PromptExportSchema, 'GET', '/api/v1/ai/prompts/export'),
+      import: (file) =>
+        call(ctx, PromptImportResponseSchema, 'POST', '/api/v1/ai/prompts/import', file),
+      preview: (input) =>
+        call(ctx, PromptPreviewResponseSchema, 'POST', '/api/v1/ai/prompts/preview', input),
+      suggest: (input, options) =>
+        call(
+          ctx,
+          WorkAiJobResponseSchema,
+          'POST',
+          '/api/v1/ai/prompt-suggestions',
+          input,
+          idempotencyHeaders(options),
+        ),
+    },
     images: {
       estimate: (workId, input) =>
         call(

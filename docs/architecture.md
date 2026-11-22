@@ -1221,3 +1221,48 @@ New API 的 `POST {base_url}/images/generations`（OpenAI 相容）。只在使�
   - 實際費用：有單價時是單價 × 張數；中轉站回報 token 用量、而且有 token 單價時，用 token 算；兩者都沒有就是 null。
 - **金鑰**：只放在送往中轉站的 Authorization 標頭；拒絕重定向；錯誤只保留短錯誤碼，不留回應內容。
 
+## AI 輸出語言、Prompt 庫、記住模型（QC-075，原型 PT-20261122-003）
+
+全部存在 Mac 的 SQLite，三端共用。路由都在 `/api/v1/ai/` 底下，只限 owner，讀取也一樣。
+
+| 方法 | 路徑 | 說明 |
+| --- | --- | --- |
+| GET／PATCH | `/api/v1/ai/preferences` | `output_language`（`follow` 跟隨原文，為預設；或 `zh-Hans`、`zh-Hant`、`en`）與 `last_models`（各任務上次用的 provider 和 model；PATCH 只合併傳來的項目） |
+| GET | `/api/v1/ai/models?kind=chat\|image` | 工具列可切換的模型：只列已就緒的供應商（存了金鑰、確認過告知）。New API 用 QC-054 的中轉站清單，其他供應商列設定的文字模型；讀不到清單的列在 `errors` |
+| GET／POST | `/api/v1/ai/prompts` | 清單：內建指令排前面，自訂指令依 sort_order；新增的放在最後 |
+| PATCH／DELETE | `/api/v1/ai/prompts/:id` | 修改要帶 `base_revision` 或 `If-Match`（沒帶回 428，過期回 409）；內建指令回 403 |
+| PUT | `/api/v1/ai/prompts/order` | 重排；每個自訂指令都要列到，而且只能列一次 |
+| POST | `/api/v1/ai/prompts/:id/duplicate` | 複製成自訂指令（內建的也可以），名稱加「（副本）」 |
+| GET／POST | `/api/v1/ai/prompts/export`、`/import` | 格式 `{version: 1, prompts: [{name, group, scene, content, model?, language?}]}`，不含使用次數；匯入一次最多 500 條，名稱已存在的改名為「…（副本）」 |
+| POST | `/api/v1/ai/prompts/preview` | 展開變數，並回傳實際會用的語言；不送出任何內容 |
+| POST | `/api/v1/ai/prompt-suggestions` | 排入 AI 作業（action `prompt_suggestion`），起草新指令，或改寫 `base_prompt_id` 指定的那條 |
+
+- **資料表**：
+  - `0019_prompts` 新增 `prompts`（name ≤ 40、`scene` 為 selection／full／title／image、content ≤ 4000、`model_provider` 與 `model_name` 必須同時有值或同時為空、language、sort_order、revision）與 `prompt_usage`（`use_count`、`last_used_at`，內建指令也記）。
+  - 內建指令寫在程式碼裡，不存進資料庫，所以升級時改內建指令不會動到自訂資料。
+  - `PROMPTS_ROLLBACK_SQL` 會刪掉這兩張表，回退前應先匯出。
+- **事件**：`prompts.changed`（entity 為 `system`，`data.action`、`data.ids`）與 `ai_preferences.changed`。
+- **輸出語言**：
+  - 取用順序：指令指定的語言優先，其次是請求帶的 `language`，最後是偏好設定。
+  - `follow` 時用 `detectLanguage` 偵測（`@qiu-creator/domain/search`，App 也用同一個函式顯示「這段是繁體中文」）：
+    - 拉丁字母明顯比漢字多時判為英文；
+    - 否則依只有一種字體才用的字，用 OpenCC 字表數繁體與簡體的字數，多的一方勝出；
+    - 判斷不出來時，用請求帶的 `interface_language`，沒帶就用繁體中文。
+  - 偵測的對象：rewrite 看選取的文字（沒有選取就看全文），suggestions 看全文，prompt-suggestions 看描述。
+  - 視頻沒有文字可以偵測，`follow` 時沿用原本「與影片相同」的規則，結果的 language 為 null。視頻的快取鍵只在語言不是 null 時才加入語言。
+  - 注入方式：指定語言的規則取代提示詞裡原本「與原文相同」那一條。
+  - 標示：task 與 `result.json` 都記錄實際用的 `language`，以及 `language_source`（prompt、request、preference、detected 或 interface）。
+- **模型**：
+  - 指令指定的 model（含 provider）優先於請求，`model_source` 會記為 `prompt`；沒有指定時依序是請求帶的 model，最後是供應商的預設模型。
+  - 由指令決定的模型不會寫進 `last_models`，避免改到工具列的全域選擇。
+- **`prompt_id`**：rewrite、suggestions、images 都接受，video 不接受。
+  - 指令的 scene 必須和作業相符（rewrite 是 selection 或 full，suggestions 是 title，images 是 image），否則回 400。
+  - 內建的潤色、擴寫、縮寫、語氣對應各自的 mode；其他指令的內容展開後作為改寫指令（mode `custom`）。
+  - 作業送出時，該指令的 `use_count` 加一，並更新最近使用時間。
+- **變數**：第一版有五個：`{選取}`、`{標題}`、`{全文}`、`{平台}`、`{語言}`，也接受簡體寫法。
+  - 展開在服務端進行。
+  - 不認得的變數，或在這次作業中沒有值的變數（例如在平台預覽以外用 `{平台}`），都原樣保留。
+- **平台預覽的標題與封面（QC-076）**：
+  - 標題：`suggestions` 帶 `platforms: [p]`，標題字數上限依 `PLATFORM_LIMITS` 寫進請求。
+  - 封面：`images` 帶 `purpose: cover` 與 `platform`，比例預設用 `PLATFORM_COVER_RATIOS`（小紅書 3:4、公眾號 2.35:1、抖音 3:4、視頻號 6:7），提示詞也會寫出平台名稱。
+  - 保留封面時用 `placement: library`，再以 `PATCH /works/:id/variants/:platform` 的 `cover: {asset_id}` 設為該平台版本的封面，不改原稿。

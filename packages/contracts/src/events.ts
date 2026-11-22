@@ -60,6 +60,13 @@ export const ChangeActionSchema = z.enum([
   'ai_job.cancelled',
   /** Progress of a multi-step AI job; `data.phase`, `data.uploaded_bytes`, `data.total_bytes` (QC-023). */
   'ai_job.progress',
+  /**
+   * The prompt library changed (QC-075; entity `system`, id `prompts`):
+   * `data.action` is created, updated, deleted, reordered or imported, `data.ids`.
+   */
+  'prompts.changed',
+  /** Output language or remembered models changed (QC-075; entity `system`, id `ai_preferences`). */
+  'ai_preferences.changed',
   /** A backup was made (entity `system`); `data.backup_id`, `data.kind`. */
   'backup.created',
   /** An automatic backup failed; `data.kind`, `data.error`. */

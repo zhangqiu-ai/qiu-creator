@@ -146,6 +146,24 @@ describe('Gemini video understanding', () => {
     expect(actions(s, res.job.id).at(-1)?.action).toBe('ai_job.succeeded');
   });
 
+  it('writes in the asked language, caches per language and remembers the model (QC-075)', async () => {
+    const { s, fake, assetId } = await start();
+    const auto = await s.client.ai.analyzeVideo(assetId);
+    await finished(s, auto.job.id);
+    expect(JSON.stringify(fake.generates[0])).toContain('使用與影片口語或字幕相同的中文字體');
+
+    const en = await s.client.ai.analyzeVideo(assetId, { language: 'en' });
+    expect(en.cached).toBe(false);
+    const done = await finished(s, en.job.id);
+    expect(videoUnderstandingOf(done)?.language).toBe('en');
+    const system = JSON.stringify(fake.generates[1]);
+    expect(system).toContain('Write the output in English');
+    expect(system).not.toContain('使用與影片口語或字幕相同的中文字體');
+    // The same language again is the cached one.
+    expect((await s.client.ai.analyzeVideo(assetId, { language: 'en' })).job.id).toBe(en.job.id);
+    expect((await s.client.ai.preferences()).last_models.video?.provider).toBe('gemini');
+  });
+
   it('returns a cached result for free and only re-analyses when asked', async () => {
     const { s, fake, assetId } = await start();
     const first = await s.client.ai.analyzeVideo(assetId);

@@ -65,6 +65,8 @@ import { VideoAiService, type VideoOptions } from './ai/video-tasks.js';
 import { ImageAiService, type ImageTaskOptions } from './ai/image-tasks.js';
 import { NewApiImageClient } from './ai/providers/new-api-images.js';
 import { registerAiImageRoutes } from './routes/ai-images.js';
+import { PromptService } from './ai/prompt-service.js';
+import { registerAiPromptRoutes } from './routes/ai-prompts.js';
 import { GeminiVideoClient } from './ai/providers/gemini-video.js';
 import { registerAiVideoRoutes } from './routes/ai-video.js';
 import { AiService, type AiRunnerOptions } from './ai/ai-service.js';
@@ -282,6 +284,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     feed,
     aiOptions,
   );
+  const prompts = new PromptService(db, ai, works, feed);
   const images = new ImageAiService(
     ai,
     works,
@@ -292,6 +295,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
       baseUrl: aiOptions.baseUrls?.['new-api'],
       timeoutMs: aiOptions.images?.timeoutMs,
     }),
+    prompts,
     aiOptions.images,
   );
 
@@ -644,7 +648,8 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     }),
   );
   registerAiImageRoutes(app, images, ai, idempotency, signer, tokens);
-  registerAiTextRoutes(app, new TextAiService(ai, works, variants), ai, idempotency);
+  registerAiTextRoutes(app, new TextAiService(ai, works, variants, prompts), ai, idempotency);
+  registerAiPromptRoutes(app, prompts, ai, idempotency);
   registerAiVideoRoutes(
     app,
     new VideoAiService(ai, assets, new GeminiVideoClient(adapter('gemini')), aiOptions.video),

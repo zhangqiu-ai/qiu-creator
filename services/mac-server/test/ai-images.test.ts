@@ -491,6 +491,73 @@ describe('AI images (QC-070)', () => {
     expect(consent.body?.error.code).toBe('ai_consent_required');
   });
 
+  it('makes a platform cover in that platform’s ratio (QC-076)', async () => {
+    const { s, relay } = await start();
+    const w = await article(s);
+    relay.replies.push({ body: { data: [b64(await pngBytes(1024, 1536, '#335577'))] } });
+    const { job } = await s.client.ai.images.create(w.id, {
+      provider: 'new-api',
+      model: MODEL,
+      purpose: 'cover',
+      platform: 'wechat_channels',
+    });
+    expect(job.task).toMatchObject({ aspect_ratio: '6:7', platform: 'wechat_channels' });
+    const done = await run(s, job.id);
+    expect(relay.seen[0]?.body.size).toBe('1024x1536');
+    expect(String(relay.seen[0]?.body.prompt)).toContain('微信視頻號的封面圖');
+    // 1024×1536 cropped to 6:7 → 1024×1195.
+    expect(imageResultOf(done)?.candidates[0]).toMatchObject({ width: 1024, height: 1195 });
+    // Kept into the library; the app then sets it as the variant's cover.
+    const kept = await s.client.ai.images.keep(w.id, job.id, {
+      index: 0,
+      base_revision: w.current_revision_id,
+      placement: { type: 'library' },
+    });
+    const { created } = await s.client.variants.generate(w.id, { platforms: ['wechat_channels'] });
+    const draft = created[0];
+    if (draft === undefined) throw new Error('no variant');
+    const withCover = await s.client.variants.patch(w.id, 'wechat_channels', {
+      base_revision: draft.revision,
+      cover: { asset_id: kept.asset_id },
+    });
+    expect(withCover.cover).toMatchObject({ asset_id: kept.asset_id });
+    expect(kept.work.current_revision_id).toBe(w.current_revision_id);
+  });
+
+  it('uses an image prompt from the library, with its variables (QC-075)', async () => {
+    const { s, relay } = await start();
+    const w = await article(s);
+    const prompt = await s.client.ai.prompts.create({
+      name: '水彩配圖',
+      content: '為《{標題}》畫一張水彩插圖，主題：{選取}',
+      scene: 'image',
+    });
+    relay.replies.push({ body: { data: [b64(await pngBytes(64, 64))] } });
+    const { job } = await s.client.ai.images.create(w.id, {
+      provider: 'new-api',
+      model: MODEL,
+      purpose: 'image',
+      prompt_id: prompt.id,
+      prompt: '竹林小徑',
+    });
+    expect(job.task).toMatchObject({ prompt_id: prompt.id });
+    await run(s, job.id);
+    expect(relay.seen[0]?.body.prompt).toBe('為《京都散步》畫一張水彩插圖，主題：竹林小徑');
+    expect((await s.client.ai.preferences()).last_models.image).toEqual({
+      provider: 'new-api',
+      model: MODEL,
+    });
+    const wrong = await apiError(
+      s.client.ai.images.create(w.id, {
+        provider: 'new-api',
+        model: MODEL,
+        purpose: 'image',
+        prompt_id: 'builtin-polish',
+      }),
+    );
+    expect(wrong.status).toBe(400);
+  });
+
   it('refuses works that are not articles and requests without a prompt', async () => {
     const { s } = await start();
     const gallery = await s.client.works.create({ title: '相簿', type: 'image' });

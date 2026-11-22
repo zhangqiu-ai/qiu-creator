@@ -151,6 +151,8 @@ export const AIActionSchema = z.enum([
   'video_understanding',
   /** New API `images/generations` (QC-070). */
   'image_generation',
+  /** Write or rewrite a prompt-library entry (QC-075). */
+  'prompt_suggestion',
 ]);
 export type AIAction = z.infer<typeof AIActionSchema>;
 

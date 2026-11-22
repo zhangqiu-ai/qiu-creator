@@ -526,6 +526,35 @@ export const migrations: readonly Migration[] = [
         body = search_fold(body);
     `,
   },
+  {
+    id: '0019',
+    name: 'prompts',
+    sql: /* sql */ `
+      -- QC-075: the user's prompt library. Built-in prompts live in code, not
+      -- here. prompt_usage records the last use of any prompt, built-ins too.
+      CREATE TABLE prompts (
+        id             TEXT PRIMARY KEY,
+        name           TEXT NOT NULL,
+        group_name     TEXT,
+        scene          TEXT NOT NULL CHECK (scene IN ('selection','full','title','image')),
+        content        TEXT NOT NULL,
+        model_provider TEXT CHECK (model_provider IS NULL OR model_provider IN ('gemini','anthropic','openai','new-api')),
+        model_name     TEXT,
+        language       TEXT CHECK (language IS NULL OR language IN ('follow','zh-Hans','zh-Hant','en')),
+        sort_order     INTEGER NOT NULL,
+        revision       INTEGER NOT NULL DEFAULT 1,
+        created_at     TEXT NOT NULL,
+        updated_at     TEXT NOT NULL,
+        CHECK ((model_provider IS NULL) = (model_name IS NULL))
+      );
+      CREATE INDEX prompts_order ON prompts (sort_order);
+      CREATE TABLE prompt_usage (
+        prompt_id    TEXT PRIMARY KEY,
+        use_count    INTEGER NOT NULL DEFAULT 0,
+        last_used_at TEXT NOT NULL
+      );
+    `,
+  },
 ];
 
 /**
@@ -580,4 +609,15 @@ export const PROJECTS_ROLLBACK_SQL = /* sql */ `
  */
 export const SEARCH_FOLD_ROLLBACK_SQL = /* sql */ `
   DELETE FROM schema_migrations WHERE id = '0018';
+`;
+
+/**
+ * Undoes `0019_prompts` so an older build can open the database again
+ * (QC-075): the prompt library and its usage go; nothing else changes.
+ * Export the library first if it should be kept.
+ */
+export const PROMPTS_ROLLBACK_SQL = /* sql */ `
+  DROP TABLE prompt_usage;
+  DROP TABLE prompts;
+  DELETE FROM schema_migrations WHERE id = '0019';
 `;

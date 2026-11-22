@@ -203,6 +203,10 @@ describe('rewrite candidates and accepting them', () => {
       text: '# 京都秋天\n\n今年紅葉來得比較早。\n',
       range: { start: 0, end: MARKDOWN.length },
       full_markdown: '# 京都秋天\n\n今年紅葉來得比較早。\n',
+      // QC-075: no language asked: the preference (follow), detected from the text.
+      language: 'zh-Hant',
+      language_source: 'detected',
+      model_source: 'default',
     });
     const prompt = String(fake.for('openai')[0]?.body['input']);
     expect(prompt).toContain('潤色');

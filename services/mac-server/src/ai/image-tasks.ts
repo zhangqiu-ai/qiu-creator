@@ -8,6 +8,7 @@ import {
   AiImageKeepRequestSchema,
   AiImageRequestSchema,
   AiImageResultSchema,
+  PLATFORM_COVER_RATIOS,
   estimateTokens,
   type AiCostEstimate,
   type AiImageAspectRatio,
@@ -18,6 +19,7 @@ import {
   type AiImageResult,
   type AiJobRecord,
   type AiTask,
+  type Prompt,
   type WorkAiJobResponse,
   type WorkDetail,
 } from '@qiu-creator/contracts';
@@ -34,6 +36,8 @@ import type { AiService, AiTaskExecutor } from './ai-service.js';
 import type { AiTextResult } from './provider.js';
 import { providerError } from './provider.js';
 import type { NewApiImageClient } from './providers/new-api-images.js';
+import { PLATFORM_NAMES } from './language.js';
+import { expandPrompt, usesSelection, type PromptService } from './prompt-service.js';
 
 type ImageTask = Extract<AiTask, { type: 'image_generation' }>;
 
@@ -88,6 +92,7 @@ export class ImageAiService {
     private readonly attacher: WorkMediaAttacher,
     private readonly layout: Layout,
     private readonly client: NewApiImageClient,
+    private readonly prompts: PromptService,
     private readonly options: ImageTaskOptions = {},
   ) {
     this.ttlMs = options.candidateTtlMs ?? AI_IMAGE_CANDIDATE_TTL_HOURS * 3600_000;
@@ -122,7 +127,7 @@ export class ImageAiService {
 
   create(workId: string, body: AiImageRequest): WorkAiJobResponse {
     const plan = this.plan(workId, body);
-    return this.ai.submitOnce(
+    const result = this.ai.submitOnce(
       {
         provider: 'new-api',
         model: plan.model,
@@ -133,6 +138,9 @@ export class ImageAiService {
       },
       { task: plan.task, estimate: plan.estimate, maxAttempts: 1 },
     );
+    if (plan.library?.model == null) this.ai.rememberModel('image', 'new-api', plan.model);
+    if (plan.library !== null) this.prompts.markUsed(plan.library.id);
+    return result;
   }
 
   private plan(
@@ -144,6 +152,7 @@ export class ImageAiService {
     sourceRevision: string;
     task: ImageTask;
     estimate: AiCostEstimate;
+    library: Prompt | null;
   } {
     const req = AiImageRequestSchema.parse(body);
     const work = this.works.get(workId);
@@ -162,32 +171,60 @@ export class ImageAiService {
     const sourceRevision = req.source_revision ?? work.current_revision_id;
     const source = this.works.revision(workId, sourceRevision);
     const style = req.style === undefined ? '' : `\n風格：${req.style}`;
+    const plain = workPlainText(work.type, source.markdown) ?? '';
+    // QC-075: an `image` prompt from the library, its variables expanded; the
+    // built-in cover prompt is what `cover` already does.
+    const library =
+      req.prompt_id === undefined ? null : this.prompts.resolve(req.prompt_id, ['image']);
+    const libraryText =
+      library === null || library.id === 'builtin-cover'
+        ? null
+        : expandPrompt(library.content, {
+            selection: req.prompt ?? plain,
+            title: source.title,
+            text: plain,
+            ...(req.platform === undefined ? {} : { platform: PLATFORM_NAMES[req.platform] }),
+          });
+    const embedsPrompt = library !== null && usesSelection(library.content);
+    // QC-076: a platform's cover uses its ratio unless one is asked for.
+    const aspect: AiImageAspectRatio =
+      req.aspect_ratio ??
+      (req.platform === undefined ? '1:1' : PLATFORM_COVER_RATIOS[req.platform]);
+    // A prompt's own (New API) model wins over the request's (PT-20261122-003).
+    const model =
+      library?.model != null && library.model.provider === 'new-api'
+        ? library.model.model
+        : req.model;
     let prompt: string;
     if (req.purpose === 'cover') {
-      const text = Array.from(workPlainText(work.type, source.markdown) ?? '')
-        .slice(0, COVER_TEXT_CHARS)
-        .join('');
+      const text = Array.from(plain).slice(0, COVER_TEXT_CHARS).join('');
       prompt = [
-        '為下面這篇文章生成一張封面圖。畫面要能概括主題，不要在圖中放文字。',
+        `為下面這篇文章生成一張${req.platform === undefined ? '' : `${PLATFORM_NAMES[req.platform]}的`}封面圖。畫面要能概括主題，不要在圖中放文字。`,
         `標題：${source.title}`,
         ...(text === '' ? [] : [`內容摘要：${text}`]),
       ].join('\n');
+      if (libraryText !== null) prompt += `\n要求：${libraryText}`;
       if (req.prompt !== undefined) prompt += `\n補充要求：${req.prompt}`;
       prompt += style;
+    } else if (libraryText !== null) {
+      const extra = req.prompt !== undefined && !embedsPrompt ? `\n${req.prompt}` : '';
+      prompt = `${libraryText}${extra}${style}`;
     } else {
       prompt = `${req.prompt ?? ''}${style}`;
     }
     const task: ImageTask = {
       type: 'image_generation',
       purpose: req.purpose,
-      aspect_ratio: req.aspect_ratio,
+      aspect_ratio: aspect,
       n: req.n,
-      size: generationSize(req.aspect_ratio),
+      size: generationSize(aspect),
+      prompt_id: library?.id ?? null,
+      platform: req.platform ?? null,
     };
-    const price = this.ai.price(req.model, 'new-api');
+    const price = this.ai.price(model, 'new-api');
     const estimate = AiCostEstimateSchema.parse({
       provider: 'new-api',
-      model: req.model,
+      model,
       input_tokens: estimateTokens(prompt),
       max_output_tokens: 0,
       image_count: req.n,
@@ -195,7 +232,7 @@ export class ImageAiService {
       price,
       estimated: true,
     });
-    return { model: req.model, prompt, sourceRevision, task, estimate };
+    return { model, prompt, sourceRevision, task, estimate, library };
   }
 
   // ---- Run ------------------------------------------------------------------------------
