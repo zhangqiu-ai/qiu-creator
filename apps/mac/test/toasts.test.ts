@@ -4,17 +4,38 @@ import { MAX_VISIBLE, ToastQueue } from '../src/renderer/toasts.js';
 const spec = (message: string, onClose = () => undefined) => ({ message, onClose });
 
 describe('shared toast queue (QC-045 review)', () => {
-  it('shows at most two, oldest on top and newest at the bottom', () => {
+  it('shows at most three, oldest on top and newest at the bottom', () => {
     const q = new ToastQueue();
-    expect(MAX_VISIBLE).toBe(2);
+    expect(MAX_VISIBLE).toBe(3);
     q.set('a', spec('一'));
     q.set('b', spec('二'));
-    expect(q.getSnapshot().map((e) => e.message)).toEqual(['一', '二']);
     q.set('c', spec('三'));
-    expect(q.getSnapshot().map((e) => e.message)).toEqual(['二', '三']);
+    expect(q.getSnapshot().map((e) => e.message)).toEqual(['一', '二', '三']);
+    q.set('d', spec('四'));
+    expect(q.getSnapshot().map((e) => e.message)).toEqual(['二', '三', '四']);
     // The older one waits and comes back when a newer one goes.
-    q.remove('c');
+    q.remove('d');
+    expect(q.getSnapshot().map((e) => e.message)).toEqual(['一', '二', '三']);
+  });
+
+  it('holds timed removals while hovered or focused; a hand close goes at once (QC-065)', () => {
+    const q = new ToastQueue();
+    q.set('a', spec('一'));
+    q.set('b', spec('二'));
+    q.hold(true);
+    q.remove('a');
     expect(q.getSnapshot().map((e) => e.message)).toEqual(['一', '二']);
+    q.closingByHand('b');
+    q.remove('b');
+    expect(q.getSnapshot().map((e) => e.message)).toEqual(['一']);
+    // Shown again before the pointer left: it stays.
+    q.set('a', spec('一（再次）'));
+    q.hold(false);
+    expect(q.getSnapshot().map((e) => e.message)).toEqual(['一（再次）']);
+    q.hold(true);
+    q.remove('a');
+    q.hold(false);
+    expect(q.getSnapshot()).toEqual([]);
   });
 
   it('updates a toast in place without moving it', () => {

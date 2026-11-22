@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
 import { test } from '../fixtures/desktop.js';
+import { settleAfterDrop } from '../fixtures/dnd.js';
 import { startScreencast } from '../fixtures/screencast.js';
 
 /*
@@ -37,11 +38,6 @@ async function pickUp(page: Page, from: Locator, toX: number, steps: number): Pr
   await page.mouse.down();
   await page.mouse.move(a.x + a.width / 2 - 10, a.y + a.height / 2, { steps: 3 });
   await page.mouse.move(toX, a.y + a.height / 2, { steps });
-}
-
-/** dnd-kit swallows clicks for 50 ms after a drop; a person cannot click that fast. */
-async function afterDrop(page: Page): Promise<void> {
-  await page.evaluate('new Promise((done) => setTimeout(done, 60))');
 }
 
 async function openWorks(page: Page, titles: readonly string[]): Promise<void> {
@@ -85,12 +81,12 @@ test('殼層：換頁焦點到標題、側欄收合後內容到位、分頁拖�
     await pickUp(page, tab(page, '丙篇筆記'), (first?.x ?? 0) + 8, 10);
     await page.keyboard.press('Escape');
     await page.mouse.up();
-    await afterDrop(page);
+    await settleAfterDrop(page);
     expect(await order(page)).toEqual(['甲篇長文', '乙篇草稿', '丙篇筆記']);
     // A drop moves it.
     await pickUp(page, tab(page, '丙篇筆記'), (first?.x ?? 0) + 8, 10);
     await page.mouse.up();
-    await afterDrop(page);
+    await settleAfterDrop(page);
     await expect.poll(() => order(page)).toEqual(['丙篇筆記', '甲篇長文', '乙篇草稿']);
     // A click on a tab still switches to it (the 4 px threshold).
     await tab(page, '乙篇草稿').click();
@@ -128,13 +124,13 @@ test('殼層動效錄影（正常速度）與減少動態效果', async ({ deskt
   await pickUp(page, tab(page, '丙篇筆記'), (first?.x ?? 0) + 8, 30);
   await page.mouse.up();
   await expect(page.locator('.drag-ghost')).toHaveCount(0);
-  await afterDrop(page);
+  await settleAfterDrop(page);
   await expect.poll(() => order(page)).toEqual(['丙篇筆記', '甲篇長文', '乙篇草稿']);
   await pickUp(page, tab(page, '乙篇草稿'), (first?.x ?? 0) + 8, 30);
   await page.keyboard.press('Escape');
   await page.mouse.up();
   await expect(page.locator('.drag-ghost')).toHaveCount(0);
-  await afterDrop(page);
+  await settleAfterDrop(page);
   expect(await order(page)).toEqual(['丙篇筆記', '甲篇長文', '乙篇草稿']);
   await tab(page, '甲篇長文').getByRole('button', { name: /關閉/ }).click();
   await expect(tabs(page)).toHaveCount(2);

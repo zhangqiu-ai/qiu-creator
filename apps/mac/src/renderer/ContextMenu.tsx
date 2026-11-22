@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './Icon.js';
+import { useExitFade } from './motion.js';
 
 export type MenuEntry =
   | {
@@ -87,6 +88,8 @@ export function ContextMenu({
 }) {
   const root = useRef<HTMLDivElement>(null);
   const subRoot = useRef<HTMLDivElement>(null);
+  // Right-click menus appear at once (instant) and fade when they close (fast).
+  useExitFade(root);
   const returnTo = useRef<Element | null>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const [sub, setSub] = useState<{ id: string; left: number; top: number } | null>(null);

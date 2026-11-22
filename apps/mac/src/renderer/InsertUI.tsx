@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 're
 import { assetMediaUrl, thumbnailUrl } from '../shared/bridge.js';
 import type { PendingInsert } from './editor-insert.js';
 import { assetName } from './format.js';
+import { ExitFade, useExitFade } from './motion.js';
 import { t } from './i18n.js';
 import { Icon, type IconName } from './Icon.js';
 
@@ -85,46 +86,48 @@ export function InsertMenu({
         <Icon name="chevronDown" size={14} />
       </button>
       {open && (
-        <div
-          ref={menu}
-          className="pop insert-menu__pop"
-          role="menu"
-          aria-label={t('editor.insert')}
-          onKeyDown={onKey}
-        >
-          <button
-            type="button"
-            className="pop__item"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onLibrary();
-            }}
+        <ExitFade>
+          <div
+            ref={menu}
+            className="pop insert-menu__pop"
+            role="menu"
+            aria-label={t('editor.insert')}
+            onKeyDown={onKey}
           >
-            <Icon name="assets" size={16} />
-            {t('editor.insertFromLibrary')}
-            <kbd>⌘⇧I</kbd>
-          </button>
-          <button
-            type="button"
-            className="pop__item"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onUpload();
-            }}
-          >
-            <Icon name="upload" size={16} />
-            {t('editor.uploadImage')}
-            <kbd>⌘⇧U</kbd>
-          </button>
-          <div className="pop__sep" />
-          <div className="pop__hint">
-            <span>{t('editor.hintPaste')}</span>
-            <span>{t('editor.hintDrag')}</span>
-            <span>{t('editor.hintSlash')}</span>
+            <button
+              type="button"
+              className="pop__item"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onLibrary();
+              }}
+            >
+              <Icon name="assets" size={16} />
+              {t('editor.insertFromLibrary')}
+              <kbd>⌘⇧I</kbd>
+            </button>
+            <button
+              type="button"
+              className="pop__item"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onUpload();
+              }}
+            >
+              <Icon name="upload" size={16} />
+              {t('editor.uploadImage')}
+              <kbd>⌘⇧U</kbd>
+            </button>
+            <div className="pop__sep" />
+            <div className="pop__hint">
+              <span>{t('editor.hintPaste')}</span>
+              <span>{t('editor.hintDrag')}</span>
+              <span>{t('editor.hintSlash')}</span>
+            </div>
           </div>
-        </div>
+        </ExitFade>
       )}
     </div>
   );
@@ -149,13 +152,15 @@ export function SlashMenu({
   /** `ran`: a command was chosen (it runs right after). */
   onClose: (ran: boolean) => void;
 }) {
+  const slashRef = useRef<HTMLDivElement>(null);
+  useExitFade(slashRef);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(0);
   const q = query.trim();
   const shown = commands.filter((c) => q === '' || (c.label + c.hint).includes(q));
   const pick = Math.min(selected, Math.max(0, shown.length - 1));
   return (
-    <div className="pop slash" style={{ left: at.x, top: at.y }}>
+    <div ref={slashRef} className="pop slash" style={{ left: at.x, top: at.y }}>
       <label className="visually-hidden" htmlFor="slash-input">
         {t('editor.slashInputLabel')}
       </label>
@@ -256,6 +261,8 @@ export function AssetDrawer({
   /** Videos for a video work (QC-046); images otherwise. */
   kind?: 'image' | 'video';
 }) {
+  const panelRef = useRef<HTMLElement>(null);
+  useExitFade(panelRef, 'panel');
   const [scope, setScope] = useState<DrawerScope>('images');
   const [query, setQuery] = useState('');
   const [applied, setApplied] = useState('');
@@ -311,7 +318,12 @@ export function AssetDrawer({
   };
 
   return (
-    <aside className="panel drawer" aria-label={t('editor.drawerLabel')} id="asset-drawer">
+    <aside
+      ref={panelRef}
+      className="panel drawer"
+      aria-label={t('editor.drawerLabel')}
+      id="asset-drawer"
+    >
       <div className="drawer__head">
         <span className="drawer__title">{t('editor.assets')}</span>
         <button

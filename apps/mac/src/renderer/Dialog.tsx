@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useExitFade } from './motion.js';
 
 const FOCUSABLE =
   'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
@@ -24,6 +25,9 @@ export function Dialog({
   closable?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const scrim = useRef<HTMLDivElement>(null);
+  // Leaving: the dialog and its scrim fade (fast); focus is already back where it was.
+  useExitFade(scrim);
   const titleId = useId();
 
   useEffect(() => {
@@ -36,7 +40,7 @@ export function Dialog({
   }, []);
 
   return (
-    <div className="scrim">
+    <div ref={scrim} className="scrim">
       <div
         ref={ref}
         className="dialog dialog--small"

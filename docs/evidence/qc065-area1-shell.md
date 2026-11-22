@@ -47,7 +47,10 @@
 - **一個等待**（請總監知悉）：
   - dnd-kit 的 PointerSensor 在放下後 50 ms 內會吞掉所有 click，用來擋住拖曳本身產生的那次 click（`setTimeout(removeAll, 50)`）。
   - 人沒辦法在 50 ms 內再點一次，但 e2e 可以；實測放下後立刻點「全部分頁」按鈕，那一下會被吞掉。
-  - 所以在 `editor-tabs.spec.ts` 和 `shell-motion.spec.ts` 裡，放下後先等 60 ms（`afterDrop`），並寫明原因。這不是放寬逾時，也不是重試。
+  - 第一版在放下後固定等 60 ms。總監審查後要求改成等條件，已在第 2 區的 commit 改成 `e2e/fixtures/dnd.ts` 的 `settleAfterDrop`：
+    - 先等拖曳浮層消失；
+    - 再對一個臨時元素送出探測用的 click，直到它真的收得到為止。
+  - 這個探測直接觀察 dnd-kit 的擋 click 狀態。實測放下後立刻探測是 `false`，`settleAfterDrop` 之後是 `true`。
 
 ## 閘門結果
 

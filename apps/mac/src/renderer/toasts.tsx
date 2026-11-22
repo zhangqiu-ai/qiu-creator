@@ -1,6 +1,8 @@
 import { useEffect, useId, useSyncExternalStore } from 'react';
 import { Icon, type IconName } from './Icon.js';
 import { t } from './i18n.js';
+import { Animated, Presence, springOf } from './motion.js';
+import { moves, useMotionMode } from './motion-mode.js';
 
 /**
  * One queue for every notice in the app (editor, tabs, assets, …): at most
@@ -9,7 +11,8 @@ import { t } from './i18n.js';
  * and declare what they want shown with `useToast`; the queue only places it.
  */
 
-export const MAX_VISIBLE = 2;
+/** DESIGN.md 動效 · Toast: at most three at once (QC-065; was two). */
+export const MAX_VISIBLE = 3;
 
 export interface ToastAction {
   label: string;
@@ -52,6 +55,11 @@ export class ToastQueue {
   private visibleCache: readonly ToastEntry[] = [];
   private readonly listeners = new Set<() => void>();
   private seq = 0;
+  /** The pointer or focus is on a toast: timed removals wait (DESIGN.md 動效 · Toast). */
+  private held = false;
+  private readonly waiting = new Set<string>();
+  /** Closed by the person (×, 復原 …): goes at once even while held. */
+  private readonly closing = new Set<string>();
 
   constructor(private readonly max: number = MAX_VISIBLE) {}
 
@@ -75,6 +83,8 @@ export class ToastQueue {
 
   /** Show or update the toast `id`. Updating keeps its place in the stack. */
   set(id: string, spec: ToastSpec): void {
+    this.waiting.delete(id);
+    this.closing.delete(id);
     const existing = this.entries.find((e) => e.id === id);
     if (existing === undefined) {
       this.entries = [...this.entries, { ...spec, id, seq: ++this.seq }];
@@ -90,8 +100,30 @@ export class ToastQueue {
 
   remove(id: string): void {
     if (!this.entries.some((e) => e.id === id)) return;
+    if (this.held && !this.closing.has(id)) {
+      // A toast someone is reading or about to use stays until they move away.
+      this.waiting.add(id);
+      return;
+    }
+    this.closing.delete(id);
+    this.waiting.delete(id);
     this.entries = this.entries.filter((e) => e.id !== id);
     this.emit();
+  }
+
+  /** The person closes or uses this toast: its removal does not wait for `hold(false)`. */
+  closingByHand(id: string): void {
+    this.closing.add(id);
+  }
+
+  /** Hold timed removals while the pointer or keyboard focus is on the toasts. */
+  hold(on: boolean): void {
+    if (this.held === on) return;
+    this.held = on;
+    if (on) return;
+    const due = [...this.waiting];
+    this.waiting.clear();
+    for (const id of due) this.remove(id);
   }
 }
 
@@ -112,51 +144,83 @@ export function useToast(spec: ToastSpec | null, queue: ToastQueue = toastQueue)
   );
 }
 
-/** Where the queue is drawn: once, at the bottom centre of the window. */
+/**
+ * Where the queue is drawn: once, at the bottom centre of the window
+ * (DESIGN.md 動效 · Toast). A toast rises in (`base`) and fades out (`fast`);
+ * the others slide to their new places (`snappy`). While the pointer or focus
+ * is on a toast its countdown waits, so a toast someone is reading stays.
+ */
 export function ToastHost({ queue = toastQueue }: { queue?: ToastQueue }) {
   const shown = useSyncExternalStore(queue.subscribe, queue.getSnapshot);
-  if (shown.length === 0) return null;
+  const mode = useMotionMode();
+  // Nothing left to read: a hold must not outlive the toasts.
+  useEffect(() => {
+    if (shown.length === 0) queue.hold(false);
+  }, [shown.length, queue]);
   return (
     <div className="toast-stack" aria-live="polite">
-      {shown.map((e) => {
-        const entry = (): ToastEntry | undefined => queue.all.find((x) => x.id === e.id);
-        const icon = e.icon ?? (e.tone === 'ok' ? 'check' : e.tone === 'bad' ? 'alert' : 'info');
-        return (
-          <div
-            key={e.id}
-            className={e.tone === 'bad' ? 'toast toast--bad' : 'toast'}
-            role="status"
-            data-toast
-          >
-            <Icon name={icon} size={16} />
-            <span className="toast__msg">{e.message}</span>
-            {(e.actions ?? []).map((a, i) => (
-              <button
-                key={a.label}
-                type="button"
-                className="btn btn--ghost btn--small toast__undo"
-                aria-keyshortcuts={a.shortcut}
-                onClick={() => {
-                  // The latest callback, not the one from when this toast first rendered.
-                  (entry()?.actions?.[i] ?? a).onClick();
-                }}
-              >
-                {a.label}
-              </button>
-            ))}
-            <button
-              type="button"
-              className="btn btn--ghost btn--icon btn--small"
-              aria-label={e.closeLabel ?? t('editor.dismissNotice')}
-              onClick={() => {
-                (entry() ?? e).onClose();
+      <Presence>
+        {shown.map((e) => {
+          const entry = (): ToastEntry | undefined => queue.all.find((x) => x.id === e.id);
+          const icon = e.icon ?? (e.tone === 'ok' ? 'check' : e.tone === 'bad' ? 'alert' : 'info');
+          const byHand = () => {
+            queue.closingByHand(e.id);
+            queue.hold(false);
+          };
+          return (
+            <Animated
+              key={e.id}
+              preset={{ kind: 'toast' }}
+              layout={moves(mode) ? 'position' : false}
+              transition={springOf('snappy')}
+              className={e.tone === 'bad' ? 'toast toast--bad' : 'toast'}
+              role="status"
+              data-toast
+              onPointerEnter={() => {
+                queue.hold(true);
+              }}
+              onPointerLeave={() => {
+                queue.hold(false);
+              }}
+              onFocus={() => {
+                queue.hold(true);
+              }}
+              onBlur={(ev) => {
+                if (!ev.currentTarget.contains(ev.relatedTarget)) queue.hold(false);
               }}
             >
-              <Icon name="close" size={14} />
-            </button>
-          </div>
-        );
-      })}
+              <Icon name={icon} size={16} />
+              <span className="toast__msg">{e.message}</span>
+              {(e.actions ?? []).map((a, i) => (
+                <button
+                  key={a.label}
+                  type="button"
+                  className="btn btn--ghost btn--small toast__undo"
+                  aria-keyshortcuts={a.shortcut}
+                  onClick={() => {
+                    byHand();
+                    // The latest callback, not the one from when this toast first rendered.
+                    (entry()?.actions?.[i] ?? a).onClick();
+                  }}
+                >
+                  {a.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="btn btn--ghost btn--icon btn--small"
+                aria-label={e.closeLabel ?? t('editor.dismissNotice')}
+                onClick={() => {
+                  byHand();
+                  (entry() ?? e).onClose();
+                }}
+              >
+                <Icon name="close" size={14} />
+              </button>
+            </Animated>
+          );
+        })}
+      </Presence>
     </div>
   );
 }

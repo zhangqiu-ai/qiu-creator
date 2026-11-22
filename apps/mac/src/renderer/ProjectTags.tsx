@@ -12,6 +12,7 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { useChangeEvents } from './events.js';
+import { ExitFade } from './motion.js';
 import { t } from './i18n.js';
 import { Icon } from './Icon.js';
 import { addToProject, removeFromProject, useNotice } from './project-actions.js';
@@ -189,71 +190,73 @@ export function ProjectTags({
         {t('projects.projectButton')}
       </button>
       {open && (
-        <div className="ptags__pop" role="dialog" aria-label={t('projects.addToProject')}>
-          <input
-            ref={search}
-            className="input ptags__search"
-            placeholder={t('projects.searchProjects')}
-            value={query}
-            role="combobox"
-            aria-expanded="true"
-            aria-controls={listId}
-            aria-activedescendant={rows === 0 ? undefined : `${listId}-${String(active)}`}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setActive(0);
-            }}
-            onKeyDown={onKey}
-          />
-          <ul id={listId} className="ptags__list" role="listbox" aria-multiselectable="true">
-            {matches.map((p, i) => (
-              <li
-                key={p.id}
-                id={`${listId}-${String(i)}`}
-                role="option"
-                aria-selected={ids.includes(p.id)}
-                className={i === active ? 'ptags__opt ptags__opt--active' : 'ptags__opt'}
-                onMouseEnter={() => {
-                  setActive(i);
-                }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  toggle(p);
-                }}
-              >
-                <span
-                  className={`ctx-menu__box ctx-menu__box--${String(ids.includes(p.id))}`}
-                  aria-hidden="true"
-                />
-                <span className="ptags__dot" style={{ background: projectColor(p.color) }} />
-                <span className="ptags__name">{p.name}</span>
-              </li>
-            ))}
-            {canCreate && (
-              <li
-                id={`${listId}-${String(matches.length)}`}
-                role="option"
-                aria-selected={false}
-                className={
-                  active === matches.length ? 'ptags__opt ptags__opt--active' : 'ptags__opt'
-                }
-                onMouseEnter={() => {
-                  setActive(matches.length);
-                }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  void create();
-                }}
-              >
-                <Icon name="plus" size={12} />
-                <span className="ptags__name">
-                  {t('projects.createNamed', { name: query.trim() })}
-                </span>
-              </li>
-            )}
-            {rows === 0 && <li className="ptags__empty faint">{t('projects.noProjects')}</li>}
-          </ul>
-        </div>
+        <ExitFade>
+          <div className="ptags__pop" role="dialog" aria-label={t('projects.addToProject')}>
+            <input
+              ref={search}
+              className="input ptags__search"
+              placeholder={t('projects.searchProjects')}
+              value={query}
+              role="combobox"
+              aria-expanded="true"
+              aria-controls={listId}
+              aria-activedescendant={rows === 0 ? undefined : `${listId}-${String(active)}`}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setActive(0);
+              }}
+              onKeyDown={onKey}
+            />
+            <ul id={listId} className="ptags__list" role="listbox" aria-multiselectable="true">
+              {matches.map((p, i) => (
+                <li
+                  key={p.id}
+                  id={`${listId}-${String(i)}`}
+                  role="option"
+                  aria-selected={ids.includes(p.id)}
+                  className={i === active ? 'ptags__opt ptags__opt--active' : 'ptags__opt'}
+                  onMouseEnter={() => {
+                    setActive(i);
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    toggle(p);
+                  }}
+                >
+                  <span
+                    className={`ctx-menu__box ctx-menu__box--${String(ids.includes(p.id))}`}
+                    aria-hidden="true"
+                  />
+                  <span className="ptags__dot" style={{ background: projectColor(p.color) }} />
+                  <span className="ptags__name">{p.name}</span>
+                </li>
+              ))}
+              {canCreate && (
+                <li
+                  id={`${listId}-${String(matches.length)}`}
+                  role="option"
+                  aria-selected={false}
+                  className={
+                    active === matches.length ? 'ptags__opt ptags__opt--active' : 'ptags__opt'
+                  }
+                  onMouseEnter={() => {
+                    setActive(matches.length);
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    void create();
+                  }}
+                >
+                  <Icon name="plus" size={12} />
+                  <span className="ptags__name">
+                    {t('projects.createNamed', { name: query.trim() })}
+                  </span>
+                </li>
+              )}
+              {rows === 0 && <li className="ptags__empty faint">{t('projects.noProjects')}</li>}
+            </ul>
+          </div>
+        </ExitFade>
       )}
     </div>
   );

@@ -1,8 +1,9 @@
 import type { CreatorHubClient } from '@qiu-creator/api-client';
 import type { Revision, RevisionDetail } from '@qiu-creator/contracts';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { conflictHunks } from './conflict.js';
 import { formatWhen, REVISION_SOURCE_LABEL } from './format.js';
+import { useExitFade } from './motion.js';
 import { t } from './i18n.js';
 import { Icon } from './Icon.js';
 import type { RestoreResult } from './work-session.js';
@@ -39,6 +40,8 @@ export function HistoryPanel({
   onRestore: (revisionId: string) => Promise<RestoreResult>;
   onClose: () => void;
 }) {
+  const panelRef = useRef<HTMLElement>(null);
+  useExitFade(panelRef, 'panel');
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<RevisionDetail | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -106,6 +109,7 @@ export function HistoryPanel({
 
   return (
     <aside
+      ref={panelRef}
       id="history-panel"
       className="panel"
       aria-label={t('editor.historyTitle')}

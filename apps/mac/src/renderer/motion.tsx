@@ -15,8 +15,8 @@ import {
   type Transition,
   type Variants,
 } from 'motion/react';
-import type { ReactNode } from 'react';
-import { moves, useMotionMode, type MotionMode } from './motion-mode.js';
+import { useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react';
+import { currentMotionMode, moves, useMotionMode, type MotionMode } from './motion-mode.js';
 
 /**
  * The App's motion vocabulary (DESIGN.md 動效, QC-065): token-based transitions
@@ -208,5 +208,95 @@ export function ShellMain({ rail, children }: { rail: boolean; children: ReactNo
     >
       {children}
     </motion.div>
+  );
+}
+
+/** How a leaving overlay goes: a plain fade, or a side panel sliding back out to the right. */
+export type ExitKind = 'fade' | 'panel';
+
+/** The keyframes and timing a leaving overlay plays (DESIGN.md 動效: exits are quicker than entrances). */
+export function exitAnimation(
+  kind: ExitKind,
+  mode: MotionMode,
+): { keyframes: Keyframe[]; options: KeyframeAnimationOptions } | null {
+  if (mode === 'off') return null;
+  const ease = (curve: readonly number[]) => `cubic-bezier(${curve.join(', ')})`;
+  if (kind === 'panel' && moves(mode)) {
+    return {
+      keyframes: [
+        { opacity: 1, transform: 'none' },
+        { opacity: 0, transform: `translateX(${String(motionDistance.panel)}px)` },
+      ],
+      options: { duration: duration.base, easing: ease(easingCurve.in), fill: 'forwards' },
+    };
+  }
+  return {
+    keyframes: [{ opacity: 1 }, { opacity: 0 }],
+    options: { duration: duration.fast, easing: ease(easingCurve.in), fill: 'forwards' },
+  };
+}
+
+/**
+ * Exit animation for an overlay its parent simply stops rendering (menus,
+ * dialogs, popovers, panels): when it unmounts, a still copy of it stays
+ * where it was, inert and untouchable, and fades (or slides) away, then goes.
+ * The real element is gone at once, so nothing waits on the animation and
+ * focus has already moved on (DESIGN.md 動效 · 無障礙). Test mode: no copy.
+ */
+export function useExitFade(ref: RefObject<HTMLElement | null>, kind: ExitKind = 'fade'): void {
+  useLayoutEffect(() => {
+    const node = ref.current;
+    return () => {
+      if (node === null) return;
+      const anim = exitAnimation(kind, currentMotionMode());
+      const parent = node.parentElement;
+      if (anim === null || parent === null || !node.isConnected) return;
+      // An <ExitFade> wrapper has no box of its own: the overlay is its child.
+      const target = getComputedStyle(node).display === 'contents' ? node.firstElementChild : node;
+      if (!(target instanceof HTMLElement)) return;
+      const box = target.getBoundingClientRect();
+      if (box.width === 0 && box.height === 0) return;
+      const clone = target.cloneNode(true) as HTMLElement;
+      clone.removeAttribute('id');
+      for (const el of clone.querySelectorAll('[id]')) el.removeAttribute('id');
+      clone.inert = true;
+      clone.setAttribute('aria-hidden', 'true');
+      Object.assign(clone.style, {
+        position: 'fixed',
+        left: `${String(box.left)}px`,
+        top: `${String(box.top)}px`,
+        width: `${String(box.width)}px`,
+        height: `${String(box.height)}px`,
+        margin: '0',
+        pointerEvents: 'none',
+      });
+      // StrictMode's rehearsal unmount (development only) leaves the node in place: no copy then.
+      queueMicrotask(() => {
+        if (node.isConnected) return;
+        parent.append(clone);
+        const run = clone.animate(anim.keyframes, anim.options);
+        run.onfinish = () => {
+          clone.remove();
+        };
+        run.oncancel = () => {
+          clone.remove();
+        };
+      });
+    };
+  }, [ref, kind]);
+}
+
+/**
+ * Wrap an overlay a component shows with `{open && …}` (a dropdown, a popover)
+ * so it fades out when closed. The wrapper takes no box (`display: contents`),
+ * so the overlay's own positioning is unchanged.
+ */
+export function ExitFade({ children, kind = 'fade' }: { children: ReactNode; kind?: ExitKind }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useExitFade(ref, kind);
+  return (
+    <div ref={ref} className="exit-fade">
+      {children}
+    </div>
   );
 }
