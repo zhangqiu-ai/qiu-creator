@@ -1,17 +1,15 @@
-import { ApiError, rewriteOf, suggestionsOf, type CreatorHubClient } from '@qiu-creator/api-client';
+import { ApiError, rewriteOf, type CreatorHubClient } from '@qiu-creator/api-client';
 import { codeText, t } from './i18n.js';
 import {
-  charCount,
-  PLATFORM_LIMITS,
   type AiFailureCode,
   type AiJobRecord,
+  type AiModelChoice,
   type AiProvider,
   type AiProviderStatus,
-  type Platform,
   type RewriteMode,
   type RewriteResult,
-  type TextCandidate,
 } from '@qiu-creator/contracts';
+import { interfaceLanguage } from './ai-library.js';
 import { countWords } from './format.js';
 import {
   composeSegments,
@@ -186,8 +184,16 @@ export class AiProviders {
     }
   }
 
-  async pick(): Promise<ReturnType<typeof pickProvider>> {
+  /**
+   * The provider to send to: `wanted` (the model menu's choice, QC-075) when it
+   * is ready, else the one chosen in the panel, else the first ready one.
+   */
+  async pick(wanted: AiProvider | null = null): Promise<ReturnType<typeof pickProvider>> {
     const items = await this.list();
+    if (wanted !== null) {
+      const it = items.find((item) => item.provider === wanted);
+      if (it?.ready === true) return { provider: it, block: null };
+    }
     return pickProvider(
       this.selected === null ? items : items.filter((item) => item.provider === this.selected),
     );
@@ -197,9 +203,17 @@ export class AiProviders {
 // ---- Rewrite ---------------------------------------------------------------------------------
 
 export interface RewriteInput {
-  mode: RewriteMode;
+  /** Omitted with a prompt: the prompt decides (custom, or the built-in's own mode). */
+  mode?: RewriteMode;
   tone?: string;
   instruction?: string;
+  /** A prompt-library entry (QC-075); its variables are expanded by the service. */
+  promptId?: string;
+  /**
+   * The model picked in the toolbar or the panel (QC-075); null or omitted:
+   * the first ready provider's own model. A prompt with its own model wins.
+   */
+  model?: AiModelChoice | null;
   /** Markdown range of the current revision; null = the whole text. */
   range: { start: number; end: number } | null;
 }
@@ -207,6 +221,8 @@ export interface RewriteInput {
 export interface RewriteCandidate {
   jobId: string;
   result: RewriteResult;
+  /** The model that wrote it (QC-075: the candidate bar names it). */
+  model: AiModelChoice;
   /** Full Markdown of the source revision. */
   source: string;
   /** The rewritten part of `source`. */
@@ -293,7 +309,7 @@ export class RewriteSession {
     await this.work.save();
     let picked: Awaited<ReturnType<AiProviders['pick']>>;
     try {
-      picked = await this.providers.pick();
+      picked = await this.providers.pick(input.model?.provider ?? null);
     } catch (err) {
       this.set({ phase: 'failed', failure: { code: null, message: messageOf(err) } });
       return;
@@ -304,9 +320,16 @@ export class RewriteSession {
     }
     this.set({ provider: picked.provider, block: null });
     try {
+      const chosen =
+        input.model != null && input.model.provider === picked.provider.provider
+          ? input.model.model
+          : null;
       const { job } = await this.client.ai.rewrite(this.work.snapshot.workId, {
         provider: picked.provider.provider,
-        mode: input.mode,
+        ...(chosen === null ? {} : { model: chosen }),
+        interface_language: interfaceLanguage(),
+        ...(input.mode === undefined ? {} : { mode: input.mode }),
+        ...(input.promptId === undefined ? {} : { prompt_id: input.promptId }),
         ...(input.tone === undefined ? {} : { tone: input.tone }),
         ...(input.instruction === undefined ? {} : { instruction: input.instruction }),
         ...(input.range === null ? {} : { selection: input.range }),
@@ -392,7 +415,15 @@ export class RewriteSession {
     }
     this.set({
       phase: 'pending',
-      candidate: { jobId: job.id, result, source, original, segments, hunks },
+      candidate: {
+        jobId: job.id,
+        result,
+        model: { provider: job.provider, model: job.model },
+        source,
+        original,
+        segments,
+        hunks,
+      },
       picks: Array.from({ length: hunks }, () => true),
     });
   }
@@ -506,252 +537,6 @@ export class RewriteSession {
     if (r === 'restored') this.set({ done: null, notice: t('ai.undoneStale') });
     else if (r === 'conflict') this.set({ done: null, notice: t('ai.undoConflict') });
     return r;
-  }
-
-  dispose(): void {
-    this.stopWatch();
-    this.disposed = true;
-    this.listeners.clear();
-  }
-}
-
-// ---- Platform title candidates ---------------------------------------------------------------
-
-export const TITLE_PLATFORMS: readonly Platform[] = [
-  'xiaohongshu',
-  'wechat_mp',
-  'douyin',
-  'wechat_channels',
-];
-
-export type WriteOutcome = 'updated' | 'created' | 'conflict' | 'error';
-
-export interface TitleState {
-  phase: 'idle' | 'loading' | 'ready' | 'failed';
-  provider: AiProviderStatus | null;
-  block: AiBlock | null;
-  titles: Partial<Record<Platform, TextCandidate[]>>;
-  picks: Partial<Record<Platform, number>>;
-  failure: { code: AiFailureCode | null; message: string; detail?: string | null } | null;
-  writing: boolean;
-  written: Partial<Record<Platform, WriteOutcome>> | null;
-}
-
-/** Characters as the platform limits count them (code points). */
-export function titleLength(text: string): number {
-  return charCount(text);
-}
-
-export function titleLimit(platform: Platform): number | null {
-  return PLATFORM_LIMITS[platform].titleMaxChars;
-}
-
-/**
- * 標題 tab (QC-024): one suggestions job for the four platforms' titles; the
- * picked title is written to each platform variant with its current
- * `base_revision` (a platform without a variant is first drafted from the original).
- */
-export class TitleSession {
-  private state: TitleState = {
-    phase: 'idle',
-    provider: null,
-    block: null,
-    titles: {},
-    picks: {},
-    failure: null,
-    writing: false,
-    written: null,
-  };
-  private readonly listeners = new Set<(s: TitleState) => void>();
-  private watch: JobWatch | null = null;
-  private disposed = false;
-
-  constructor(
-    private readonly client: CreatorHubClient,
-    private readonly workId: string,
-    private readonly providers: AiProviders,
-    private readonly pollMs = 3000,
-  ) {}
-
-  get snapshot(): TitleState {
-    return this.state;
-  }
-
-  subscribe(listener: (s: TitleState) => void): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  }
-
-  private set(patch: Partial<TitleState>): void {
-    if (this.disposed) return;
-    this.state = { ...this.state, ...patch };
-    for (const l of this.listeners) l(this.state);
-  }
-
-  async loadProvider(): Promise<void> {
-    try {
-      const picked = await this.providers.pick();
-      this.set({ provider: picked.provider, block: picked.block });
-    } catch {
-      // Offline: generating reports it.
-    }
-  }
-
-  async generate(): Promise<void> {
-    this.stopWatch();
-    this.set({ phase: 'loading', failure: null, written: null });
-    let picked: Awaited<ReturnType<AiProviders['pick']>>;
-    try {
-      picked = await this.providers.pick();
-    } catch (err) {
-      this.set({ phase: 'failed', failure: { code: null, message: messageOf(err) } });
-      return;
-    }
-    if (picked.provider === null) {
-      this.set({ phase: 'idle', provider: null, block: picked.block });
-      return;
-    }
-    this.set({ provider: picked.provider, block: null });
-    try {
-      const { job } = await this.client.ai.suggest(this.workId, {
-        provider: picked.provider.provider,
-        platforms: [...TITLE_PLATFORMS],
-        fields: ['title'],
-        count: 3,
-      });
-      this.follow(job.id);
-    } catch (err) {
-      const block = blockOf(err);
-      if (block !== null) {
-        this.providers.invalidate();
-        this.set({ phase: 'idle', block });
-        return;
-      }
-      this.set({ phase: 'failed', failure: { code: null, message: messageOf(err) } });
-    }
-  }
-
-  private follow(jobId: string): void {
-    this.stopWatch();
-    this.watch = new JobWatch(
-      this.client,
-      jobId,
-      (job) => {
-        this.onJob(job);
-      },
-      this.pollMs,
-    );
-  }
-
-  private stopWatch(): void {
-    this.watch?.stop();
-    this.watch = null;
-  }
-
-  jobChanged(jobId: string): Promise<void> {
-    return this.watch?.id === jobId ? this.watch.check() : Promise.resolve();
-  }
-
-  private onJob(job: AiJobRecord): void {
-    if (this.watch?.id !== job.id) return;
-    if (job.status === 'queued' || job.status === 'running') return;
-    if (job.status === 'cancelled') {
-      this.set({ phase: 'idle' });
-      return;
-    }
-    if (job.status === 'failed') {
-      this.set({
-        phase: 'failed',
-        failure: {
-          code: job.error_code,
-          message: t('ai.generateFailed'),
-          detail: job.error_detail ?? null,
-        },
-      });
-      return;
-    }
-    const result = suggestionsOf(job);
-    if (result === null) {
-      this.set({
-        phase: 'failed',
-        failure: { code: 'invalid_output', message: t('ai.failInvalidOutput') },
-      });
-      return;
-    }
-    const titles: Partial<Record<Platform, TextCandidate[]>> = {};
-    const picks: Partial<Record<Platform, number>> = {};
-    for (const p of result.platforms) {
-      const list = (p.titles ?? []).filter((t) => t.text.trim() !== '');
-      if (list.length === 0) continue;
-      titles[p.platform] = list;
-      picks[p.platform] = 0;
-    }
-    this.set({ phase: Object.keys(titles).length === 0 ? 'idle' : 'ready', titles, picks });
-  }
-
-  pick(platform: Platform, index: number): void {
-    this.set({ picks: { ...this.state.picks, [platform]: index }, written: null });
-  }
-
-  async stop(): Promise<void> {
-    const id = this.watch?.id;
-    this.stopWatch();
-    this.set({ phase: this.hasTitles() ? 'ready' : 'idle' });
-    if (id !== undefined) await this.client.ai.stop(id).catch(() => undefined);
-  }
-
-  async retry(): Promise<void> {
-    const id = this.watch?.id ?? null;
-    if (this.state.phase === 'failed' && id !== null) {
-      this.set({ phase: 'loading', failure: null });
-      try {
-        await this.client.ai.retry(id);
-        this.follow(id);
-      } catch (err) {
-        this.set({ phase: 'failed', failure: { code: null, message: messageOf(err) } });
-      }
-      return;
-    }
-    await this.generate();
-  }
-
-  hasTitles(): boolean {
-    return Object.keys(this.state.titles).length > 0;
-  }
-
-  /** 寫入平台版本: each picked title, one PATCH per platform with its current revision. */
-  async write(): Promise<Partial<Record<Platform, WriteOutcome>>> {
-    this.set({ writing: true, written: null });
-    const written: Partial<Record<Platform, WriteOutcome>> = {};
-    for (const platform of TITLE_PLATFORMS) {
-      const list = this.state.titles[platform];
-      const title = list?.[this.state.picks[platform] ?? 0]?.text;
-      if (title === undefined) continue;
-      written[platform] = await this.writeOne(platform, title);
-    }
-    this.set({ writing: false, written });
-    return written;
-  }
-
-  private async writeOne(platform: Platform, title: string): Promise<WriteOutcome> {
-    let created = false;
-    try {
-      let variant;
-      try {
-        variant = await this.client.variants.get(this.workId, platform);
-      } catch (err) {
-        if (!(err instanceof ApiError && err.status === 404)) throw err;
-        variant = await this.client.variants.redraft(this.workId, platform);
-        created = true;
-      }
-      await this.client.variants.patch(this.workId, platform, {
-        base_revision: variant.revision,
-        title,
-      });
-      return created ? 'created' : 'updated';
-    } catch (err) {
-      return err instanceof ApiError && err.status === 409 ? 'conflict' : 'error';
-    }
   }
 
   dispose(): void {

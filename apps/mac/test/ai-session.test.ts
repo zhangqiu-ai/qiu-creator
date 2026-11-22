@@ -14,14 +14,7 @@ import {
   type CreatorHubServer,
 } from '@qiu-creator/mac-server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-  AiProviders,
-  pickProvider,
-  RewriteSession,
-  TitleSession,
-  titleLength,
-  titleLimit,
-} from '../src/renderer/ai-session.js';
+import { AiProviders, pickProvider, RewriteSession } from '../src/renderer/ai-session.js';
 import { WorkSession } from '../src/renderer/work-session.js';
 
 /**
@@ -112,13 +105,11 @@ function open() {
   const ws = new WorkSession(client, work, { autosaveMs: 10_000 });
   const providers = new AiProviders(client);
   const rewrite = new RewriteSession(client, ws, providers, 20);
-  const titles = new TitleSession(client, work.id, providers, 20);
   disposers.push(() => {
     rewrite.dispose();
-    titles.dispose();
     ws.dispose();
   });
-  return { ws, rewrite, titles, providers };
+  return { ws, rewrite, providers };
 }
 
 async function until(check: () => boolean, label: string): Promise<void> {
@@ -299,51 +290,5 @@ describe('RewriteSession', () => {
     rewrite.discard();
     expect(rewrite.snapshot).toMatchObject({ phase: 'idle', candidate: null });
     expect((await client.works.get(work.id)).markdown).toBe(MD);
-  });
-});
-
-describe('TitleSession', () => {
-  it('writes the picked title of each platform, drafting missing variants first', async () => {
-    await ready();
-    const douyin = (await client.variants.generate(work.id, { platforms: ['douyin'] })).created[0];
-    const { titles } = open();
-    provider.replies.push(
-      JSON.stringify({
-        xiaohongshu: {
-          titles: ['書房改剪輯室半年心得', '一個超過小紅書二十字上限的書房改造剪輯室標題'],
-        },
-        wechat_mp: { titles: ['我把書房改成剪輯室'] },
-        douyin: { titles: ['書房改造復盤', '剪輯室半年'] },
-        wechat_channels: { titles: ['書房剪輯室'] },
-      }),
-    );
-    await titles.generate();
-    await until(() => titles.snapshot.phase === 'ready', 'titles');
-    const xhs = titles.snapshot.titles.xiaohongshu ?? [];
-    expect(xhs).toHaveLength(2);
-    expect(titleLength(xhs[1]?.text ?? '')).toBeGreaterThan(titleLimit('xiaohongshu') ?? 0);
-    titles.pick('douyin', 1);
-    const written = await titles.write();
-    expect(written).toEqual({
-      xiaohongshu: 'created',
-      wechat_mp: 'created',
-      douyin: 'updated',
-      wechat_channels: 'created',
-    });
-    const list = (await client.variants.list(work.id)).items;
-    const title = (p: string) => list.find((v) => v.platform === p)?.title;
-    expect(title('xiaohongshu')).toBe('書房改剪輯室半年心得');
-    expect(title('douyin')).toBe('剪輯室半年');
-    expect(list.find((v) => v.platform === 'douyin')?.revision).toBe((douyin?.revision ?? 0) + 1);
-  });
-
-  it('shows failure and nothing to write when generation fails', async () => {
-    await ready();
-    const { titles } = open();
-    provider.replies.push('not json');
-    await titles.generate();
-    await until(() => titles.snapshot.phase === 'failed', 'failure');
-    expect(titles.snapshot.failure?.code).toBe('invalid_output');
-    expect(titles.hasTitles()).toBe(false);
   });
 });

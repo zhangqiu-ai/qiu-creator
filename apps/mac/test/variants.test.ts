@@ -5,7 +5,7 @@ import { createClient, type CreatorHubClient } from '@qiu-creator/api-client';
 import type { Platform, WorkDetail } from '@qiu-creator/contracts';
 import { buildServer, type CreatorHubServer } from '@qiu-creator/mac-server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { draftWarnings, moveId } from '../src/renderer/PreviewPage.js';
+import { draftWarnings, moveId } from '../src/renderer/PreviewPanel.js';
 import { changedFields, VariantSession } from '../src/renderer/variant-session.js';
 
 /** Integration (QC-013): platform variant sessions against a real mac-server. */

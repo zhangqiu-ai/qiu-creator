@@ -1,4 +1,12 @@
-import { AI_PROVIDER_NAMES, type RewriteMode } from '@qiu-creator/contracts';
+import type { Prompt, RewriteMode } from '@qiu-creator/contracts';
+import { useAiLibrary } from './ai-library.js';
+import {
+  CandidateTags,
+  languageShort,
+  modelShort,
+  resolvedLanguage,
+  shownModel,
+} from './AiChoices.js';
 import type { MarkdownEditorHandle, MarkdownRange } from '@qiu-creator/markdown-editor-web';
 import {
   useCallback,
@@ -145,7 +153,7 @@ export function InlineAi({
   scroller: RefObject<HTMLElement | null>;
   rewrite: RewriteSession;
   /** What a toolbar rewrite works on (null: none, or one from the side panel). */
-  rewriteTarget: { range: MarkdownRange; mode: RewriteMode } | null;
+  rewriteTarget: { range: MarkdownRange; mode: RewriteMode; prompt?: Prompt } | null;
   images: ImageGenSession;
   /** Changes whenever the document or the editor mode changed (positions are measured again). */
   layoutKey: unknown;
@@ -375,6 +383,11 @@ export function InlineAi({
             font={font}
             state={rw}
             mode={rewriteTarget?.mode ?? 'polish'}
+            prompt={rewriteTarget?.prompt ?? null}
+            sample={(editor.current?.getMarkdown() ?? '').slice(
+              rewriteRange.start,
+              rewriteRange.end,
+            )}
             report={reportText}
             readOnly={readOnly}
             onStop={() => {
@@ -452,6 +465,8 @@ function TextCandidate({
   font,
   state,
   mode,
+  prompt,
+  sample,
   report,
   readOnly,
   onStop,
@@ -463,6 +478,10 @@ function TextCandidate({
   font: CSSProperties;
   state: RewriteState;
   mode: RewriteMode;
+  /** The library prompt being run (its name, and its own model or language win). */
+  prompt: Prompt | null;
+  /** The text being rewritten: what 跟隨原文 detects. */
+  sample: string;
   /** Tells the layer which element it draws (the room it takes is that element's height). */
   report: (el: HTMLElement | null) => void;
   readOnly: boolean;
@@ -472,8 +491,18 @@ function TextCandidate({
   onKeep: () => void;
 }) {
   const c = state.candidate;
-  const action = t(ACTION_KEY[mode]);
-  const provider = state.provider === null ? '' : AI_PROVIDER_NAMES[state.provider.provider].name;
+  const { state: choices } = useAiLibrary();
+  const action = prompt?.name ?? t(ACTION_KEY[mode]);
+  // While it runs: the action, the language and the model it was sent with (QC-075).
+  const runLang = resolvedLanguage(
+    prompt?.language ?? choices.preferences?.output_language ?? 'follow',
+    sample,
+  );
+  const runModel = prompt?.model ?? shownModel(choices);
+  const working =
+    runModel === null || runLang === null
+      ? t('ai.working', { action })
+      : t('ai.workingWith', { action, lang: languageShort(runLang), model: modelShort(runModel) });
   const loading = state.phase === 'loading';
   const before = c?.original.length ?? 0;
   const after = c?.result.text.length ?? 0;
@@ -491,7 +520,7 @@ function TextCandidate({
           <div className="inline-ai__lock" style={{ height: box.height }} aria-hidden="true" />
           <div className="gen-pill" role="status">
             <span className="spin" aria-hidden="true" />
-            {t('ai.working', { action })}
+            {working}
             <button type="button" className="btn btn--ghost btn--small" onClick={onStop}>
               {t('ai.stop')}
             </button>
@@ -537,7 +566,8 @@ function TextCandidate({
           <div className="cand-bar" role="group" aria-label={t('ai.candidate')}>
             <span className="cand-bar__m">
               <Icon name="spark" size={13} />
-              {t('ai.candidate')} · {t('ai.candidateMeta', { action, provider, change })}
+              {t('ai.candidate')} · {action} · {change}
+              <CandidateTags result={c.result} model={c.model} />
             </span>
             <button type="button" className="btn btn--ghost btn--small" onClick={onRetry}>
               {t('common.retry')}

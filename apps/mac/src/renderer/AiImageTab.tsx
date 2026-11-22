@@ -13,7 +13,6 @@ import {
   type ImageCandidateView,
   type ImageGenSession,
   type ImageJobView,
-  type ImagePurpose,
   type ImageRequest,
 } from './ai-images.js';
 import { AI_BLOCK_LABEL, FAILURE_LABEL } from './ai-session.js';
@@ -32,7 +31,8 @@ export const RATIOS: readonly { value: AiImageAspectRatio; label: MessageKey }[]
   { value: '9:16', label: 'ai.ratioTall' },
   { value: '3:2', label: 'ai.ratioPhoto' },
 ];
-const DEFAULT_RATIO: Record<ImagePurpose, AiImageAspectRatio> = { image: '16:9', cover: '2.35:1' };
+/** 插圖 only (QC-076): titles and covers are generated per platform in 預覽. */
+const DEFAULT_RATIO: AiImageAspectRatio = '16:9';
 const COUNTS = [1, 2, 3, 4] as const;
 
 const MODEL_KEY = 'qc.ai.imageModel';
@@ -157,10 +157,11 @@ export function useCostConfirm(): {
 }
 
 /**
- * 圖片 tab of the AI panel (QC-070, PT-20261122-002): 插圖 or 封面, a prompt
- * (the selection can be brought in; a cover can do without, it follows the
- * title and text), style, ratio, count, model and the cost before sending;
- * then this editor's generations (生成記錄) with 插入到游標處 and 設為封面.
+ * 圖片 tab of the AI panel (QC-070, PT-20261122-002, narrowed by QC-076 /
+ * PT-20261122-004): 插圖 only — a prompt (the selection can be brought in),
+ * style, ratio, count, model and the cost before sending, then this editor's
+ * generations (生成記錄) with 插入到游標處 and 設為封面 (the work's own cover).
+ * Platform covers are generated in the 預覽 split, at each platform's ratio.
  */
 export function AiImageTab({
   images,
@@ -180,10 +181,9 @@ export function AiImageTab({
   onNotice: (text: string) => void;
 }) {
   const s = useStore(images);
-  const [purpose, setPurpose] = useState<ImagePurpose>('image');
   const [prompt, setPrompt] = useState('');
   const [style, setStyle] = useState('');
-  const [ratio, setRatio] = useState<AiImageAspectRatio>(DEFAULT_RATIO.image);
+  const [ratio, setRatio] = useState<AiImageAspectRatio>(DEFAULT_RATIO);
   const [count, setCount] = useState<number>(2);
   const [model, setModel] = useState('');
   const cost = useCostConfirm();
@@ -197,8 +197,8 @@ export function AiImageTab({
   }, [s.models, model]);
 
   const request = useMemo(
-    (): ImageRequest => ({ purpose, model, prompt, style, aspectRatio: ratio, count }),
-    [purpose, model, prompt, style, ratio, count],
+    (): ImageRequest => ({ purpose: 'image', model, prompt, style, aspectRatio: ratio, count }),
+    [model, prompt, style, ratio, count],
   );
   // The cost follows the request (a little after the last change).
   useEffect(() => {
@@ -271,27 +271,12 @@ export function AiImageTab({
         </div>
       )}
 
-      <div className="seg ai-img__purpose" role="radiogroup" aria-label={t('ai.imagePurpose')}>
-        {(['image', 'cover'] as const).map((p) => (
-          <button
-            key={p}
-            type="button"
-            role="radio"
-            aria-checked={purpose === p}
-            onClick={() => {
-              setPurpose(p);
-              setRatio(DEFAULT_RATIO[p]);
-            }}
-          >
-            {p === 'image' ? t('ai.purposeImage') : t('ai.purposeCover')}
-          </button>
-        ))}
-      </div>
+      <p className="post__hint">{t('editor.imagesIllustrationOnly')}</p>
 
       <div className="ai-img__field">
         <span className="ai-img__label" id="ai-img-prompt">
           {t('ai.prompt')}
-          {purpose === 'image' && selectionText.trim() !== '' && (
+          {selectionText.trim() !== '' && (
             <button
               type="button"
               className="link-btn"
@@ -307,9 +292,7 @@ export function AiImageTab({
           className="ai-img__prompt"
           aria-labelledby="ai-img-prompt"
           rows={3}
-          placeholder={
-            purpose === 'cover' ? t('ai.promptCoverPlaceholder') : t('ai.promptPlaceholder')
-          }
+          placeholder={t('ai.promptPlaceholder')}
           value={prompt}
           onChange={(e) => {
             setPrompt(e.target.value);
@@ -536,17 +519,15 @@ function cells(
             </span>
           ) : (
             <span className="ai-img__hover">
-              {job.request.purpose === 'image' && (
-                <button
-                  type="button"
-                  disabled={job.busy !== null}
-                  onClick={() => {
-                    place(job, c, 'insert');
-                  }}
-                >
-                  {t('ai.insertAtCursor')}
-                </button>
-              )}
+              <button
+                type="button"
+                disabled={job.busy !== null}
+                onClick={() => {
+                  place(job, c, 'insert');
+                }}
+              >
+                {t('ai.insertAtCursor')}
+              </button>
               <button
                 type="button"
                 disabled={job.busy !== null}

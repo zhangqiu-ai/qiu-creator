@@ -94,10 +94,10 @@ test('設定與 AI 動效錄影（正常速度）與減少動態效果', async (
   }
   await expect(page.locator('[data-gliding]')).toHaveCount(0);
 
-  // The AI panel's tab underline glides between 改寫 and 標題.
+  // The AI panel's tab underline glides between 改寫 and 圖片 (標題 moved to the preview, QC-076).
   await page.locator('.card-grid .wcard', { hasText: '京都散步路線' }).click();
   const aiTabs = page.getByRole('tablist', { name: 'AI' });
-  await aiTabs.getByRole('tab', { name: '標題' }).click();
+  await aiTabs.getByRole('tab', { name: '圖片' }).click();
   await aiTabs.getByRole('tab', { name: '改寫' }).click();
   await expect(page.locator('.seg-glide')).toHaveCount(0);
 

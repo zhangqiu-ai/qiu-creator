@@ -32,12 +32,12 @@ const CLIP = fileURLToPath(new URL('../fixtures/media/portrait-8s.webm', import.
 const GEMINI_KEY = 'AIzaFakeQc046E2eKey0123456789';
 
 /**
- * The side panel holds the 340 px phone and the AI results without scrolling sideways, and
- * the phone is not cut off (same rule as the image-post editor, QC-049).
+ * A right panel holds the AI results, and the 預覽 split the 340 px phone, without
+ * scrolling sideways; the phone is not cut off (same rule as QC-049).
  */
-async function expectSideFits(page: Page): Promise<void> {
+async function expectSideFits(page: Page, selector = '.vw__side'): Promise<void> {
   const measure = `(() => {
-    const side = document.querySelector('.tab-pane:not([hidden]) .vw__side');
+    const side = document.querySelector('.tab-pane:not([hidden]) ${selector}');
     const phone = side.querySelector('.pp-phone');
     const rect = side.getBoundingClientRect();
     const visibleRight = rect.left + side.clientLeft + side.clientWidth;
@@ -59,8 +59,10 @@ async function shot(page: Page, name: string): Promise<void> {
 }
 
 const editor = (page: Page): Locator => page.locator('.tab-pane:not([hidden]) main.vw');
-const side = (page: Page): Locator =>
-  editor(page).getByRole('complementary', { name: 'AI 理解與預覽' });
+const side = (page: Page): Locator => editor(page).getByRole('complementary', { name: 'AI 理解' });
+/** QC-076: 抖音 and 視頻號 copy versions live in the shared 預覽 split. */
+const preview = (page: Page): Locator =>
+  editor(page).getByRole('complementary', { name: '平台預覽' });
 
 async function newVideoWork(page: Page): Promise<void> {
   await page
@@ -141,28 +143,42 @@ test('視頻：選視頻、播放與 ←→、截取封面、共用與抖音文�
     expect([asset.width, asset.height]).toEqual([360, 640]);
   });
 
-  await test.step('文案：共用標題；抖音預設沿用，取消後自己改寫', async () => {
+  await test.step('文案：編輯頁只有共用文案；抖音版本在預覽分欄裡改寫（QC-076）', async () => {
     await editor(page)
       .locator('#vw-title-' + work.id)
       .fill('嵐山竹林：清晨人最少的時段與散步路線');
-    await expect(editor(page).getByText('視頻號 18/16')).toBeVisible();
-    const tabs = editor(page).getByRole('tablist', { name: '文案' });
-    await tabs.getByRole('tab', { name: /抖音/ }).click();
-    const inherit = editor(page).getByRole('checkbox', { name: /沿用共用文案/ });
-    await expect(inherit).toBeChecked();
-    await expect(editor(page).locator('#vw-douyin-title')).toHaveValue(
-      '嵐山竹林：清晨人最少的時段與散步路線',
+    // The editor has no platform copy tabs any more, only the shared copy.
+    await expect(editor(page).getByRole('tablist', { name: '文案' })).toHaveCount(0);
+    // A count chip is an indicator; clicking it opens that platform in the preview.
+    await editor(page).getByRole('button', { name: '視頻號 18/16' }).click();
+    await expect(preview(page).getByRole('tab', { name: /視頻號/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
     );
-    await expect(editor(page).locator('#vw-douyin-title')).toHaveAttribute('readonly', '');
+    // Only the two video platforms are offered.
+    await expect(preview(page).getByRole('tab')).toHaveText([/抖音/, /視頻號/]);
+    await preview(page).getByRole('tab', { name: /抖音/ }).click();
+    const title = preview(page).getByRole('textbox', { name: '標題' });
+    const inherit = preview(page).getByRole('checkbox', { name: /沿用共用文案/ });
+    await expect(inherit).toBeChecked();
+    await expect(title).toHaveValue('嵐山竹林：清晨人最少的時段與散步路線');
+    await expect(title).toHaveAttribute('readonly', '');
     await inherit.uncheck();
-    await expect(editor(page).locator('#vw-douyin-title')).not.toHaveAttribute('readonly', '');
-    await editor(page).locator('#vw-douyin-title').fill('清晨嵐山竹林散步');
+    await expect(title).not.toHaveAttribute('readonly', '');
+    await title.fill('清晨嵐山竹林散步');
     await expect
       .poll(async () => (await backend.client.variants.get(work.id, 'douyin')).title)
       .toBe('清晨嵐山竹林散步');
     expect((await backend.client.variants.get(work.id, 'douyin')).inherit).toBe(false);
-    await expect(tabs.getByRole('tab', { name: /抖音/ })).toContainText('自訂');
-    await tabs.getByRole('tab', { name: '共用' }).click();
+    // The phone simulation sits beside the form, and the original keeps the shared title.
+    await expect(preview(page).locator('.pp-phone')).toBeVisible();
+    await expectSideFits(page, '.pv-split__body');
+    await shot(page, 'zh-Hant-10-preview');
+    await expect(editor(page).locator('#vw-title-' + work.id)).toHaveValue(
+      '嵐山竹林：清晨人最少的時段與散步路線',
+    );
+    await preview(page).getByRole('button', { name: '關閉預覽' }).click();
+    await expect(preview(page)).toHaveCount(0);
   });
 
   await test.step('Gemini：先看預估、勾選同意才送出，分析後出現摘要與待核驗的時間點', async () => {
@@ -187,35 +203,33 @@ test('視頻：選視頻、播放與 ←→、截取封面、共用與抖音文�
     await expect.poll(() => playerTime(page)).toBe(3);
   });
 
-  await test.step('採用標題建議：先看 diff，採用後可復原', async () => {
+  await test.step('採用簡介建議：先看 diff，採用後可復原', async () => {
     await side(page)
       .locator('.vw__sugg')
-      .filter({ hasText: '清晨的嵐山竹林' })
+      .filter({ hasText: '早上七點前的竹林' })
       .getByRole('button', { name: '查看並採用' })
       .click();
-    const dialog = page.getByRole('dialog', { name: '採用標題建議' });
-    await expect(dialog.locator('.ins')).toContainText('清晨的嵐山竹林');
+    const dialog = page.getByRole('dialog', { name: '採用簡介建議' });
+    await expect(dialog.locator('.ins')).toContainText('早上七點前的竹林');
     await shot(page, 'zh-Hant-4-adopt-diff');
     await dialog.getByRole('button', { name: '採用' }).click();
-    await expect(editor(page).locator('#vw-title-' + work.id)).toHaveValue('清晨的嵐山竹林');
+    await expect(editor(page).locator('#vw-desc-' + work.id)).toHaveValue(
+      '早上七點前的竹林幾乎沒有人。',
+    );
     const revisions = await backend.client.works.revisions(work.id);
     expect(revisions.items[0]?.source).toBe('ai_accepted');
-    // The AI results fit the side panel; so does the phone on the 預覽 tab.
+    // The AI results fit the side panel.
     await expectSideFits(page);
     await shot(page, 'zh-Hant-2-editor');
-    await side(page).getByRole('tab', { name: '預覽' }).click();
-    await expect(side(page).locator('.pp-phone')).toBeVisible();
-    await expectSideFits(page);
-    await shot(page, 'zh-Hant-10-preview');
-    await side(page).getByRole('tab', { name: 'AI 理解' }).click();
+    // QC-076: the understanding panel no longer has title suggestions or a 預覽 tab.
+    await expect(side(page).getByRole('heading', { name: '標題建議' })).toHaveCount(0);
+    await expect(side(page).getByRole('tab')).toHaveCount(0);
     await page
       .locator('[data-toast]')
       .filter({ hasText: '已採用 AI 建議' })
       .getByRole('button', { name: '復原' })
       .click();
-    await expect(editor(page).locator('#vw-title-' + work.id)).toHaveValue(
-      '嵐山竹林：清晨人最少的時段與散步路線',
-    );
+    await expect(editor(page).locator('#vw-desc-' + work.id)).toHaveValue('');
   });
 
   await test.step('三語與深色截圖', async () => {

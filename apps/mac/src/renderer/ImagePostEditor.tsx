@@ -8,10 +8,6 @@ import {
   type WorkMediaItem,
   type WorkStatus,
 } from '@qiu-creator/contracts';
-import { buildPreviewModel, PLATFORMS } from '@qiu-creator/platform-preview';
-import { PlatformPreview } from '@qiu-creator/platform-preview/react';
-import '@qiu-creator/platform-preview/style.css';
-import { formatShortDate } from '@qiu-creator/i18n';
 import {
   useCallback,
   useEffect,
@@ -49,7 +45,8 @@ import { imageFiles, InsertSession, type InsertState, type InsertWhere } from '.
 import { useChangeEvents } from './events.js';
 import { WORK_STATUS } from './format.js';
 import { HistoryPanel } from './HistoryPanel.js';
-import { codeText, t, useLocale } from './i18n.js';
+import { PreviewPanel } from './PreviewPanel.js';
+import { codeText, t } from './i18n.js';
 import { Icon } from './Icon.js';
 import { useToast } from './toasts.js';
 import {
@@ -87,7 +84,6 @@ export interface ImagePostEditorProps {
   work: WorkDetail;
   userHome: string | null;
   onBack: () => void;
-  onPreview?: () => void;
   active?: boolean;
   initialView?: TabView;
   initialDraft?: Draft | null;
@@ -142,14 +138,12 @@ function PostEditor({
   work,
   userHome,
   onBack,
-  onPreview,
   session,
   active = true,
   initialView,
   onTabStatus,
   onViewChange,
 }: ImagePostEditorProps & { session: WorkSession }) {
-  const locale = useLocale();
   const state = useSyncExternalStore(
     useCallback((cb) => session.subscribe(cb), [session]),
     () => session.snapshot,
@@ -168,7 +162,16 @@ function PostEditor({
       : null;
 
   const [panel, setPanel] = useState<TabPanel>(initialView?.panel ?? 'ai');
-  const [platform, setPlatform] = useState<Platform>('xiaohongshu');
+  // QC-076: the platform versions live in the 預覽 split, shared with the other editors.
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewAsk, setPreviewAsk] = useState<{ platform: Platform; n: number } | undefined>(
+    undefined,
+  );
+  const openPreview = (platform: Platform) => {
+    setPanel('ai');
+    setPreviewAsk((r) => ({ platform, n: (r?.n ?? 0) + 1 }));
+    setPreviewOpen(true);
+  };
   const [coverOpen, setCoverOpen] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [undo, setUndo] = useState<{
@@ -365,11 +368,14 @@ function PostEditor({
       if (!e.shiftKey && key === 's') {
         e.preventDefault();
         void session.save();
-      } else if (!e.shiftKey && key === 'p' && onPreview !== undefined) {
+      } else if (e.shiftKey && key === 'p') {
         e.preventDefault();
-        void session.save().finally(onPreview);
+        void session.save().finally(() => {
+          setPreviewOpen((open) => !open);
+        });
       } else if (e.shiftKey && key === 'i') {
         e.preventDefault();
+        setPreviewOpen(false);
         setPanel((p) => (p === 'assets' ? 'ai' : 'assets'));
       } else if (e.shiftKey && key === 'u') {
         e.preventDefault();
@@ -392,7 +398,7 @@ function PostEditor({
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('paste', onPaste);
     };
-  }, [active, session, onPreview, insert, imagesLocked]);
+  }, [active, session, insert, imagesLocked]);
 
   // ---- Grid drag and drop ---------------------------------------------------------------------
   const grid = useRef<HTMLDivElement>(null);
@@ -452,22 +458,6 @@ function PostEditor({
   const titles = titleCounts(draft.title);
   const over = counts.some((c) => c.over);
   const descLength = charCount(draft.markdown);
-  const model = useMemo(
-    () =>
-      buildPreviewModel({
-        platform,
-        title: draft.title,
-        body: draft.markdown,
-        tags: draft.tags,
-        coverUrl: shownCover === null ? null : thumbnailUrl(shownCover),
-        imageUrls: ids.map(thumbnailUrl),
-        workType: 'image',
-        dateLabel: formatShortDate(locale, new Date(work.updated_at)),
-        locale,
-      }),
-    [platform, draft.title, draft.markdown, draft.tags, shownCover, ids, locale, work.updated_at],
-  );
-
   // Notices go through the shared queue (QC-045); a background tab shows none.
   const shownNotice = undo?.label ?? notice ?? insertState.notice?.message ?? null;
   useToast(
@@ -556,24 +546,27 @@ function PostEditor({
           </span>
           {rev !== undefined && <Chip>r{rev}</Chip>}
           <div className="editor__actions">
-            {onPreview !== undefined && (
-              <button
-                type="button"
-                className="btn"
-                aria-keyshortcuts="Meta+P"
-                onClick={() => {
-                  void session.save().finally(onPreview);
-                }}
-              >
-                <Icon name="phone" />
-                {t('editor.preview')}
-              </button>
-            )}
+            <button
+              type="button"
+              className="btn"
+              aria-pressed={previewOpen}
+              aria-controls="preview-panel"
+              aria-keyshortcuts="Meta+Shift+P"
+              onClick={() => {
+                void session.save().finally(() => {
+                  setPreviewOpen((open) => !open);
+                });
+              }}
+            >
+              <Icon name="phone" />
+              {t('editor.preview')}
+            </button>
             <button
               type="button"
               className="btn btn--ghost"
               aria-expanded={panel === 'history'}
               onClick={() => {
+                setPreviewOpen(false);
                 setPanel((p) => (p === 'history' ? 'ai' : 'history'));
               }}
             >
@@ -675,7 +668,7 @@ function PostEditor({
                 </h2>
                 <div className="post__chips" aria-label={t('imagePost.platformCounts')}>
                   {counts.map((c) => (
-                    <LimitChip key={c.platform} count={c} unit="images" />
+                    <LimitChip key={c.platform} count={c} unit="images" onOpen={openPreview} />
                   ))}
                 </div>
                 <button
@@ -998,7 +991,7 @@ function PostEditor({
               />
               <div className="post__chips" aria-label={t('imagePost.titleCounts')}>
                 {titles.map((c) => (
-                  <LimitChip key={c.platform} count={c} unit="chars" />
+                  <LimitChip key={c.platform} count={c} unit="chars" onOpen={openPreview} />
                 ))}
               </div>
             </section>
@@ -1033,7 +1026,18 @@ function PostEditor({
             </section>
           </div>
 
-          {panel === 'history' ? (
+          {previewOpen ? (
+            <PreviewPanel
+              client={client}
+              work={work}
+              open={previewAsk}
+              workCoverAssetId={shownCover}
+              onClose={() => {
+                setPreviewOpen(false);
+              }}
+              onNotice={setNotice}
+            />
+          ) : panel === 'history' ? (
             <HistoryPanel
               client={client}
               workId={work.id}
@@ -1065,51 +1069,7 @@ function PostEditor({
                 setPanel('ai');
               }}
             />
-          ) : (
-            <aside className="panel post__side" aria-label={t('imagePost.sidePanel')}>
-              <div className="ai__tabs">
-                <div className="ai__tab-list" role="tablist" aria-label={t('imagePost.sidePanel')}>
-                  <button type="button" role="tab" className="ai__tab" aria-selected>
-                    {t('editor.preview')}
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    className="ai__tab"
-                    aria-selected={false}
-                    aria-keyshortcuts="Meta+Shift+I"
-                    onClick={() => {
-                      setPanel('assets');
-                    }}
-                  >
-                    {t('editor.assets')}
-                  </button>
-                </div>
-              </div>
-              <div className="post__preview">
-                <div
-                  className="seg post__platforms"
-                  role="group"
-                  aria-label={t('imagePost.previewPlatform')}
-                >
-                  {PLATFORMS.map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      aria-pressed={platform === p}
-                      onClick={() => {
-                        setPlatform(p);
-                      }}
-                    >
-                      {shortPlatform(p)}
-                    </button>
-                  ))}
-                </div>
-                <PlatformPreview model={model} locale={locale} />
-                <p className="post__hint">{t('imagePost.previewHint')}</p>
-              </div>
-            </aside>
-          )}
+          ) : null}
         </div>
 
         <input
@@ -1181,7 +1141,19 @@ function PostEditor({
   );
 }
 
-function LimitChip({ count, unit }: { count: PlatformCount; unit: 'images' | 'chars' }) {
+/**
+ * One platform's count: an indicator (QC-076 entry audit), and a click opens
+ * that platform in the 預覽 split; the editor never edits platform versions.
+ */
+function LimitChip({
+  count,
+  unit,
+  onOpen,
+}: {
+  count: PlatformCount;
+  unit: 'images' | 'chars';
+  onOpen: (platform: Platform) => void;
+}) {
   const text =
     count.limit === null
       ? t(unit === 'images' ? 'imagePost.countNoLimit' : 'imagePost.charsNoLimit', {
@@ -1193,7 +1165,18 @@ function LimitChip({ count, unit }: { count: PlatformCount; unit: 'images' | 'ch
           count: count.actual,
           limit: count.limit,
         });
-  return <span className={count.over ? 'chip chip--warn' : 'chip'}>{text}</span>;
+  return (
+    <button
+      type="button"
+      className={count.over ? 'chip chip--warn chip--button' : 'chip chip--button'}
+      title={t('library.openInPreview', { platform: shortPlatform(count.platform) })}
+      onClick={() => {
+        onOpen(count.platform);
+      }}
+    >
+      {text}
+    </button>
+  );
 }
 
 function AddTile({ onLibrary, onUpload }: { onLibrary: () => void; onUpload: () => void }) {

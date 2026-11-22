@@ -2,6 +2,7 @@ import { sessionHandle, type EditorTabHandle } from './tab-handle.js';
 import type { CreatorHubClient } from '@qiu-creator/api-client';
 import type {
   AssetRecord,
+  Prompt,
   Revision,
   RewriteMode,
   WorkDetail,
@@ -26,7 +27,7 @@ import {
 } from 'react';
 import { codeText, t, useLocale } from './i18n.js';
 import { AiPanel, type AiSelection, type AiTab } from './AiPanel.js';
-import { AI_BLOCK_LABEL, AiProviders, RewriteSession, TitleSession } from './ai-session.js';
+import { AI_BLOCK_LABEL, AiProviders, RewriteSession } from './ai-session.js';
 import { ImageGenSession, pendingCandidates } from './ai-images.js';
 import { chooseModel, useCostConfirm } from './AiImageTab.js';
 import { InlineAi } from './InlineAi.js';
@@ -43,6 +44,8 @@ import { WorkMediaResolver } from './media.js';
 import { externalSource, useMounts } from './mounts.js';
 import { TagEditor } from './TagEditor.js';
 import { ProjectTags } from './ProjectTags.js';
+import { PreviewPanel } from './PreviewPanel.js';
+import { currentModel, useAiLibrary } from './ai-library.js';
 import type { TabPanel, TabStatusPatch, TabView } from './tabs.js';
 import {
   WorkSession,
@@ -171,10 +174,10 @@ export interface EditorPageProps {
   /** For showing mount folders as `~/…`. */
   userHome: string | null;
   onBack: () => void;
-  /** Open 平台預覽 for this work (⌘P). */
-  onPreview?: () => void;
   /** 「前往設定」 from the AI panel when no key or consent is set. */
   onOpenSettings?: () => void;
+  /** 管理 Prompt (QC-075). */
+  onOpenPrompts?: () => void;
   /**
    * QC-047: false while this editor's tab is in the background. Background
    * editors stay mounted (draft, caret, scroll, panels intact) but handle no
@@ -242,8 +245,8 @@ function SessionEditor({
   work,
   userHome,
   onBack,
-  onPreview,
   onOpenSettings,
+  onOpenPrompts,
   session,
   active = true,
   focusToken = 0,
@@ -267,10 +270,22 @@ function SessionEditor({
   const [historyOpen, setHistoryOpen] = useState(initialView?.panel === 'history');
   // QC-039: the asset drawer replaces the AI panel while open (⌘⇧I).
   const [drawerOpen, setDrawerOpen] = useState(initialView?.panel === 'assets');
+  // QC-076: 預覽 (⌘⇧P) opens the platform preview as a split, like the other right panels.
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const togglePreview = useCallback(() => {
+    setPreviewOpen((open) => {
+      if (!open) {
+        setHistoryOpen(false);
+        setDrawerOpen(false);
+      }
+      return !open;
+    });
+  }, []);
   const [slashAt, setSlashAt] = useState<{ x: number; y: number } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   /** A quiet confirmation (an AI candidate kept), shown as an ok toast. */
   const [okNotice, setOkNotice] = useState<string | null>(null);
+  const { state: aiChoices } = useAiLibrary();
   useEffect(() => {
     if (okNotice === null) return;
     const timer = setTimeout(() => {
@@ -355,20 +370,17 @@ function SessionEditor({
   const [ai, setAi] = useState<{
     providers: AiProviders;
     rewrite: RewriteSession;
-    titles: TitleSession;
     images: ImageGenSession;
   } | null>(null);
   useEffect(() => {
     const providers = new AiProviders(client);
     const rewrite = new RewriteSession(client, session, providers);
-    const titles = new TitleSession(client, work.id, providers);
     const images = new ImageGenSession(client, session, providers);
-    setAi({ providers, rewrite, titles, images });
+    setAi({ providers, rewrite, images });
     void rewrite.loadProvider();
     void images.load();
     return () => {
       rewrite.dispose();
-      titles.dispose();
       images.dispose();
     };
   }, [client, session, work.id]);
@@ -376,6 +388,8 @@ function SessionEditor({
   const [rewriteTarget, setRewriteTarget] = useState<{
     range: MarkdownRange;
     mode: RewriteMode;
+    /** A prompt from the library (QC-075): its name is said instead of the mode. */
+    prompt?: Prompt;
   } | null>(null);
   const closeRewriteTarget = useCallback(() => {
     setRewriteTarget(null);
@@ -384,6 +398,7 @@ function SessionEditor({
   const showAiTab = (tab: AiTab) => {
     setHistoryOpen(false);
     setDrawerOpen(false);
+    setPreviewOpen(false);
     setTabRequest((r) => ({ tab, n: (r?.n ?? 0) + 1 }));
   };
   const costConfirm = useCostConfirm();
@@ -467,10 +482,19 @@ function SessionEditor({
       });
       return;
     }
+    const model = currentModel(aiChoices, 'rewrite');
+    if (action.kind === 'prompt') {
+      const p = action.prompt;
+      if (mode === 'visual') setRewriteTarget({ range, mode: 'custom', prompt: p });
+      else showAiTab('rewrite');
+      void ai.rewrite.generate({ promptId: p.id, model, range });
+      return;
+    }
     const input = {
       mode: action.mode,
       ...(action.mode === 'tone' ? { tone: action.tone } : {}),
       ...(action.mode === 'custom' ? { instruction: action.instruction } : {}),
+      model,
       range,
     };
     if (mode === 'visual') setRewriteTarget({ range, mode: action.mode });
@@ -497,7 +521,6 @@ function SessionEditor({
   useChangeEvents((event) => {
     if (event.entity === 'job' && event.action.startsWith('ai_job.')) {
       void ai?.rewrite.jobChanged(event.entity_id);
-      void ai?.titles.jobChanged(event.entity_id);
       void ai?.images.jobChanged(event.entity_id);
       return;
     }
@@ -565,9 +588,9 @@ function SessionEditor({
       if (!e.shiftKey && e.key.toLowerCase() === 's') {
         e.preventDefault();
         void session.save();
-      } else if (!e.shiftKey && e.key.toLowerCase() === 'p' && onPreview !== undefined) {
+      } else if (e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
-        void session.save().finally(onPreview);
+        void session.save().finally(togglePreview);
       } else if (e.key === '/') {
         e.preventDefault();
         editor.current?.requestMode(editor.current.getMode() === 'visual' ? 'source' : 'visual');
@@ -575,6 +598,7 @@ function SessionEditor({
         e.preventDefault();
         setDrawerOpen((v) => !v);
         setHistoryOpen(false);
+        setPreviewOpen(false);
       } else if (e.shiftKey && e.key.toLowerCase() === 'u') {
         e.preventDefault();
         fileInput.current?.click();
@@ -584,7 +608,7 @@ function SessionEditor({
     return () => {
       window.removeEventListener('keydown', onKey);
     };
-  }, [session, onPreview, active]);
+  }, [session, togglePreview, active]);
 
   // ---- QC-047: tab badges and where the user was ----------------------------------------------
   useEffect(() => {
@@ -598,21 +622,12 @@ function SessionEditor({
     useCallback((cb: () => void) => ai?.rewrite.subscribe(cb) ?? (() => undefined), [ai]),
     () => ai?.rewrite.snapshot ?? null,
   );
-  const titleState = useSyncExternalStore(
-    useCallback((cb: () => void) => ai?.titles.subscribe(cb) ?? (() => undefined), [ai]),
-    () => ai?.titles.snapshot ?? null,
-  );
   useEffect(() => {
     onTabStatus?.({
-      aiCandidate:
-        rewriteState?.candidate != null || titleState?.phase === 'ready' || unkeptImages > 0,
-      aiBusy:
-        rewriteState?.phase === 'loading' ||
-        titleState?.phase === 'loading' ||
-        titleState?.writing === true ||
-        imagesBusy,
+      aiCandidate: rewriteState?.candidate != null || unkeptImages > 0,
+      aiBusy: rewriteState?.phase === 'loading' || imagesBusy,
     });
-  }, [rewriteState, titleState, unkeptImages, imagesBusy, onTabStatus]);
+  }, [rewriteState, unkeptImages, imagesBusy, onTabStatus]);
 
   const panel: TabPanel = historyOpen ? 'history' : drawerOpen ? 'assets' : 'ai';
   /** Kept up to date while the tab is in front, read when it goes to the background or unloads. */
@@ -697,7 +712,6 @@ function SessionEditor({
     if (!wasActive.current && active && ai !== null) {
       ai.providers.invalidate();
       void ai.rewrite.loadProvider();
-      void ai.titles.loadProvider();
       setProvidersEpoch((n) => n + 1);
     }
     wasActive.current = active;
@@ -746,6 +760,7 @@ function SessionEditor({
       : null;
   const openDrawer = () => {
     setHistoryOpen(false);
+    setPreviewOpen(false);
     setDrawerOpen(true);
   };
   const slashCommands: SlashCommand[] = [
@@ -905,25 +920,27 @@ function SessionEditor({
                 fileInput.current?.click();
               }}
             />
-            {onPreview !== undefined && (
-              <button
-                type="button"
-                className="btn"
-                aria-keyshortcuts="Meta+P"
-                onClick={() => {
-                  void session.save().finally(onPreview);
-                }}
-              >
-                <Icon name="phone" />
-                {t('editor.preview')}
-              </button>
-            )}
+            <button
+              type="button"
+              className="btn"
+              aria-pressed={previewOpen}
+              aria-controls="preview-panel"
+              aria-keyshortcuts="Meta+Shift+P"
+              onClick={() => {
+                void session.save().finally(togglePreview);
+              }}
+            >
+              <Icon name="phone" />
+              {t('editor.preview')}
+            </button>
             <button
               type="button"
               className="btn btn--ghost"
               aria-expanded={historyOpen}
               aria-controls="history-panel"
               onClick={() => {
+                setPreviewOpen(false);
+                setDrawerOpen(false);
                 setHistoryOpen((v) => !v);
               }}
             >
@@ -1164,6 +1181,13 @@ function SessionEditor({
                 }
                 imageDisabledReason={imageDisabledReason}
                 onAction={onToolbar}
+                onManagePrompts={() => {
+                  void session.save().finally(() => onOpenPrompts?.());
+                }}
+                onOpenAiServices={() => {
+                  void session.save().finally(() => onOpenSettings?.());
+                }}
+                onNotice={setOkNotice}
               />
             )}
             {ai !== null && mode === 'visual' && (
@@ -1219,7 +1243,19 @@ function SessionEditor({
             />
           </section>
 
-          {!historyOpen && drawerOpen && (
+          {previewOpen && (
+            <PreviewPanel
+              client={client}
+              work={work}
+              onClose={() => {
+                setPreviewOpen(false);
+                editor.current?.focus();
+              }}
+              onNotice={setOkNotice}
+            />
+          )}
+
+          {!previewOpen && !historyOpen && drawerOpen && (
             <AssetDrawer
               client={client}
               workId={work.id}
@@ -1237,11 +1273,10 @@ function SessionEditor({
             />
           )}
 
-          {!historyOpen && !drawerOpen && ai !== null && (
+          {!previewOpen && !historyOpen && !drawerOpen && ai !== null && (
             <AiPanel
               providers={ai.providers}
               rewrite={ai.rewrite}
-              titles={ai.titles}
               selection={aiSelection}
               readOnly={readOnly}
               revisionNumber={(id) => numbers.get(id)}
@@ -1258,10 +1293,13 @@ function SessionEditor({
               onOpenSettings={() => {
                 void session.save().finally(() => onOpenSettings?.());
               }}
+              onOpenPrompts={() => {
+                void session.save().finally(() => onOpenPrompts?.());
+              }}
             />
           )}
 
-          {historyOpen && (
+          {!previewOpen && historyOpen && (
             <HistoryPanel
               client={client}
               workId={work.id}

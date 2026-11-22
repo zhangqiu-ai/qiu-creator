@@ -43,6 +43,8 @@ export type IconName =
   | 'undo'
   | 'send'
   | 'lines'
+  | 'prompt'
+  | 'language'
   | 'sidebar'
   | 'appearance'
   | 'server'
@@ -133,6 +135,17 @@ const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   undo: ['M9 14 4 9l5-5', 'M4 9h11a5 5 0 0 1 0 10h-3'],
   send: ['M5 12h14', 'M13 6l6 6-6 6'],
   lines: ['M4 7h16', 'M4 12h16', 'M4 17h10'],
+  // A prompt: a command chevron and a line to type on (QC-075).
+  prompt: ['M4 6h16v12H4Z', 'M7.5 10l2.5 2-2.5 2', 'M12 14h4.5'],
+  // 輸出語言 (QC-075): 文 and A.
+  language: [
+    'M3 5h10',
+    'M8 3v2',
+    'M5 5c1 4 4 7 8 8',
+    'M11 5c-1 4-4 7-8 8',
+    'M13 20l4-9 4 9',
+    'M14.5 17h5',
+  ],
   offline: [
     'M3 3l18 18',
     'M8.5 16.5a5 5 0 0 1 7 0',
