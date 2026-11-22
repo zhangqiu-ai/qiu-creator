@@ -20,10 +20,27 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type CSSProperties,
   type DragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEventHandler,
+  type ReactNode,
 } from 'react';
+import {
+  closestCenter,
+  DndContext,
+  DragOverlay,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
+import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { motion } from 'motion/react';
 import { thumbnailUrl } from '../shared/bridge.js';
+import { dropAnimationFor, sortTransition, useDragSensors, type Landing } from './dnd-motion.js';
+import { springOf } from './motion.js';
+import { useMotionMode, type MotionMode } from './motion-mode.js';
 import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
 import { sessionHandle, type EditorTabHandle } from './tab-handle.js';
@@ -57,8 +74,6 @@ import { WorkSession, type Draft, type DraftCover, type SaveError } from './work
 
 const STATUS_ORDER: readonly WorkStatus[] = ['drafting', 'in_review', 'ready', 'published'];
 const EMPTY_INSERT: InsertState = { pending: [], notice: null };
-/** dataTransfer type for reordering images inside the grid. */
-const IMAGE_DRAG_TYPE = 'application/x-qc-post-image';
 /** Crops shown when choosing a cover (PT-20261121-001): 3:4, 1:1, 2.35:1. */
 const COVER_CROPS = [
   { key: '3:4', ratio: '3 / 4' },
@@ -401,14 +416,33 @@ function PostEditor({
       ? { index: 0, x: 0, y: 0, h: 0 }
       : { index: tiles.length, x: last.right - ox + 5, y: last.top - oy, h: last.height };
   };
+  // Assets from the drawer and files from Finder still come in by HTML5 drag and drop.
   const dragKind = (types: readonly string[]) =>
-    types.includes(IMAGE_DRAG_TYPE)
-      ? 'image'
-      : types.includes(ASSET_DRAG_TYPE)
-        ? 'asset'
-        : types.includes('Files')
-          ? 'files'
-          : null;
+    types.includes(ASSET_DRAG_TYPE) ? 'asset' : types.includes('Files') ? 'files' : null;
+
+  // Reordering the images (QC-065): dnd-kit sortable across the grid; the other tiles make
+  // room (`base`), the dropped one settles, Esc puts it back (DESIGN.md 動效 · 拖放).
+  const motionMode = useMotionMode();
+  const sensors = useDragSensors();
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [landing, setLanding] = useState<Landing>('cancel');
+  const onSortStart = (e: DragStartEvent) => {
+    setDragId(String(e.active.id));
+    setLanding('cancel');
+  };
+  const onSortOver = (e: DragOverEvent) => {
+    setLanding(e.over === null || e.over.id === e.active.id ? 'cancel' : 'sort');
+  };
+  const onSortEnd = (e: DragEndEvent) => {
+    setDragId(null);
+    if (e.over === null || imagesLocked !== null) return;
+    const id = String(e.active.id);
+    const from = ids.indexOf(id);
+    const to = ids.indexOf(String(e.over.id));
+    if (from < 0 || to < 0 || from === to) return;
+    // moveImageTo puts the image before the one at the index it is given.
+    setImages(moveImageTo(ids, id, to > from ? to + 1 : to));
+  };
 
   // ---- Derived --------------------------------------------------------------------------------
   const save = readOnly
@@ -678,7 +712,7 @@ function PostEditor({
                     e.dataTransfer.dropEffect = 'none';
                     return;
                   }
-                  e.dataTransfer.dropEffect = kind === 'image' ? 'move' : 'copy';
+                  e.dataTransfer.dropEffect = 'copy';
                   setDropAt(slotAt(e));
                 }}
                 onDragLeave={(e) => {
@@ -692,10 +726,7 @@ function PostEditor({
                   const slot = slotAt(e).index;
                   setDropAt(null);
                   if (imagesLocked !== null) return;
-                  if (kind === 'image') {
-                    const id = e.dataTransfer.getData(IMAGE_DRAG_TYPE);
-                    if (id !== '') setImages(moveImageTo(ids, id, slot));
-                  } else if (kind === 'asset') {
+                  if (kind === 'asset') {
                     const asset = draggedAsset.current;
                     draggedAsset.current = null;
                     if (asset !== null) void insert?.insertAsset(asset, { beforeBlock: slot });
@@ -707,103 +738,143 @@ function PostEditor({
                   }
                 }}
               >
-                {ids.map((id, i) => {
-                  const item = itemFor.get(id);
-                  const missing = item?.status === 'missing';
-                  const overAt = platformsOverAt(i);
-                  const isCover = shownCover === id;
-                  const label = [
-                    t('imagePost.imageN', { n: i + 1 }),
-                    isCover ? t('imagePost.cover') : null,
-                    missing ? t('imagePost.missing') : null,
-                    overAt.length > 0
-                      ? t('imagePost.overFor', { platforms: overAt.map(shortPlatform).join('、') })
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ');
-                  return (
-                    <div
-                      key={id}
-                      id={`post-img-${id}`}
-                      role="listitem"
-                      data-image-tile
-                      tabIndex={0}
-                      aria-label={label}
-                      title={label}
-                      aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight Backspace"
-                      className={[
-                        'post__tile',
-                        selected === id ? 'post__tile--selected' : '',
-                        overAt.length > 0 ? 'post__tile--over' : '',
-                        missing ? 'post__tile--missing' : '',
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragStart={onSortStart}
+                  onDragOver={onSortOver}
+                  onDragEnd={onSortEnd}
+                  onDragCancel={() => {
+                    setDragId(null);
+                    setLanding('cancel');
+                  }}
+                  accessibility={{ restoreFocus: false }}
+                >
+                  <SortableContext items={[...ids]} strategy={rectSortingStrategy}>
+                    {ids.map((id, i) => {
+                      const item = itemFor.get(id);
+                      const missing = item?.status === 'missing';
+                      const overAt = platformsOverAt(i);
+                      const isCover = shownCover === id;
+                      const label = [
+                        t('imagePost.imageN', { n: i + 1 }),
+                        isCover ? t('imagePost.cover') : null,
+                        missing ? t('imagePost.missing') : null,
+                        overAt.length > 0
+                          ? t('imagePost.overFor', {
+                              platforms: overAt.map(shortPlatform).join('、'),
+                            })
+                          : null,
                       ]
                         .filter(Boolean)
-                        .join(' ')}
-                      draggable={imagesLocked === null}
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData(IMAGE_DRAG_TYPE, id);
-                        e.dataTransfer.effectAllowed = 'move';
-                      }}
-                      onFocus={() => {
-                        setSelected(id);
-                      }}
-                      onKeyDown={(e) => {
-                        onTileKey(e, id);
-                      }}
-                    >
-                      {missing ? (
-                        <span className="post__missing">
-                          <Icon name="fileMissing" size={22} />
-                          <span>{t('imagePost.missing')}</span>
-                          <button
-                            type="button"
-                            className="btn btn--small"
-                            disabled={imagesLocked !== null}
-                            onClick={() => {
-                              replacingRef.current = id;
-                              setNotice(t('imagePost.repickHint', { n: i + 1 }));
-                              setPanel('assets');
-                            }}
-                          >
-                            {t('imagePost.repick')}
-                          </button>
-                        </span>
-                      ) : (
-                        <img src={thumbnailUrl(id)} alt="" draggable={false} />
-                      )}
-                      {isCover && <span className="post__badge">{t('imagePost.cover')}</span>}
-                      <span className="post__num">{i + 1}</span>
-                      {imagesLocked === null && (
-                        <span className="post__hover">
-                          {!isCover && !missing && (
-                            <button
-                              type="button"
-                              className="btn btn--small"
-                              tabIndex={-1}
-                              onClick={() => {
-                                session.edit({ cover: { asset_id: id } });
+                        .join(' · ');
+                      return (
+                        <SortableTile
+                          key={id}
+                          id={id}
+                          disabled={imagesLocked !== null}
+                          mode={motionMode}
+                        >
+                          {(sort) => (
+                            <div
+                              ref={sort.ref}
+                              style={sort.style}
+                              onPointerDown={sort.onPointerDown}
+                              id={`post-img-${id}`}
+                              role="listitem"
+                              data-image-tile
+                              tabIndex={0}
+                              aria-label={label}
+                              title={label}
+                              aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight Backspace"
+                              className={[
+                                'post__tile',
+                                selected === id ? 'post__tile--selected' : '',
+                                overAt.length > 0 ? 'post__tile--over' : '',
+                                missing ? 'post__tile--missing' : '',
+                                sort.dragging ? 'post__tile--dragging' : '',
+                              ]
+                                .filter(Boolean)
+                                .join(' ')}
+                              onFocus={() => {
+                                setSelected(id);
+                              }}
+                              onKeyDown={(e) => {
+                                onTileKey(e, id);
                               }}
                             >
-                              {t('imagePost.makeCover')}
-                            </button>
+                              {missing ? (
+                                <span className="post__missing">
+                                  <Icon name="fileMissing" size={22} />
+                                  <span>{t('imagePost.missing')}</span>
+                                  <button
+                                    type="button"
+                                    className="btn btn--small"
+                                    disabled={imagesLocked !== null}
+                                    onClick={() => {
+                                      replacingRef.current = id;
+                                      setNotice(t('imagePost.repickHint', { n: i + 1 }));
+                                      setPanel('assets');
+                                    }}
+                                  >
+                                    {t('imagePost.repick')}
+                                  </button>
+                                </span>
+                              ) : (
+                                <img src={thumbnailUrl(id)} alt="" draggable={false} />
+                              )}
+                              {isCover && (
+                                // A new cover: the badge slides over from the old one (snappy).
+                                <motion.span
+                                  layoutId={`post-cover-${work.id}`}
+                                  transition={springOf('snappy')}
+                                  className="post__badge"
+                                >
+                                  {t('imagePost.cover')}
+                                </motion.span>
+                              )}
+                              <span className="post__num">{i + 1}</span>
+                              {imagesLocked === null && (
+                                <span className="post__hover">
+                                  {!isCover && !missing && (
+                                    <button
+                                      type="button"
+                                      className="btn btn--small"
+                                      tabIndex={-1}
+                                      onClick={() => {
+                                        session.edit({ cover: { asset_id: id } });
+                                      }}
+                                    >
+                                      {t('imagePost.makeCover')}
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    className="btn btn--small"
+                                    tabIndex={-1}
+                                    aria-label={t('imagePost.removeN', { n: i + 1 })}
+                                    onClick={() => {
+                                      remove(id);
+                                    }}
+                                  >
+                                    {t('common.remove')}
+                                  </button>
+                                </span>
+                              )}
+                            </div>
                           )}
-                          <button
-                            type="button"
-                            className="btn btn--small"
-                            tabIndex={-1}
-                            aria-label={t('imagePost.removeN', { n: i + 1 })}
-                            onClick={() => {
-                              remove(id);
-                            }}
-                          >
-                            {t('common.remove')}
-                          </button>
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
+                        </SortableTile>
+                      );
+                    })}
+                  </SortableContext>
+                  <DragOverlay dropAnimation={dropAnimationFor(landing, motionMode)}>
+                    {dragId === null ? null : (
+                      <div className="post__tile post__tile--lifted">
+                        <img src={thumbnailUrl(dragId)} alt="" draggable={false} />
+                      </div>
+                    )}
+                  </DragOverlay>
+                </DndContext>
                 {loose.map((item, i) => (
                   <div
                     key={item.path}
@@ -1247,4 +1318,34 @@ function CoverDialog({
       )}
     </Dialog>
   );
+}
+
+/** One image tile as a dnd-kit sortable item (QC-065). */
+function SortableTile({
+  id,
+  disabled,
+  mode,
+  children,
+}: {
+  id: string;
+  disabled: boolean;
+  mode: MotionMode;
+  children: (sort: {
+    ref: (node: HTMLElement | null) => void;
+    style: CSSProperties;
+    onPointerDown: PointerEventHandler<HTMLDivElement> | undefined;
+    dragging: boolean;
+  }) => ReactNode;
+}) {
+  const sortable = useSortable({ id, disabled, transition: sortTransition(mode) });
+  return children({
+    ref: sortable.setNodeRef,
+    style: {
+      transform: CSS.Translate.toString(sortable.transform),
+      transition: sortable.transition,
+    },
+    onPointerDown: sortable.listeners?.['onPointerDown'] as
+      PointerEventHandler<HTMLDivElement> | undefined,
+    dragging: sortable.isDragging,
+  });
 }
