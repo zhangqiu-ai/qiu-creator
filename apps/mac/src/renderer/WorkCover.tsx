@@ -2,7 +2,7 @@ import type { WorkListItem } from '@qiu-creator/contracts';
 import { useEffect, useState } from 'react';
 import { formatDuration, WORK_TYPE } from './format.js';
 import { t } from './i18n.js';
-import { Highlight } from './Highlight.js';
+import { Highlight, HitPassage } from './Highlight.js';
 import { Icon } from './Icon.js';
 
 /**
@@ -32,6 +32,8 @@ export function CardCover({
   }, [needsFrame, onNeedsFrame, work]);
   const showImage = url !== null && failed !== url;
   const excerpt = work.excerpt ?? null;
+  /** A search hit only in the body (QC-068): the passage around it, shown on the cover. */
+  const hit = work.match_excerpt ?? null;
   return (
     <span
       className={showImage ? 'wcard__cover' : 'wcard__cover wcard__cover--empty'}
@@ -48,14 +50,19 @@ export function CardCover({
             setFailed(url);
           }}
         />
-      ) : work.type === 'article' && excerpt !== null ? (
+      ) : work.type === 'article' && (hit ?? excerpt) !== null ? (
         <span className="wcard__text">
           <span className="wcard__text-body">
-            <Highlight text={excerpt} />
+            {hit !== null ? <HitPassage text={hit} /> : <Highlight text={excerpt ?? ''} />}
           </span>
         </span>
       ) : (
         <Icon name={WORK_TYPE[work.type].icon} size={28} />
+      )}
+      {hit !== null && (showImage || work.type !== 'article') && (
+        <span className="wcard__hit">
+          <HitPassage text={hit} />
+        </span>
       )}
       {work.type === 'image' && work.image_count != null && work.image_count > 0 && (
         <span className="wcard__badge">

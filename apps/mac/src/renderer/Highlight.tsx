@@ -15,6 +15,27 @@ export function SearchHighlight({ query, children }: { query: string; children: 
   return <SearchQuery.Provider value={query}>{children}</SearchQuery.Provider>;
 }
 
+/** Characters kept before the first hit when a passage is cut to show it. */
+const LEAD = 10;
+
+/**
+ * A passage cut to begin a little before its first hit, so a clamped cover
+ * or a one-line row shows the hit rather than the words leading up to it.
+ */
+export function leadToHit(text: string, query: string): string {
+  const first = findMatches(text, query)[0];
+  if (first === undefined) return text;
+  const before = Array.from(text.slice(0, first.start));
+  if (before.length <= LEAD + 1) return text;
+  return `…${before.slice(-LEAD).join('')}${text.slice(first.start)}`;
+}
+
+/** A search passage, starting near its first hit, with every hit marked. */
+export function HitPassage({ text }: { text: string }) {
+  const query = useContext(SearchQuery);
+  return <Highlight text={leadToHit(text, query)} />;
+}
+
 /** `text`, with every hit of the page's search wrapped in `<mark>`. */
 export function Highlight({ text }: { text: string }) {
   const query = useContext(SearchQuery);

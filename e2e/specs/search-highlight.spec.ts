@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import { pngBytes } from '../../services/mac-server/test/fixtures.js';
 import { test } from '../fixtures/desktop.js';
 
@@ -10,6 +10,16 @@ import { test } from '../fixtures/desktop.js';
  * uses (letter case alike); nothing is marked while an IME is still
  * composing. Set QC068_SHOTS=<dir> to save screenshots.
  */
+
+/** Whether `inner` is drawn entirely within `outer`'s box (so clamping or ellipsis left it visible). */
+async function insideOf(inner: Locator, outer: Locator): Promise<boolean> {
+  const a = await inner.boundingBox();
+  const b = await outer.boundingBox();
+  if (a === null || b === null) return false;
+  return (
+    a.x >= b.x && a.y >= b.y && a.x + a.width <= b.x + b.width && a.y + a.height <= b.y + b.height
+  );
+}
 
 async function shot(page: Page, name: string): Promise<void> {
   const dir = process.env['QC068_SHOTS'];
@@ -57,10 +67,16 @@ test('搜尋：卡片標題、列表列、摘要、素材名稱即時標出關�
     markdown: '# change log\n\n版本紀錄',
     source: 'mac-app',
   });
+  await c.works.create({
+    title: '春季選題筆記',
+    markdown: `# 春季選題筆記\n\n${'這一季想寫的題目先列在這裡，之後再慢慢整理。'.repeat(8)}最後一站是鬱金香花田，早上光線最好。`,
+    source: 'mac-app',
+  });
+  await c.works.create({ title: 'ＡＩ 工作流程', markdown: '', source: 'mac-app' });
   await c.assets.upload({ data: await pngBytes(64, 64, '#2F4FCF'), filename: '常用封面.png' });
   await c.assets.upload({ data: await pngBytes(64, 64, '#9E4428'), filename: 'kyoto.png' });
   await page.reload();
-  await expect(grid(page).locator('.wcard')).toHaveCount(3);
+  await expect(grid(page).locator('.wcard')).toHaveCount(5);
 
   await test.step('輸入「常用」：命中的標題和摘要都標出', async () => {
     await search(page).fill('常用');
@@ -79,6 +95,39 @@ test('搜尋：卡片標題、列表列、摘要、素材名稱即時標出關�
     await expect(grid(page).locator('.wcard__title mark.hit')).toHaveText('Markdown');
   });
 
+  await test.step('簡體搜尋找得到繁體內文：卡片顯示命中的那段', async () => {
+    await search(page).fill('郁金香');
+    await expect(grid(page).locator('.wcard')).toHaveCount(1);
+    const passage = grid(page).locator('.wcard__text-body');
+    await expect(passage).toContainText('鬱金香花田');
+    await expect(passage.locator('mark.hit')).toHaveText('鬱金香');
+    // The hit is inside the clamped cover, not cut off below it.
+    expect(await insideOf(passage.locator('mark.hit'), grid(page).locator('.wcard__cover'))).toBe(
+      true,
+    );
+    await shot(page, '5-body-hit');
+  });
+
+  await test.step('兩個字也比對內文；全形與半形一致', async () => {
+    await search(page).fill('花田');
+    await expect(grid(page).locator('.wcard')).toHaveCount(1);
+    await expect(grid(page).locator('.wcard__text-body mark.hit')).toHaveText('花田');
+    await search(page).fill('ai');
+    await expect(grid(page).locator('.wcard')).toHaveCount(1);
+    await expect(grid(page).locator('.wcard__title mark.hit')).toHaveText('ＡＩ');
+  });
+
+  await test.step('列表檢視：只有內文命中時，列上顯示命中的那段', async () => {
+    await search(page).fill('郁金香');
+    await page.getByRole('button', { name: '列表' }).click();
+    await expect(grid(page).locator('.tbl__hit mark.hit')).toHaveText('鬱金香');
+    expect(
+      await insideOf(grid(page).locator('.tbl__hit mark.hit'), grid(page).locator('.tbl__hit')),
+    ).toBe(true);
+    await shot(page, '6-list-body-hit');
+    await page.getByRole('button', { name: '網格' }).click();
+  });
+
   await test.step('列表檢視也標出', async () => {
     await search(page).fill('常用');
     await page.getByRole('button', { name: '列表' }).click();
@@ -90,7 +139,7 @@ test('搜尋：卡片標題、列表列、摘要、素材名稱即時標出關�
 
   await test.step('輸入法組字中不標，選字後才標', async () => {
     await search(page).fill('');
-    await expect(grid(page).locator('.wcard')).toHaveCount(3);
+    await expect(grid(page).locator('.wcard')).toHaveCount(5);
     await search(page).focus();
     await page.evaluate(composing('chang'));
     await expect(search(page)).toHaveValue('chang');

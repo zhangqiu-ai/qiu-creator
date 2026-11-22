@@ -33,7 +33,7 @@ import {
   type ByTypeStatus,
 } from './library-counts.js';
 import { LibraryFeed } from './library-feed.js';
-import { Highlight, SearchHighlight } from './Highlight.js';
+import { Highlight, HitPassage, SearchHighlight } from './Highlight.js';
 import { LoadMore } from './LoadMore.js';
 import { RenameField } from './RenameField.js';
 import { useToast, type ToastAction } from './toasts.js';
@@ -1501,6 +1501,11 @@ export function LibraryPage({
                                   >
                                     <Highlight text={w.title} />
                                   </span>
+                                  {w.match_excerpt != null && (
+                                    <span className="tbl__hit">
+                                      <HitPassage text={w.match_excerpt} />
+                                    </span>
+                                  )}
                                   {selection.ids.has(w.id) && (
                                     <span className="visually-hidden">
                                       {t('workActions.isSelected')}
@@ -1790,6 +1795,9 @@ function WorkCard({
         >
           <Highlight text={work.title} />
         </span>
+        {work.match_excerpt != null && (
+          <span className="visually-hidden">{work.match_excerpt}</span>
+        )}
         {meta}
       </span>
       {selected && <span className="visually-hidden">{t('workActions.isSelected')}</span>}

@@ -7294,3 +7294,35 @@ mark.hit {
   pointer-events: none;
   will-change: transform, opacity;
 }
+
+/* A search hit only in the body (QC-068): the passage around it, on the cover and in the row. */
+.wcard__hit {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: var(--qc-surface);
+  box-shadow: var(--qc-shadow-card);
+  color: var(--qc-ink2);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.wcard__hit ~ .wcard__badge {
+  display: none;
+}
+.tbl__hit {
+  min-width: 0;
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--qc-ink3);
+  font-size: 12px;
+  font-weight: 400;
+}
