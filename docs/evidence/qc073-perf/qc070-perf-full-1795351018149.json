@@ -1,0 +1,265 @@
+{
+  "at": "2026-11-22T12:36:58.149Z",
+  "app": "/Users/feature/code/qiu-creator-release/apps/mac/release/mac-arm64/qiu-creator.app/Contents/MacOS/qiu-creator",
+  "motion": "full",
+  "seeded": 320,
+  "firstPage": 60,
+  "wheelsToBottom": 51,
+  "filterCounts": {
+    "posts": 210,
+    "articles": 110
+  },
+  "searches": {
+    "效能作品 1": "60 cards, 60 marks",
+    "咖啡": "45 cards, 45 marks"
+  },
+  "pictures": 275,
+  "vsyncMs": 16.7,
+  "idleIntervalMs": {
+    "p5": 14.7,
+    "p95": 18.7
+  },
+  "results": [
+    {
+      "name": "捲動到底（分頁載入，冷）",
+      "wallMs": 3694,
+      "frames": 249,
+      "vsyncMs": 16.7,
+      "intervalMs": {
+        "median": 16.7,
+        "p95": 18.6,
+        "p99": 33.3,
+        "max": 35.3
+      },
+      "droppedByRaf": 4,
+      "longTasks": {
+        "count": 0,
+        "maxMs": 0,
+        "totalMs": 0
+      },
+      "loafs": {
+        "count": 0,
+        "maxMs": 0,
+        "maxBlockingMs": 0,
+        "detail": []
+      },
+      "cdp": {
+        "scriptMs": 126.6,
+        "layoutMs": 7.7,
+        "styleMs": 24.9,
+        "taskMs": 1037.5,
+        "layouts": 10
+      },
+      "trace": {
+        "BeginFrame": 222,
+        "DroppedFrame": 5
+      }
+    },
+    {
+      "name": "捲動作品庫（全部已載入，到頂再到底）",
+      "wallMs": 6557,
+      "frames": 436,
+      "vsyncMs": 16.7,
+      "intervalMs": {
+        "median": 16.7,
+        "p95": 18.6,
+        "p99": 18.7,
+        "max": 18.8
+      },
+      "droppedByRaf": 0,
+      "longTasks": {
+        "count": 0,
+        "maxMs": 0,
+        "totalMs": 0
+      },
+      "loafs": {
+        "count": 0,
+        "maxMs": 0,
+        "maxBlockingMs": 0,
+        "detail": []
+      },
+      "cdp": {
+        "scriptMs": 20.6,
+        "layoutMs": 0,
+        "styleMs": 35.4,
+        "taskMs": 1890.1,
+        "layouts": 0
+      },
+      "trace": {
+        "BeginFrame": 394,
+        "DroppedFrame": 2
+      }
+    },
+    {
+      "name": "輸入搜尋（即時標記，兩個詞再刪掉）",
+      "wallMs": 3713,
+      "frames": 234,
+      "vsyncMs": 16.7,
+      "intervalMs": {
+        "median": 16.7,
+        "p95": 18.6,
+        "p99": 18.7,
+        "max": 18.7
+      },
+      "droppedByRaf": 0,
+      "longTasks": {
+        "count": 0,
+        "maxMs": 0,
+        "totalMs": 0
+      },
+      "loafs": {
+        "count": 0,
+        "maxMs": 0,
+        "maxBlockingMs": 0,
+        "detail": []
+      },
+      "cdp": {
+        "scriptMs": 285.7,
+        "layoutMs": 46.7,
+        "styleMs": 17.6,
+        "taskMs": 626.7,
+        "layouts": 52
+      },
+      "trace": {
+        "BeginFrame": 223,
+        "DroppedFrame": 4
+      }
+    },
+    {
+      "name": "切換篩選（篩選面板：貼圖→文章→全部，三輪）",
+      "wallMs": 3470,
+      "frames": 226,
+      "vsyncMs": 16.7,
+      "intervalMs": {
+        "median": 16.7,
+        "p95": 18.6,
+        "p99": 18.7,
+        "max": 18.8
+      },
+      "droppedByRaf": 0,
+      "longTasks": {
+        "count": 0,
+        "maxMs": 0,
+        "totalMs": 0
+      },
+      "loafs": {
+        "count": 0,
+        "maxMs": 0,
+        "maxBlockingMs": 0,
+        "detail": []
+      },
+      "cdp": {
+        "scriptMs": 127.7,
+        "layoutMs": 25.1,
+        "styleMs": 23.6,
+        "taskMs": 519.7,
+        "layouts": 59
+      },
+      "trace": {
+        "BeginFrame": 208
+      }
+    },
+    {
+      "name": "多選（⌘ 點 30 張）與批量刪除",
+      "wallMs": 1820,
+      "frames": 124,
+      "vsyncMs": 16.7,
+      "intervalMs": {
+        "median": 16.7,
+        "p95": 18.6,
+        "p99": 18.7,
+        "max": 18.7
+      },
+      "droppedByRaf": 0,
+      "longTasks": {
+        "count": 0,
+        "maxMs": 0,
+        "totalMs": 0
+      },
+      "loafs": {
+        "count": 0,
+        "maxMs": 0,
+        "maxBlockingMs": 0,
+        "detail": []
+      },
+      "cdp": {
+        "scriptMs": 113.3,
+        "layoutMs": 9.9,
+        "styleMs": 17.3,
+        "taskMs": 397.8,
+        "layouts": 44
+      },
+      "trace": {
+        "BeginFrame": 110
+      }
+    },
+    {
+      "name": "拖卡片到項目（三次）",
+      "wallMs": 3134,
+      "frames": 204,
+      "vsyncMs": 16.7,
+      "intervalMs": {
+        "median": 16.7,
+        "p95": 18.6,
+        "p99": 18.7,
+        "max": 18.7
+      },
+      "droppedByRaf": 0,
+      "longTasks": {
+        "count": 0,
+        "maxMs": 0,
+        "totalMs": 0
+      },
+      "loafs": {
+        "count": 0,
+        "maxMs": 0,
+        "maxBlockingMs": 0,
+        "detail": []
+      },
+      "cdp": {
+        "scriptMs": 106.7,
+        "layoutMs": 6.2,
+        "styleMs": 16.3,
+        "taskMs": 362.1,
+        "layouts": 32
+      },
+      "trace": {
+        "BeginFrame": 189
+      }
+    },
+    {
+      "name": "全選（⌘A，290 件）並批量刪除",
+      "wallMs": 930,
+      "frames": 65,
+      "vsyncMs": 16.7,
+      "intervalMs": {
+        "median": 16.7,
+        "p95": 18.6,
+        "p99": 18.7,
+        "max": 18.7
+      },
+      "droppedByRaf": 0,
+      "longTasks": {
+        "count": 0,
+        "maxMs": 0,
+        "totalMs": 0
+      },
+      "loafs": {
+        "count": 0,
+        "maxMs": 0,
+        "maxBlockingMs": 0,
+        "detail": []
+      },
+      "cdp": {
+        "scriptMs": 32.5,
+        "layoutMs": 2.6,
+        "styleMs": 7.6,
+        "taskMs": 118.6,
+        "layouts": 15
+      },
+      "trace": {
+        "BeginFrame": 56
+      }
+    }
+  ]
+}
