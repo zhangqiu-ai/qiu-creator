@@ -3,7 +3,7 @@ import { defineMessages } from '../define.js';
 /** The image-post editor (QC-045, PT-20261121-001 「v3 · 貼圖編輯」). */
 export const imagePost = defineMessages({
   'zh-Hant': {
-    backToPreview: '回到預覽',
+    backToPreview: '關閉素材',
     footClick: '點選加到最後',
     footDrag: '拖進圖片格放到指定位置',
     upload: '上傳',
@@ -43,9 +43,6 @@ export const imagePost = defineMessages({
     coverFirst: '改用第一張',
     useCover: '使用這張',
     cropPreview: '裁切預覽',
-    sidePanel: '預覽與素材',
-    previewPlatform: '預覽平台',
-    previewHint: '模擬畫面，實際以平台為準。',
     remoteChanged: '這個作品已在別處修改，你的修改還沒儲存。',
     conflictTitle: '這個作品已在別處修改',
     conflictBody:
@@ -53,7 +50,7 @@ export const imagePost = defineMessages({
     keepMineAsCopy: '另存我的文字',
   },
   'zh-Hans': {
-    backToPreview: '回到预览',
+    backToPreview: '关闭素材',
     footClick: '点击添加到最后',
     footDrag: '拖进图片格放到指定位置',
     upload: '上传',
@@ -92,9 +89,6 @@ export const imagePost = defineMessages({
     coverFirst: '改用第一张',
     useCover: '使用这张',
     cropPreview: '裁剪预览',
-    sidePanel: '预览与素材',
-    previewPlatform: '预览平台',
-    previewHint: '模拟画面，实际以平台为准。',
     remoteChanged: '这个作品已在别处修改，你的修改还没保存。',
     conflictTitle: '这个作品已在别处修改',
     conflictBody:
@@ -102,7 +96,7 @@ export const imagePost = defineMessages({
     keepMineAsCopy: '另存我的文字',
   },
   en: {
-    backToPreview: 'Back to preview',
+    backToPreview: 'Close assets',
     footClick: 'Click to add at the end',
     footDrag: 'Drag into the grid to place it',
     upload: 'Upload',
@@ -145,9 +139,6 @@ export const imagePost = defineMessages({
     coverFirst: 'Use the first image',
     useCover: 'Use this image',
     cropPreview: 'Crop preview',
-    sidePanel: 'Preview and assets',
-    previewPlatform: 'Preview platform',
-    previewHint: 'A simulation; the platform has the final say.',
     remoteChanged: 'This work was changed elsewhere and your changes aren’t saved yet.',
     conflictTitle: 'This work was changed elsewhere',
     conflictBody:

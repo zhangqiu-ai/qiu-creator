@@ -2469,14 +2469,6 @@ kbd {
 .pv {
   overflow: hidden;
 }
-.pv__work {
-  max-width: 320px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 14px;
-  font-weight: 600;
-}
 .pv-tabs {
   display: flex;
   gap: 4px;
@@ -2723,18 +2715,6 @@ kbd {
   gap: 10px;
   font-size: 12px;
 }
-.pv-pick__hint {
-  margin: 12px 0;
-}
-.pv-pick {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-width: 640px;
-}
 .pv-thumb--cover {
   cursor: default;
   border-color: var(--qc-line);
@@ -2772,13 +2752,6 @@ kbd {
   color: var(--qc-ink);
   font-weight: 600;
   border-bottom-color: var(--qc-accent);
-}
-.ai__provider {
-  margin-left: auto;
-}
-.ai__provider-select {
-  min-width: 0;
-  width: auto;
 }
 .ai__body {
   display: flex;
@@ -2971,72 +2944,6 @@ kbd {
   border-radius: 10px;
   color: var(--qc-ink3);
   text-align: center;
-}
-.ai__pl {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  min-width: 0;
-}
-.ai__pl-name {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-  margin-bottom: 6px;
-  padding: 0;
-  font-weight: 600;
-}
-.ai__pl-limit {
-  margin-left: auto;
-  font-weight: 400;
-  font-size: 12px;
-  color: var(--qc-ink3);
-}
-.ai__pl-fail {
-  font-size: 12px;
-  color: var(--qc-bad);
-}
-.ai__opt {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--qc-line);
-  border-radius: 8px;
-  background: var(--qc-surface);
-  cursor: pointer;
-}
-.ai__opt:has(input:checked) {
-  border-color: var(--qc-accent);
-  box-shadow: 0 0 0 1px var(--qc-accent);
-}
-.ai__opt input {
-  margin: 0;
-  accent-color: var(--qc-accent);
-}
-.ai__opt-text {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.ai__count {
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: var(--qc-ink3);
-}
-.ai__count.chip--warn {
-  color: var(--qc-warn);
-}
-.ai__written {
-  height: auto;
-  max-width: 100%;
-  padding-block: 3px;
-  white-space: normal;
-  line-height: 1.5;
-  border-radius: 8px;
 }
 
 /* ---- Settings: AI 服務 (QC-025) ---- */
@@ -5145,33 +5052,6 @@ kbd {
   line-height: 1.7;
   resize: vertical;
 }
-.post__side {
-  display: flex;
-  flex-direction: column;
-  /*
-   * The simulated phone is a fixed 340px wide (.pp-phone), and the panel scrolls vertically
-   * (the phone is 720px tall). The panel must hold the phone, .post__preview's 14px padding on
-   * both sides, the vertical scrollbar and the 1px border, or it scrolls sideways too (QC-049).
-   * Capped by .panel's max-width.
-   */
-  flex-basis: calc(340px + 2 * 14px + 16px + 1px);
-}
-.post__preview {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 14px;
-}
-.post__platforms {
-  align-self: stretch;
-}
-.post__platforms button {
-  flex: 1;
-  padding: 0 6px;
-  font-size: 12px;
-  white-space: nowrap;
-}
 .post__cover-pick {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
@@ -5443,7 +5323,7 @@ kbd {
 .vw__side {
   display: flex;
   flex-direction: column;
-  /* Same rule as .post__side (QC-049): room for the 340px phone, padding, scrollbar and border. */
+  /* Room for the 340px phone, padding, scrollbar and border (QC-049). */
   flex-basis: calc(340px + 2 * 14px + 16px + 1px);
 }
 .vw__ai {
@@ -6999,7 +6879,6 @@ kbd {
 .aiw__done,
 .aiw__failed,
 .ai__cand,
-.ai__pl,
 .ai__failed {
   animation: qc-item-in var(--qc-dur-base) var(--qc-ease-out);
 }
@@ -7832,9 +7711,6 @@ mark.hit {
   white-space: nowrap;
 }
 /* 圖片 tab of the AI panel. */
-.ai-img__purpose {
-  align-self: flex-start;
-}
 .ai-img__field {
   display: flex;
   flex-direction: column;
@@ -8155,4 +8031,299 @@ mark.hit {
 }
 .viewer__preview--image .thumb__img {
   cursor: zoom-in;
+}
+
+/* ---- 輸出語言、模型、Prompt 快選 (QC-075, PT-20261122-003) ---- */
+.choice {
+  position: relative;
+  display: inline-flex;
+}
+/* Toolbar chips: the language and the model, quiet until hovered or open. */
+.tchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  max-width: 180px;
+  padding: 0 6px 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--qc-ink2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tchip:hover,
+.tchip:focus-visible,
+.tchip[aria-expanded='true'] {
+  background: var(--qc-accent-soft);
+  color: var(--qc-accent);
+  outline: none;
+}
+/* Panel selects: the same two choices as bordered fields. */
+.chipsel {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--qc-line);
+  border-radius: 7px;
+  background: var(--qc-surface);
+  color: var(--qc-ink);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.chipsel:hover,
+.chipsel[aria-expanded='true'] {
+  border-color: var(--qc-accent);
+}
+.chipsel:focus-visible {
+  outline: 2px solid var(--qc-focus);
+  outline-offset: 1px;
+}
+.tchip .chipsel__v,
+.chipsel .chipsel__v {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-choices {
+  display: flex;
+  gap: 6px;
+}
+.ai-choices > .choice {
+  flex: 1;
+  min-width: 0;
+}
+.ai-choices > .choice > .chipsel {
+  width: 100%;
+}
+/* A provider's two-letter mark in its colour (white on colour in both themes). */
+.pmark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-right: 2px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 8.5px;
+  font-weight: 700;
+}
+/* Language, model and 「prompt 指定」 on a candidate. */
+.langtag {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--qc-sunken);
+  color: var(--qc-ink2);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.langtag--accent {
+  background: var(--qc-accent-soft);
+  color: var(--qc-accent);
+}
+/* The popovers of the switches and the prompt picker. */
+.qpop {
+  position: absolute;
+  left: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  border: 1px solid var(--qc-line);
+  border-radius: 10px;
+  background: var(--qc-surface);
+  box-shadow: var(--qc-shadow-dialog);
+  color: var(--qc-ink);
+  font-size: 13px;
+  text-align: left;
+}
+.ftb__picker.qpop {
+  position: static;
+  width: 340px;
+  padding: 3px 3px 0;
+  border: 0;
+  box-shadow: none;
+}
+.qpop__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.qpop__scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.qpop__hd {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px 3px;
+  color: var(--qc-ink3);
+  font-size: 11px;
+  font-weight: 600;
+}
+.qpop__o {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--qc-ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.qpop__o:hover,
+.qpop__o:focus-visible,
+.qpop__o.is-on {
+  background: var(--qc-accent-soft);
+  outline: none;
+}
+.qpop__o.is-off,
+.qpop__o:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.qpop__o.is-off:hover {
+  background: transparent;
+}
+.qpop__o kbd {
+  margin-left: auto;
+}
+.qpop__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qpop__ck {
+  flex: none;
+  width: 14px;
+  color: var(--qc-accent);
+}
+.qpop__d {
+  margin-left: auto;
+  color: var(--qc-ink3);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.qpop__bad {
+  margin-left: auto;
+  color: var(--qc-bad);
+  font-weight: 500;
+}
+.qpop__empty {
+  padding: 8px 10px;
+  color: var(--qc-ink3);
+  font-size: 12px;
+}
+.qpop__ft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 6px 10px 4px;
+  border-top: 1px solid var(--qc-line);
+  color: var(--qc-ink3);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.qpop__link {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--qc-accent);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.qpop__search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  margin: 2px 2px 4px;
+  padding: 0 10px;
+  border: 1px solid var(--qc-line);
+  border-radius: 7px;
+  background: var(--qc-bg);
+  color: var(--qc-ink3);
+}
+.qpop__search:focus-within {
+  border-color: var(--qc-accent);
+}
+.qpop__search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--qc-ink);
+  font: inherit;
+  font-size: 13px;
+}
+.qpop__save {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 8px 8px;
+}
+.qpop__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--qc-ink3);
+  font-size: 12px;
+}
+.qpop__err {
+  color: var(--qc-bad);
+  font-size: 12px;
+}
+.qpop__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.ai__presets-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--qc-ink3);
+  font-size: 12px;
+  font-weight: 600;
+}
+.ai__manage {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--qc-accent);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
 }

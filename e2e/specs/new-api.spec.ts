@@ -39,7 +39,8 @@ test('設定 New API、獨立確認使用告知，並切換供應商改寫', asy
       .click();
   };
   const panel = page.getByRole('complementary', { name: 'AI 改寫' });
-  const providerSelect = panel.getByRole('combobox', { name: '文字 AI 供應商', exact: true });
+  // QC-075: the panel switches the model (grouped by ready provider), not the provider.
+  const modelButton = panel.getByRole('button', { name: '模型', exact: true });
   const rewrite = panel.getByRole('button', { name: '改寫全文', exact: true });
 
   await test.step('儲存 New API 設定後仍需獨立確認使用告知', async () => {
@@ -67,7 +68,6 @@ test('設定 New API、獨立確認使用告知，並切換供應商改寫', asy
     await openWork();
     await expect(panel.getByText('尚未確認雲端 AI 使用告知', { exact: true })).toBeVisible();
     await expect(rewrite).toBeDisabled();
-    await expect(providerSelect).toHaveCount(0);
     expect(upstream.seen).toHaveLength(0);
   });
 
@@ -86,9 +86,16 @@ test('設定 New API、獨立確認使用告知，並切換供應商改寫', asy
     await expect(pv('GPT')).toContainText('未測試');
 
     await openWork();
-    await expect(providerSelect).toHaveValue('openai');
-    await providerSelect.selectOption('new-api');
-    await expect(providerSelect).toHaveValue('new-api');
+    // The relay lists its models (QC-054); the menu shows them under New API.
+    upstream.modelsReply = { body: { data: [{ id: DEFAULT_MODEL }, { id: 'deepseek-v4' }] } };
+    await modelButton.click();
+    const models = panel.getByRole('listbox', { name: '模型' });
+    await expect(models.getByRole('group', { name: 'GPT' })).toBeVisible();
+    await models
+      .getByRole('group', { name: 'New API' })
+      .getByRole('option', { name: DEFAULT_MODEL })
+      .click();
+    await expect(modelButton).toContainText(`New API · ${DEFAULT_MODEL}`);
     await rewrite.click();
     await expect(panel.getByText(CANDIDATE, { exact: true })).toBeVisible();
     expect(upstream.seen).toHaveLength(1);

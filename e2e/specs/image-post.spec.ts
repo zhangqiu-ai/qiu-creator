@@ -10,7 +10,7 @@ import { chooseFilter, filterCount, filterOption } from '../fixtures/library.js'
  * QC-045 貼圖 (PT-20261121-001 「v3 · 新建」「v3 · 貼圖編輯」): 新建 with a
  * type menu, the image grid (library, upload, ⌘V, keyboard reorder, remove
  * with 復原), platform limits that only warn, the cover dialog, a missing
- * file replaced from the library, the side preview, and library thumbnails.
+ * file replaced from the library, the 預覽 split (QC-076), and library thumbnails.
  * Set QC045_SHOTS=<dir> to also save screenshots for the acceptance record.
  */
 
@@ -22,12 +22,12 @@ async function shot(page: Page, name: string): Promise<void> {
 }
 
 /**
- * The simulated phone is a fixed 340 px wide. The side panel must be wide enough for it: no
- * horizontal scrollbar, and the phone's right edge inside the panel (QC-049).
+ * The simulated phone is a fixed 340 px wide. The 預覽 split must be wide enough for it: no
+ * horizontal scrollbar, and the phone's right edge inside the panel (QC-049, QC-076).
  */
 async function expectPreviewFits(page: Page): Promise<void> {
   const measure = `(() => {
-    const side = document.querySelector('.tab-pane:not([hidden]) .post__side');
+    const side = document.querySelector('.tab-pane:not([hidden]) .pv-split__body');
     const phone = side.querySelector('.pp-phone');
     const sideRect = side.getBoundingClientRect();
     // The visible part of the panel: without the vertical scrollbar.
@@ -74,7 +74,7 @@ const COLORS = [
   '#8A6E3A',
 ];
 
-test('貼圖：新建選類型、加圖、上限提示、鍵盤排序、移除復原、標題字數、封面、側邊預覽', async ({
+test('貼圖：新建選類型、加圖、上限提示、鍵盤排序、移除復原、標題字數、封面、預覽分欄', async ({
   desktop,
 }) => {
   const { page, backend } = desktop;
@@ -186,19 +186,24 @@ test('貼圖：新建選類型、加圖、上限提示、鍵盤排序、移除�
         .toBe(third);
     });
 
-    await test.step('側邊預覽：切換平台', async () => {
-      // The asset drawer took the side panel; 回到預覽 brings the simulation back.
-      await page
-        .getByRole('complementary', { name: '素材抽屜' })
-        .getByRole('button', { name: '回到預覽' })
+    await test.step('張數膠囊點一下打開該平台的預覽分欄（QC-076）', async () => {
+      // The asset drawer is open; the chip closes it and opens the preview on that platform.
+      await editor(page)
+        .getByRole('button', { name: /^視頻號 12\/9$/ })
         .click();
-      const side = editor(page).getByRole('complementary', { name: '預覽與素材' });
-      await side.getByRole('button', { name: '小紅書' }).click();
-      await expect(side.getByRole('img', { name: /小紅書/ })).toBeVisible();
+      const side = editor(page).getByRole('complementary', { name: '平台預覽' });
+      await expect(side.getByRole('tab', { name: /視頻號/ })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
+      await side.getByRole('button', { name: '從原稿建立' }).click();
+      await expect(side.getByRole('img', { name: /視頻號/ })).toBeVisible();
       await expectPreviewFits(page);
       await shot(page, 'zh-Hant-2-editor');
-      await side.getByRole('button', { name: '視頻號' }).click();
-      await expect(side.getByRole('img', { name: /視頻號/ })).toBeVisible();
+      await side.getByRole('tab', { name: '小紅書' }).click();
+      await expect(side.getByRole('img', { name: /小紅書/ })).toBeVisible();
+      await side.getByRole('button', { name: '關閉預覽' }).click();
+      await expect(side).toHaveCount(0);
     });
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -284,7 +289,7 @@ test('貼圖：檔案遺失後重新指定、作品庫類型篩選與縮圖、�
     await expect(tiles(page)).toHaveCount(10);
   });
 
-  await test.step('平台預覽：警告依代碼組成三語文案（QC-048）', async () => {
+  await test.step('預覽分欄：警告依代碼組成三語文案（QC-048）', async () => {
     await editor(page).getByRole('button', { name: '預覽', exact: true }).click();
     await page.getByRole('tablist', { name: '平台' }).getByRole('tab', { name: '視頻號' }).click();
     // The version is drafted from the post (images and cover from its front matter).
@@ -330,9 +335,10 @@ test('貼圖：檔案遺失後重新指定、作品庫類型篩選與縮圖、�
       .getByRole('button', { name: /週末咖啡館/ })
       .click();
     await expect(editor(page)).toBeVisible();
-    await page
-      .getByRole('complementary', { name: '素材抽屜' })
-      .getByRole('button', { name: '回到預覽' })
+    // The preview split from the step above is still open: close it for the editor screenshots.
+    await editor(page)
+      .getByRole('complementary', { name: '平台預覽' })
+      .getByRole('button', { name: '關閉預覽' })
       .click();
     for (const lang of ['zh-Hans', 'en'] as const) {
       await page.evaluate(`window.creatorhub.setLanguage('${lang}')`);

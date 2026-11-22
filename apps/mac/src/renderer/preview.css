@@ -1,0 +1,315 @@
+/*
+ * 平台預覽 as a split inside the work editor (QC-076, PT-20261122-004).
+ * 720 px wide: the version form and the phone simulation side by side. Below
+ * `PREVIEW_NARROW_BELOW` it is 400 px and one column, with a 版本｜手機 switch.
+ * The `.pv-*` rules shared with the old page stay in styles.css.
+ */
+
+/* `.panel.pv-split`: the split is wider than the other right panels, whatever order the bundle puts the sheets in. */
+.panel.pv-split {
+  flex: 1 1 720px;
+  max-width: 720px;
+  overflow: hidden;
+}
+.panel.pv-split--narrow {
+  flex: 1 1 400px;
+  max-width: 400px;
+}
+.pv-split__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  border-bottom: 1px solid var(--qc-line);
+  background: var(--qc-bg);
+}
+.pv-split__head .pv-tabs {
+  margin-left: 0;
+  min-width: 0;
+  overflow-x: auto;
+}
+.pv-split__head .pv-tab {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.pv-split__seg {
+  margin-left: auto;
+}
+.pv-split__close {
+  margin-left: auto;
+}
+.pv-split__seg + .pv-split__close {
+  margin-left: 0;
+}
+.pv-tab__none {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--qc-ink3);
+}
+.pv-split__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-wrap: wrap;
+  overflow: auto;
+}
+.pv-split .pv__form {
+  flex: 1 1 320px;
+  max-width: none;
+  gap: 16px;
+  padding: 16px;
+}
+/*
+ * The simulated phone is a fixed 340 px (QC-049): this column asks for it plus
+ * its padding, so it never has to scroll sideways or clip the frame.
+ */
+.pv-split .pv__preview {
+  flex: 1 1 calc(340px + 2 * 12px);
+  padding: 16px 12px;
+}
+.pv-split--narrow .pv__form,
+.pv-split--narrow .pv__preview {
+  flex: 1 1 100%;
+}
+
+/* ---- The version line ---- */
+.pv-vline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.pv-vline__text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--qc-ink2);
+}
+.pv-vline > .btn {
+  margin-left: auto;
+}
+.pv-undo {
+  display: flex;
+}
+.pv-inherit {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.pv-inherit span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pv-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.pv-row .pv-inp {
+  flex: 1;
+  min-width: 0;
+}
+.pv-aibtn {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* ---- AI 標題 candidates ---- */
+.pv-cands {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-radius-card);
+  background: var(--qc-surface);
+}
+.pv-cands__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  padding: 0 4px 4px;
+  font-size: 11.5px;
+}
+/* The meta and the tags keep their words on one line; the row wraps instead. */
+.pv-cands__head > .faint,
+.pv-cands__head > .langtag {
+  flex: none;
+  white-space: nowrap;
+}
+.pv-cands__head > .langtag {
+  margin-left: 0;
+}
+.pv-cands__head > .btn {
+  margin-left: auto;
+}
+.pv-cands__group {
+  padding: 6px 4px 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--qc-ink3);
+}
+.pv-cand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--qc-radius-control);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pv-cand:hover {
+  background: var(--qc-sunken);
+}
+.pv-cand__text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.5;
+}
+
+/* ---- The cover and AI 封面 ---- */
+.pv-cov {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px;
+}
+.pv-cov__box {
+  position: relative;
+  flex: none;
+  width: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-radius-control);
+  background: var(--qc-sunken);
+  font-size: 11.5px;
+}
+.pv-cov__box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.pv-cov__ratio {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  padding: 1px 5px;
+  border-radius: var(--qc-radius-small);
+  background: rgb(0 0 0 / 60%);
+  color: #fff;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.pv-cov__acts {
+  display: flex;
+  flex: 1 1 160px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+/* While AI 封面 is open it takes the full width under the cover (PvCoverGen). */
+.pv-cov__acts:has(.pv-cover-gen) {
+  flex-basis: 100%;
+}
+.pv-cover-gen {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-radius-card);
+  background: var(--qc-surface);
+}
+.pv-cover-gen__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--qc-ink2);
+}
+.pv-cover-gen__head .langtag {
+  margin-left: auto;
+}
+.pv-cover-gen__go,
+.pv-cover-gen__keep {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.pv-cover-gen__go > :not(.btn) {
+  white-space: nowrap;
+}
+.pv-cover-gen__go > .btn:first-of-type {
+  margin-left: auto;
+}
+.pv-cover-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.pv-cover-cell {
+  position: relative;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: var(--qc-radius-control);
+  background: var(--qc-sunken);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pv-cover-cell--on {
+  border-color: var(--qc-accent);
+}
+.pv-cover-cell > button {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.pv-cover-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* The editors' per-platform count chips are entry points into this split (QC-076). */
+.chip--button {
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.chip--button:hover {
+  box-shadow: inset 0 0 0 1px var(--qc-line);
+}

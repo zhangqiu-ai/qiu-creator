@@ -33,7 +33,7 @@ import {
   type SidebarSnapshot,
 } from './sidebar-morph.js';
 
-export type NavPage = 'library' | 'assets' | 'imports' | 'ai' | 'preview' | 'settings';
+export type NavPage = 'library' | 'assets' | 'imports' | 'ai' | 'prompts' | 'settings';
 
 interface NavItem {
   page: NavPage;
@@ -65,7 +65,7 @@ const GROUPS: readonly { id: string; title: MessageKey; items: readonly NavItem[
   {
     id: 'tools',
     title: 'shell.groupTools',
-    items: [nav('ai', 'shell.navAi', 'spark'), nav('preview', 'shell.navPreview', 'phone')],
+    items: [nav('ai', 'shell.navAi', 'spark'), nav('prompts', 'shell.navPrompts', 'prompt')],
   },
 ];
 /** 全部作品 while the service is not there to list projects. */

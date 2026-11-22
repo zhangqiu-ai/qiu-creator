@@ -90,8 +90,9 @@ export interface EditorTabsProps {
   focusToken: number;
   onFocusEditor: () => void;
   onBack: () => void;
-  onPreview: (work: WorkDetail) => void;
   onOpenSettings: () => void;
+  /** 管理 Prompt from the toolbar's prompt picker (QC-075). */
+  onOpenPrompts: () => void;
 }
 
 /**
@@ -459,8 +460,8 @@ function TabPane({
   preloaded,
   focusToken,
   onBack,
-  onPreview,
   onOpenSettings,
+  onOpenPrompts,
   tab,
   active,
   shown,
@@ -551,9 +552,6 @@ function TabPane({
           onViewChange={onViewChange}
           onHandle={onHandle}
           onBack={onBack}
-          onPreview={() => {
-            onPreview(loaded.work);
-          }}
         />
       ) : loaded.state === 'ready' && loaded.work.type === 'video' ? (
         <VideoWorkEditor
@@ -567,9 +565,6 @@ function TabPane({
           onViewChange={onViewChange}
           onHandle={onHandle}
           onBack={onBack}
-          onPreview={() => {
-            onPreview(loaded.work);
-          }}
           onOpenSettings={onOpenSettings}
         />
       ) : loaded.state === 'ready' ? (
@@ -585,10 +580,8 @@ function TabPane({
           onViewChange={onViewChange}
           onHandle={onHandle}
           onBack={onBack}
-          onPreview={() => {
-            onPreview(loaded.work);
-          }}
           onOpenSettings={onOpenSettings}
+          onOpenPrompts={onOpenPrompts}
         />
       ) : loaded.state === 'loading' ? (
         <main className="page page--center" aria-busy="true" />

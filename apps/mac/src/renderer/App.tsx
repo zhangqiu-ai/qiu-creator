@@ -10,7 +10,8 @@ import { useChangeEvents, useEventStatus, useRefreshOn, useUploads } from './eve
 import { Icon } from './Icon.js';
 import { ImportsPage } from './ImportsPage.js';
 import { LibraryPage } from './LibraryPage.js';
-import { PreviewPage } from './PreviewPage.js';
+import { PromptsPage } from './PromptsPage.js';
+import { AiLibrary, AiLibraryContext } from './ai-library.js';
 import { AiWorkbenchPage } from './AiWorkbenchPage.js';
 import { SettingsPage } from './SettingsPage.js';
 import { Sidebar, type NavPage } from './Sidebar.js';
@@ -38,8 +39,8 @@ type Route =
       projectId?: string;
     }
   | { page: 'ai' }
+  | { page: 'prompts' }
   | { page: 'imports' }
-  | { page: 'preview'; workId: string | null; from: WorkDetail | null }
   | { page: 'settings'; section?: 'ai' };
 
 /** `/health` for the sidebar's service dot: on connect, every 30 s, and on 重新檢查. */
@@ -222,6 +223,7 @@ export function App() {
   }, []);
   const backups = useBackupSession(client, onDataReplaced);
   const projects = useProjects(client, dataEpoch);
+  const aiLibrary = useAiLibraryStore(client, dataEpoch);
   const projectsState = useSyncExternalStore(
     projects?.subscribe ?? NO_PROJECTS,
     projects?.getSnapshot ?? EMPTY_PROJECTS,
@@ -300,8 +302,6 @@ export function App() {
     if (route.page === 'editor' && tabsState.tabs.length === 0) setRoute({ page: 'library' });
   }, [route.page, tabsState.tabs.length]);
 
-  // The work in the active tab, so 平台預覽 in the navigation goes straight to it.
-  const lastWorkId = tabsState.activeId;
   // 設定… (⌘,) from the app menu (QC-057).
   useEffect(
     () =>
@@ -314,7 +314,6 @@ export function App() {
   const go = (page: NavPage) => {
     if (page === 'library') setScope({ kind: 'all' });
     if (page === 'assets') setRoute({ page, focusAssetId: null });
-    else if (page === 'preview') setRoute({ page, workId: lastWorkId, from: null });
     else setRoute({ page });
   };
   const current: NavPage = route.page === 'editor' ? 'library' : route.page;
@@ -325,199 +324,193 @@ export function App() {
 
   return (
     <AppMotion>
-      <ProjectsContext.Provider value={projects}>
-        <ProjectsDnd store={projects}>
-          <div className="shell">
-            <Sidebar
-              current={current}
-              onNavigate={(page) => {
-                go(page);
-                focusPageTitle();
-              }}
-              importsCount={activeTasks}
-              service={service}
-              address={address}
-              onRecheck={() => {
-                if (client === null) tryConnect();
-                else checkHealth();
-              }}
-              projects={
-                projects === null || client === null
-                  ? undefined
-                  : (rail) => (
-                      <SidebarProjects
-                        store={projects}
-                        s={projectsState}
-                        rail={rail}
-                        scope={scope}
-                        active={current === 'library' && route.page === 'library'}
-                        onOpen={(next) => {
-                          openScope(next);
-                          focusPageTitle();
-                        }}
-                      />
-                    )
-              }
-              foot={
-                projects === null || client === null
-                  ? undefined
-                  : () => (
-                      <SidebarTrash
-                        count={projectsState.trashCount}
-                        current={route.page === 'library' && scope.kind === 'trash'}
-                        onOpen={() => {
-                          openScope({ kind: 'trash' });
-                          focusPageTitle();
-                        }}
-                      />
-                    )
-              }
-            />
+      <AiLibraryContext.Provider value={aiLibrary}>
+        <ProjectsContext.Provider value={projects}>
+          <ProjectsDnd store={projects}>
+            <div className="shell">
+              <Sidebar
+                current={current}
+                onNavigate={(page) => {
+                  go(page);
+                  focusPageTitle();
+                }}
+                importsCount={activeTasks}
+                service={service}
+                address={address}
+                onRecheck={() => {
+                  if (client === null) tryConnect();
+                  else checkHealth();
+                }}
+                projects={
+                  projects === null || client === null
+                    ? undefined
+                    : (rail) => (
+                        <SidebarProjects
+                          store={projects}
+                          s={projectsState}
+                          rail={rail}
+                          scope={scope}
+                          active={current === 'library' && route.page === 'library'}
+                          onOpen={(next) => {
+                            openScope(next);
+                            focusPageTitle();
+                          }}
+                        />
+                      )
+                }
+                foot={
+                  projects === null || client === null
+                    ? undefined
+                    : () => (
+                        <SidebarTrash
+                          count={projectsState.trashCount}
+                          current={route.page === 'library' && scope.kind === 'trash'}
+                          onOpen={() => {
+                            openScope({ kind: 'trash' });
+                            focusPageTitle();
+                          }}
+                        />
+                      )
+                }
+              />
 
-            <ShellMain>
-              {'state' in connection ? (
-                <main className="page page--center" aria-busy="true" />
-              ) : !connection.ok ? (
-                <main className="page page--center">
-                  <ServiceProblem
-                    reason={connection.reason}
-                    address={connection.baseUrl.replace(/^https?:\/\//, '')}
-                    onRetry={tryConnect}
+              <ShellMain>
+                {'state' in connection ? (
+                  <main className="page page--center" aria-busy="true" />
+                ) : !connection.ok ? (
+                  <main className="page page--center">
+                    <ServiceProblem
+                      reason={connection.reason}
+                      address={connection.baseUrl.replace(/^https?:\/\//, '')}
+                      onRetry={tryConnect}
+                    />
+                  </main>
+                ) : route.page === 'library' ? (
+                  <LibraryPage
+                    key={`library:${String(dataEpoch)}`}
+                    client={connection.client}
+                    scope={scope}
+                    projects={projects}
+                    projectsState={projectsState}
+                    onScope={openScope}
+                    onOpenProjectAssets={(id) => {
+                      setRoute({ page: 'assets', focusAssetId: null, projectId: id });
+                    }}
+                    userHome={userHome}
+                    onOpen={openWork}
+                    onCreated={openTab}
+                    handles={editorHandles}
+                    onOpenInBackground={(work) => {
+                      tabs.openInBackground({ id: work.id, kind: work.type, title: work.title });
+                    }}
+                    onRenamed={(id, title) => {
+                      if (tabs.find(id) !== null) tabs.update(id, { title });
+                    }}
+                    onTrashed={(ids) => {
+                      // Saved before deleting, so nothing unsaved is lost; 復原 does not reopen them.
+                      for (const id of ids) if (tabs.find(id) !== null) tabs.close(id);
+                    }}
                   />
-                </main>
-              ) : route.page === 'library' ? (
-                <LibraryPage
-                  key={`library:${String(dataEpoch)}`}
-                  client={connection.client}
-                  scope={scope}
-                  projects={projects}
-                  projectsState={projectsState}
-                  onScope={openScope}
-                  onOpenProjectAssets={(id) => {
-                    setRoute({ page: 'assets', focusAssetId: null, projectId: id });
-                  }}
-                  userHome={userHome}
-                  onOpen={openWork}
-                  onCreated={openTab}
-                  handles={editorHandles}
-                  onOpenInBackground={(work) => {
-                    tabs.openInBackground({ id: work.id, kind: work.type, title: work.title });
-                  }}
-                  onRenamed={(id, title) => {
-                    if (tabs.find(id) !== null) tabs.update(id, { title });
-                  }}
-                  onTrashed={(ids) => {
-                    // Saved before deleting, so nothing unsaved is lost; 復原 does not reopen them.
-                    for (const id of ids) if (tabs.find(id) !== null) tabs.close(id);
-                  }}
-                />
-              ) : route.page === 'editor' ? null : route.page === 'assets' ? (
-                <AssetsPage
-                  key={`${route.focusAssetId ?? 'assets'}:${String(route.startAt ?? '')}:${route.projectId ?? ''}:${String(dataEpoch)}`}
-                  client={connection.client}
-                  project={
-                    route.projectId === undefined
-                      ? null
-                      : (projectsState.projects?.find((p) => p.id === route.projectId) ?? null)
-                  }
-                  onClearProject={() => {
-                    setRoute({ page: 'assets', focusAssetId: null });
-                  }}
-                  onBackToProject={(id) => {
-                    openScope({ kind: 'project', id });
-                  }}
-                  home={home}
-                  userHome={userHome}
-                  focusAssetId={route.focusAssetId}
-                  startAt={route.startAt ?? null}
-                  onOpenWork={openWork}
-                  onOpenImports={() => {
-                    go('imports');
-                  }}
-                  onOpenSettings={() => {
-                    go('settings');
-                  }}
-                />
-              ) : route.page === 'preview' ? (
-                <PreviewPage
-                  key={`preview:${String(dataEpoch)}`}
-                  client={connection.client}
-                  workId={route.workId}
-                  onPickWork={(id) => {
-                    setRoute({ page: 'preview', workId: id, from: null });
-                  }}
-                  onBack={
-                    route.workId === null
-                      ? null
-                      : () => {
-                          if (route.workId !== null) openWork(route.workId);
-                        }
-                  }
-                />
-              ) : route.page === 'ai' ? (
-                <AiWorkbenchPage
-                  key={`ai:${String(dataEpoch)}`}
-                  client={connection.client}
-                  onOpenSettings={() => {
-                    setRoute({ page: 'settings', section: 'ai' });
-                  }}
-                  onOpenAssets={() => {
-                    go('assets');
-                  }}
-                  onOpenAsset={(id, at) => {
-                    setRoute({ page: 'assets', focusAssetId: id, startAt: at });
-                  }}
-                />
-              ) : route.page === 'imports' ? (
-                <ImportsPage
-                  key={`imports:${String(dataEpoch)}`}
-                  client={connection.client}
-                  onOpenAsset={(id) => {
-                    setRoute({ page: 'assets', focusAssetId: id });
-                  }}
-                />
-              ) : (
-                <SettingsPage
-                  key={route.section ?? 'settings'}
-                  client={connection.client}
-                  home={home}
-                  userHome={userHome}
-                  baseUrl={connection.baseUrl}
-                  focusSection={route.section}
-                  backups={backups.session}
-                  dataEpoch={dataEpoch}
-                  health={health}
-                  eventStatus={events}
-                  service={service}
-                  checkHealth={checkHealth}
-                />
-              )}
-              {client !== null && (
-                <EditorTabs
-                  model={tabs}
-                  handles={editorHandles}
-                  client={client}
-                  userHome={userHome}
-                  visible={route.page === 'editor'}
-                  preloaded={preloaded}
-                  focusToken={focusToken}
-                  onFocusEditor={focusEditor}
-                  onBack={() => {
-                    setRoute({ page: 'library' });
-                  }}
-                  onPreview={(work) => {
-                    setRoute({ page: 'preview', workId: work.id, from: work });
-                  }}
-                  onOpenSettings={() => {
-                    setRoute({ page: 'settings', section: 'ai' });
-                  }}
-                />
-              )}
-            </ShellMain>
-            <ToastHost />
-          </div>
-        </ProjectsDnd>
-      </ProjectsContext.Provider>
+                ) : route.page === 'editor' ? null : route.page === 'assets' ? (
+                  <AssetsPage
+                    key={`${route.focusAssetId ?? 'assets'}:${String(route.startAt ?? '')}:${route.projectId ?? ''}:${String(dataEpoch)}`}
+                    client={connection.client}
+                    project={
+                      route.projectId === undefined
+                        ? null
+                        : (projectsState.projects?.find((p) => p.id === route.projectId) ?? null)
+                    }
+                    onClearProject={() => {
+                      setRoute({ page: 'assets', focusAssetId: null });
+                    }}
+                    onBackToProject={(id) => {
+                      openScope({ kind: 'project', id });
+                    }}
+                    home={home}
+                    userHome={userHome}
+                    focusAssetId={route.focusAssetId}
+                    startAt={route.startAt ?? null}
+                    onOpenWork={openWork}
+                    onOpenImports={() => {
+                      go('imports');
+                    }}
+                    onOpenSettings={() => {
+                      go('settings');
+                    }}
+                  />
+                ) : route.page === 'prompts' ? (
+                  <PromptsPage
+                    key={`prompts:${String(dataEpoch)}`}
+                    client={connection.client}
+                    onOpenAiServices={() => {
+                      setRoute({ page: 'settings', section: 'ai' });
+                    }}
+                  />
+                ) : route.page === 'ai' ? (
+                  <AiWorkbenchPage
+                    key={`ai:${String(dataEpoch)}`}
+                    client={connection.client}
+                    onOpenSettings={() => {
+                      setRoute({ page: 'settings', section: 'ai' });
+                    }}
+                    onOpenAssets={() => {
+                      go('assets');
+                    }}
+                    onOpenAsset={(id, at) => {
+                      setRoute({ page: 'assets', focusAssetId: id, startAt: at });
+                    }}
+                  />
+                ) : route.page === 'imports' ? (
+                  <ImportsPage
+                    key={`imports:${String(dataEpoch)}`}
+                    client={connection.client}
+                    onOpenAsset={(id) => {
+                      setRoute({ page: 'assets', focusAssetId: id });
+                    }}
+                  />
+                ) : (
+                  <SettingsPage
+                    key={route.section ?? 'settings'}
+                    client={connection.client}
+                    home={home}
+                    userHome={userHome}
+                    baseUrl={connection.baseUrl}
+                    focusSection={route.section}
+                    backups={backups.session}
+                    dataEpoch={dataEpoch}
+                    health={health}
+                    eventStatus={events}
+                    service={service}
+                    checkHealth={checkHealth}
+                  />
+                )}
+                {client !== null && (
+                  <EditorTabs
+                    model={tabs}
+                    handles={editorHandles}
+                    client={client}
+                    userHome={userHome}
+                    visible={route.page === 'editor'}
+                    preloaded={preloaded}
+                    focusToken={focusToken}
+                    onFocusEditor={focusEditor}
+                    onBack={() => {
+                      setRoute({ page: 'library' });
+                    }}
+                    onOpenSettings={() => {
+                      setRoute({ page: 'settings', section: 'ai' });
+                    }}
+                    onOpenPrompts={() => {
+                      setRoute({ page: 'prompts' });
+                    }}
+                  />
+                )}
+              </ShellMain>
+              <ToastHost />
+            </div>
+          </ProjectsDnd>
+        </ProjectsContext.Provider>
+      </AiLibraryContext.Provider>
     </AppMotion>
   );
 }
@@ -560,6 +553,18 @@ const EMPTY: ReturnType<ProjectsStore['getSnapshot']> = {
   failed: false,
 };
 const EMPTY_PROJECTS = () => EMPTY;
+
+/** The AI preferences and prompt library (QC-075), one per connection. */
+function useAiLibraryStore(client: CreatorHubClient | null, dataEpoch: number): AiLibrary | null {
+  const [store, setStore] = useState<AiLibrary | null>(null);
+  useEffect(() => {
+    setStore(client === null ? null : new AiLibrary(client));
+  }, [client]);
+  useEffect(() => {
+    void store?.load();
+  }, [store, dataEpoch]);
+  return store;
+}
 
 /** One project list per connection, loaded at once and kept fresh by SSE (QC-062). */
 function useProjects(client: CreatorHubClient | null, dataEpoch: number): ProjectsStore | null {

@@ -11,6 +11,7 @@ import { library } from './library.js';
 import { main } from './main.js';
 import { modelPicker } from './modelPicker.js';
 import { projects } from './projects.js';
+import { prompts } from './prompts.js';
 import { serviceSettings } from './serviceSettings.js';
 import { settings } from './settings.js';
 import { settingsPages } from './settingsPages.js';
@@ -43,6 +44,7 @@ export const catalog = {
   aiServices,
   settingsPages,
   projects,
+  prompts,
 } as const;
 
 type Areas = typeof catalog;

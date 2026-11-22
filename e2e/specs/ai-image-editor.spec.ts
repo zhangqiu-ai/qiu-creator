@@ -119,14 +119,17 @@ test('選取浮動工具列：原位改寫候選、配圖佔位與保留、費�
   await test.step('選取後出現工具列，焦點留在文字；⌘J 進入、←→ 移動、esc 收起並保留選取', async () => {
     await selectInVisual(page, '紅葉與寺廟');
     await expect(toolbar(page)).toBeVisible();
-    await expect(toolbar(page).getByRole('button')).toHaveText([
+    await expect(toolbar(page).locator('.ftb__btn')).toHaveText([
       '潤色',
       '擴寫',
       '縮寫',
       '語氣',
       '配圖',
-      '更多',
+      'Prompt',
     ]);
+    // QC-075: the output language and the model switch at the end of the row.
+    await expect(toolbar(page).getByRole('button', { name: '輸出語言' })).toBeVisible();
+    await expect(toolbar(page).getByRole('button', { name: '模型' })).toBeVisible();
     // It did not take focus: typing would still go into the text.
     expect(await page.evaluate<boolean>("document.activeElement?.closest('.ftb') == null")).toBe(
       true,
@@ -149,7 +152,8 @@ test('選取浮動工具列：原位改寫候選、配圖佔位與保留、費�
     await selectInVisual(page, '紅葉與寺廟');
     await toolbar(page).getByRole('button', { name: '潤色' }).click();
     await expect(page.locator('.inline-ai__lock')).toBeVisible();
-    await expect(page.locator('.gen-pill')).toContainText('潤色中…');
+    // QC-075: the pill says the action, the language and the model it was sent with.
+    await expect(page.locator('.gen-pill')).toContainText(/潤色 · 繁中 · Claude · .+…/);
     await shot(page, '2-text-generating');
     const diff = page.locator('.inline-ai__diff');
     await expect(diff).toBeVisible();
@@ -242,14 +246,15 @@ test('選取浮動工具列：原位改寫候選、配圖佔位與保留、費�
     await page.emulateMedia({ reducedMotion: 'no-preference' });
   });
 
-  await test.step('圖片分頁：封面模式預設 2.35:1，生成後設為封面，文章頂部出現封面', async () => {
+  // QC-076: the 圖片 tab is illustrations only; platform covers are generated in 預覽.
+  await test.step('圖片分頁只做插圖；生成後設為作品封面，文章頂部出現封面', async () => {
     upstream.imageReplies.push(await images('#3E5A3A'));
     await panel(page).getByRole('tab', { name: '圖片' }).click();
-    await panel(page).getByRole('radio', { name: '封面', exact: true }).click();
-    await expect(panel(page).getByRole('radio', { name: /2\.35:1/ })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    );
+    await expect(panel(page).getByRole('radio', { name: '封面', exact: true })).toHaveCount(0);
+    await expect(
+      panel(page).getByText('只做插圖；標題與封面在「預覽」裡依平台生成。'),
+    ).toBeVisible();
+    await panel(page).getByRole('textbox', { name: '提示詞' }).fill('書房的暖光');
     await panel(page).getByRole('radio', { name: '1', exact: true }).click();
     await expect(panel(page).getByText('費用無法預估')).toBeVisible();
     await shot(page, '8-panel-cover');
@@ -277,7 +282,6 @@ test('選取浮動工具列：原位改寫候選、配圖佔位與保留、費�
 
   await test.step('有候選未保留時關閉作品：先問；取消留著，捨棄並關閉才關', async () => {
     upstream.imageReplies.push(await images('#5E4130'));
-    await panel(page).getByRole('radio', { name: '插圖', exact: true }).click();
     await panel(page).getByRole('textbox', { name: '提示詞' }).fill('鴨川夜景');
     await panel(page)
       .getByRole('button', { name: /生成 1 張/ })
@@ -295,7 +299,9 @@ test('選取浮動工具列：原位改寫候選、配圖佔位與保留、費�
   });
 });
 
-test('沒有圖片模型、語氣與更多、原始碼模式、減少動態效果、三語與深色', async ({ desktop }) => {
+test('沒有圖片模型、Prompt 直接輸入指令、原始碼模式、減少動態效果、三語與深色', async ({
+  desktop,
+}) => {
   test.setTimeout(120_000);
   const { page, upstream } = await setUp(desktop, ['gpt-5.5']);
 
@@ -312,11 +318,11 @@ test('沒有圖片模型、語氣與更多、原始碼模式、減少動態效�
     await panel(page).getByRole('tab', { name: '改寫' }).click();
   });
 
-  await test.step('語氣與更多：展開補充欄位，↩ 送出，結果在原位', async () => {
+  await test.step('Prompt：搜尋框也收直接輸入的指令，↩ 送出，結果在原位', async () => {
     upstream.script('anthropic', ok('anthropic', '第二段寫竹林小徑，人潮洶湧。'));
     await selectInVisual(page, '竹林小徑');
-    await toolbar(page).getByRole('button', { name: '更多' }).click();
-    const field = toolbar(page).getByRole('textbox', { name: '指令' });
+    await toolbar(page).getByRole('button', { name: 'Prompt' }).click();
+    const field = toolbar(page).getByRole('combobox', { name: '搜尋 prompt，或直接輸入指令' });
     await expect(field).toBeFocused();
     await shot(page, '11-more');
     await field.fill('寫得更緊湊');

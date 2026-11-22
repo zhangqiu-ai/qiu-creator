@@ -82,7 +82,7 @@ test('作品庫精簡：側欄分組、一行頁首、篩選彈出層、結果�
       /全部作品.*6.*未分類.*1/,
       /項目/,
       /素材庫.*匯入任務/,
-      /AI 工作台.*平台預覽/,
+      /AI 工作台.*Prompt/,
     ]);
     await expect(nav(page).locator('.sb__foot')).toContainText('回收站');
     await expect(nav(page).locator('.sb__foot')).toContainText('設定');

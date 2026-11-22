@@ -2,16 +2,12 @@ import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
 import { watchAiStatus } from './ai-status.js';
 import type {
   AssetRecord,
-  PlatformVariantRecord,
+  Platform,
   Revision,
   VideoUnderstandingResult,
   WorkDetail,
   WorkStatus,
 } from '@qiu-creator/contracts';
-import { formatShortDate } from '@qiu-creator/i18n';
-import { buildPreviewModel } from '@qiu-creator/platform-preview';
-import { PlatformPreview } from '@qiu-creator/platform-preview/react';
-import '@qiu-creator/platform-preview/style.css';
 import {
   useCallback,
   useEffect,
@@ -35,8 +31,9 @@ import { useChangeEvents } from './events.js';
 import { formatDuration, WORK_STATUS } from './format.js';
 import { FrameGrabber } from './frames.js';
 import { HistoryPanel } from './HistoryPanel.js';
+import { PreviewPanel } from './PreviewPanel.js';
 import { progressStyle } from './motion.js';
-import { codeText, formatBytes, t, useLocale } from './i18n.js';
+import { codeText, formatBytes, t } from './i18n.js';
 import { Icon } from './Icon.js';
 import { shortPlatform } from './image-post.js';
 import { AssetDrawer } from './InsertUI.js';
@@ -47,7 +44,6 @@ import { ProjectTags } from './ProjectTags.js';
 import { TechnicalDetails } from './TechnicalDetails.js';
 import { useToast } from './toasts.js';
 import { uploadBlob, uploadFile } from './upload-wait.js';
-import { VariantSession, type VariantSessionState } from './variant-session.js';
 import {
   analyzeBlock,
   COVER_CROPS,
@@ -63,7 +59,6 @@ import {
   videoTagCounts,
   videoTitleCounts,
   type CopyCount,
-  type VideoPlatform,
 } from './video-work.js';
 import { WorkSession, type Draft, type SaveError } from './work-session.js';
 
@@ -75,7 +70,6 @@ export interface VideoWorkEditorProps {
   work: WorkDetail;
   userHome: string | null;
   onBack: () => void;
-  onPreview?: () => void;
   onOpenSettings?: () => void;
   active?: boolean;
   initialView?: TabView;
@@ -135,13 +129,13 @@ export function VideoWorkEditor(props: VideoWorkEditorProps) {
   return <VideoEditor {...props} session={session} />;
 }
 
-type Adopt = { kind: 'title' | 'description'; text: string } | { kind: 'cover'; time: number };
+/** 標題建議 moved to the 預覽 split (QC-076): only 簡介 and 封面 are adopted here. */
+type Adopt = { kind: 'description'; text: string } | { kind: 'cover'; time: number };
 
 function VideoEditor({
   client,
   work,
   onBack,
-  onPreview,
   onOpenSettings,
   session,
   active = true,
@@ -149,7 +143,6 @@ function VideoEditor({
   onTabStatus,
   onViewChange,
 }: VideoWorkEditorProps & { session: WorkSession }) {
-  const locale = useLocale();
   const state = useSyncExternalStore(
     useCallback((cb) => session.subscribe(cb), [session]),
     () => session.snapshot,
@@ -163,9 +156,16 @@ function VideoEditor({
   const bridge = window.creatorhub ?? null;
 
   const [panel, setPanel] = useState<TabPanel>(initialView?.panel ?? 'ai');
-  const [side, setSide] = useState<'ai' | 'preview'>('ai');
-  const [copyTab, setCopyTab] = useState<'shared' | VideoPlatform>('shared');
-  const [previewPlatform, setPreviewPlatform] = useState<VideoPlatform>('douyin');
+  // QC-076: the 抖音 and 視頻號 copy versions live in the shared 預覽 split.
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewAsk, setPreviewAsk] = useState<{ platform: Platform; n: number } | undefined>(
+    undefined,
+  );
+  const openPreview = (platform: Platform) => {
+    setPanel('ai');
+    setPreviewAsk((r) => ({ platform, n: (r?.n ?? 0) + 1 }));
+    setPreviewOpen(true);
+  };
   const [notice, setNotice] = useState<{ text: string; tone: 'ok' | 'bad' } | null>(null);
   const [undo, setUndo] = useState<{ label: string; revision: string } | null>(null);
   const [adopt, setAdopt] = useState<Adopt | null>(null);
@@ -255,43 +255,6 @@ function VideoEditor({
   const block = analyzeBlock(asset, uploading !== null);
   const result: VideoUnderstandingResult | null = vs?.result ?? null;
   const resultJob = vs?.shown ?? null;
-
-  // ---- Platform copy: shared, or each platform's own (inherit) ------------------------------
-  const [variants, setVariants] = useState<Record<VideoPlatform, VariantSession> | null>(null);
-  useEffect(() => {
-    let live = true;
-    let made: VariantSession[] = [];
-    void client.variants
-      .list(work.id)
-      .catch(() => ({ items: [] as PlatformVariantRecord[] }))
-      .then(({ items }) => {
-        if (!live) return;
-        const of = (p: VideoPlatform) =>
-          new VariantSession(client, work.id, p, items.find((r) => r.platform === p) ?? null);
-        const map = { douyin: of('douyin'), wechat_channels: of('wechat_channels') };
-        made = Object.values(map);
-        setVariants(map);
-      });
-    return () => {
-      live = false;
-      for (const v of made) v.close();
-    };
-  }, [client, work.id]);
-  const douyin = useStore<VariantSessionState>(variants?.douyin ?? null);
-  const channels = useStore<VariantSessionState>(variants?.wechat_channels ?? null);
-  const variantState = (p: VideoPlatform) => (p === 'douyin' ? douyin : channels);
-  const inherits = (p: VideoPlatform) => {
-    const r = variantState(p)?.record ?? null;
-    return r === null || r.inherit === true;
-  };
-  /** What a platform will publish: the shared copy while it follows it, else its own. */
-  const copyFor = (p: VideoPlatform) => {
-    const v = variantState(p);
-    if (inherits(p) || v?.draft == null) {
-      return { title: draft.title, body: draft.markdown, tags: draft.tags };
-    }
-    return { title: v.draft.title, body: v.draft.body, tags: v.draft.tags };
-  };
 
   // ---- Revisions, live changes ---------------------------------------------------------------
   const [revisions, setRevisions] = useState<readonly Revision[]>([]);
@@ -384,16 +347,18 @@ function VideoEditor({
       if (!e.shiftKey && key === 's') {
         e.preventDefault();
         void session.save();
-      } else if (!e.shiftKey && key === 'p' && onPreview !== undefined) {
+      } else if (e.shiftKey && key === 'p') {
         e.preventDefault();
-        void session.save().finally(onPreview);
+        void session.save().finally(() => {
+          setPreviewOpen((open) => !open);
+        });
       }
     };
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
     };
-  }, [active, session, onPreview]);
+  }, [active, session]);
 
   // ---- Player and frames ---------------------------------------------------------------------
   const player = useRef<HTMLVideoElement>(null);
@@ -479,13 +444,11 @@ function VideoEditor({
     if (resultJob === null) return;
     setBusy('adopt');
     try {
-      let change: { title?: string; description?: string; cover?: { asset_id: string } };
+      let change: { description?: string; cover?: { asset_id: string } };
       if (a.kind === 'cover') {
         const asset2 = await grabCover(a.time);
         if (asset2 === null) return;
         change = { cover: { asset_id: asset2.id } };
-      } else if (a.kind === 'title') {
-        change = { title: a.text };
       } else {
         change = { description: a.text };
       }
@@ -537,22 +500,6 @@ function VideoEditor({
   const rev = numbers.get(state.baseRevision);
   const orientation = orientationOf(asset?.width ?? null, asset?.height ?? null);
   const moments = result?.key_moments ?? [];
-  const model = useMemo(() => {
-    const c = copyFor(previewPlatform);
-    return buildPreviewModel({
-      platform: previewPlatform,
-      title: c.title,
-      body: c.body,
-      tags: c.tags,
-      coverUrl: coverAsset === null ? null : thumbnailUrl(coverAsset),
-      imageUrls: [],
-      workType: 'video',
-      dateLabel: formatShortDate(locale, new Date(work.updated_at)),
-      locale,
-    });
-    // copyFor reads draft and the variant states listed here.
-  }, [previewPlatform, draft, douyin, channels, coverAsset, locale, work.updated_at]);
-
   const onPlayerKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     const el = player.current;
@@ -598,24 +545,27 @@ function VideoEditor({
           </span>
           {rev !== undefined && <Chip>r{rev}</Chip>}
           <div className="editor__actions">
-            {onPreview !== undefined && (
-              <button
-                type="button"
-                className="btn"
-                aria-keyshortcuts="Meta+P"
-                onClick={() => {
-                  void session.save().finally(onPreview);
-                }}
-              >
-                <Icon name="phone" />
-                {t('editor.preview')}
-              </button>
-            )}
+            <button
+              type="button"
+              className="btn"
+              aria-pressed={previewOpen}
+              aria-controls="preview-panel"
+              aria-keyshortcuts="Meta+Shift+P"
+              onClick={() => {
+                void session.save().finally(() => {
+                  setPreviewOpen((open) => !open);
+                });
+              }}
+            >
+              <Icon name="phone" />
+              {t('editor.preview')}
+            </button>
             <button
               type="button"
               className="btn btn--ghost"
               aria-expanded={panel === 'history'}
               onClick={() => {
+                setPreviewOpen(false);
                 setPanel((p) => (p === 'history' ? 'ai' : 'history'));
               }}
             >
@@ -658,7 +608,7 @@ function VideoEditor({
           />
           <span className="vw__chips">
             {videoTagCounts(draft.tags).map((c) => (
-              <CountChip key={c.platform} count={c} />
+              <CountChip key={c.platform} count={c} onOpen={openPreview} />
             ))}
           </span>
         </div>
@@ -914,95 +864,81 @@ function VideoEditor({
               </div>
             </section>
 
-            {/* ---- Copy: shared, 抖音, 視頻號 ---- */}
+            {/* ---- Copy: the shared one only; each platform's version is in 預覽 (QC-076) ---- */}
             <section className="post__section" aria-label={t('videoWork.copy')}>
               <div className="post__head">
-                <h2 className="post__h">{t('videoWork.copy')}</h2>
-                <div className="seg" role="tablist" aria-label={t('videoWork.copy')}>
-                  {(['shared', ...VIDEO_PLATFORMS] as const).map((k) => (
-                    <button
-                      key={k}
-                      type="button"
-                      role="tab"
-                      aria-selected={copyTab === k}
-                      aria-pressed={copyTab === k}
-                      onClick={() => {
-                        setCopyTab(k);
-                      }}
-                    >
-                      {k === 'shared' ? t('videoWork.shared') : shortPlatform(k)}
-                      {k !== 'shared' && !inherits(k) && (
-                        <span className="vw__own">{t('videoWork.ownCopy')}</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
+                <h2 className="post__h">
+                  {t('videoWork.copy')}
+                  <span className="vw__own">{t('videoWork.shared')}</span>
+                </h2>
               </div>
-              {copyTab === 'shared' ? (
-                <>
-                  <label className="post__label" htmlFor={`vw-title-${work.id}`}>
-                    {t('editor.titleLabel')}
-                  </label>
-                  <input
-                    id={`vw-title-${work.id}`}
-                    className="input post__title"
-                    readOnly={readOnly}
-                    value={draft.title}
-                    onChange={(e) => {
-                      session.edit({ title: e.target.value });
-                    }}
-                    onCompositionStart={() => {
-                      session.setComposing(true);
-                    }}
-                    onCompositionEnd={() => {
-                      session.setComposing(false);
-                    }}
-                  />
-                  <div className="post__chips">
-                    {videoTitleCounts(draft.title).map((c) => (
-                      <CountChip key={c.platform} count={c} />
-                    ))}
-                  </div>
-                  <label className="post__label" htmlFor={`vw-desc-${work.id}`}>
-                    {t('videoWork.description')}
-                  </label>
-                  <textarea
-                    id={`vw-desc-${work.id}`}
-                    className="input post__desc"
-                    readOnly={readOnly}
-                    value={draft.markdown}
-                    placeholder={t('videoWork.descriptionPlaceholder')}
-                    onChange={(e) => {
-                      session.edit({ markdown: e.target.value });
-                    }}
-                    onCompositionStart={() => {
-                      session.setComposing(true);
-                    }}
-                    onCompositionEnd={() => {
-                      session.setComposing(false);
-                    }}
-                  />
-                  <div className="post__chips">
-                    {videoBodyCounts(draft.markdown).map((c) => (
-                      <CountChip key={c.platform} count={c} />
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <PlatformCopy
-                  key={copyTab}
-                  platform={copyTab}
-                  session={variants?.[copyTab] ?? null}
-                  state={variantState(copyTab)}
-                  shared={{ title: draft.title, body: draft.markdown, tags: draft.tags }}
-                  inherit={inherits(copyTab)}
-                  readOnly={readOnly}
-                />
-              )}
+              <label className="post__label" htmlFor={`vw-title-${work.id}`}>
+                {t('editor.titleLabel')}
+              </label>
+              <input
+                id={`vw-title-${work.id}`}
+                className="input post__title"
+                readOnly={readOnly}
+                value={draft.title}
+                onChange={(e) => {
+                  session.edit({ title: e.target.value });
+                }}
+                onCompositionStart={() => {
+                  session.setComposing(true);
+                }}
+                onCompositionEnd={() => {
+                  session.setComposing(false);
+                }}
+              />
+              <div className="post__chips">
+                {videoTitleCounts(draft.title).map((c) => (
+                  <CountChip key={c.platform} count={c} onOpen={openPreview} />
+                ))}
+              </div>
+              <label className="post__label" htmlFor={`vw-desc-${work.id}`}>
+                {t('videoWork.description')}
+              </label>
+              <textarea
+                id={`vw-desc-${work.id}`}
+                className="input post__desc"
+                readOnly={readOnly}
+                value={draft.markdown}
+                placeholder={t('videoWork.descriptionPlaceholder')}
+                onChange={(e) => {
+                  session.edit({ markdown: e.target.value });
+                }}
+                onCompositionStart={() => {
+                  session.setComposing(true);
+                }}
+                onCompositionEnd={() => {
+                  session.setComposing(false);
+                }}
+              />
+              <div className="post__chips">
+                {videoBodyCounts(draft.markdown).map((c) => (
+                  <CountChip key={c.platform} count={c} onOpen={openPreview} />
+                ))}
+              </div>
             </section>
           </div>
 
-          {panel === 'history' ? (
+          {previewOpen ? (
+            <PreviewPanel
+              client={client}
+              work={work}
+              platforms={VIDEO_PLATFORMS}
+              open={previewAsk}
+              workCoverAssetId={coverAsset}
+              shared={{ title: draft.title, body: draft.markdown, tags: draft.tags }}
+              extraTitles={result?.title_suggestions ?? []}
+              onClose={() => {
+                setPreviewOpen(false);
+              }}
+              onNotice={(text) => {
+                setNotice({ text, tone: 'ok' });
+              }}
+            />
+          ) : panel === 'history' ? (
             <HistoryPanel
               client={client}
               workId={work.id}
@@ -1034,69 +970,18 @@ function VideoEditor({
               }}
             />
           ) : (
-            <aside className="panel vw__side" aria-label={t('videoWork.sidePanel')}>
-              <div className="ai__tabs">
-                <div className="ai__tab-list" role="tablist" aria-label={t('videoWork.sidePanel')}>
-                  <button
-                    type="button"
-                    role="tab"
-                    className="ai__tab"
-                    aria-selected={side === 'ai'}
-                    onClick={() => {
-                      setSide('ai');
-                    }}
-                  >
-                    {t('videoWork.understanding')}
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    className="ai__tab"
-                    aria-selected={side === 'preview'}
-                    onClick={() => {
-                      setSide('preview');
-                    }}
-                  >
-                    {t('editor.preview')}
-                  </button>
-                </div>
-              </div>
-              {side === 'preview' ? (
-                <div className="post__preview">
-                  <div
-                    className="seg post__platforms"
-                    role="group"
-                    aria-label={t('imagePost.previewPlatform')}
-                  >
-                    {VIDEO_PLATFORMS.map((p) => (
-                      <button
-                        key={p}
-                        type="button"
-                        aria-pressed={previewPlatform === p}
-                        onClick={() => {
-                          setPreviewPlatform(p);
-                        }}
-                      >
-                        {shortPlatform(p)}
-                      </button>
-                    ))}
-                  </div>
-                  <PlatformPreview model={model} locale={locale} />
-                  <p className="post__hint">{t('imagePost.previewHint')}</p>
-                </div>
-              ) : (
-                <Understanding
-                  s={vs}
-                  video={video}
-                  asset={asset}
-                  block={block}
-                  hasVideo={videoId !== null}
-                  readOnly={readOnly}
-                  onSeek={seek}
-                  onAdopt={setAdopt}
-                  onOpenSettings={onOpenSettings}
-                />
-              )}
+            <aside className="panel vw__side" aria-label={t('videoWork.understanding')}>
+              <Understanding
+                s={vs}
+                video={video}
+                asset={asset}
+                block={block}
+                hasVideo={videoId !== null}
+                readOnly={readOnly}
+                onSeek={seek}
+                onAdopt={setAdopt}
+                onOpenSettings={onOpenSettings}
+              />
             </aside>
           )}
         </div>
@@ -1195,7 +1080,11 @@ function VideoEditor({
   );
 }
 
-function CountChip({ count }: { count: CopyCount }) {
+/**
+ * One platform's count: an indicator (QC-076 entry audit); a click opens that
+ * platform in the 預覽 split, where its own version is edited.
+ */
+function CountChip({ count, onOpen }: { count: CopyCount; onOpen: (platform: Platform) => void }) {
   const text =
     count.limit === null
       ? t('imagePost.countNoLimit', {
@@ -1207,106 +1096,17 @@ function CountChip({ count }: { count: CopyCount }) {
           count: count.actual,
           limit: count.limit,
         });
-  return <span className={count.over ? 'chip chip--warn' : 'chip'}>{text}</span>;
-}
-
-/** One platform's copy: follows the shared copy, or its own version (inherit off). */
-function PlatformCopy({
-  platform,
-  session,
-  state,
-  shared,
-  inherit,
-  readOnly,
-}: {
-  platform: VideoPlatform;
-  session: VariantSession | null;
-  state: VariantSessionState | null;
-  shared: { title: string; body: string; tags: readonly string[] };
-  inherit: boolean;
-  readOnly: boolean;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [target, setTarget] = useState<boolean | null>(null);
-  const own = !inherit && state?.draft != null ? state.draft : null;
-  const shown = own ?? { title: shared.title, body: shared.body, tags: shared.tags };
-  const limitsTitle = videoTitleCounts(shown.title).find((c) => c.platform === platform);
-  const limitsBody = videoBodyCounts(shown.body).find((c) => c.platform === platform);
-  const limitsTags = videoTagCounts(shown.tags).find((c) => c.platform === platform);
   return (
-    <div className="vw__platform">
-      <label className="vw__inherit">
-        <input
-          type="checkbox"
-          // Shows the choice at once; the version follows when the service answers.
-          checked={target ?? inherit}
-          disabled={readOnly || busy || session === null}
-          onChange={(e) => {
-            if (session === null) return;
-            const next = e.target.checked;
-            setBusy(true);
-            setTarget(next);
-            void session
-              .setInherit(next)
-              .catch(() => undefined)
-              .finally(() => {
-                setBusy(false);
-                setTarget(null);
-              });
-          }}
-        />
-        <span>
-          {t('videoWork.inherit')}
-          <span className="post__hint">
-            {t(inherit ? 'videoWork.inheritOnHint' : 'videoWork.inheritOffHint')}
-          </span>
-        </span>
-      </label>
-      <label className="post__label" htmlFor={`vw-${platform}-title`}>
-        {t('editor.titleLabel')}
-      </label>
-      <input
-        id={`vw-${platform}-title`}
-        key={`t${String(state?.epoch ?? 0)}${String(inherit)}`}
-        className="input post__title"
-        readOnly={readOnly || own === null}
-        defaultValue={shown.title}
-        onChange={(e) => {
-          session?.edit({ title: e.target.value });
-        }}
-      />
-      {limitsTitle !== undefined && (
-        <div className="post__chips">
-          <CountChip count={limitsTitle} />
-        </div>
-      )}
-      <label className="post__label" htmlFor={`vw-${platform}-body`}>
-        {t('videoWork.description')}
-      </label>
-      <textarea
-        id={`vw-${platform}-body`}
-        key={`b${String(state?.epoch ?? 0)}${String(inherit)}`}
-        className="input post__desc"
-        readOnly={readOnly || own === null}
-        defaultValue={shown.body}
-        onChange={(e) => {
-          session?.edit({ body: e.target.value });
-        }}
-      />
-      <div className="post__chips">
-        {limitsBody !== undefined && <CountChip count={limitsBody} />}
-        {limitsTags !== undefined && <CountChip count={limitsTags} />}
-      </div>
-      {own !== null && (
-        <TagEditor
-          tags={own.tags}
-          disabled={readOnly}
-          onChange={(tags) => {
-            session?.edit({ tags });
-          }}
-        />
-      )}
-    </div>
+    <button
+      type="button"
+      className={count.over ? 'chip chip--warn chip--button' : 'chip chip--button'}
+      title={t('library.openInPreview', { platform: shortPlatform(count.platform) })}
+      onClick={() => {
+        onOpen(count.platform);
+      }}
+    >
+      {text}
+    </button>
   );
 }
 
@@ -1492,9 +1292,6 @@ function Results({
   onAdopt: (a: Adopt) => void;
   onReanalyze: () => void;
 }) {
-  const titles = [
-    ...new Set(result.title_suggestions.map((x) => x.trim()).filter((x) => x !== '')),
-  ];
   const descs = [
     ...new Set(result.description_suggestions.map((x) => x.trim()).filter((x) => x !== '')),
   ];
@@ -1528,19 +1325,6 @@ function Results({
               </li>
             ))}
         </ul>
-      </section>
-      <section className="vw__res">
-        <h3 className="vw__res-h">{t('videoWork.titleSuggestions')}</h3>
-        {titles.map((x) => (
-          <Suggestion
-            key={x}
-            text={x}
-            disabled={readOnly}
-            onAdopt={() => {
-              onAdopt({ kind: 'title', text: x });
-            }}
-          />
-        ))}
       </section>
       <section className="vw__res">
         <h3 className="vw__res-h">{t('videoWork.descriptionSuggestions')}</h3>
@@ -1642,21 +1426,12 @@ function AdoptDialog({
       live = false;
     };
   }, [adopt, grabber]);
-  const before =
-    adopt.kind === 'title'
-      ? current.title
-      : adopt.kind === 'description'
-        ? current.description
-        : '';
+  const before = adopt.kind === 'description' ? current.description : '';
   const segments = adopt.kind === 'cover' ? [] : diffSentences(before, adopt.text);
   return (
     <Dialog
       title={t(
-        adopt.kind === 'title'
-          ? 'videoWork.adoptTitle'
-          : adopt.kind === 'description'
-            ? 'videoWork.adoptDescription'
-            : 'videoWork.adoptCover',
+        adopt.kind === 'description' ? 'videoWork.adoptDescription' : 'videoWork.adoptCover',
       )}
       width={560}
       onClose={onCancel}

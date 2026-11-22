@@ -72,9 +72,10 @@ test('側欄：分組、調寬上下限、收起圖示列、記住狀態與服�
       '素材庫',
       '匯入任務',
     ]);
+    // QC-075/QC-076: 「Prompt」 replaced 「平台預覽」, which is now a split in the editor.
     await expect(nav.getByRole('group', { name: '工具' }).getByRole('button')).toHaveText([
       'AI 工作台',
-      '平台預覽',
+      'Prompt',
     ]);
     await expect(nav.locator('.sb__foot').getByRole('button')).toHaveText(['回收站', '設定']);
     await expect(nav.getByText('發布中心')).toHaveCount(0);
