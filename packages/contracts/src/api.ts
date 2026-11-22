@@ -51,7 +51,7 @@ export const ErrorCodeSchema = z.enum([
   'backup_failed',
   /** The asset is used by works or platform variants; resend with `confirm: true` (409, QC-037). `details.references`. */
   'asset_in_use',
-  /** The asset is in 最近刪除; restore it first (409, QC-037). */
+  /** The asset is in 回收站; restore it first (409, QC-037). */
   'asset_in_trash',
   /** The external file is not at its path any more (e.g. still in the macOS Trash); put it back first (409, QC-037). */
   'asset_file_missing',
@@ -67,7 +67,7 @@ export const ErrorCodeSchema = z.enum([
    * the file; fix it in the file first (409, QC-045/046).
    */
   'front_matter_invalid',
-  /** The work is in 最近刪除; restore it before editing (409, QC-051). */
+  /** The work is in 回收站; restore it before editing (409, QC-051). */
   'work_in_trash',
   /** No card image to serve: `details.reason` none/missing/needs_frame/decode_failed (404, QC-061). */
   'thumbnail_unavailable',
@@ -238,7 +238,7 @@ export const ListWorksQuerySchema = z.object({
   status: WorkStatusSchema.optional(),
   tag: z.string().trim().min(1).max(64).optional(),
   /**
-   * `active` (default): works not in 最近刪除. `trash`: only works in 最近刪除,
+   * `active` (default): works not in 回收站. `trash`: only works in 回收站,
    * newest deletion first (QC-051). `ids` follows the scope too: works outside
    * it are listed in `missing_ids`.
    */
@@ -358,7 +358,7 @@ export const ListWorksResponseSchema = z.object({
   /**
    * Pass as `cursor` for the next page; null on the last page and with `ids`
    * (QC-067). Pages follow the list order (`updated_at` newest first, or
-   * `deleted_at` in 最近刪除, then `id`): a work updated while paging moves
+   * `deleted_at` in 回收站, then `id`): a work updated while paging moves
    * ahead of the cursor, so later pages neither repeat nor show it; take its
    * new place from the change events. A server older than QC-067 sends
    * none, which reads as null (one page).

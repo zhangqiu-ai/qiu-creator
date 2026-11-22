@@ -8,7 +8,7 @@ import { test } from '../fixtures/desktop.js';
 /*
  * QC-037 素材庫 v2 (PT-20261119-001 「v2 · 素材庫：刪除與編輯」): editing with
  * autosave and conflicts, delete rules (unreferenced, referenced, external),
- * 復原, 最近刪除, multi-select batch. The system Trash is the fixture's fake.
+ * 復原, 回收站, multi-select batch. The system Trash is the fixture's fake.
  * Set QC037_SHOTS=<dir> to also save screenshots for the acceptance record.
  */
 
@@ -19,7 +19,7 @@ async function shot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: path.join(dir, `qc037-${name}.png`) });
 }
 
-test('素材庫：編輯、刪除規則、復原、最近刪除與批次', async ({ desktop }) => {
+test('素材庫：編輯、刪除規則、復原、回收站與批次', async ({ desktop }) => {
   const { page, backend, systemTrash } = desktop;
   const c = backend.client;
   const up = async (name: string, color: string) =>
@@ -99,10 +99,10 @@ test('素材庫：編輯、刪除規則、復原、最近刪除與批次', async
       await expect(inspector.getByRole('status').filter({ hasText: '已儲存' })).toBeVisible();
     });
 
-    await test.step('未引用的託管素材：直接移到最近刪除，可復原', async () => {
+    await test.step('未引用的託管素材：直接移到回收站，可復原', async () => {
       await tile('outfit.png').click();
       await page.keyboard.press('Meta+Backspace');
-      await expect(toast).toContainText('已移到最近刪除');
+      await expect(toast).toContainText('已移到回收站');
       await expect(tile('outfit.png')).toHaveCount(0);
       await shot(page, '03-deleted-undo-toast');
       await toast.getByRole('button', { name: '復原' }).click();
@@ -112,15 +112,15 @@ test('素材庫：編輯、刪除規則、復原、最近刪除與批次', async
 
     await test.step('被引用的素材：列出作品並確認', async () => {
       await tile('desk.png').click();
-      await inspector.getByRole('button', { name: '移到最近刪除' }).click();
-      const dialog = page.getByRole('dialog', { name: '移到最近刪除？' });
+      await inspector.getByRole('button', { name: '移到回收站' }).click();
+      const dialog = page.getByRole('dialog', { name: '移到回收站？' });
       await expect(dialog).toContainText('被 1 件作品引用');
       // Linked directly (not an attach copy): the article really loses the image.
       await expect(dialog).toContainText('會顯示為缺圖');
       await expect(dialog.getByRole('button', { name: /京都紅葉季七日慢遊/ })).toBeVisible();
       await expect(dialog.getByRole('button', { name: '取消' })).toBeFocused();
       await shot(page, '04-delete-referenced');
-      await dialog.getByRole('button', { name: '移到最近刪除' }).click();
+      await dialog.getByRole('button', { name: '移到回收站' }).click();
       await expect(toast).toContainText('作品顯示為缺圖');
       expect((await c.assets.get(desk.id)).removal).toBe('trashed');
     });
@@ -164,7 +164,7 @@ test('素材庫：編輯、刪除規則、復原、最近刪除與批次', async
       await tile('coffee.png').click({ modifiers: ['Meta'] });
       await page.keyboard.press('Meta+Backspace');
       dialog = page.getByRole('dialog', { name: '移除 2 個素材？' });
-      await expect(dialog).toContainText('移到最近刪除');
+      await expect(dialog).toContainText('移到回收站');
       await dialog.getByRole('button', { name: '移除' }).click();
       await expect(toast).toContainText('已移除 2 個素材');
       // esc clears a selection.
@@ -174,10 +174,10 @@ test('素材庫：編輯、刪除規則、復原、最近刪除與批次', async
       await expect(bar).toHaveCount(0);
     });
 
-    await test.step('最近刪除：恢復、永久刪除、清空', async () => {
+    await test.step('回收站：恢復、永久刪除、清空', async () => {
       await page
         .getByRole('group', { name: '範圍' })
-        .getByRole('button', { name: /最近刪除/ })
+        .getByRole('button', { name: /回收站/ })
         .click();
       const list = page.getByRole('list', { name: '已刪除的素材' });
       await expect(list.getByRole('listitem')).toHaveCount(5);
@@ -208,7 +208,7 @@ test('素材庫：編輯、刪除規則、復原、最近刪除與批次', async
       await page.getByRole('button', { name: '清空' }).click();
       dialog = page.getByRole('dialog', { name: '永久刪除 3 個素材？' });
       await dialog.getByRole('button', { name: '永久刪除' }).click();
-      await expect(page.getByText('最近刪除是空的')).toBeVisible();
+      await expect(page.getByText('回收站是空的')).toBeVisible();
     });
 
     await test.step('深色截圖', async () => {
@@ -225,7 +225,7 @@ test('素材庫：編輯、刪除規則、復原、最近刪除與批次', async
       await page.keyboard.press('Meta+Backspace');
       await page
         .getByRole('group', { name: '範圍' })
-        .getByRole('button', { name: /最近刪除/ })
+        .getByRole('button', { name: /回收站/ })
         .click();
       await shot(page, '10-trash-dark');
     });

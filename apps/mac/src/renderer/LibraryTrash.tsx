@@ -53,7 +53,7 @@ type TrashWork = Pick<
 type Purge = { works: readonly TrashWork[]; empty: boolean };
 
 /**
- * 最近刪除 in 作品庫 (QC-052 on the QC-051 API): works deleted in the last
+ * 回收站 in 作品庫 (QC-052 on the QC-051 API): works deleted in the last
  * 30 days, newest first. 還原 brings a work back with its revision and
  * history; 永久刪除 and 清空 ask first and cannot be undone. A click selects
  * (there is nothing to open), with ⌘ / ⇧ / ⌘A as in the library.
@@ -67,12 +67,12 @@ export function TrashView({
   client: CreatorHubClient;
   /** To say which projects a deleted work was in (QC-062); 還原 puts it back in them. */
   projects?: readonly Project[];
-  /** A search to apply (none since 最近刪除 opens from the sidebar, QC-069). */
+  /** A search to apply (none since 回收站 opens from the sidebar, QC-069). */
   query?: string;
-  /** The page header's tool area, where 清空最近刪除 goes. */
+  /** The page header's tool area, where 清空回收站 goes. */
   tools?: HTMLElement | null;
 }) {
-  // Paged like 作品庫 (QC-067), so a long 最近刪除 shows every deleted work.
+  // Paged like 作品庫 (QC-067), so a long 回收站 shows every deleted work.
   const [feed] = useState(
     () =>
       new LibraryFeed<WorkListItem>(() =>

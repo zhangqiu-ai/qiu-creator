@@ -4,7 +4,7 @@ import { ASSET_TRASH_RETENTION_DAYS } from './assets.js';
 import { IdSchema, TagSchema, WorkSchema, WorkStatusSchema } from './entities.js';
 
 /**
- * Works in 最近刪除 (QC-051), like assets (QC-037):
+ * Works in 回收站 (QC-051), like assets (QC-037):
  * - `trashed`: a managed work; its folder stays in CreatorHub until it is purged.
  * - `unindexed`: an external (mounted) work removed from the library only; the
  *   file is untouched.
@@ -14,11 +14,11 @@ import { IdSchema, TagSchema, WorkSchema, WorkStatusSchema } from './entities.js
 export const WorkRemovalSchema = WorkSchema.shape.removal.unwrap().unwrap();
 export type WorkRemoval = z.infer<typeof WorkRemovalSchema>;
 
-/** Days a work stays in 最近刪除 before it is deleted permanently. */
+/** Days a work stays in 回收站 before it is deleted permanently. */
 export const WORK_TRASH_RETENTION_DAYS = ASSET_TRASH_RETENTION_DAYS;
 
 /**
- * `DELETE /api/v1/works/:id`: move to 最近刪除. `base_revision` (or `If-Match`)
+ * `DELETE /api/v1/works/:id`: move to 回收站. `base_revision` (or `If-Match`)
  * is required. The revision does not change, and restoring keeps it.
  */
 export const DeleteWorkRequestSchema = z.object({
@@ -34,7 +34,7 @@ export type DeleteWorkRequest = z.input<typeof DeleteWorkRequestSchema>;
 export const DeleteWorkResponseSchema = z.object({ work: WorkListItemSchema });
 export type DeleteWorkResponse = z.infer<typeof DeleteWorkResponseSchema>;
 
-/** `POST /api/v1/works/:id/restore`: back from 最近刪除 (`base_revision` or `If-Match`). */
+/** `POST /api/v1/works/:id/restore`: back from 回收站 (`base_revision` or `If-Match`). */
 export const RestoreWorkRequestSchema = z.object({ base_revision: IdSchema.optional() });
 export type RestoreWorkRequest = z.input<typeof RestoreWorkRequestSchema>;
 

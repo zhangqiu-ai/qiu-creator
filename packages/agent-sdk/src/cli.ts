@@ -137,7 +137,7 @@ export function buildProgram(io: CliIo): Command {
     .option('--q <query>', 'full-text search')
     .option('--status <status>', `filter by status (${WorkStatusSchema.options.join('|')})`)
     .option('--limit <n>', 'page size (1-200)', parseLimit, 50)
-    .option('--trash', 'list works in 最近刪除 instead (newest deletion first)')
+    .option('--trash', 'list works in 回收站 instead (newest deletion first)')
     .option('--project <id>', 'only works in this project')
     .option('--unassigned', 'only works in no project')
     .action(
@@ -191,13 +191,13 @@ export function buildProgram(io: CliIo): Command {
   };
 
   const trashNote =
-    'needs a token with the "write" scope. Deleting moves works to 最近刪除 for 30 days; ' +
+    'needs a token with the "write" scope. Deleting moves works to 回收站 for 30 days; ' +
     'works in a mounted folder are only removed from the library, their files are never touched. ' +
     'Permanent deletion is not available from the CLI.';
 
   works
     .command('delete <id>')
-    .description(`move a work to 最近刪除 (${trashNote})`)
+    .description(`move a work to 回收站 (${trashNote})`)
     .option('--base-revision <revision>', 'the revision you last saw (409 if it changed since)')
     .option('--use-current-revision', 'use the revision the server has now instead')
     .action(async (id: string, opts: { baseRevision?: string; useCurrentRevision?: boolean }) => {
@@ -213,7 +213,7 @@ export function buildProgram(io: CliIo): Command {
 
   works
     .command('restore <id>')
-    .description('bring a work back from 最近刪除 with its history (needs the "write" scope)')
+    .description('bring a work back from 回收站 with its history (needs the "write" scope)')
     .option('--base-revision <revision>', 'the revision you last saw (409 if it changed since)')
     .option('--use-current-revision', 'use the revision the server has now instead')
     .action(async (id: string, opts: { baseRevision?: string; useCurrentRevision?: boolean }) => {

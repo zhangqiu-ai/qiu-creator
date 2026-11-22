@@ -175,7 +175,7 @@ describe('creatorhub CLI', () => {
   });
 });
 
-describe('creatorhub CLI: 最近刪除 and batch (QC-053)', () => {
+describe('creatorhub CLI: 回收站 and batch (QC-053)', () => {
   /** An agent token with only what these commands need. */
   function writer(): NodeJS.ProcessEnv {
     return {

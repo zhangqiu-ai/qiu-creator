@@ -33,7 +33,7 @@ export type LibraryScope =
   | { kind: 'all' }
   | { kind: 'unassigned' }
   | { kind: 'project'; id: string }
-  /** 最近刪除, from the foot of the sidebar (QC-069). */
+  /** 回收站, from the foot of the sidebar (QC-069). */
   | { kind: 'trash' };
 
 const SECTION_KEY = 'qc.sidebar.projects';
@@ -432,14 +432,14 @@ export function SidebarProjects({
   );
 }
 
-/** 最近刪除 in the foot of the sidebar, above 設定 (QC-069): a quiet way back to deleted works. */
+/** 回收站 in the foot of the sidebar, above 設定 (QC-069): a quiet way back to deleted works. */
 export function SidebarTrash({
   count,
   current,
   onOpen,
 }: {
   count: number | null;
-  /** 最近刪除 is the page in front. */
+  /** 回收站 is the page in front. */
   current: boolean;
   onOpen: () => void;
 }) {

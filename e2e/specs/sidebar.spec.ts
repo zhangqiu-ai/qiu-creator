@@ -56,7 +56,7 @@ test('側欄：分組、調寬上下限、收起圖示列、記住狀態與服�
   await test.step('分組與預設寬度', async () => {
     const groups = await nav.getByRole('group').all();
     const names = await Promise.all(groups.map((g) => g.getAttribute('aria-label')));
-    // QC-069: the works' scopes (no heading), 項目, 素材, 工具; 最近刪除 and 設定 in the foot.
+    // QC-069: the works' scopes (no heading), 項目, 素材, 工具; 回收站 and 設定 in the foot.
     expect(names).toEqual(['作品', '項目', '素材', '工具']);
     await expect(nav.getByRole('group', { name: '作品' }).getByRole('button')).toHaveText([
       /^全部作品\d*$/,
@@ -76,7 +76,7 @@ test('側欄：分組、調寬上下限、收起圖示列、記住狀態與服�
       'AI 工作台',
       '平台預覽',
     ]);
-    await expect(nav.locator('.sb__foot').getByRole('button')).toHaveText(['最近刪除', '設定']);
+    await expect(nav.locator('.sb__foot').getByRole('button')).toHaveText(['回收站', '設定']);
     await expect(nav.getByText('發布中心')).toHaveCount(0);
     // 設定 is pinned at the bottom, below the groups.
     const settings = await nav.getByRole('button', { name: '設定', exact: true }).boundingBox();

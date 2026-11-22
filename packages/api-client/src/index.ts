@@ -200,7 +200,7 @@ export interface CreatorHubClient {
      */
     attachMedia(id: string, assetId: string): Promise<AttachWorkMediaResponse>;
     /**
-     * Move to 最近刪除 (QC-051). Pass `base_revision` or `options.ifMatch`.
+     * Move to 回收站 (QC-051). Pass `base_revision` or `options.ifMatch`.
      * External works are only unindexed unless `move_original_to_trash` (owner only).
      */
     trash(
@@ -208,15 +208,15 @@ export interface CreatorHubClient {
       input?: DeleteWorkRequest,
       options?: PatchWorkOptions,
     ): Promise<DeleteWorkResponse>;
-    /** Back from 最近刪除 with the same revision (QC-051). */
+    /** Back from 回收站 with the same revision (QC-051). */
     restoreFromTrash(
       id: string,
       input?: RestoreWorkRequest,
       options?: PatchWorkOptions,
     ): Promise<WorkDetail>;
-    /** Delete one work in 最近刪除 permanently (owner only). List them with `list({ scope: 'trash' })`. */
+    /** Delete one work in 回收站 permanently (owner only). List them with `list({ scope: 'trash' })`. */
     purge(id: string): Promise<PurgedWork>;
-    /** Delete every work in 最近刪除 permanently (owner only). */
+    /** Delete every work in 回收站 permanently (owner only). */
     emptyTrash(): Promise<EmptyWorkTrashResponse>;
     /**
      * Delete, restore, set status, or add/remove tags on many works (QC-051).
@@ -255,7 +255,7 @@ export interface CreatorHubClient {
   ai: CreatorHubAiApi;
   /** SQLite backups: list, back up now, restore (QC-030). Owner token only. */
   backups: CreatorHubBackupsApi;
-  /** 最近刪除: permanent delete and empty (QC-037). Owner token only. */
+  /** 回收站: permanent delete and empty (QC-037). Owner token only. */
   trash: CreatorHubTrashApi;
 }
 

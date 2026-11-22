@@ -291,9 +291,9 @@ test('插入素材：選單、抽屜、斜線、貼上、Finder 拖入，視覺�
       await page.getByRole('button', { name: 'kyoto.png，圖片' }).click();
       await page
         .getByRole('complementary', { name: '素材資訊' })
-        .getByRole('button', { name: '移到最近刪除' })
+        .getByRole('button', { name: '移到回收站' })
         .click();
-      const dialog = page.getByRole('dialog', { name: '移到最近刪除？' });
+      const dialog = page.getByRole('dialog', { name: '移到回收站？' });
       await expect(dialog).toContainText('被 1 件作品引用');
       await expect(dialog).toContainText('文章中的圖片是獨立複本，不受影響');
       await expect(dialog).not.toContainText('缺圖');

@@ -1,7 +1,7 @@
 import { defineMessages } from '../define.js';
 
 /**
- * 素材庫 (QC-037 v2): the grid, the inspector, 最近刪除 and the delete
+ * 素材庫 (QC-037 v2): the grid, the inspector, 回收站 and the delete
  * dialogs. Shared words come from `common.*`, `format.*` and `errors.*`;
  * only text this page words itself lives here.
  */
@@ -13,13 +13,13 @@ export const assets = defineMessages({
     batchActions: '批次操作',
     picked: '已選 {count}',
     addTags: '加標籤',
-    moveToTrash: '移到最近刪除',
+    moveToTrash: '移到回收站',
     searchAssets: '搜尋素材',
     searchPlaceholder: '搜尋名稱',
     scopeGroup: '範圍',
     all: '全部',
     scopeUnreferenced: '未引用',
-    scopeTrash: '最近刪除',
+    scopeTrash: '回收站',
     upload: '上傳',
     queued: '已加入 {count} 個上傳',
     viewImports: '查看匯入任務',
@@ -45,6 +45,11 @@ export const assets = defineMessages({
 
     // Preview and tiles
     previewImageFailed: '無法顯示原圖',
+    lightbox: '大圖預覽：{name}',
+    lightboxPosition: '{n} / {total}',
+    lightboxPrev: '上一個',
+    lightboxNext: '下一個',
+    openLarge: '查看大圖',
     previewFormatFailed: '這個格式無法在 App 內播放',
     tileLabel: '{name}，{kind}',
     selectAsset: '選取 {name}',
@@ -98,13 +103,13 @@ export const assets = defineMessages({
     pickedAssets: '已選 {count} 個素材',
     none: '無',
     countItems: '{count} 個',
-    multiHintFields: '批次：加標籤、移到最近刪除。名稱、替代文字與備註請逐一編輯。',
+    multiHintFields: '批次：加標籤、移到回收站。名稱、替代文字與備註請逐一編輯。',
 
-    // 最近刪除
+    // 回收站
     trashHint: '30 天後自動永久刪除；恢復時回到原位置，作品引用一併復原。',
     emptyTrash: '清空',
-    trashLoadFailed: '無法載入最近刪除',
-    trashEmpty: '最近刪除是空的',
+    trashLoadFailed: '無法載入回收站',
+    trashEmpty: '回收站是空的',
     trashList: '已刪除的素材',
     deletedWhen: '{when} 刪除',
     daysLeft: '{count} 天',
@@ -114,8 +119,8 @@ export const assets = defineMessages({
     purge: '永久刪除',
 
     // Delete rules
-    movedToTrash: '已移到最近刪除',
-    confirmTrashTitle: '移到最近刪除？',
+    movedToTrash: '已移到回收站',
+    confirmTrashTitle: '移到回收站？',
     referencedBy: '「{name}」被 {count} 件作品引用。{impact}',
     groupBreaking: '會顯示為缺圖',
     groupSafe: '圖片是獨立複本，不受影響',
@@ -126,8 +131,8 @@ export const assets = defineMessages({
     impactBreaking: '{works} 會顯示為缺圖，30 天內恢復即自動補回。',
     impactBreakingAndSafe:
       '{works} 會顯示為缺圖，30 天內恢復即自動補回。{safe} 中的圖片是獨立複本，不受影響。',
-    toastSafe: '已移到最近刪除 · 文章中的圖片不受影響',
-    toastBreaking: '已移到最近刪除 · 部分作品顯示為缺圖',
+    toastSafe: '已移到回收站 · 文章中的圖片不受影響',
+    toastBreaking: '已移到回收站 · 部分作品顯示為缺圖',
 
     // 外部掛載 delete
     externalTitle: '移出素材庫？',
@@ -160,15 +165,15 @@ export const assets = defineMessages({
     purged: '已永久刪除',
     purgedBroken: '已永久刪除；{works} 的正文仍連到這個檔案，會顯示為缺圖',
     emptyTrashTitle: '永久刪除 {count} 個素材？',
-    emptyTrashBody: '最近刪除裡的檔案會從磁碟刪除，無法復原。',
-    emptied: '已清空最近刪除（{count} 個）',
+    emptyTrashBody: '回收站裡的檔案會從磁碟刪除，無法復原。',
+    emptied: '已清空回收站（{count} 個）',
     emptiedBroken: '已清空；{works} 的正文仍連到被刪的檔案，會顯示為缺圖',
 
     // Asset error codes, worded for this page
     errNoResponse: '沒有收到服務的回應',
     errTrashFailed: '無法移到系統垃圾桶，原檔未變動',
     errFileMissing: '原檔不在原來的位置；如果它在系統垃圾桶，請先在 Finder「放回原處」再恢復',
-    errInTrash: '這個素材已在最近刪除',
+    errInTrash: '這個素材已在回收站',
     errNotFound: '找不到這個素材，可能已被刪除',
     errValidation: '內容格式不正確',
     errFailed: '操作失敗，請稍後再試',
@@ -190,13 +195,13 @@ export const assets = defineMessages({
     batchActions: '批量操作',
     picked: '已选 {count}',
     addTags: '加标签',
-    moveToTrash: '移到最近删除',
+    moveToTrash: '移到回收站',
     searchAssets: '搜索素材',
     searchPlaceholder: '搜索名称',
     scopeGroup: '范围',
     all: '全部',
     scopeUnreferenced: '未引用',
-    scopeTrash: '最近删除',
+    scopeTrash: '回收站',
     upload: '上传',
     queued: '已加入 {count} 个上传',
     viewImports: '查看导入任务',
@@ -221,6 +226,11 @@ export const assets = defineMessages({
     dropToUpload: '松开即上传',
 
     previewImageFailed: '无法显示原图',
+    lightbox: '大图预览：{name}',
+    lightboxPosition: '{n} / {total}',
+    lightboxPrev: '上一个',
+    lightboxNext: '下一个',
+    openLarge: '查看大图',
     previewFormatFailed: '这个格式无法在 App 内播放',
     tileLabel: '{name}，{kind}',
     selectAsset: '选取 {name}',
@@ -269,12 +279,12 @@ export const assets = defineMessages({
     pickedAssets: '已选 {count} 个素材',
     none: '无',
     countItems: '{count} 个',
-    multiHintFields: '批量：加标签、移到最近删除。名称、替代文字和备注请逐一编辑。',
+    multiHintFields: '批量：加标签、移到回收站。名称、替代文字和备注请逐一编辑。',
 
     trashHint: '30 天后自动永久删除；恢复时回到原位置，作品引用一并恢复。',
     emptyTrash: '清空',
-    trashLoadFailed: '无法加载最近删除',
-    trashEmpty: '最近删除是空的',
+    trashLoadFailed: '无法加载回收站',
+    trashEmpty: '回收站是空的',
     trashList: '已删除的素材',
     deletedWhen: '{when} 删除',
     daysLeft: '{count} 天',
@@ -283,8 +293,8 @@ export const assets = defineMessages({
     restored: '已恢复到原位置',
     purge: '永久删除',
 
-    movedToTrash: '已移到最近删除',
-    confirmTrashTitle: '移到最近删除？',
+    movedToTrash: '已移到回收站',
+    confirmTrashTitle: '移到回收站？',
     referencedBy: '“{name}”被 {count} 个作品引用。{impact}',
     groupBreaking: '会显示为缺图',
     groupSafe: '图片是独立副本，不受影响',
@@ -295,8 +305,8 @@ export const assets = defineMessages({
     impactBreaking: '{works} 会显示为缺图，30 天内恢复即自动补回。',
     impactBreakingAndSafe:
       '{works} 会显示为缺图，30 天内恢复即自动补回。{safe} 中的图片是独立副本，不受影响。',
-    toastSafe: '已移到最近删除 · 文章中的图片不受影响',
-    toastBreaking: '已移到最近删除 · 部分作品显示为缺图',
+    toastSafe: '已移到回收站 · 文章中的图片不受影响',
+    toastBreaking: '已移到回收站 · 部分作品显示为缺图',
 
     externalTitle: '移出素材库？',
     externalTrashed: '原文件已移到废纸篓',
@@ -326,14 +336,14 @@ export const assets = defineMessages({
     purged: '已永久删除',
     purgedBroken: '已永久删除；{works} 的正文仍链接到这个文件，会显示为缺图',
     emptyTrashTitle: '永久删除 {count} 个素材？',
-    emptyTrashBody: '最近删除里的文件会从磁盘删除，无法撤销。',
-    emptied: '已清空最近删除（{count} 个）',
+    emptyTrashBody: '回收站里的文件会从磁盘删除，无法撤销。',
+    emptied: '已清空回收站（{count} 个）',
     emptiedBroken: '已清空；{works} 的正文仍链接到被删的文件，会显示为缺图',
 
     errNoResponse: '没有收到服务的响应',
     errTrashFailed: '无法移到废纸篓，原文件未变动',
     errFileMissing: '原文件不在原来的位置；如果它在废纸篓，请先在访达中“放回原处”再恢复',
-    errInTrash: '这个素材已在最近删除中',
+    errInTrash: '这个素材已在回收站中',
     errNotFound: '找不到这个素材，可能已被删除',
     errValidation: '内容格式不正确',
     errFailed: '操作失败，请稍后再试',
@@ -353,13 +363,13 @@ export const assets = defineMessages({
     batchActions: 'Batch actions',
     picked: '{count} selected',
     addTags: 'Add tags',
-    moveToTrash: 'Move to Recently Deleted',
+    moveToTrash: 'Move to Trash',
     searchAssets: 'Search assets',
     searchPlaceholder: 'Search by name',
     scopeGroup: 'Scope',
     all: 'All',
     scopeUnreferenced: 'Unused',
-    scopeTrash: 'Recently Deleted',
+    scopeTrash: 'Trash',
     upload: 'Upload',
     queued: { one: '{count} upload queued', other: '{count} uploads queued' },
     viewImports: 'View imports',
@@ -384,6 +394,11 @@ export const assets = defineMessages({
     dropToUpload: 'Drop to upload',
 
     previewImageFailed: 'Can’t show the original image',
+    lightbox: 'Large preview: {name}',
+    lightboxPosition: '{n} / {total}',
+    lightboxPrev: 'Previous',
+    lightboxNext: 'Next',
+    openLarge: 'View large',
     previewFormatFailed: 'This format can’t play in the app',
     tileLabel: '{name}, {kind}',
     selectAsset: 'Select {name}',
@@ -434,13 +449,13 @@ export const assets = defineMessages({
     none: 'None',
     countItems: { one: '{count} asset', other: '{count} assets' },
     multiHintFields:
-      'Batch actions: add tags, move to Recently Deleted. Name, alt text and notes are edited one at a time.',
+      'Batch actions: add tags, move to Trash. Name, alt text and notes are edited one at a time.',
 
     trashHint:
       'Deleted for good after 30 days. Restoring puts a file back where it was, with its post references.',
     emptyTrash: 'Empty',
-    trashLoadFailed: 'Can’t load Recently Deleted',
-    trashEmpty: 'Recently Deleted is empty',
+    trashLoadFailed: 'Can’t load Trash',
+    trashEmpty: 'Trash is empty',
     trashList: 'Deleted assets',
     deletedWhen: 'Deleted {when}',
     daysLeft: { one: '{count} day', other: '{count} days' },
@@ -449,8 +464,8 @@ export const assets = defineMessages({
     restored: 'Restored to where it was',
     purge: 'Delete permanently',
 
-    movedToTrash: 'Moved to Recently Deleted',
-    confirmTrashTitle: 'Move to Recently Deleted?',
+    movedToTrash: 'Moved to Trash',
+    confirmTrashTitle: 'Move to Trash?',
     referencedBy: {
       one: '“{name}” is used by {count} post. {impact}',
       other: '“{name}” is used by {count} posts. {impact}',
@@ -465,8 +480,8 @@ export const assets = defineMessages({
       '{works} will show a missing image; restore within 30 days and it comes back on its own.',
     impactBreakingAndSafe:
       '{works} will show a missing image; restore within 30 days and it comes back on its own. The images in {safe} are independent copies and aren’t affected.',
-    toastSafe: 'Moved to Recently Deleted · images in articles aren’t affected',
-    toastBreaking: 'Moved to Recently Deleted · some posts will show a missing image',
+    toastSafe: 'Moved to Trash · images in articles aren’t affected',
+    toastBreaking: 'Moved to Trash · some posts will show a missing image',
 
     externalTitle: 'Remove from the library?',
     externalTrashed: 'The original was moved to the Trash',
@@ -512,10 +527,10 @@ export const assets = defineMessages({
       one: 'Delete {count} asset permanently?',
       other: 'Delete {count} assets permanently?',
     },
-    emptyTrashBody: 'The files in Recently Deleted are deleted from disk. This can’t be undone.',
+    emptyTrashBody: 'The files in Trash are deleted from disk. This can’t be undone.',
     emptied: {
-      one: 'Recently Deleted emptied ({count} asset)',
-      other: 'Recently Deleted emptied ({count} assets)',
+      one: 'Trash emptied ({count} asset)',
+      other: 'Trash emptied ({count} assets)',
     },
     emptiedBroken:
       'Emptied. The body of {works} still links to deleted files and will show a missing image.',
@@ -524,7 +539,7 @@ export const assets = defineMessages({
     errTrashFailed: 'Couldn’t move it to the Trash; the original wasn’t changed',
     errFileMissing:
       'The original isn’t where it was. If it is in the Trash, choose “Put Back” in Finder first, then restore it.',
-    errInTrash: 'This asset is already in Recently Deleted',
+    errInTrash: 'This asset is already in Trash',
     errNotFound: 'This asset can’t be found. It may have been deleted.',
     errValidation: 'The content isn’t in a valid format',
     errFailed: 'That didn’t work. Try again later.',

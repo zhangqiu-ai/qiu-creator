@@ -96,18 +96,18 @@ renderer（React，sandbox，無 Node）
   - **外部作品**：不寫進使用者自己的資料夾，插入入口停用並說明。
   - **圖片顯示**：`WorkMediaResolver` 在不認得某個 `src` 時，先存檔再重新讀取；快取剛失效時也一樣。存檔後不沿用存檔前就開始的讀取。
 - **素材庫 v2（QC-037 前端，PT-20261119-001）。**
-  - **範圍**：全部、未引用、最近刪除；⌘ 點選可以多選，多選後可批次加標籤或移除。
+  - **範圍**：全部、未引用、回收站；⌘ 點選可以多選，多選後可批次加標籤或移除。
   - **右側素材資訊**：可編輯名稱（`display_name`）、標籤、替代文字、備註，600 ms 後自動儲存，帶 `base_revision`。
   - **409 衝突**：重新讀取最新版本，再看我改的欄位：
     - 別處沒改的欄位：重套後再存。
     - 兩邊都改了的欄位：不覆蓋，由使用者選「用最新的」或「用我的」（`AssetEditor`，`asset-session.ts`）。
   - **刪除依情況分三種**：
-    - 未引用的託管素材：直接移到最近刪除，提示附「復原」（⌘Z）。
+    - 未引用的託管素材：直接移到回收站，提示附「復原」（⌘Z）。
     - 被引用的：409 `asset_in_use` 時列出作品，確認後才刪。確認框依引用的 `independent_copy` 說明實際影響（QC-039）：
       - 正文圖片是 attach 插入的獨立複本：文章不受影響，作品的素材清單會移除此項，30 天內恢復即補回。
       - 封面、影片、平台版本，以及直接指向素材檔的正文連結：列出「會顯示為缺圖」的作品。兩種都有時分兩組列出。
     - 外部素材：預設只移出素材庫，勾選後才把原檔移到系統垃圾桶。
-  - **最近刪除**：顯示剩餘天數，可恢復、永久刪除、清空。`markdown_referrers` 不是空的時候，提示哪些作品會出現缺圖。
+  - **回收站**：顯示剩餘天數，可恢復、永久刪除、清空。`markdown_referrers` 不是空的時候，提示哪些作品會出現缺圖。
   - **e2e**：fixture 以假的系統垃圾桶取代 `/usr/bin/trash`，測試不會動到使用者的垃圾桶。
   - **e2e 在背景執行（QC-060）**：fixture 啟動 Electron 時設 `CREATORHUB_E2E_BACKGROUND=1`。主程序在這個模式下：activation policy 為 `accessory` 並隱藏 Dock 圖示（不在 Dock、不在 ⌘Tab）；視窗**完全不顯示**（QC-064：不呼叫 `show()`／`showInactive()`，不出現在任何螢幕上、不攔截滑鼠），以 `backgroundThrottling: false`、`paintWhenInitiallyHidden: true` 讓隱藏的頁面照常繪製與執行 rAF／計時器，Playwright 經 CDP 操作與截圖；選檔與選資料夾的原生對話框直接回「沒選」；「在 Finder 顯示」與外部連結不實際開啟。正式 App 不設這個變數，行為不變。
 - **平台預覽（QC-013）。**
@@ -121,7 +121,7 @@ renderer（React，sandbox，無 Node）
   - **版本恢復。** 歷史面板可選任一版本，看它與目前版本的差異（刪除線／底線），「恢復此版本」後再確認一次「恢復 rN 為新版本 rM，歷史版本全部保留」。恢復前先存掉未儲存的修改；`base_revision` 過期時回 409，不覆蓋，改顯示外部修改提示。
   - **外部檔案遺失。** `external_state` 是 `missing` 或 `unmounted` 時作品唯讀：標題、內文、狀態、標籤、恢復都停用，橫幅顯示原檔路徑與「放回原處後自動恢復」，並可在 Finder 顯示資料夾。PATCH 回 409 `source_missing` 時同樣轉為唯讀，這個視窗的修改保留，檔案回來（`work.source_restored`）後恢復編輯並繼續儲存。作品庫以「檔案遺失」標籤與灰色封面標示。
   - **外部來源標示。** 作品庫網格與列表的來源欄寫「外部掛載 · 名稱」，列表標題旁有「外部」標籤（hover 顯示資料夾）；編輯頁標頭顯示「外部掛載 · ~/…」（hover 顯示完整檔案路徑）。路徑由主程序提供的 `userHome` 縮寫成 `~`。
-  - **分頁（QC-067）。** 作品庫、最近刪除和平台預覽的作品選單，都用 `renderer/library-feed.ts` 的 `LibraryFeed` 分頁讀取（服務端 cursor，一頁 60 件）。清單末端的 `LoadMore` 接近畫面時，就載入下一頁。
+  - **分頁（QC-067）。** 作品庫、回收站和平台預覽的作品選單，都用 `renderer/library-feed.ts` 的 `LibraryFeed` 分頁讀取（服務端 cursor，一頁 60 件）。清單末端的 `LoadMore` 接近畫面時，就載入下一頁。
     - 類型和狀態篩選交給服務端處理；篩選旁的數量來自 `GET /works/facets` 的總數（`library-counts.ts` 加總）。
     - SSE 更新時用 `refresh()`：從頭重讀到目前已載入的深度，所以捲到的位置和已顯示的作品都保留。
     - ⌘A 用 `GET /works/refs` 取得目前篩選下的全部作品（不只已載入的），批量操作作用在這些 refs 上；批次仍是每次 200 件。⇧ 點擊、Esc、換篩選都會結束這個全選。
@@ -192,7 +192,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 `0016_work_trash`（QC-051）：`works` 增加 `deleted_at` 與 `removal`（`trashed`／`unindexed`／`original_trashed`，與素材相同），並為 `deleted_at` 建部分索引；新增 `work_exclusions`（`mount_id`、`source_path`；掛載記錄只會標成 `removed`，重新掛同一個資料夾沿用同一筆，所以排除仍然有效），記下永久刪除的外部作品，重新掃描時不再收回。只加欄位與資料表。
 
-- **回滾**：`WORK_TRASH_ROLLBACK_SQL`（`src/db/migrations.ts`）依序刪除 `work_exclusions`、索引、兩個欄位，以及 `schema_migrations` 中的 `0016` 記錄，舊版即可開啟資料庫（測試 `work-trash.test.ts` 驗證回滾後舊遷移照常、再升級時 `0016` 能重新套用）。回滾的代價：還在最近刪除的作品會重新出現在列表，永久刪除過的外部檔案下次掃描會再被索引。執行前先備份（QC-030）。
+- **回滾**：`WORK_TRASH_ROLLBACK_SQL`（`src/db/migrations.ts`）依序刪除 `work_exclusions`、索引、兩個欄位，以及 `schema_migrations` 中的 `0016` 記錄，舊版即可開啟資料庫（測試 `work-trash.test.ts` 驗證回滾後舊遷移照常、再升級時 `0016` 能重新套用）。回滾的代價：還在回收站的作品會重新出現在列表，永久刪除過的外部檔案下次掃描會再被索引。執行前先備份（QC-030）。
 
 `0015_typed_works_media`（QC-045/046）：`works` 增加 `media_index`（JSON：front matter 路徑對應的素材 id，列表與縮圖不必雜湊檔案）；`platform_variants` 與 `platform_variant_revisions` 增加 `inherit`（沿用共用文案）與 `cover_time_seconds`（以視頻某一幀為封面）。接在 `0014`（QC-043）之後。
 
@@ -217,8 +217,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/works/refs` | 符合列表篩選的全部作品，只含 id、標題、類型、狀態、標籤、`current_revision_id`、`project_ids`、`storage_mode`、`external_state`，供全選與批量操作；超過 10000 件回 413 `payload_too_large`（QC-067） |
 | GET | `/api/v1/works/:id` | 讀取（含 Markdown），回 `ETag: "<revision>"` |
 | PATCH | `/api/v1/works/:id` | 修改；需要 `base_revision` 或 `If-Match`。貼圖與視頻作品另可一次寫入 `description`、`images`（完整有序的素材 id）、`cover`（`{asset_id}` 或 `{time_seconds}`）、`video_asset_id`；帶 `ai_job_id` 時記為 `ai_accepted` 版本 |
-| DELETE | `/api/v1/works/:id` | 移到最近刪除（QC-051）；需要 `base_revision` 或 `If-Match`；revision 不變；外部作品預設只取消索引，`move_original_to_trash: true`（只限主權杖）才把檔案移到系統垃圾桶 |
-| POST | `/api/v1/works/:id/restore` | 從最近刪除恢復，revision、歷史、連結、平台版本不變；原檔還在垃圾桶時回 409 `source_missing`（QC-051） |
+| DELETE | `/api/v1/works/:id` | 移到回收站（QC-051）；需要 `base_revision` 或 `If-Match`；revision 不變；外部作品預設只取消索引，`move_original_to_trash: true`（只限主權杖）才把檔案移到系統垃圾桶 |
+| POST | `/api/v1/works/:id/restore` | 從回收站恢復，revision、歷史、連結、平台版本不變；原檔還在垃圾桶時回 409 `source_missing`（QC-051） |
 | GET／POST | `/api/v1/projects` | 項目列表（不含已刪除的，含已封存的；帶 `work_count`）／新建（QC-062） |
 | GET／PATCH／DELETE | `/api/v1/projects/:id` | 讀取、改名／改色／封存（需要 `base_revision` 或 `If-Match`）、軟刪除（QC-062） |
 | POST | `/api/v1/projects/:id/restore` | 復原刪除的項目，作品與位置不變（QC-062） |
@@ -226,8 +226,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/projects/:id/summary` | 各狀態作品數、最近更新時間、用到的素材數（QC-062）、`sole_count`（QC-067） |
 | POST | `/api/v1/works/batch/projects` | 最多 200 個作品批次加入或移出項目，逐項回報（QC-062） |
 | POST | `/api/v1/works/batch` | 最多 200 個作品批次刪除、恢復、改狀態、加減標籤；每項帶 `base_revision`，逐項成功或失敗，回 200 與 `results`；帶 `Idempotency-Key`（QC-051） |
-| DELETE | `/api/v1/trash/works/:id` | 永久刪除最近刪除中的一個作品（只限主權杖，QC-051） |
-| DELETE | `/api/v1/trash/works` | 清空最近刪除的作品，須帶 `confirm: true`（只限主權杖，QC-051） |
+| DELETE | `/api/v1/trash/works/:id` | 永久刪除回收站中的一個作品（只限主權杖，QC-051） |
+| DELETE | `/api/v1/trash/works` | 清空回收站的作品，須帶 `confirm: true`（只限主權杖，QC-051） |
 | GET | `/api/v1/works/:id/revisions` | 版本歷史 |
 | GET | `/api/v1/works/:id/revisions/:rid` | 單一歷史版本：標題與完整 Markdown 快照 |
 | POST | `/api/v1/works/:id/revisions/:rid/restore` | 恢復某版本：追加一個 `restore` revision；需要 `base_revision` 或 `If-Match` |
@@ -246,14 +246,14 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/assets` | 素材庫列表；`scope`（`active` 預設／`unreferenced`／`trash`）、`kind`、`q`（顯示名稱或原檔名）、`tag`、`limit`、`offset` |
 | GET | `/api/v1/assets/:id` | 素材詳情（含縮圖、元資料狀態）；`ETag` 為素材 revision |
 | PATCH | `/api/v1/assets/:id` | 改顯示名稱、標籤、替代文字、備註（QC-037）；必須帶 `base_revision` 或 `If-Match`，沒帶回 428，過期回 409；磁碟檔名不變 |
-| DELETE | `/api/v1/assets/:id` | 移到最近刪除（QC-037）；被引用時要 `confirm: true`，否則 409 `asset_in_use`；外部素材加 `move_original_to_trash: true` 才把原檔移到系統垃圾桶 |
-| GET | `/api/v1/assets/:id/references` | 使用此素材的作品連結與平台版本（封面、圖片）（QC-037）；作品連結帶 `independent_copy`：正文連結且託管作品的 `assets/` 有同內容複本時為 true（QC-039）；最近刪除中作品的引用另列在 `in_trash`（QC-053） |
-| POST | `/api/v1/assets/:id/restore` | 從最近刪除恢復，引用一併回來；檔案不在原路徑回 409 `asset_file_missing`（QC-037） |
-| POST | `/api/v1/assets/batch` | 最多 200 個素材批次加標籤、移除標籤或移到最近刪除；全部成功或全部不做（QC-037） |
-| DELETE | `/api/v1/trash/:id` | 永久刪除最近刪除中的一個素材；回應附 Markdown 仍連到該檔的作品（QC-037） |
-| DELETE | `/api/v1/trash` | 清空最近刪除，須帶 `confirm: true`（QC-037） |
+| DELETE | `/api/v1/assets/:id` | 移到回收站（QC-037）；被引用時要 `confirm: true`，否則 409 `asset_in_use`；外部素材加 `move_original_to_trash: true` 才把原檔移到系統垃圾桶 |
+| GET | `/api/v1/assets/:id/references` | 使用此素材的作品連結與平台版本（封面、圖片）（QC-037）；作品連結帶 `independent_copy`：正文連結且託管作品的 `assets/` 有同內容複本時為 true（QC-039）；回收站中作品的引用另列在 `in_trash`（QC-053） |
+| POST | `/api/v1/assets/:id/restore` | 從回收站恢復，引用一併回來；檔案不在原路徑回 409 `asset_file_missing`（QC-037） |
+| POST | `/api/v1/assets/batch` | 最多 200 個素材批次加標籤、移除標籤或移到回收站；全部成功或全部不做（QC-037） |
+| DELETE | `/api/v1/trash/:id` | 永久刪除回收站中的一個素材；回應附 Markdown 仍連到該檔的作品（QC-037） |
+| DELETE | `/api/v1/trash` | 清空回收站，須帶 `confirm: true`（QC-037） |
 | GET | `/api/v1/assets/:id/thumbnail` | WebP 縮圖；`cache/` 被刪時即時重建 |
-| GET | `/api/v1/assets/:id/works` | 反查使用此素材的作品：作品 id、標題、用途、位置，依作品更新時間新到舊；不含最近刪除中的作品（QC-053） |
+| GET | `/api/v1/assets/:id/works` | 反查使用此素材的作品：作品 id、標題、用途、位置，依作品更新時間新到舊；不含回收站中的作品（QC-053） |
 | GET | `/api/v1/works/:id/assets` | 作品的素材，依用途與順序 |
 | POST | `/api/v1/works/:id/assets` | 關聯素材（`cover`／`body`／`video`，可指定位置；重複關聯即移動） |
 | DELETE | `/api/v1/works/:id/assets/:assetId?role=` | 移除關聯，順序自動補齊 |
@@ -310,12 +310,12 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 3. **去重**：算 sha256；已有相同內容就刪掉暫存檔，回原素材與 `deduplicated: true`。
 4. **入庫**：暫存檔 `rename` 到 `library/assets/<id>/`，同一個 SQLite 交易寫 `assets`、`change_log`，並為圖片排縮圖任務、為視頻／音訊排 ffprobe 任務。
 
-## 素材編輯、刪除與最近刪除（QC-037）
+## 素材編輯、刪除與回收站（QC-037）
 
 - **編輯**：顯示名稱、標籤、替代文字、備註只存在 SQLite，磁碟上的檔名不變。每次編輯 `revision` 加一，衝突規則與作品、平台版本相同。
 - **刪除**：只在 `assets` 標記 `deleted_at` 與 `removal`，作品連結與平台版本的 id 都保留，所以恢復時引用自然回來（恢復的素材排在各用途的最後）。刪除期間：
   - 列表、作品素材清單、`unreferenced` 範圍都不含它，也不能連結到作品（409 `asset_in_trash`）。
-  - 仍可讀取內容與縮圖，給最近刪除的預覽用。
+  - 仍可讀取內容與縮圖，給回收站的預覽用。
   - 外部掛載重新掃描或解析 Markdown 時不會把它加回來。
   - 上傳內容完全相同的檔案會直接恢復它。
 - **託管與外部**：託管檔在 30 天內都留在原位。外部素材預設只解除索引；`move_original_to_trash` 用 macOS 內建的 `/usr/bin/trash`（與 Finder「移到垃圾桶」相同，可「放回原處」），失敗或找不到指令時回 500 `trash_failed`，資料庫不改。伺服器不會從垃圾桶取回檔案：使用者在 Finder 放回原處後再按恢復。測試注入假的 `SystemTrash`，測試執行器下預設的實作一律失敗，不會碰真實垃圾桶。
@@ -340,14 +340,14 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
   - `GET /works?project_id=` 只列某個項目的作品；項目已刪除或不存在時回 404。
   - `unassigned=1` 列出不屬於任何未刪除項目的作品；屬於已封存項目的作品不算未分類。兩個參數不能同時帶。
   - `POST /works` 可以帶 `project_ids`，項目先檢查，有任何一個不存在就整個不建立。
-  - 最近刪除中的作品保留歸屬，但不算進任何數量；還原後回到原本的項目。
+  - 回收站中的作品保留歸屬，但不算進任何數量；還原後回到原本的項目。
 - **批量**：`POST /works/batch/projects { work_ids, add, remove }`。
   - 先檢查項目：有任何一個不存在或已刪除，就回 404（`details.project_id`），什麼都不改。
-  - 之後逐個作品處理，成功或失敗各自獨立：不存在的作品回 `not_found`，最近刪除中的作品回 `work_in_trash`。
+  - 之後逐個作品處理，成功或失敗各自獨立：不存在的作品回 `not_found`，回收站中的作品回 `work_in_trash`。
   - 歸屬不是作品內容，所以不需要 `base_revision`，作品的 revision 也不變。
   - 重複加入不算變更，不會發事件。
 - **概覽與素材**：
-  - `GET /projects/:id/summary`：各狀態的作品數、最近一次更新時間、用到的素材數；`sole_count` 是刪除項目後會變成未分類的作品數，也就是不在最近刪除、也不屬於其他未刪除項目的作品（已封存的項目也算其他項目，QC-067）。
+  - `GET /projects/:id/summary`：各狀態的作品數、最近一次更新時間、用到的素材數；`sole_count` 是刪除項目後會變成未分類的作品數，也就是不在回收站、也不屬於其他未刪除項目的作品（已封存的項目也算其他項目，QC-067）。
   - `GET /assets?project_id=`：項目內未刪除作品用到的素材庫素材，也就是作品與素材的連結，加上貼圖、視頻作品 front matter 記住的素材 id（`media_index`）。
 - **事件**：
   - `project.created`、`project.updated`（`data.fields`、`data.revision`）、`project.deleted`（真正刪除時 `data.purged: true`）、`project.restored`、`project.reordered`（`entity_id` 為 `order`）。
@@ -408,23 +408,23 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
   - 有 ffmpeg 就由伺服器產生（見 `docs/dependencies.md`）。
   - 沒有 ffmpeg，或 ffmpeg 解不開這支視頻（同一版本只試一次）時，`needs_frame: true`，並附上 `frame_source`（`path`、`asset_id`、`time_seconds`）。App 截取那一幀後上傳，並帶上當時的 `version`。伺服器只接受 `version`、視頻路徑、時間點都和目前相同的幀，否則回 409 `thumbnail_frame_stale`；所以在換封面或換視頻之前截的幀，不會蓋掉新的。接受後用 sharp 實際解碼，再轉成 WebP 512 存進快取。
   - 圖片和文章的卡片圖完全由伺服器產生，不需要 App 開著。
-- **錯誤**：404 `thumbnail_unavailable`，`details.reason` 為 `none`／`missing`／`needs_frame`／`decode_failed`。上傳的幀超過 2 MiB 回 413，不是圖片回 415。最近刪除中的作品回 409 `work_in_trash`。
-- **權限**：讀取需要 `read`；上傳幀需要 `write`，作品必須存在，而且不在最近刪除中。上傳只寫入 `cache/`，不碰作品。
+- **錯誤**：404 `thumbnail_unavailable`，`details.reason` 為 `none`／`missing`／`needs_frame`／`decode_failed`。上傳的幀超過 2 MiB 回 413，不是圖片回 415。回收站中的作品回 409 `work_in_trash`。
+- **權限**：讀取需要 `read`；上傳幀需要 `write`，作品必須存在，而且不在回收站中。上傳只寫入 `cache/`，不碰作品。
 
-## 作品刪除、最近刪除與批量操作（QC-051）
+## 作品刪除、回收站與批量操作（QC-051）
 
 比照素材（QC-037），實作在 `src/works/work-trash.ts`。
 
 - **刪除**：只在 `works` 標記 `deleted_at` 與 `removal`。revision、歷史、作品與素材的連結、平台版本都不動，所以恢復後與刪除前完全相同。需要 `base_revision` 或 `If-Match`，過期回 409，避免刪掉別處剛改過的版本。
 - **刪除期間**：
   - 列表預設不含；`scope=trash` 只列已刪除的，依刪除時間新到舊；`ids=` 也遵守 `scope`，已刪除的列在 `missing_ids`。
-  - `GET /works/:id` 仍可讀，給最近刪除預覽用。
+  - `GET /works/:id` 仍可讀，給回收站預覽用。
   - PATCH、恢復版本、`/works/:id/…` 底下的所有寫入（平台版本、素材連結、attach、文字 AI）回 409 `work_in_trash`。PATCH 在 `WorkService` 檢查，其他由 `server.ts` 的 `preHandler` 統一檢查，之後新增的子路由也自動受保護。
   - 掛載的作品數（`work_count`）不計入。
-  - **素材引用（QC-053）**：素材的 `references` 把這些作品（含它們的平台版本）的引用另列在 `in_trash`，`GET /assets/:id/works` 不列出。它們**不算「使用中」**：只被最近刪除中的作品使用的素材，刪除時不需要 `confirm`（單筆或批量都一樣），刪除回應的 `references.in_trash` 仍會列出它們，App 可標「在最近刪除中」。
+  - **素材引用（QC-053）**：素材的 `references` 把這些作品（含它們的平台版本）的引用另列在 `in_trash`，`GET /assets/:id/works` 不列出。它們**不算「使用中」**：只被回收站中的作品使用的素材，刪除時不需要 `confirm`（單筆或批量都一樣），刪除回應的 `references.in_trash` 仍會列出它們，App 可標「在回收站中」。
     - 理由：刪除素材本身 30 天內可恢復；使用者看不到、也沒在編輯的作品不該擋住清理。作品連結與平台版本的 id 都保留，素材和作品各自恢復後，引用都會回來。
     - 代價：素材**永久刪除**時，這些連結和一般作品一樣被移除，作品之後再恢復就會缺這個素材。永久刪除前可以先看 `references.in_trash`。
-  - **URL 匯入（QC-053）**：`work_id` 是最近刪除中的作品時，建立任務就回 409 `work_in_trash`（`details.work_id`、`deleted_at`），不會建立任務。任務建立後作品才被刪除的情況，下載完仍照原本設定連結；這條連結和其他連結一樣保留，作品恢復後就在。
+  - **URL 匯入（QC-053）**：`work_id` 是回收站中的作品時，建立任務就回 409 `work_in_trash`（`details.work_id`、`deleted_at`），不會建立任務。任務建立後作品才被刪除的情況，下載完仍照原本設定連結；這條連結和其他連結一樣保留，作品恢復後就在。
 - **託管與外部**：
   - 託管作品的資料夾在 30 天內都留在 `library/works/<id>/`，從不直接 `rm`。
   - 外部作品預設只取消索引（`unindexed`），檔案不動；重新掃描不會把它加回來（既有的資料列保持刪除狀態，搬移偵測也略過已刪除作品）。
@@ -441,7 +441,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
   - 冪等鍵：見「冪等鍵」一節。
 - **改名**：沿用 `PATCH /works/:id` 的 `title`，不另設端點。貼圖與視頻作品同時寫進 front matter 的 `title`；文章只改作品標題（資料庫與 revision 的標題），Markdown 內的 H1 與檔名都不動，外部檔案也不會被改名。重新掃描保留改過的標題。
 - **事件**：`work.trashed`（`data.removal`）、`work.restored`、`work.deleted`（`data.removal`、`data.reason`：`manual`／`empty`／`expired`）。
-- **權限**：刪除、恢復、批量需要 `write`（最近刪除保留 30 天，可以挽回）；永久刪除、清空、移到系統垃圾桶只限主權杖。
+- **權限**：刪除、恢復、批量需要 `write`（回收站保留 30 天，可以挽回）；永久刪除、清空、移到系統垃圾桶只限主權杖。
 
 ## 貼圖與視頻作品（QC-045/046）
 
@@ -469,7 +469,7 @@ tags:
 **寫入**（`PATCH /api/v1/works/:id`，`WorkComposer`）：一次寫入就是一個版本，與文章相同的歷史快照與原子替換。
 
 1. 檢查版本：沒帶回 428，過期回 409。
-2. `images`、`cover.asset_id`、`video_asset_id` 指到的素材複製進 `assets/`；類型不符回 400，在最近刪除回 409 `asset_in_trash`。
+2. `images`、`cover.asset_id`、`video_asset_id` 指到的素材複製進 `assets/`；類型不符回 400，在回收站回 409 `asset_in_trash`。
 3. 組出新的 Markdown，以同一個版本提交；期間若有別的寫入，這次回 409，並刪掉這次才複製進來的檔案。
 4. 被移出 `images` 的檔案留在 `assets/`，不刪（歷史版本還會用到）。
 
@@ -904,16 +904,16 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
   - 有選取時，頂部出現批量列。
 - **改狀態**：完成後提示帶「復原」，按下後每個作品各自回到原來的狀態。
 - **卡片尺寸**：最小寬度 164 px，封面 16:10。一張卡片只顯示標題（兩行）、狀態、類型和時間，來源移到 tooltip。在 1440 寬的視窗一列放 6 張。
-- **刪除與最近刪除**（接 QC-051 的 API）：
+- **刪除與回收站**（接 QC-051 的 API）：
   - 刪除會先確認，按鈕預設有焦點，因為可以復原。單一作品用 `works.trash`；外部作品可勾選「原檔也移到 macOS 垃圾桶」。多個作品用 `works.batch`，外部作品一律只取消索引。
   - 完成後提示帶「復原」（`restoreWorks`），刪掉的作品若開在分頁，分頁會關掉。
-  - 篩選列右端是「最近刪除」入口（`LibraryTrash.tsx`）：顯示剩餘天數與移除方式，可以還原、永久刪除（`purge`，一個一個送）和清空（`emptyTrash`）。永久刪除與清空的確認框，預設焦點在「取消」。
+  - 篩選列右端是「回收站」入口（`LibraryTrash.tsx`）：顯示剩餘天數與移除方式，可以還原、永久刪除（`purge`，一個一個送）和清空（`emptyTrash`）。永久刪除與清空的確認框，預設焦點在「取消」。
 - **批量改狀態、加減標籤**：
   - 一律用 `works.batch`，每個請求帶自己的冪等鍵，一次最多 200 個。
   - 送出前，`freshRevisions` 先讓開著的編輯器存檔，再取最新修訂，所以不會弄丟未存的修改，也不會因為編輯器自己剛存的版本回 409。沒有未存修改的編輯器，之後透過 SSE 跟上新版本。
   - 部分失敗時，逐項報出原因（錯誤碼的介面文案），並重新載入列表。
   - 標籤的「復原」只撤銷每個作品真正變了的標籤（`tagUndoGroups`）。
-- **快捷鍵**：⌘⌫ 刪除選取的作品；在最近刪除裡則是永久刪除，同樣先確認。
+- **快捷鍵**：⌘⌫ 刪除選取的作品；在回收站裡則是永久刪除，同樣先確認。
 
 ## AI 工作台與設定頁 AI 服務（QC-025）
 
@@ -1000,7 +1000,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 - **權限範圍**（`src/auth/scopes.ts`，依路由樣式判定）：
   - `read`：所有 GET（作品、素材、任務、SSE 事件）。
   - `import`：建立作品、上傳（直傳與 tus）、URL 匯入、重跑匯入任務，以及查看**自己建立的**匯入任務（`GET /api/v1/jobs/:id`；別人的任務回 404，不洩漏網址）。
-  - `write`：修改作品、作品與素材的關聯與排序；把作品移到最近刪除、恢復、批量操作（QC-051）；項目的所有修改與作品歸屬（QC-062）。
+  - `write`：修改作品、作品與素材的關聯與排序；把作品移到回收站、恢復、批量操作（QC-051）；項目的所有修改與作品歸屬（QC-062）。
   - 未列出的 `/api` 路由（包括之後新增的）預設只有主權杖能用，不會在無意間開放給 Agent。
 
 ## 冪等鍵
@@ -1089,7 +1089,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 
 ## 變更事件（SSE）
 
-`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `ai_job.queued`／`running`／`progress`／`succeeded`／`failed`／`cancelled`（AI 任務）、`work.variant_created`／`work.variant_updated`／`work.variant_deleted`（平台版本）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`（素材進出最近刪除時 `data.change` 為 `trashed`／`restored`／`deleted`）、`asset.created`、`asset.updated`（編輯時 `data.fields`、`data.revision`）、`asset.trashed`（`data.removal`）、`asset.restored`、`asset.deleted`（`data.removal`、`data.reason`：`manual`／`empty`／`expired`）（QC-037）、`work.trashed`（`data.removal`）、`work.restored`、`work.deleted`（`data.removal`、`data.reason`）（QC-051）、`work.projects_changed` 與實體 `project` 的 `project.created`／`updated`／`deleted`／`restored`／`reordered`（QC-062）、`job.queued`、`job.running`、`job.succeeded`、`job.failed`，以及實體 `system`（`entity_id` 為 `database`）的 `backup.created`／`backup.failed`／`backup.restore_started`／`backup.restored`（QC-030）。
+`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `ai_job.queued`／`running`／`progress`／`succeeded`／`failed`／`cancelled`（AI 任務）、`work.variant_created`／`work.variant_updated`／`work.variant_deleted`（平台版本）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`（素材進出回收站時 `data.change` 為 `trashed`／`restored`／`deleted`）、`asset.created`、`asset.updated`（編輯時 `data.fields`、`data.revision`）、`asset.trashed`（`data.removal`）、`asset.restored`、`asset.deleted`（`data.removal`、`data.reason`：`manual`／`empty`／`expired`）（QC-037）、`work.trashed`（`data.removal`）、`work.restored`、`work.deleted`（`data.removal`、`data.reason`）（QC-051）、`work.projects_changed` 與實體 `project` 的 `project.created`／`updated`／`deleted`／`restored`／`reordered`（QC-062）、`job.queued`、`job.running`、`job.succeeded`、`job.failed`，以及實體 `system`（`entity_id` 為 `database`）的 `backup.created`／`backup.failed`／`backup.restore_started`／`backup.restored`（QC-030）。
 
 - 和其他 `/api` 路由一樣要 Bearer 權杖。瀏覽器的 `EventSource` 不能帶 header，所以 api-client 用 fetch 讀串流（`client.events.subscribe`）；權杖不接受放在 URL。
 - 事件先寫進 `change_log` 再推送：在寫入方的交易提交後才發出，交易回滾的變更不會被推送。
@@ -1152,7 +1152,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 ## 作品庫分頁（QC-067）
 
 - **為什麼用 cursor**：作品庫捲動時，SSE 一更新、作品順序就會變。offset 分頁會因此重複或漏掉作品，所以 `GET /works` 加了 keyset 分頁。
-- **排序鍵**：沿用列表順序，一般是 `updated_at DESC, id`，最近刪除是 `deleted_at DESC, id`。
+- **排序鍵**：沿用列表順序，一般是 `updated_at DESC, id`，回收站是 `deleted_at DESC, id`。
 - **cursor 內容**：記錄上一頁最後一筆的排序鍵、`id` 和 `scope`，以 base64url JSON 編碼，對用戶端不透明。scope 不符或被改過，回 400 `validation_error`（`details.field: cursor`），用戶端從頭重載。
 - **捲動中有作品被更新**：它會移到 cursor 之前，後面的頁不會重複，也不會出現它。新位置由變更事件補上。
 - **`total`**：一律是整個篩選的總數，與第幾頁無關。

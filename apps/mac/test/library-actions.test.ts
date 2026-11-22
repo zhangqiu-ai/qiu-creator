@@ -153,7 +153,7 @@ describe('TabsModel.openInBackground (在新分頁開啟)', () => {
   });
 });
 
-describe('最近刪除 and batch helpers (QC-052)', () => {
+describe('回收站 and batch helpers (QC-052)', () => {
   it('days left until a deleted work is purged', () => {
     const now = Date.parse('2026-11-21T00:00:00Z');
     expect(daysLeft('2026-12-21T00:00:00Z', now)).toBe(30);
@@ -291,7 +291,7 @@ describe('changeWork: rename and status from 作品庫 and the tab bar', () => {
     session.dispose();
   });
 
-  it('deletes one work to 最近刪除 and restores it with the same revision', async () => {
+  it('deletes one work to 回收站 and restores it with the same revision', async () => {
     const work = await client.works.create({
       title: '要刪的',
       markdown: '內容',
@@ -323,7 +323,7 @@ describe('changeWork: rename and status from 作品庫 and the tab bar', () => {
     expect((await client.works.list({ limit: 10 })).items.map((w) => w.title)).toEqual(['B']);
   });
 
-  it('purges works in 最近刪除 one by one and reports what was not there', async () => {
+  it('purges works in 回收站 one by one and reports what was not there', async () => {
     const a = await client.works.create({ title: 'A', markdown: '', source: 'mac-app' });
     const b = await client.works.create({ title: 'B', markdown: '', source: 'mac-app' });
     await trashWorks(client, [a]);

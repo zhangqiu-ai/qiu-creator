@@ -33,9 +33,9 @@
 | 掛載（資料夾）         | 挂载（文件夹）         | link (a folder)                  |
 | 外部掛載               | 外部挂载               | linked folder                    |
 | 卸載                   | 卸载                   | unlink                           |
-| 最近刪除               | 最近删除               | Recently Deleted                 |
-| 移到最近刪除           | 移到最近删除           | Move to Recently Deleted         |
-| 系統垃圾桶             | 废纸篓                 | Trash                            |
+| 回收站               | 回收站               | Trash                 |
+| 移到回收站           | 移到回收站           | Move to Trash         |
+| 系統垃圾桶             | 废纸篓                 | Trash in Finder（系統的，與 App 的「Trash」不同物） |
 | 在 Finder 顯示         | 在访达中显示           | Show in Finder                   |
 | 版本、版本記錄         | 版本、版本记录         | version, version history         |
 | 歷史                   | 历史                   | History                          |

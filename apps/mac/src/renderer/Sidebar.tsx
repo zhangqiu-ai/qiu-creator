@@ -43,7 +43,7 @@ interface NavItem {
 
 /**
  * Groups (QC-069, PT-20261122-001): the works' scopes and the projects come
- * first (from App), then 素材 and 工具; 最近刪除 and 設定 sit in the fixed foot.
+ * first (from App), then 素材 and 工具; 回收站 and 設定 sit in the fixed foot.
  * 發布中心 waits for M4.
  */
 const nav = (page: NavPage, key: MessageKey, icon: IconName): NavItem => ({
@@ -128,7 +128,7 @@ export interface SidebarProps {
   onRecheck: () => void;
   /** 全部作品, 未分類 and the 項目 section, at the top (QC-062, QC-069). */
   projects?: (rail: boolean) => ReactNode;
-  /** 最近刪除, in the foot above 設定 (QC-069). */
+  /** 回收站, in the foot above 設定 (QC-069). */
   foot?: (rail: boolean) => ReactNode;
 }
 

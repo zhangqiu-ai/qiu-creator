@@ -58,7 +58,7 @@ test('作品庫：刪除後焦點到下一張、篩選切換（少量與大量�
     await page.getByRole('menuitem', { name: /^刪除…/ }).click();
     await page
       .getByRole('dialog')
-      .getByRole('button', { name: /移到最近刪除|刪除/ })
+      .getByRole('button', { name: /移到回收站|刪除/ })
       .last()
       .click();
     await expect(card(page, target)).toHaveCount(0);
@@ -109,7 +109,7 @@ test('作品庫動效錄影（正常速度）與減少動態效果', async ({ de
   await page.keyboard.press('Meta+Backspace');
   await page
     .getByRole('dialog')
-    .getByRole('button', { name: /移到最近刪除|刪除/ })
+    .getByRole('button', { name: /移到回收站|刪除/ })
     .last()
     .click();
   await expect(grid(page).locator('.wcard')).toHaveCount(6);

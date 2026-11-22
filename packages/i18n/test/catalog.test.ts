@@ -70,4 +70,19 @@ describe('message catalogs (QC-042)', () => {
       }
     }
   });
+
+  it('the trash is called 回收站 / Trash everywhere, never 最近刪除 (QC-078)', () => {
+    const old = /最近刪除|最近删除|Recently Deleted/i;
+    for (const [name, area] of areas) {
+      for (const locale of LOCALES) {
+        for (const [key, m] of Object.entries(area[locale] ?? {})) {
+          for (const text of texts(m)) expect(text, `${name}.${key} · ${locale}`).not.toMatch(old);
+        }
+      }
+    }
+    const trash = catalog.workActions;
+    expect(texts(trash['zh-Hant'].trash)).toEqual(['回收站']);
+    expect(texts(trash['zh-Hans'].trash)).toEqual(['回收站']);
+    expect(texts(trash.en.trash)).toEqual(['Trash']);
+  });
 });

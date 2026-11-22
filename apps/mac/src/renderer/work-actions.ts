@@ -112,7 +112,7 @@ export async function trashWorks(
   }
 }
 
-/** 還原 from 最近刪除: the revision and history stay as they were. */
+/** 還原 from 回收站: the revision and history stay as they were. */
 export async function restoreWorks(
   client: CreatorHubClient,
   works: readonly WorkRef[],
@@ -129,7 +129,7 @@ export async function restoreWorks(
   }
 }
 
-/** 永久刪除 works in 最近刪除, one request each (there is no batch purge). */
+/** 永久刪除 works in 回收站, one request each (there is no batch purge). */
 export async function purgeWorks(
   client: CreatorHubClient,
   ids: readonly string[],

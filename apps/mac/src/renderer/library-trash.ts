@@ -8,7 +8,7 @@ import type { BatchWorkResult, WorkListItem } from '@qiu-creator/contracts';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Days until a work in 最近刪除 is deleted for good, rounded up (30 right after
+ * Days until a work in 回收站 is deleted for good, rounded up (30 right after
  * deleting, 1 on its last day); 0 once due; null when unknown.
  */
 export function daysLeft(

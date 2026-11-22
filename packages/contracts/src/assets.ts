@@ -56,7 +56,7 @@ export const AssetRecordSchema = AssetSchema.extend({
   note: z.string().nullable().optional(),
   /** Bumped by every metadata edit; send it back as `base_revision` or `If-Match` (QC-037). */
   revision: z.number().int().positive().optional(),
-  /** Set while the asset is in 最近刪除 (QC-037); null when active. */
+  /** Set while the asset is in 回收站 (QC-037); null when active. */
   deleted_at: TimestampSchema.nullable().optional(),
   /** When a trashed asset is permanently deleted automatically. */
   purge_at: TimestampSchema.nullable().optional(),
@@ -84,7 +84,7 @@ export type UploadAssetResponse = z.infer<typeof UploadAssetResponseSchema>;
 /**
  * Which assets a listing returns (QC-037). `active` (default): not deleted.
  * `unreferenced`: active and not used by any work or platform variant.
- * `trash`: in 最近刪除, most recently deleted first.
+ * `trash`: in 回收站, most recently deleted first.
  */
 export const AssetScopeSchema = z.enum(['active', 'unreferenced', 'trash']);
 export type AssetScope = z.infer<typeof AssetScopeSchema>;
@@ -98,7 +98,7 @@ export const ListAssetsQuerySchema = z.object({
   tag: TagSchema.optional(),
   /**
    * Only assets used by this project's works (QC-062): linked to them, or
-   * named in their front matter. Works in 最近刪除 do not count.
+   * named in their front matter. Works in 回收站 do not count.
    */
   project_id: IdSchema.optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -155,9 +155,9 @@ export type AssetWorkListResponse = z.infer<typeof AssetWorkListResponseSchema>;
 export const WorkAssetParamsSchema = z.object({ id: IdSchema, assetId: IdSchema });
 export const WorkAssetRoleQuerySchema = z.object({ role: WorkAssetRoleSchema });
 
-// ---- Edit, delete and 最近刪除 (QC-037) ------------------------------------------
+// ---- Edit, delete and 回收站 (QC-037) ------------------------------------------
 
-/** Days a trashed asset stays in 最近刪除 before it is deleted permanently. */
+/** Days a trashed asset stays in 回收站 before it is deleted permanently. */
 export const ASSET_TRASH_RETENTION_DAYS = 30;
 
 /** At least one field; omitted fields stay as they are, `null` clears a text field. */
@@ -205,12 +205,12 @@ export const AssetVariantReferenceSchema = z.object({
 export type AssetVariantReference = z.infer<typeof AssetVariantReferenceSchema>;
 
 export const AssetReferencesSchema = z.object({
-  /** Works that are not in 最近刪除 (QC-053). Only these make a delete need `confirm`. */
+  /** Works that are not in 回收站 (QC-053). Only these make a delete need `confirm`. */
   works: z.array(AssetWorkReferenceSchema),
   variants: z.array(AssetVariantReferenceSchema),
   /**
-   * The same kinds of references from works in 最近刪除 (QC-053), listed
-   * apart so the app can label them 「在最近刪除中」. They do not make the
+   * The same kinds of references from works in 回收站 (QC-053), listed
+   * apart so the app can label them 「在回收站中」. They do not make the
    * asset count as in use: deleting it is reversible for 30 days. Purging the
    * asset removes these links too, so a work restored afterwards is missing it.
    */
@@ -272,7 +272,7 @@ export const BatchAssetsRequestSchema = z.discriminatedUnion('action', [
     tags: z.array(TagSchema).min(1).max(64),
   }),
   z.object({
-    /** Managed assets go to 最近刪除, external ones are removed from the library only. */
+    /** Managed assets go to 回收站, external ones are removed from the library only. */
     action: z.literal('trash'),
     ids: z.array(IdSchema).min(1).max(BATCH_ASSET_MAX),
     /** Required when any of them is referenced (409 `asset_in_use` lists which). */

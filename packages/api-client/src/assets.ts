@@ -89,24 +89,24 @@ export interface CreatorHubAssetsApi {
    */
   update(id: string, input: UpdateAssetRequest): Promise<AssetRecord>;
   /**
-   * Move to 最近刪除 (QC-037). Referenced assets need `confirm: true` (else 409
+   * Move to 回收站 (QC-037). Referenced assets need `confirm: true` (else 409
    * `asset_in_use` with `details.references`). External files stay untouched
    * unless `move_original_to_trash` (macOS Trash).
    */
   trash(id: string, input?: DeleteAssetRequest): Promise<DeleteAssetResponse>;
-  /** Back from 最近刪除 with its references; 409 `asset_file_missing` if the file is gone. */
+  /** Back from 回收站 with its references; 409 `asset_file_missing` if the file is gone. */
   restore(id: string): Promise<AssetRecord>;
   /** Works and platform variants that use the asset. */
   references(id: string): Promise<AssetReferences>;
-  /** Batch add/remove tags or move to 最近刪除; all or nothing. */
+  /** Batch add/remove tags or move to 回收站; all or nothing. */
   batch(input: BatchAssetsRequest): Promise<BatchAssetsResponse>;
 }
 
-/** 最近刪除 (QC-037). List it with `assets.list({ scope: 'trash' })`. Owner token only. */
+/** 回收站 (QC-037). List it with `assets.list({ scope: 'trash' })`. Owner token only. */
 export interface CreatorHubTrashApi {
   /** Delete one trashed asset permanently; `markdown_referrers` lists works whose Markdown links to it. */
   purge(id: string): Promise<PurgeAssetResponse>;
-  /** Delete everything in 最近刪除 permanently. */
+  /** Delete everything in 回收站 permanently. */
   empty(): Promise<EmptyTrashResponse>;
 }
 

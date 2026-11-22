@@ -12,6 +12,7 @@ import type {
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -57,6 +58,8 @@ import {
 } from './format.js';
 import { useToast } from './toasts.js';
 import { Highlight, SearchHighlight } from './Highlight.js';
+import { Lightbox, type LightboxItem } from './Lightbox.js';
+import type { Rect } from './lightbox-math.js';
 import { Icon } from './Icon.js';
 import { formatDateTime, formatNumber, t } from './i18n.js';
 
@@ -150,9 +153,9 @@ type DeleteDialog =
 
 /**
  * 素材庫 v2 (PT-20261119-001 「v2 · 素材庫：刪除與編輯」, QC-037): scopes
- * 全部／未引用／最近刪除, ⌘-click multi-select with batch tags and delete,
+ * 全部／未引用／回收站, ⌘-click multi-select with batch tags and delete,
  * an inspector that edits name, tags, alt text and note with autosave, and
- * delete rules by case: unreferenced managed assets go to 最近刪除 at once
+ * delete rules by case: unreferenced managed assets go to 回收站 at once
  * with 復原, referenced ones confirm with the works, external files leave the
  * library only unless the user opts in to the system Trash.
  */
@@ -277,6 +280,55 @@ export function AssetsPage({
   const filtering = kind !== 'all' || appliedQuery.trim() !== '' || scope === 'unreferenced';
   const picked = items.filter((a) => picks.includes(a.id));
 
+  // ---- 大圖預覽 (QC-077) ----
+  const [lightbox, setLightbox] = useState<{ id: string; origin: Rect | null } | null>(null);
+  /** The assets in the order the grid shows them, so ← → follow what the person sees. */
+  const ordered = useMemo(
+    () => groupAssets(items, mounts).flatMap((g) => g.items),
+    [items, mounts],
+  );
+  const returnFocusTo = useRef<string | null>(null);
+  const openLightbox = (id: string, from?: Element | null) => {
+    const el = from ?? document.querySelector(`[data-asset-id="${id}"] .atile__thumb`);
+    const r = el?.getBoundingClientRect();
+    setSelectedId(id);
+    setLightbox({
+      id,
+      origin:
+        r === undefined ? null : { left: r.left, top: r.top, width: r.width, height: r.height },
+    });
+  };
+  // Closing puts focus back on the card of the asset that was showing.
+  useEffect(() => {
+    if (lightbox !== null || returnFocusTo.current === null) return;
+    const id = returnFocusTo.current;
+    returnFocusTo.current = null;
+    document.querySelector<HTMLElement>(`[data-asset-id="${id}"]`)?.focus();
+  }, [lightbox]);
+  // Space on the selected asset opens it, wherever focus is in the page (not in a field or control).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== ' ' || e.isComposing || selectedId === null || lightbox !== null) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.defaultPrevented) return;
+      const target = e.target;
+      if (
+        target instanceof HTMLElement &&
+        target.closest(
+          'input, textarea, select, [contenteditable="true"], button, a, video, audio, [role="dialog"], [aria-modal="true"]',
+        ) !== null
+      ) {
+        return;
+      }
+      if (!ordered.some((a) => a.id === selectedId)) return;
+      e.preventDefault();
+      openLightbox(selectedId);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+    };
+  });
+
   const queued = (count: number) => {
     if (count > 0) setQueuedNote(t('assets.queued', { count }));
   };
@@ -296,7 +348,7 @@ export function AssetsPage({
     load();
   };
 
-  /** 移到最近刪除 / 移出素材庫 for one asset, following the delete rules. */
+  /** 移到回收站 / 移出素材庫 for one asset, following the delete rules. */
   const deleteOne = (asset: AssetRecord) => {
     if (isExternal(asset)) {
       setDialog({ kind: 'external', asset });
@@ -671,7 +723,12 @@ export function AssetsPage({
                               selected={picks.length === 0 && a.id === selectedId}
                               picked={picks.includes(a.id)}
                               multi={picks.length > 0}
+                              onOpen={() => {
+                                openLightbox(a.id);
+                              }}
                               onSelect={(e) => {
+                                // The second click of a double-click keeps the selection.
+                                if (e.detail >= 2) return;
                                 if (e.metaKey || e.ctrlKey || e.shiftKey || picks.length > 0) {
                                   togglePick(a.id);
                                 } else {
@@ -728,6 +785,9 @@ export function AssetsPage({
             userHome={userHome}
             onOpenWork={onOpenWork}
             startAt={selected.id === focusAssetId ? (startAt ?? null) : null}
+            onPreview={(el) => {
+              openLightbox(selected.id, el);
+            }}
             onSaved={(saved) => {
               setListing((l) =>
                 l === null
@@ -743,6 +803,41 @@ export function AssetsPage({
             }}
           />
         )}
+
+        {lightbox !== null &&
+          scope !== 'trash' &&
+          (() => {
+            const at = ordered.findIndex((a) => a.id === lightbox.id);
+            if (at < 0) return null;
+            return (
+              <Lightbox
+                items={ordered.map(toLightboxItem)}
+                index={at}
+                origin={lightbox.origin}
+                onIndex={(i) => {
+                  const next = ordered[i];
+                  if (next === undefined) return;
+                  setSelectedId(next.id);
+                  setLightbox({ id: next.id, origin: null });
+                }}
+                onClose={() => {
+                  returnFocusTo.current = lightbox.id;
+                  setLightbox(null);
+                }}
+                extra={(item) => (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      void window.creatorhub?.reveal({ kind: 'asset', id: item.id });
+                    }}
+                  >
+                    {t('common.revealInFinder')}
+                  </button>
+                )}
+              />
+            );
+          })()}
 
         {dialog !== null && (
           <AssetDialogs
@@ -817,7 +912,15 @@ function Thumb({ asset, size }: { asset: AssetRecord; size: number }) {
  * without touching this component. Formats Chromium cannot decode (e.g. some
  * HEVC .mov files) fall back to an icon with a note instead of a broken player.
  */
-function MediaPreview({ asset, startAt }: { asset: AssetRecord; startAt: number | null }) {
+function MediaPreview({
+  asset,
+  startAt,
+  onPreview,
+}: {
+  asset: AssetRecord;
+  startAt: number | null;
+  onPreview: (from: Element) => void;
+}) {
   const [failed, setFailed] = useState(false);
   const onError = () => {
     setFailed(true);
@@ -841,7 +944,21 @@ function MediaPreview({ asset, startAt }: { asset: AssetRecord; startAt: number 
   return (
     <div className={`viewer__preview viewer__preview--${asset.kind}`}>
       {asset.kind === 'image' ? (
-        <img className="thumb__img" src={assetMediaUrl(asset.id)} alt={name} onError={onError} />
+        <img
+          className="thumb__img"
+          src={assetMediaUrl(asset.id)}
+          alt={name}
+          role="button"
+          tabIndex={0}
+          title={t('assets.openLarge')}
+          onClick={(e) => {
+            onPreview(e.currentTarget);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onPreview(e.currentTarget);
+          }}
+          onError={onError}
+        />
       ) : asset.kind === 'video' ? (
         <video
           className="viewer__media"
@@ -871,6 +988,25 @@ function MediaPreview({ asset, startAt }: { asset: AssetRecord; startAt: number 
   );
 }
 
+function toLightboxItem(asset: AssetRecord): LightboxItem {
+  const kind =
+    asset.kind === 'image' || asset.kind === 'video' || asset.kind === 'audio'
+      ? asset.kind
+      : 'other';
+  return {
+    id: asset.id,
+    kind,
+    name: displayName(asset),
+    width: asset.width,
+    height: asset.height,
+    thumbSrc:
+      asset.kind === 'image' && asset.thumbnail_status !== 'failed' ? thumbnailUrl(asset.id) : null,
+    src: kind === 'other' ? null : assetMediaUrl(asset.id),
+    info: formatDimensions(asset.width, asset.height),
+    icon: ASSET_KIND[asset.kind].icon,
+  };
+}
+
 function AssetTile({
   asset,
   selected,
@@ -878,6 +1014,7 @@ function AssetTile({
   multi,
   onSelect,
   onTogglePick,
+  onOpen,
 }: {
   asset: AssetRecord;
   selected: boolean;
@@ -885,6 +1022,7 @@ function AssetTile({
   multi: boolean;
   onSelect: (e: MouseEvent) => void;
   onTogglePick: () => void;
+  onOpen: () => void;
 }) {
   const name = displayName(asset);
   return (
@@ -894,10 +1032,22 @@ function AssetTile({
       <button
         type="button"
         className="atile"
+        data-asset-id={asset.id}
         aria-pressed={selected}
         aria-label={t('assets.tileLabel', { name, kind: ASSET_KIND[asset.kind].label })}
         onClick={(e) => {
           onSelect(e);
+        }}
+        onDoubleClick={onOpen}
+        onKeyDown={(e) => {
+          // Space opens the large preview (Quick Look); the button's own click is held back.
+          if (e.key === ' ' && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            onOpen();
+          }
+        }}
+        onKeyUp={(e) => {
+          if (e.key === ' ') e.preventDefault();
         }}
       >
         <span className="atile__thumb">
@@ -1042,6 +1192,7 @@ function AssetInspector({
   onSaved,
   onDelete,
   startAt,
+  onPreview,
 }: {
   client: CreatorHubClient;
   asset: AssetRecord;
@@ -1053,6 +1204,7 @@ function AssetInspector({
   onClose: () => void;
   onSaved: (asset: AssetRecord) => void;
   onDelete: () => void;
+  onPreview: (from: Element) => void;
 }) {
   // Created in the effect: StrictMode would dispose an instance made during render (QC-025).
   const [editor, setEditor] = useState<AssetEditor | null>(null);
@@ -1084,6 +1236,7 @@ function AssetInspector({
       onClose={onClose}
       onDelete={onDelete}
       startAt={startAt}
+      onPreview={onPreview}
     />
   );
 }
@@ -1099,6 +1252,7 @@ function InspectorBody({
   onClose,
   onDelete,
   startAt,
+  onPreview,
 }: {
   client: CreatorHubClient;
   editor: AssetEditor;
@@ -1110,6 +1264,7 @@ function InspectorBody({
   onOpenWork: (workId: string) => void;
   onClose: () => void;
   onDelete: () => void;
+  onPreview: (from: Element) => void;
 }) {
   const state = useEditor(editor);
   const [copied, setCopied] = useState(false);
@@ -1130,7 +1285,12 @@ function InspectorBody({
   return (
     <aside className="viewer inspector" aria-label={t('assets.inspector')}>
       <div className="inspector__scroll">
-        <MediaPreview key={`${asset.id}:${String(startAt)}`} asset={asset} startAt={startAt} />
+        <MediaPreview
+          key={`${asset.id}:${String(startAt)}`}
+          asset={asset}
+          startAt={startAt}
+          onPreview={onPreview}
+        />
         <div className="inspector__name">
           <label className="visually-hidden" htmlFor="asset-name">
             {t('assets.name')}

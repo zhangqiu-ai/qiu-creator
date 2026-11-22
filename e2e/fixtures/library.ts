@@ -2,7 +2,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 /*
  * 作品庫 helpers since QC-069 (PT-20261122-001): type and status live in the
- * 篩選 popover, and 最近刪除 is a row at the foot of the sidebar.
+ * 篩選 popover, and 回收站 is a row at the foot of the sidebar.
  */
 
 type Group = '類型' | '狀態';
@@ -38,9 +38,9 @@ export async function filterCount(
   return (await filterOption(page, group, name).locator('.fmenu__n').textContent()) ?? '';
 }
 
-/** 最近刪除 at the foot of the sidebar; its text ends with how many works it holds. */
+/** 回收站 at the foot of the sidebar; its text ends with how many works it holds. */
 export const trashRow = (page: Page): Locator =>
   page
     .getByRole('navigation', { name: '主導航' })
     .locator('.sb__foot')
-    .getByRole('button', { name: '最近刪除' });
+    .getByRole('button', { name: '回收站' });
