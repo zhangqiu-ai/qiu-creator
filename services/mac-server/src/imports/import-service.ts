@@ -96,9 +96,18 @@ export class ImportService {
     }
     if (req.work_id !== undefined) {
       const work = this.db
-        .prepare<[string], { id: string }>('SELECT id FROM works WHERE id = ?')
+        .prepare<[string], { id: string; deleted_at: string | null }>(
+          'SELECT id, deleted_at FROM works WHERE id = ?',
+        )
         .get(req.work_id);
       if (!work) throw notFound('work');
+      // QC-053: nothing new is linked to a work in 最近刪除.
+      if (work.deleted_at !== null) {
+        throw new ServiceError(409, 'work_in_trash', 'the work is in 最近刪除; restore it first', {
+          work_id: work.id,
+          deleted_at: work.deleted_at,
+        });
+      }
     }
     const id = randomUUID();
     const now = new Date().toISOString();

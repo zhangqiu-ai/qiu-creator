@@ -345,14 +345,18 @@ export class AssetService {
 
   // ---- Work ↔ asset links -------------------------------------------------
 
-  /** Works that use an asset, most recently updated first (one row per role). */
+  /**
+   * Works that use an asset, most recently updated first (one row per role).
+   * Works in 最近刪除 are left out (QC-053); `references` lists them apart.
+   */
   assetWorks(assetId: string): AssetWorkItem[] {
     this.get(assetId);
     return this.db
       .prepare<[string], AssetWorkItem>(
         `SELECT w.id AS work_id, w.title, wa.role, wa.position, w.updated_at
          FROM work_assets wa JOIN works w ON w.id = wa.work_id
-         WHERE wa.asset_id = ? ORDER BY w.updated_at DESC, w.id, wa.role`,
+         WHERE wa.asset_id = ? AND w.deleted_at IS NULL
+         ORDER BY w.updated_at DESC, w.id, wa.role`,
       )
       .all(assetId);
   }

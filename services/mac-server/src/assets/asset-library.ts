@@ -106,38 +106,60 @@ export class AssetLibrary {
 
   // ---- References ---------------------------------------------------------------
 
+  /**
+   * Works and platform variants that use the asset. References from works in
+   * 最近刪除 are listed apart in `in_trash` (QC-053) and do not make the asset
+   * count as in use.
+   */
   references(id: string): AssetReferences {
     this.row(id);
     const asset = this.assets.get(id);
     const rows = this.db
       .prepare<
         [string],
-        Omit<AssetReferences['works'][number], 'independent_copy'> & { storage_mode: string }
+        Omit<AssetReferences['works'][number], 'independent_copy'> & {
+          storage_mode: string;
+          trashed: number;
+        }
       >(
-        `SELECT w.id AS work_id, w.title, wa.role, wa.position, w.storage_mode
+        `SELECT w.id AS work_id, w.title, wa.role, wa.position, w.storage_mode,
+           w.deleted_at IS NOT NULL AS trashed
          FROM work_assets wa JOIN works w ON w.id = wa.work_id
          WHERE wa.asset_id = ? ORDER BY w.updated_at DESC, w.id, wa.role`,
       )
       .all(id);
-    const works = rows.map(({ storage_mode, ...ref }) => ({
-      ...ref,
-      independent_copy:
-        ref.role === 'body' && storage_mode !== 'external' && this.hasCopy(ref.work_id, asset),
+    const works = rows.map(({ storage_mode, trashed, ...ref }) => ({
+      trashed: trashed === 1,
+      ref: {
+        ...ref,
+        independent_copy:
+          ref.role === 'body' && storage_mode !== 'external' && this.hasCopy(ref.work_id, asset),
+      },
     }));
     const variants = this.db
-      .prepare<[string, string], AssetReferences['variants'][number]>(
-        `SELECT pv.work_id, w.title, pv.platform, 'cover' AS usage
+      .prepare<[string, string], AssetReferences['variants'][number] & { trashed: number }>(
+        `SELECT pv.work_id, w.title, pv.platform, 'cover' AS usage,
+           w.deleted_at IS NOT NULL AS trashed
          FROM platform_variants pv JOIN works w ON w.id = pv.work_id
          WHERE pv.deleted_at IS NULL AND pv.cover_asset_id = ?
          UNION ALL
-         SELECT pv.work_id, w.title, pv.platform, 'image' AS usage
+         SELECT pv.work_id, w.title, pv.platform, 'image' AS usage,
+           w.deleted_at IS NOT NULL AS trashed
          FROM platform_variants pv JOIN works w ON w.id = pv.work_id
          WHERE pv.deleted_at IS NULL
            AND EXISTS (SELECT 1 FROM json_each(pv.image_asset_ids) j WHERE j.value = ?)
          ORDER BY 1, 3, 4`,
       )
-      .all(id, id);
-    return { works, variants };
+      .all(id, id)
+      .map(({ trashed, ...ref }) => ({ trashed: trashed === 1, ref }));
+    return {
+      works: works.filter((w) => !w.trashed).map((w) => w.ref),
+      variants: variants.filter((v) => !v.trashed).map((v) => v.ref),
+      in_trash: {
+        works: works.filter((w) => w.trashed).map((w) => w.ref),
+        variants: variants.filter((v) => v.trashed).map((v) => v.ref),
+      },
+    };
   }
 
   /**

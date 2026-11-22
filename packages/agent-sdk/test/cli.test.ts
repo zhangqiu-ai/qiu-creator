@@ -174,3 +174,120 @@ describe('creatorhub CLI', () => {
     expect(res.stderr).toContain('401 unauthorized');
   });
 });
+
+describe('creatorhub CLI: 最近刪除 and batch (QC-053)', () => {
+  /** An agent token with only what these commands need. */
+  function writer(): NodeJS.ProcessEnv {
+    return {
+      CREATORHUB_TOKEN: server.tokens.create({ name: 'cli-writer', scopes: ['read', 'write'] })
+        .secret,
+    };
+  }
+
+  function create(title: string, tags: string[] = []) {
+    return server.works.create({ title, markdown: `# ${title}\n`, tags });
+  }
+
+  it('deletes and restores a work with a write token; the revision is required or explicit', async () => {
+    const env = writer();
+    const w = create('要刪的');
+
+    const missing = await run(['works', 'delete', w.id], env);
+    expect(missing.code).toBe(1);
+    expect(missing.stderr).toContain('--base-revision');
+
+    const deleted = await run(
+      ['works', 'delete', w.id, '--base-revision', w.current_revision_id],
+      env,
+    );
+    expect(deleted).toMatchObject({ code: 0, stderr: '' });
+    expect(deleted.stdout).toMatch(new RegExp(`^deleted ${w.id} \\(trashed\\) until `));
+
+    const trash = await run(['--json', 'works', 'list', '--trash'], env);
+    expect(
+      (JSON.parse(trash.stdout) as { items: { id: string }[] }).items.map((i) => i.id),
+    ).toEqual([w.id]);
+
+    const restored = await run(['works', 'restore', w.id, '--use-current-revision'], env);
+    expect(restored).toMatchObject({
+      code: 0,
+      stdout: `restored ${w.id} revision ${w.current_revision_id}\n`,
+    });
+    expect(server.works.get(w.id).deleted_at).toBeNull();
+  });
+
+  it('runs batch actions item by item and exits 1 when any item failed', async () => {
+    const env = writer();
+    const a = create('A');
+    const b = create('B', ['舊']);
+    const stale = create('C');
+    server.works.patch(stale.id, { baseRevision: stale.current_revision_id, title: 'C2' });
+
+    const tagged = await run(
+      [
+        'works',
+        'batch',
+        'add-tags',
+        a.id,
+        `${b.id}:${b.current_revision_id}`,
+        '--tags',
+        '新',
+        '--use-current-revision',
+      ],
+      env,
+    );
+    expect(tagged.code).toBe(0);
+    expect(tagged.stdout).toContain('2 succeeded, 0 failed');
+    expect(server.works.get(b.id).tags).toEqual(['舊', '新']);
+
+    const mixed = await run(
+      [
+        'works',
+        'batch',
+        'set-status',
+        `${stale.id}:${stale.current_revision_id}`,
+        '--status',
+        'ready',
+        '--use-current-revision',
+        a.id,
+      ],
+      env,
+    );
+    expect(mixed.code).toBe(1);
+    expect(mixed.stdout).toMatch(new RegExp(`failed\\t${stale.id}\\trevision_conflict\\t`));
+    expect(mixed.stdout).toMatch(new RegExp(`ok\\t${a.id}\\t`));
+    expect(mixed.stdout).toContain('1 succeeded, 1 failed');
+    expect(server.works.get(a.id).status).toBe('ready');
+
+    const json = await run(
+      ['--json', 'works', 'batch', 'trash', a.id, '--use-current-revision'],
+      env,
+    );
+    expect(JSON.parse(json.stdout)).toMatchObject({ succeeded: 1, failed: 0 });
+    expect(server.works.get(a.id).deleted_at).not.toBeNull();
+  });
+
+  it('rejects bad items and actions before sending anything, and offers no permanent deletion', async () => {
+    const env = writer();
+    expect((await run(['works', 'batch', 'trash', 'not-an-id'], env)).code).toBe(1);
+    expect((await run(['works', 'batch', 'purge', create('x').id], env)).code).toBe(1);
+    expect(
+      (await run(['works', 'batch', 'add-tags', create('y').id, '--use-current-revision'], env))
+        .stderr,
+    ).toContain('--tags');
+    const help = await run(['works', '--help'], env);
+    expect(help.stdout).not.toMatch(/\bpurge\b|empty-trash/);
+    expect(help.stdout).toContain('delete');
+  });
+
+  it('read-only tokens cannot delete', async () => {
+    const w = create('只讀');
+    const reader = server.tokens.create({ name: 'cli-reader', scopes: ['read'] }).secret;
+    const res = await run(['works', 'delete', w.id, '--base-revision', w.current_revision_id], {
+      CREATORHUB_TOKEN: reader,
+    });
+    expect(res.code).toBe(1);
+    expect(res.stderr).toContain('403');
+    expect(server.works.get(w.id).deleted_at).toBeNull();
+  });
+});
