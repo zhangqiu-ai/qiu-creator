@@ -214,6 +214,26 @@ test('作品庫精簡：側欄分組、一行頁首、篩選彈出層、結果�
     expect(created?.color).toBe(3);
   });
 
+  await test.step('English 與简体：篩選彈出層與側欄', async () => {
+    await nav(page).getByRole('button', { name: '全部作品' }).click();
+    const langs = [
+      { lang: 'en', filter: 'Filter', type: 'Type', status: 'Status', all: 'All posts' },
+      { lang: 'zh-Hans', filter: '筛选', type: '类型', status: '状态', all: '全部作品' },
+    ] as const;
+    for (const L of langs) {
+      await page.evaluate(`window.creatorhub.setLanguage('${L.lang}')`);
+      await expect(page.locator('main h1')).toHaveText(L.all);
+      await page.locator('main .fmenu__btn').click();
+      const pop = page.getByRole('dialog', { name: L.filter });
+      await expect(pop.getByRole('radiogroup', { name: L.type })).toBeVisible();
+      await expect(pop.getByRole('radiogroup', { name: L.status })).toBeVisible();
+      await shot(page, `9-filter-${L.lang}`);
+      await page.keyboard.press('Escape');
+      await expect(pop).toHaveCount(0);
+    }
+    await page.evaluate("window.creatorhub.setLanguage('zh-Hant')");
+  });
+
   await test.step('深色模式', async () => {
     await nav(page).getByRole('button', { name: '全部作品' }).click();
     await page.emulateMedia({ colorScheme: 'dark' });

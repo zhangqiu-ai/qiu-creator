@@ -1,5 +1,5 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
-import type { WorkDetail, WorkMedia, WorkStatus } from '@qiu-creator/contracts';
+import type { AiImagePlacement, WorkDetail, WorkMedia, WorkStatus } from '@qiu-creator/contracts';
 import { t } from './i18n.js';
 
 export type SaveStatus = 'saved' | 'dirty' | 'saving' | 'error' | 'conflict';
@@ -587,6 +587,63 @@ export class WorkSession {
       if (err instanceof ApiError && err.status === 409 && err.code === 'revision_conflict') {
         await this.remoteRevision(err.currentRevision ?? '', 'other');
         return { result: 'conflict', previousRevision: null };
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Keep an AI image candidate (QC-070): save pending edits, then let the
+   * service add it to the library and (insert, cover) write it into the work
+   * as an `ai_accepted` revision on the current base. An insert's `offset` is
+   * in the saved Markdown, which is the draft once saved. A stale base (409)
+   * is not overwritten: the newer revision is surfaced. A candidate that left
+   * the temporary cache (kept, discarded, or too old) comes back `expired`.
+   */
+  async keepAiImage(
+    jobId: string,
+    index: number,
+    placement: AiImagePlacement,
+  ): Promise<{
+    result: AcceptResult | 'expired';
+    previousRevision: string | null;
+    assetId: string | null;
+  }> {
+    const none = { previousRevision: null, assetId: null };
+    if (this.state.readOnly !== null || this.state.status === 'conflict') {
+      return { result: 'blocked', ...none };
+    }
+    await this.save();
+    if (this.hasUnsavedChanges() || this.current().remote !== null) {
+      return { result: 'blocked', ...none };
+    }
+    const previous = this.state.baseRevision;
+    try {
+      const kept = await this.exclusive(() =>
+        this.client.ai.images.keep(this.state.workId, jobId, {
+          index,
+          base_revision: previous,
+          placement,
+        }),
+      );
+      if (this.disposed)
+        return { result: 'accepted', previousRevision: previous, assetId: kept.asset_id };
+      if (kept.work.current_revision_id !== previous) {
+        this.adopt(kept.work, true);
+        this.options.onSaved?.(kept.work);
+      }
+      return { result: 'accepted', previousRevision: previous, assetId: kept.asset_id };
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'revision_conflict') {
+        await this.remoteRevision(err.currentRevision ?? '', 'other');
+        return { result: 'conflict', ...none };
+      }
+      if (err instanceof ApiError && err.code === 'ai_job_not_acceptable') {
+        return { result: 'expired', ...none };
+      }
+      if (err instanceof ApiError && err.code === 'source_missing') {
+        await this.refreshExternalState();
+        return { result: 'blocked', ...none };
       }
       throw err;
     }
