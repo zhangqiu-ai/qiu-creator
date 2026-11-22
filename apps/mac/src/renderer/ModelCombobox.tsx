@@ -42,6 +42,7 @@ export function ModelCombobox({
   onSave,
   validate,
   invalidMessage,
+  builtin = false,
 }: {
   id: string;
   label: string;
@@ -53,6 +54,11 @@ export function ModelCombobox({
   onSave: (model: string) => Promise<boolean>;
   validate: (model: string) => boolean;
   invalidMessage: string;
+  /**
+   * A built-in reference list (Gemini, Claude, GPT; QC-057): nothing to fetch
+   * or refresh and every model is a chat model, so the relay controls go.
+   */
+  builtin?: boolean;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
@@ -115,9 +121,9 @@ export function ModelCombobox({
       : list.status === 'loading'
         ? (list.previous?.models ?? [])
         : [];
-  const shown = visibleModels(models, { query, showAll, current: saved });
+  const shown = visibleModels(models, { query, showAll: showAll || builtin, current: saved });
   const known = list.status === 'ready' ? findModel(models, value) : null;
-  const notInList = list.status === 'ready' && value.trim() !== '' && known === null;
+  const notInList = !builtin && list.status === 'ready' && value.trim() !== '' && known === null;
   const unpriced = known !== null && !known.priced;
 
   const choose = (m: AiRelayModel) => {
@@ -214,36 +220,38 @@ export function ModelCombobox({
           </button>
           {open && (
             <div className="pop mcombo__pop">
-              <div className="mcombo__bar">
-                <label className="mcombo__all">
-                  <input
-                    type="checkbox"
-                    checked={showAll}
-                    onChange={(e) => {
-                      setShowAll(e.target.checked);
-                      setCursor(-1);
+              {!builtin && (
+                <div className="mcombo__bar">
+                  <label className="mcombo__all">
+                    <input
+                      type="checkbox"
+                      checked={showAll}
+                      onChange={(e) => {
+                        setShowAll(e.target.checked);
+                        setCursor(-1);
+                      }}
+                    />
+                    {t('modelPicker.showAll')}
+                  </label>
+                  {list.status === 'ready' && (
+                    <span className="faint mcombo__count">
+                      {t('modelPicker.count', { shown: shown.length, total: models.length })}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--small mcombo__refresh"
+                    disabled={list.status === 'loading'}
+                    onClick={() => {
+                      fetchList(true);
+                      input.current?.focus();
                     }}
-                  />
-                  {t('modelPicker.showAll')}
-                </label>
-                {list.status === 'ready' && (
-                  <span className="faint mcombo__count">
-                    {t('modelPicker.count', { shown: shown.length, total: models.length })}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--small mcombo__refresh"
-                  disabled={list.status === 'loading'}
-                  onClick={() => {
-                    fetchList(true);
-                    input.current?.focus();
-                  }}
-                >
-                  <Icon name="refresh" size={14} />
-                  {t('modelPicker.refresh')}
-                </button>
-              </div>
+                  >
+                    <Icon name="refresh" size={14} />
+                    {t('modelPicker.refresh')}
+                  </button>
+                </div>
+              )}
               {list.status === 'error' ? (
                 <div className="mcombo__error" role="alert">
                   <span className="mcombo__error-title">
@@ -299,11 +307,13 @@ export function ModelCombobox({
                 </>
               )}
               <span className="mcombo__foot faint">
-                {list.status === 'ready'
-                  ? `${t('modelPicker.fetchedAt', { when: formatWhen(list.data.fetched_at) })} · ${
-                      showAll ? t('modelPicker.loadHint') : t('modelPicker.chatOnlyHint')
-                    }`
-                  : t('modelPicker.loadHint')}
+                {builtin
+                  ? t('aiServices.builtinHint')
+                  : list.status === 'ready'
+                    ? `${t('modelPicker.fetchedAt', { when: formatWhen(list.data.fetched_at) })} · ${
+                        showAll ? t('modelPicker.loadHint') : t('modelPicker.chatOnlyHint')
+                      }`
+                    : t('modelPicker.loadHint')}
               </span>
             </div>
           )}

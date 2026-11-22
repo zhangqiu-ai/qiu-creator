@@ -47,7 +47,8 @@ export type IconName =
   | 'chevronUp'
   | 'chevronRight'
   | 'tag'
-  | 'trash';
+  | 'trash'
+  | 'pulse';
 
 const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   library: ['M4 7.5 12 3l8 4.5-8 4.5Z', 'M4 12.5l8 4.5 8-4.5', 'M4 17l8 4 8-4'],
@@ -60,6 +61,7 @@ const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   chevronUp: ['m6 15 6-6 6 6'],
   chevronRight: ['m9 6 6 6-6 6'],
   tag: ['M3 12V4h8l9 9-8 8Z', 'M7.5 8h.01'],
+  pulse: ['M5 12h3l2-6 4 12 2-6h3'],
   trash: ['M4 7h16', 'M9 7V4h6v3', 'M6 7l1 13h10l1-13', 'M10 11v6', 'M14 11v6'],
   search: ['M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Z', 'm20 20-4.8-4.8'],
   grid: ['M4 4h7v7H4Z', 'M13 4h7v7h-7Z', 'M4 13h7v7H4Z', 'M13 13h7v7h-7Z'],

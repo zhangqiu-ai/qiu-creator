@@ -1,13 +1,15 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
 import { isRestoring, restoringText } from './restoring.js';
 import type { HealthResponse, Mount, MountStatus } from '@qiu-creator/contracts';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { AiSettingsSection } from './AiSettingsSection.js';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { AiServicesPage, aiNavTone } from './AiServicesPage.js';
+import { AiSettingsStore } from './ai-settings.js';
 import { AppearanceSection } from './AppearanceSection.js';
 import {
   CATEGORY_HEADING,
-  currentCategory,
+  readLastCategory,
   SettingsNav,
+  writeLastCategory,
   type SettingsCategory,
 } from './SettingsNav.js';
 import { BackupSection } from './BackupSection.js';
@@ -108,12 +110,38 @@ export function SettingsPage({
   focusSection?: 'ai';
 }) {
   const aiHeading = useRef<HTMLHeadingElement>(null);
+  // One page per category (QC-057); 設定 reopens on the one shown last.
+  const [cat, setCat] = useState<SettingsCategory>(() =>
+    focusSection === 'ai' ? 'ai' : readLastCategory(),
+  );
+  const focusOnShow = useRef(focusSection === 'ai');
   useEffect(() => {
     if (focusSection !== 'ai') return;
-    aiHeading.current?.scrollIntoView({ block: 'start' });
-    aiHeading.current?.focus();
-    setCurrentCat('ai');
+    focusOnShow.current = true;
+    setCat('ai');
   }, [focusSection]);
+  const goTo = useCallback((next: SettingsCategory) => {
+    focusOnShow.current = true;
+    setCat(next);
+    writeLastCategory(next);
+  }, []);
+  // The new page's title takes focus, so a screen reader hears where it is.
+  useEffect(() => {
+    if (!focusOnShow.current) return;
+    focusOnShow.current = false;
+    document.getElementById(CATEGORY_HEADING[cat])?.focus();
+  }, [cat]);
+
+  // AI 服務 state lives here, so the category dot shows even on other pages.
+  const aiStore = useMemo(() => new AiSettingsStore(client), [client]);
+  const ai = useSyncExternalStore(
+    useCallback((cb) => aiStore.subscribe(cb), [aiStore]),
+    () => aiStore.snapshot,
+  );
+  useEffect(() => {
+    void aiStore.load();
+  }, [aiStore, dataEpoch]);
+
   const [mounts, setMounts] = useState<Mount[] | null>(null);
   const [mountsFailed, setMountsFailed] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -121,22 +149,6 @@ export function SettingsPage({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
   const [removing, setRemoving] = useState<Mount | null>(null);
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const [currentCat, setCurrentCat] = useState<SettingsCategory>('appearance');
-  const goTo = useCallback((cat: SettingsCategory) => {
-    const heading = document.getElementById(CATEGORY_HEADING[cat]);
-    if (heading === null) return;
-    heading.scrollIntoView({ block: 'start' });
-    heading.focus({ preventScroll: true });
-    setCurrentCat(cat);
-  }, []);
-  // The category whose heading was passed last is the one being read.
-  const trackScroll = useCallback(() => {
-    const body = bodyRef.current;
-    if (body === null) return;
-    setCurrentCat(currentCategory(body));
-  }, []);
-
   const loadMounts = useCallback(() => {
     client.mounts
       .list()
@@ -210,224 +222,252 @@ export function SettingsPage({
       </header>
       <div className="settings-layout">
         <SettingsNav
-          current={currentCat}
+          current={cat}
           tone={health === null ? null : service.tone}
+          aiTone={aiNavTone(ai)}
           onPick={goTo}
         />
-        <div className="set-body" ref={bodyRef} onScroll={trackScroll}>
-          <div className="settings">
-            <AppearanceSection />
+        <div className="set-body">
+          <div className={cat === 'ai' ? 'set-page set-page--wide' : 'set-page'}>
+            {cat === 'appearance' && <AppearanceSection />}
 
-            <section className="settings__sec" aria-labelledby="set-service">
-              <h2 id="set-service" className="settings__h" tabIndex={-1}>
-                {t('serviceSettings.serviceTitle')}
-              </h2>
-              <p className="settings__sub">{t('serviceSettings.serviceSub')}</p>
-              <div className="card">
-                <div className="ln">
-                  <div className="ln__main">
-                    <span className="ln__k">{t('serviceSettings.statusLabel')}</span>
-                    <span className="ln__v mono">{address}</span>
-                  </div>
-                  <span role="status">
-                    {health === null ? (
-                      <Chip>{t('serviceSettings.statusChecking')}</Chip>
-                    ) : up ? (
-                      <Chip tone="ok">{t('serviceSettings.statusRunning')}</Chip>
-                    ) : (
-                      <Chip tone="bad">{t('serviceSettings.statusDown')}</Chip>
-                    )}
-                  </span>
-                  <button type="button" className="btn btn--ghost btn--small" onClick={checkHealth}>
-                    <Icon name="refresh" size={14} />
-                    {t('common.recheck')}
-                  </button>
-                </div>
-                <div className="ln">
-                  <span className="ln__k ln__main">{t('serviceSettings.liveUpdates')}</span>
-                  <span role="status">
-                    {eventStatus === 'open' ? (
-                      <Chip tone="ok">{t('serviceSettings.liveConnected')}</Chip>
-                    ) : eventStatus === 'reconnecting' ? (
-                      <Chip tone="warn">{t('serviceSettings.liveReconnecting')}</Chip>
-                    ) : (
-                      <Chip>{t('serviceSettings.liveConnecting')}</Chip>
-                    )}
-                  </span>
-                </div>
-                <div className="ln">
-                  <div className="ln__main">
-                    <span className="ln__k">{t('serviceSettings.startAtLogin')}</span>
-                    <span className="ln__v faint">{t('serviceSettings.startAtLoginHint')}</span>
-                  </div>
-                </div>
-                <div className="ln">
-                  <div className="ln__main">
-                    <span className="ln__k">{t('serviceSettings.preventSleep')}</span>
-                    <span className="ln__v faint settings__wrap">
-                      {t('serviceSettings.preventSleepHint')}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {backups !== null && <BackupSection session={backups} userHome={userHome} />}
-
-            <AiSettingsSection key={dataEpoch} client={client} headingRef={aiHeading} />
-
-            <section className="settings__sec" aria-labelledby="set-folders">
-              <h2 id="set-folders" className="settings__h" tabIndex={-1}>
-                {t('serviceSettings.foldersTitle')}
-              </h2>
-              <div className="card">
-                <div className="ln">
-                  <div className="ln__main">
-                    <span className="ln__k">{t('serviceSettings.managedFolder')}</span>
-                    <span className="ln__v mono">{home ?? '—'}</span>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--small"
-                    disabled={home === null}
-                    onClick={() => {
-                      void window.creatorhub?.reveal({ kind: 'home' });
-                    }}
-                  >
-                    {t('common.revealInFinder')}
-                  </button>
-                </div>
-
-                {mountsFailed ? (
-                  <div className="ln">
-                    <span className="ln__main muted">{t('serviceSettings.mountsLoadFailed')}</span>
-                    <button type="button" className="btn btn--small" onClick={loadMounts}>
-                      {t('common.retry')}
+            {cat === 'service' && (
+              <section className="set-sec" aria-labelledby="set-service">
+                <header className="set-h">
+                  <h1 id="set-service" className="set-h__title" tabIndex={-1}>
+                    {t('serviceSettings.serviceTitle')}
+                  </h1>
+                  <div className="set-h__r">
+                    <button type="button" className="btn btn--small" onClick={checkHealth}>
+                      <Icon name="refresh" size={14} />
+                      {t('common.recheck')}
                     </button>
                   </div>
-                ) : mounts === null ? (
-                  <div className="ln" aria-busy="true">
-                    <span className="skel skel--line" style={{ width: '60%' }} />
+                </header>
+                <p className="set-fn">{t('serviceSettings.serviceSub')}</p>
+                <div className="card">
+                  <div className="ln">
+                    <div className="ln__main">
+                      <span className="ln__k">{t('serviceSettings.statusLabel')}</span>
+                      <span className="ln__v mono">{address}</span>
+                    </div>
+                    <span role="status">
+                      {health === null ? (
+                        <Chip>{t('serviceSettings.statusChecking')}</Chip>
+                      ) : up ? (
+                        <Chip tone="ok">{t('serviceSettings.statusRunning')}</Chip>
+                      ) : (
+                        <Chip tone="bad">{t('serviceSettings.statusDown')}</Chip>
+                      )}
+                    </span>
                   </div>
-                ) : (
-                  mounts.map((m) => (
-                    <div key={m.id} className={m.status === 'removed' ? 'ln ln--dim' : 'ln'}>
-                      <Icon name="folder" />
-                      <div className="ln__main">
-                        <span className="ln__k">{m.name}</span>
-                        <span className="ln__v mono" title={m.root_path}>
-                          {m.root_path}
-                        </span>
-                        <span className="ln__v faint">
-                          {t('serviceSettings.mountWorkCount', { count: m.work_count })}
-                          {m.last_scan_at !== null &&
-                            ` · ${t('serviceSettings.mountScannedAt', { when: formatWhen(m.last_scan_at) })}`}
-                        </span>
-                        {m.status === 'unavailable' && (
-                          <span className="ln__err" role="status">
-                            {t('serviceSettings.mountUnavailableHint')}
+                  <div className="ln">
+                    <span className="ln__k ln__main">{t('serviceSettings.liveUpdates')}</span>
+                    <span role="status">
+                      {eventStatus === 'open' ? (
+                        <Chip tone="ok">{t('serviceSettings.liveConnected')}</Chip>
+                      ) : eventStatus === 'reconnecting' ? (
+                        <Chip tone="warn">{t('serviceSettings.liveReconnecting')}</Chip>
+                      ) : (
+                        <Chip>{t('serviceSettings.liveConnecting')}</Chip>
+                      )}
+                    </span>
+                  </div>
+                  <div className="ln">
+                    <div className="ln__main">
+                      <span className="ln__k">{t('serviceSettings.startAtLogin')}</span>
+                      <span className="ln__v faint">{t('serviceSettings.startAtLoginHint')}</span>
+                    </div>
+                  </div>
+                  <div className="ln">
+                    <div className="ln__main">
+                      <span className="ln__k">{t('serviceSettings.preventSleep')}</span>
+                      <span className="ln__v faint settings__wrap">
+                        {t('serviceSettings.preventSleepHint')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {cat === 'backup' && backups !== null && (
+              <BackupSection session={backups} userHome={userHome} />
+            )}
+
+            {cat === 'ai' && <AiServicesPage store={aiStore} s={ai} headingRef={aiHeading} />}
+
+            {cat === 'folders' && (
+              <section className="set-sec" aria-labelledby="set-folders">
+                <header className="set-h">
+                  <h1 id="set-folders" className="set-h__title" tabIndex={-1}>
+                    {t('serviceSettings.foldersTitle')}
+                  </h1>
+                  <div className="set-h__r">
+                    <button
+                      type="button"
+                      className="btn btn--primary btn--small"
+                      disabled={adding}
+                      onClick={addMount}
+                    >
+                      <Icon name="plus" size={14} />
+                      {adding ? t('serviceSettings.mountAdding') : t('serviceSettings.mountAdd')}
+                    </button>
+                  </div>
+                </header>
+                <div className="card">
+                  <div className="ln">
+                    <div className="ln__main">
+                      <span className="ln__k">{t('serviceSettings.managedFolder')}</span>
+                      <span className="ln__v mono">{home ?? '—'}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--small"
+                      disabled={home === null}
+                      onClick={() => {
+                        void window.creatorhub?.reveal({ kind: 'home' });
+                      }}
+                    >
+                      {t('common.revealInFinder')}
+                    </button>
+                  </div>
+
+                  {mountsFailed ? (
+                    <div className="ln">
+                      <span className="ln__main muted">
+                        {t('serviceSettings.mountsLoadFailed')}
+                      </span>
+                      <button type="button" className="btn btn--small" onClick={loadMounts}>
+                        {t('common.retry')}
+                      </button>
+                    </div>
+                  ) : mounts === null ? (
+                    <div className="ln" aria-busy="true">
+                      <span className="skel skel--line" style={{ width: '60%' }} />
+                    </div>
+                  ) : (
+                    mounts.map((m) => (
+                      <div key={m.id} className={m.status === 'removed' ? 'ln ln--dim' : 'ln'}>
+                        <Icon name="folder" />
+                        <div className="ln__main">
+                          <span className="ln__k">{m.name}</span>
+                          <span className="ln__v mono" title={m.root_path}>
+                            {m.root_path}
                           </span>
-                        )}
-                        {rowError?.id === m.id && (
-                          <span className="ln__err" role="alert">
-                            {rowError.message}
+                          <span className="ln__v faint">
+                            {t('serviceSettings.mountWorkCount', { count: m.work_count })}
+                            {m.last_scan_at !== null &&
+                              ` · ${t('serviceSettings.mountScannedAt', { when: formatWhen(m.last_scan_at) })}`}
                           </span>
+                          {m.status === 'unavailable' && (
+                            <span className="ln__err" role="status">
+                              {t('serviceSettings.mountUnavailableHint')}
+                            </span>
+                          )}
+                          {rowError?.id === m.id && (
+                            <span className="ln__err" role="alert">
+                              {rowError.message}
+                            </span>
+                          )}
+                        </div>
+                        <Chip tone={MOUNT_STATUS[m.status].tone}>
+                          {MOUNT_STATUS[m.status].label}
+                        </Chip>
+                        {m.status === 'removed' ? (
+                          <button
+                            type="button"
+                            className="btn btn--ghost btn--small"
+                            disabled={adding}
+                            onClick={() => {
+                              mountPath(m.root_path);
+                            }}
+                          >
+                            {t('serviceSettings.mountRemount')}
+                          </button>
+                        ) : (
+                          <div className="ln__actions">
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--small"
+                              disabled={busyId === m.id}
+                              onClick={() => {
+                                rescan(m);
+                              }}
+                            >
+                              <Icon name="refresh" size={14} />
+                              {busyId === m.id
+                                ? t('serviceSettings.mountRescanQueued')
+                                : t('serviceSettings.mountRescan')}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--small"
+                              disabled={m.status === 'unavailable'}
+                              onClick={() => {
+                                void window.creatorhub?.reveal({ kind: 'mount', id: m.id });
+                              }}
+                            >
+                              {t('common.revealInFinder')}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--small"
+                              onClick={() => {
+                                setRemoving(m);
+                              }}
+                            >
+                              {t('serviceSettings.mountUnlink')}
+                            </button>
+                          </div>
                         )}
                       </div>
-                      <Chip tone={MOUNT_STATUS[m.status].tone}>{MOUNT_STATUS[m.status].label}</Chip>
-                      {m.status === 'removed' ? (
-                        <button
-                          type="button"
-                          className="btn btn--ghost btn--small"
-                          disabled={adding}
-                          onClick={() => {
-                            mountPath(m.root_path);
-                          }}
-                        >
-                          {t('serviceSettings.mountRemount')}
-                        </button>
-                      ) : (
-                        <div className="ln__actions">
-                          <button
-                            type="button"
-                            className="btn btn--ghost btn--small"
-                            disabled={busyId === m.id}
-                            onClick={() => {
-                              rescan(m);
-                            }}
-                          >
-                            <Icon name="refresh" size={14} />
-                            {busyId === m.id
-                              ? t('serviceSettings.mountRescanQueued')
-                              : t('serviceSettings.mountRescan')}
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn--ghost btn--small"
-                            disabled={m.status === 'unavailable'}
-                            onClick={() => {
-                              void window.creatorhub?.reveal({ kind: 'mount', id: m.id });
-                            }}
-                          >
-                            {t('common.revealInFinder')}
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn--ghost btn--small"
-                            onClick={() => {
-                              setRemoving(m);
-                            }}
-                          >
-                            {t('serviceSettings.mountUnlink')}
-                          </button>
-                        </div>
+                    ))
+                  )}
+
+                  <div className="ln">
+                    <div className="ln__main">
+                      <span className="ln__k">{t('serviceSettings.mountsTitle')}</span>
+                      <span className="ln__v faint">
+                        {live === 0
+                          ? t('serviceSettings.mountsEmptyHint')
+                          : t('serviceSettings.mountsCount', { count: live })}
+                      </span>
+                      {addError !== null && (
+                        <span className="ln__err" role="alert">
+                          {addError}
+                        </span>
                       )}
                     </div>
-                  ))
-                )}
-
-                <div className="ln">
-                  <div className="ln__main">
-                    <span className="ln__k">{t('serviceSettings.mountsTitle')}</span>
-                    <span className="ln__v faint">
-                      {live === 0
-                        ? t('serviceSettings.mountsEmptyHint')
-                        : t('serviceSettings.mountsCount', { count: live })}
-                    </span>
-                    {addError !== null && (
-                      <span className="ln__err" role="alert">
-                        {addError}
-                      </span>
-                    )}
                   </div>
-                  <button type="button" className="btn" disabled={adding} onClick={addMount}>
-                    <Icon name="plus" size={14} />
-                    {adding ? t('serviceSettings.mountAdding') : t('serviceSettings.mountAdd')}
-                  </button>
                 </div>
-              </div>
-            </section>
+              </section>
+            )}
 
-            <section className="settings__sec" aria-labelledby="set-about">
-              <h2 id="set-about" className="settings__h" tabIndex={-1}>
-                {t('serviceSettings.aboutTitle')}
-              </h2>
-              <div className="card">
-                <div className="ln">
-                  <span className="ln__k ln__main">App</span>
-                  <span className="ln__v mono">qiu-creator</span>
+            {cat === 'about' && (
+              <section className="set-sec" aria-labelledby="set-about">
+                <header className="set-h">
+                  <h1 id="set-about" className="set-h__title" tabIndex={-1}>
+                    {t('serviceSettings.aboutTitle')}
+                  </h1>
+                </header>
+                <div className="card">
+                  <div className="ln">
+                    <span className="ln__k ln__main">App</span>
+                    <span className="ln__v mono">qiu-creator</span>
+                  </div>
+                  <div className="ln">
+                    <span className="ln__k ln__main">{t('serviceSettings.serviceVersion')}</span>
+                    <span
+                      className="ln__v mono"
+                      title={up ? (health.commit ?? undefined) : undefined}
+                    >
+                      {up ? versionLabel(health, (iso) => formatStamp(iso)) : '—'}
+                    </span>
+                  </div>
                 </div>
-                <div className="ln">
-                  <span className="ln__k ln__main">{t('serviceSettings.serviceVersion')}</span>
-                  <span
-                    className="ln__v mono"
-                    title={up ? (health.commit ?? undefined) : undefined}
-                  >
-                    {up ? versionLabel(health, (iso) => formatStamp(iso)) : '—'}
-                  </span>
-                </div>
-              </div>
-            </section>
+              </section>
+            )}
           </div>
         </div>
       </div>

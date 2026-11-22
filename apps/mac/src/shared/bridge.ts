@@ -125,9 +125,15 @@ export interface CreatorHubBridge {
  * renderer closes the visible tab, or the window when no tab is showing.
  */
 export type TabCommand =
-  'close' | 'next' | 'previous' | `jump-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`;
+  | 'close'
+  | 'next'
+  | 'previous'
+  | `jump-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`
+  /** 設定… (⌘,) in the app menu (QC-057): opens 設定 on the page shown last. */
+  | 'settings';
 
 export const TAB_COMMANDS: readonly TabCommand[] = [
+  'settings',
   'close',
   'next',
   'previous',

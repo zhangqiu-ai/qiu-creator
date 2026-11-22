@@ -4,6 +4,7 @@ import { defineMessages } from '../define.js';
 export const main = defineMessages({
   'zh-Hant': {
     menuAbout: '關於 {app}',
+    menuSettings: '設定…',
     menuServices: '服務',
     menuHide: '隱藏 {app}',
     menuHideOthers: '隱藏其他',
@@ -51,6 +52,7 @@ export const main = defineMessages({
   },
   'zh-Hans': {
     menuAbout: '关于 {app}',
+    menuSettings: '设置…',
     menuServices: '服务',
     menuHide: '隐藏 {app}',
     menuHideOthers: '隐藏其他',
@@ -98,6 +100,7 @@ export const main = defineMessages({
   },
   en: {
     menuAbout: 'About {app}',
+    menuSettings: 'Settings…',
     menuServices: 'Services',
     menuHide: 'Hide {app}',
     menuHideOthers: 'Hide Others',
