@@ -12,6 +12,8 @@
 - 效能：只動 transform／opacity；大量卡片時的 layout 動畫上限；120 Hz ProMotion 與低電量模式下的表現。
 - 查 qiuge-design（`visual`、`feedback`、`navigation`、`data-display`），引用卡片。
 
+**步驟一已完成（2026-11-21）**：DESIGN.md「動效」一節由總監代核准（tokens 放 `packages/design-tokens` 純資料、reduced-motion 保留轉圈）。互動示範在共用筆記 `qc065-motion-demo.html`。
+
 **步驟二：基礎建設**
 - 依賴：`motion`（Framer Motion 的現行套件名，MIT）、`@dnd-kit/core`／`@dnd-kit/sortable`（MIT）；寫進 `docs/dependencies.md`（授權、版本、替代方案、體積）。只放在 `apps/mac` 的 renderer；`packages/*` 不依賴它們（共用套件不綁死）。
 - 共用動效元件與 hooks（例如 `<Presence>`、`<Reorder>`、`useReducedMotion` 封裝、tokens 常數），既有 CSS transition 統一改用 tokens。
