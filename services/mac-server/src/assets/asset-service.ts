@@ -16,7 +16,7 @@ import {
   type WorkAssetItem,
   type WorkAssetRole,
 } from '@qiu-creator/contracts';
-import { searchKey } from '@qiu-creator/domain/search';
+import { pinyinKey, searchKey } from '@qiu-creator/domain/search';
 import { sha256Hex, UnsafePathError } from '@qiu-creator/domain';
 import type { Db } from '../db/database.js';
 import { notFound, ServiceError } from '../errors.js';
@@ -356,10 +356,16 @@ export class AssetService {
     // QC-068: match names the way search folds text (search_fold, registered per connection).
     const key = q.q === undefined ? '' : searchKey(q.q);
     if (key !== '') {
+      // QC-079: names also match as pinyin (`jd` → 京都).
+      const py = q.q === undefined ? null : pinyinKey(q.q);
       where.push(
-        '(instr(search_fold(original_name), ?) > 0 OR instr(search_fold(display_name), ?) > 0)',
+        `(instr(search_fold(original_name), ?) > 0 OR instr(search_fold(display_name), ?) > 0${
+          py === null
+            ? ''
+            : ' OR search_pinyin(search_fold(original_name), ?) OR search_pinyin(search_fold(display_name), ?)'
+        })`,
       );
-      params.push(key, key);
+      params.push(key, key, ...(py === null ? [] : [py, py]));
     }
     const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
     const total = this.db

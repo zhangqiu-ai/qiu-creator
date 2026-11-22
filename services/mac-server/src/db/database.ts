@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { sha256Hex } from '@qiu-creator/domain';
-import { foldForSearch } from '@qiu-creator/domain/search';
+import { foldForSearch, matchesPinyinFolded } from '@qiu-creator/domain/search';
 import Database from 'better-sqlite3';
 import { migrations as defaultMigrations, type Migration } from './migrations.js';
 
@@ -23,12 +23,19 @@ export function openDatabase(
 
 /**
  * SQL functions the schema and queries rely on (QC-068): `search_fold(text)`
- * folds text the way search matches it (see `@qiu-creator/domain/search`).
+ * folds text the way search matches it (see `@qiu-creator/domain/search`);
+ * `search_pinyin(folded, key)` matches it as pinyin (QC-079).
  * Registered per connection; migrations need it, so `runMigrations` calls this.
  */
 export function registerSqlFunctions(db: Db): void {
   db.function('search_fold', { deterministic: true }, (value: unknown) =>
     typeof value === 'string' ? foldForSearch(value) : value,
+  );
+  // QC-079: 1 when folded text spells a pinyin key (from `pinyinKey`).
+  db.function('search_pinyin', { deterministic: true }, (folded: unknown, key: unknown) =>
+    typeof folded === 'string' && typeof key === 'string' && matchesPinyinFolded(folded, key)
+      ? 1
+      : 0,
   );
 }
 

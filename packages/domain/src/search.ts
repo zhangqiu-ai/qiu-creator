@@ -1,3 +1,4 @@
+import { pinyin } from 'pinyin-pro';
 import tsCharacters from '#opencc/ts-characters';
 
 /**
@@ -83,8 +84,34 @@ export interface MatchRange {
   end: number;
 }
 
-/** Every place `query` occurs in `text`, by the folding above, in order and not overlapping. */
-export function findMatches(text: string, query: string): MatchRange[] {
+/**
+ * Every place `query` occurs in `text`, in order and not overlapping: as
+ * folded text, and (QC-079) as pinyin of the characters, ranges always in
+ * the original text, so `cy` marks 「常用」.
+ */
+export function findMatches(
+  text: string,
+  query: string,
+  options: SearchOptions = {},
+): MatchRange[] {
+  const literal = literalMatches(text, query);
+  const key = pinyinKey(query, options.pinyinMinLength);
+  if (key === null) return literal;
+  return mergeRanges([...literal, ...pinyinRanges(text, key)]);
+}
+
+function mergeRanges(ranges: MatchRange[]): MatchRange[] {
+  const sorted = [...ranges].sort((a, b) => a.start - b.start || b.end - a.end);
+  const out: MatchRange[] = [];
+  for (const r of sorted) {
+    const last = out[out.length - 1];
+    if (last !== undefined && r.start < last.end) last.end = Math.max(last.end, r.end);
+    else out.push({ ...r });
+  }
+  return out;
+}
+
+function literalMatches(text: string, query: string): MatchRange[] {
   const key = searchKey(query);
   if (key === '' || text === '') return [];
   const folded = foldWithMap(text);
@@ -101,10 +128,13 @@ export function findMatches(text: string, query: string): MatchRange[] {
   return out;
 }
 
-/** Whether `query` occurs in `text`, by the folding above. */
-export function matchesSearch(text: string, query: string): boolean {
+/** Whether `query` occurs in `text`, as folded text or as pinyin (QC-079). */
+export function matchesSearch(text: string, query: string, options: SearchOptions = {}): boolean {
   const key = searchKey(query);
-  return key !== '' && foldForSearch(text).includes(key);
+  if (key === '') return false;
+  if (foldForSearch(text).includes(key)) return true;
+  const py = pinyinKey(query, options.pinyinMinLength);
+  return py !== null && matchesPinyinFolded(foldForSearch(text), py);
 }
 
 /**
@@ -112,8 +142,13 @@ export function matchesSearch(text: string, query: string): boolean {
  * `…` where it was cut, for a card whose title does not show the hit. Null
  * when the query does not occur.
  */
-export function matchExcerpt(text: string, query: string, max: number): string | null {
-  const first = findMatches(text, query)[0];
+export function matchExcerpt(
+  text: string,
+  query: string,
+  max: number,
+  options: SearchOptions = {},
+): string | null {
+  const first = findMatches(text, query, options)[0];
   if (first === undefined) return null;
   const chars = Array.from(text);
   // Positions in code points, so a cut never splits a surrogate pair.
@@ -177,4 +212,164 @@ export function detectLanguage(text: string): DetectedLanguage | null {
   if (traditional > simplified) return 'zh-Hant';
   if (simplified > traditional) return 'zh-Hans';
   return null;
+}
+
+// ---- Pinyin (QC-079) ------------------------------------------------------------------
+
+/**
+ * The query as pinyin, or null when it is not one: letters only (spaces and
+ * apostrophes dropped, case and width folded), at least 2 of them. `ü` is
+ * typed `v` (or `u`).
+ */
+export function pinyinKey(query: string, minLength = PINYIN_MIN_LENGTH): string | null {
+  const key = searchKey(query).replace(/[\s'’]/g, '');
+  return /^[a-z]+$/.test(key) && key.length >= minLength ? key : null;
+}
+
+/** Shortest pinyin query for titles, tags and asset names. */
+export const PINYIN_MIN_LENGTH = 2;
+/**
+ * Shortest pinyin query for long text (work bodies, their excerpts): two
+ * initials such as `cy` occur somewhere in almost any article, so the body
+ * needs at least four letters (`qtlx` 秋天旅行, `jingdu` 京都).
+ */
+export const PINYIN_LONG_TEXT_MIN_LENGTH = 4;
+
+export interface SearchOptions {
+  /** Shortest query matched as pinyin; default `PINYIN_MIN_LENGTH`. */
+  pinyinMinLength?: number;
+}
+
+const readingCache = new Map<string, readonly string[] | null>();
+
+/**
+ * Every reading of one folded (Simplified, lower-case) character, without
+ * tones, `ü` as `v` and `u`; null when it is not a Han character.
+ */
+function readings(c: string): readonly string[] | null {
+  const cached = readingCache.get(c);
+  if (cached !== undefined) return cached;
+  let out: string[] | null = null;
+  if (/^\p{Script=Han}$/u.test(c)) {
+    const raw = pinyin(c, { toneType: 'none', type: 'array', multiple: true });
+    const set = new Set<string>();
+    for (const r of raw) {
+      const plain = r.toLowerCase();
+      if (!/^[a-zü]+$/.test(plain)) continue;
+      set.add(plain.replaceAll('ü', 'v'));
+      set.add(plain.replaceAll('ü', 'u'));
+    }
+    out = set.size === 0 ? null : [...set];
+  }
+  readingCache.set(c, out);
+  return out;
+}
+
+/** What one reading may be typed as: the whole syllable, its initial (zh/ch/sh too). */
+function spellings(reading: string): string[] {
+  const out = [reading];
+  const two = reading.slice(0, 2);
+  if (two === 'zh' || two === 'ch' || two === 'sh') out.push(two);
+  out.push(reading.charAt(0));
+  return out;
+}
+
+/**
+ * Where `key` (from `pinyinKey`) is spelt by consecutive characters of a
+ * folded sequence: each Han character by any reading, its initial, or (the
+ * last one) the start of a reading; other characters as themselves. Returns
+ * the index after the last character used, or -1.
+ */
+function matchAt(chars: readonly string[], start: number, key: string): number {
+  const failed = new Set<number>();
+  const step = (idx: number, pos: number): number => {
+    if (pos === key.length) return idx;
+    if (idx >= chars.length) return -1;
+    const memo = idx * (key.length + 1) + pos;
+    if (failed.has(memo)) return -1;
+    const c = chars[idx] ?? '';
+    const rs = readings(c);
+    if (rs === null) {
+      if (c !== '' && key.startsWith(c, pos)) {
+        const end = step(idx + 1, pos + c.length);
+        if (end !== -1) return end;
+      }
+    } else {
+      const rest = key.slice(pos);
+      for (const r of rs) {
+        for (const s of spellings(r)) {
+          if (key.startsWith(s, pos)) {
+            const end = step(idx + 1, pos + s.length);
+            if (end !== -1) return end;
+          }
+        }
+        // The last syllable may be only partly typed (`changyo`).
+        if (r.startsWith(rest)) return idx + 1;
+      }
+    }
+    failed.add(memo);
+    return -1;
+  };
+  return step(start, 0);
+}
+
+const startMasks = new Map<string, number>();
+
+/** Bit per letter a–z that some reading of a Han character starts with; 0 for others. */
+function startMask(c: string): number {
+  const cached = startMasks.get(c);
+  if (cached !== undefined) return cached;
+  let mask = 0;
+  for (const r of readings(c) ?? []) mask |= 1 << (r.charCodeAt(0) - 97);
+  startMasks.set(c, mask);
+  return mask;
+}
+
+/** Whether a quick look at one character says a match could start there. */
+function canStart(c: string, first: string): boolean {
+  const mask = startMask(c);
+  if (mask === 0) return c.startsWith(first);
+  return (mask & (1 << (first.charCodeAt(0) - 97))) !== 0;
+}
+
+/** Pinyin match over text that is already folded (`foldForSearch`), as the index stores it. */
+export function matchesPinyinFolded(folded: string, key: string): boolean {
+  const first = key.charAt(0);
+  // Cheap pass first: most texts have no character a match could start at.
+  let chars: string[] | null = null;
+  let i = 0;
+  for (const c of folded) {
+    if (canStart(c, first)) {
+      chars ??= Array.from(folded);
+      if (matchAt(chars, i, key) !== -1) return true;
+    }
+    i += 1;
+  }
+  return false;
+}
+
+/** Pinyin matches of `key` in `text`, as ranges of the original text. */
+function pinyinRanges(text: string, key: string): MatchRange[] {
+  // One folded unit per original character, with where it came from.
+  const chars: string[] = [];
+  const from: number[] = [];
+  const to: number[] = [];
+  let i = 0;
+  for (const c of text) {
+    const f = foldChar(c);
+    chars.push(Array.from(f)[0] ?? f);
+    from.push(i);
+    to.push(i + c.length);
+    i += c.length;
+  }
+  const out: MatchRange[] = [];
+  const first = key.charAt(0);
+  for (let k = 0; k < chars.length; k += 1) {
+    if (!canStart(chars[k] ?? '', first)) continue;
+    const end = matchAt(chars, k, key);
+    if (end === -1) continue;
+    out.push({ start: from[k] ?? 0, end: to[end - 1] ?? text.length });
+    k = end - 1;
+  }
+  return out;
 }

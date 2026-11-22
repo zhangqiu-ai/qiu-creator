@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "opencc-js": "^1.4.2",
+    "pinyin-pro": "^3.29.5",
     "yaml": "^2.9.1"
   }
 }
