@@ -1,5 +1,11 @@
 # Backlog
 
+## QC-053: 已刪除作品在其他地方的殘留
+
+**Priority:** P3 | **Assignee:** qc-backend | **Tags:** M3, backend
+
+QC-051 回報的範圍外問題：素材的 asset_in_use／references 仍列出已刪除作品；agent-sdk CLI 沒有刪除與批量指令；已刪除作品仍可被 URL 匯入當 link_work_id。
+
 ## QC-050: 視頻作品小修：用語與封面建議
 
 **Priority:** P3 | **Assignee:** qc-frontend | **Tags:** M3, frontend

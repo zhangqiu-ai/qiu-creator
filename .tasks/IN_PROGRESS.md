@@ -1,23 +1,3 @@
-## QC-051: 作品刪除進「最近刪除」、可還原，支援批量操作
-
-**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend
-
-使用者 2026-11-21 授權：QC-051／052 完成驗收後直接發版安裝（「做完直接發版安裝」）。使用者 2026-11-21 要求作品庫支援右鍵刪除和多選批量編輯（配合 QC-052）。目前沒有刪除作品的 API。
-- 刪除＝移入「最近刪除」，保留 `ASSET_TRASH_RETENTION_DAYS`（30 天）後才自動永久刪除；期間可還原，還原後 revision 與歷史不變。比照素材庫的 trash 做法（QC-037），列表加 `scope=trash`。
-- 受管作品：資料夾留在原地或移到 CreatorHub 內的回收區，不能直接 `rm`；外部掛載作品：只取消索引，不動原檔（要移到 macOS 垃圾桶必須是使用者明確勾選，比照素材）。
-- 批量端點：一次對多個作品做「刪除／還原／改狀態／加減標籤」，每項帶 `base_revision`；部分失敗要逐項回報（409、找不到），不能整批靜默覆蓋。帶冪等鍵。
-- 發出變更事件（`work.trashed`、`work.restored` 等），contracts、api-client 同步更新；scopes 加權限。
-- 改名沿用 `PATCH /works/:id` 的 title；確認貼圖、視頻（front matter）和文章（H1／檔名）改名都正確，不必新端點。
-- 不做不可逆遷移；若要加 migration（例如 `deleted_at`），要可回滾並寫進 docs/architecture.md。
-
-### Plan（qc-backend，2026-11-21）
-- migration `0016_work_trash`：`works` 加 `deleted_at`、`removal`（同素材三種）與部分索引；新表 `work_exclusions`（永久刪除的外部作品路徑，重新掃描不再收回）。只加欄位與表；回滾 SQL 寫進 architecture.md 並有測試。
-- `WorkTrash`（比照 `AssetLibrary`）：刪除、還原（revision 不變）、永久刪除、清空、每小時清 30 天前的。託管作品資料夾留原地，永久刪除時才刪；資料夾內被素材庫引用的檔案先搬到 `library/assets/<id>/`。外部預設只取消索引，`move_original_to_trash` 僅 owner，經可注入的 `SystemTrash`。
-- 已刪除作品：GET 可讀；PATCH 與 `/works/:id/*` 的寫入回 409 `work_in_trash`；列表 `scope=active|trash`，`ids=` 遵守 scope。
-- `POST /works/batch`：trash／restore／set_status／add_tags／remove_tags，每項帶 `base_revision`、逐項回報、Idempotency-Key（新增 async 版冪等）。
-- 事件 `work.trashed`／`work.restored`／`work.deleted`；contracts、api-client；scopes：刪除、還原、批量為 `write`，永久刪除與清空只限 owner。
-- 改名：補測試確認貼圖／視頻寫 front matter title、文章（託管與外部）只改作品標題不動原文。
-
 ## QC-052: 作品庫：原地改名、右鍵選單、多選批量、卡片縮小
 
 **Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend

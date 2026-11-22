@@ -1,5 +1,12 @@
 # Done
 
+## QC-051: 作品刪除進「最近刪除」、可還原，支援批量操作
+
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend | **Done:** 2026-11-21
+
+- migration 0016_work_trash（加欄位與 work_exclusions 表，回滾 SQL 有測試）。DELETE /works/:id 需 base_revision；POST /works/:id/restore；永久刪除 DELETE /trash/works(/:id)（需 confirm，owner），每小時清超過 30 天者；POST /works/batch（trash／restore／set_status／標籤，逐項回報，冪等鍵）；列表 scope=active|trash；刪除中作品寫入回 409 work_in_trash；事件 work.trashed／restored／deleted。改名沿用 PATCH title（貼圖／視頻寫 front matter，文章只改標題）。
+- 外部作品永久刪除記入 work_exclusions 不再收回；託管作品永久刪除前先把被素材庫引用的檔案搬到 library/assets。全倉 905／0／905、e2e 18／18。證據 `docs/evidence/qc051-works-trash.md`。範圍外三項開為 QC-053。
+
 ## QC-046: 視頻作品創作
 
 **Priority:** P1 | **Assignee:** qc-backend + qc-frontend | **Tags:** M3, backend, frontend | **Done:** 2026-11-21
