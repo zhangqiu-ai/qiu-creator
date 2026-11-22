@@ -39,9 +39,9 @@ export const errors = defineMessages({
     attach_external_unsupported: '外部掛載的作品不能插入素材庫的圖片',
     front_matter_invalid: '作品檔案開頭的 front matter 格式有誤，請先在檔案裡修正',
     work_in_trash: '這個作品在最近刪除，請先恢復再編輯',
-    ai_key_invalid: '中轉站拒絕了這組 API 金鑰，請檢查金鑰是否正確或有權限',
-    ai_gateway_unreachable: '連不上中轉站，請檢查 Base URL 與網路',
-    ai_gateway_bad_response: '中轉站的回應不是模型清單，請檢查 Base URL',
+    ai_key_invalid: 'AI 服務拒絕了這組 API 金鑰，請檢查金鑰是否正確或有權限',
+    ai_gateway_unreachable: '連不上 AI 服務，請檢查網路（New API 另請檢查 Base URL）',
+    ai_gateway_bad_response: 'AI 服務的回應不是模型清單（New API 請檢查 Base URL）',
   },
   'zh-Hans': {
     unauthorized: '令牌无效，无法访问本机服务',
@@ -76,9 +76,9 @@ export const errors = defineMessages({
     attach_external_unsupported: '外部挂载的作品不能插入素材库中的图片',
     front_matter_invalid: '作品文件开头的 front matter 格式有误，请先在文件里修正',
     work_in_trash: '这个作品在最近删除中，请先恢复再编辑',
-    ai_key_invalid: '中转站拒绝了这个 API 密钥，请检查密钥是否正确或有权限',
-    ai_gateway_unreachable: '连不上中转站，请检查 Base URL 与网络',
-    ai_gateway_bad_response: '中转站的响应不是模型列表，请检查 Base URL',
+    ai_key_invalid: 'AI 服务拒绝了这个 API 密钥，请检查密钥是否正确或有权限',
+    ai_gateway_unreachable: '连不上 AI 服务，请检查网络（New API 另请检查 Base URL）',
+    ai_gateway_bad_response: 'AI 服务的响应不是模型列表（New API 请检查 Base URL）',
   },
   en: {
     unauthorized: 'The access token is invalid, so the local service can’t be reached',
@@ -115,8 +115,10 @@ export const errors = defineMessages({
       'The front matter at the top of this work’s file isn’t valid. Fix it in the file first.',
     work_in_trash: 'This work is in Recently Deleted. Restore it before editing.',
     ai_key_invalid:
-      'The relay rejected this API key. Check that the key is correct and has access.',
-    ai_gateway_unreachable: 'Couldn’t reach the relay. Check the Base URL and your network.',
-    ai_gateway_bad_response: 'The relay didn’t return a model list. Check the Base URL.',
+      'The AI service rejected this API key. Check that the key is correct and has access.',
+    ai_gateway_unreachable:
+      'Couldn’t reach the AI service. Check your network (and the Base URL for New API).',
+    ai_gateway_bad_response:
+      'The AI service didn’t return a model list. For New API, check the Base URL.',
   },
 });

@@ -52,10 +52,41 @@ export const AiGatewayUnreachableReasonSchema = z.enum([
   'dns',
   'tls',
   'connection',
-  /** 429 or 5xx from the relay; `details.status`. */
+  /** 429 (rate limited) or 5xx; `details.status`. */
   'unavailable',
+  /** 402, or 429 whose error says quota, billing or balance; `details.status` (QC-057). */
+  'quota',
 ]);
 export type AiGatewayUnreachableReason = z.infer<typeof AiGatewayUnreachableReasonSchema>;
+
+/**
+ * `POST /api/v1/ai/providers/:provider/test` (QC-057): one model-list GET
+ * with the stored key, sent only when the user presses 測試連線. It sends no
+ * content and costs nothing, so no consent is needed.
+ */
+export const AiProviderTestResponseSchema = z.object({
+  provider: AiProviderSchema,
+  ok: z.boolean(),
+  /** Time to the full answer (or the failure), in milliseconds. */
+  latency_ms: z.number().int().nonnegative(),
+  /** Models the key can use; null when the test failed. */
+  model_count: z.number().int().nonnegative().nullable(),
+  /**
+   * Whether the configured text model is in that list; null when the test
+   * failed. False is a hint, not an error: some relays list fewer models than they serve.
+   */
+  text_model_listed: z.boolean().nullable(),
+  /** Same shape as an error response's `error`: `ai_key_invalid`, `ai_gateway_unreachable`, `ai_gateway_bad_response`. */
+  error: z
+    .object({
+      code: z.enum(['ai_key_invalid', 'ai_gateway_unreachable', 'ai_gateway_bad_response']),
+      message: z.string(),
+      details: z.record(z.string(), z.unknown()).optional(),
+    })
+    .nullable(),
+  tested_at: TimestampSchema,
+});
+export type AiProviderTestResponse = z.infer<typeof AiProviderTestResponseSchema>;
 
 /** Why the relay's answer was not a model list (`ai_gateway_bad_response`, `details.reason`). */
 export const AiGatewayBadResponseReasonSchema = z.enum([

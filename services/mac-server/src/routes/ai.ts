@@ -6,6 +6,7 @@ import {
   AiProviderModelsQuerySchema,
   AiProviderModelsResponseSchema,
   AiProviderParamsSchema,
+  AiProviderTestResponseSchema,
   AiProviderStatusSchema,
   AiSettingsSchema,
   AiUsageQuerySchema,
@@ -66,6 +67,19 @@ export function registerAiRoutes(app: App, ai: AiService, idempotency: Idempoten
       },
     },
     (req) => ai.listModels(req.params.provider, req.query.refresh === '1'),
+  );
+
+  app.post(
+    '/api/v1/ai/providers/:provider/test',
+    {
+      schema: {
+        description:
+          '測試連線 (QC-057): one free, content-free model-list request to the provider with the stored key (New API: `GET {base_url}/models`; also refreshes the model list cache). Send it only when the user asks. 200 with `ok`, `latency_ms`, `model_count`, `text_model_listed`; a failed probe is still 200 with `ok: false` and `error` (`ai_key_invalid`, `ai_gateway_unreachable` incl. `reason: quota`, `ai_gateway_bad_response`). 409 `ai_key_missing` without a key. The key never leaves the Mac.',
+        params: AiProviderParamsSchema,
+        response: { 200: AiProviderTestResponseSchema, ...conflict },
+      },
+    },
+    (req) => ai.testProvider(req.params.provider),
   );
 
   app.patch(

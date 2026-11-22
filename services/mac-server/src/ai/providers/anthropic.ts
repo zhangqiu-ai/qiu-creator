@@ -7,6 +7,7 @@ import {
   type AiTextRequest,
   type AiTextResult,
 } from '../provider.js';
+import { fetchModelList } from './relay-models.js';
 
 /**
  * Models that accept server-side refusal fallbacks (`fallbacks: "default"`,
@@ -33,6 +34,18 @@ export class AnthropicProvider implements AIProvider {
   readonly id = 'anthropic' as const;
 
   constructor(private readonly options: AdapterOptions) {}
+
+  /** `GET /v1/models` (QC-057 connection test); free, sends no content. */
+  listModels(apiKey: string): Promise<string[]> {
+    const origin = (this.options.baseUrl ?? 'https://api.anthropic.com').replace(/\/+$/, '');
+    return fetchModelList({
+      url: `${origin}/v1/models?limit=1000`,
+      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      timeoutMs: this.options.timeoutMs,
+      listKey: 'data',
+      idKey: 'id',
+    });
+  }
 
   async generateText(req: AiTextRequest, apiKey: string): Promise<AiTextResult> {
     const client = new Anthropic({
