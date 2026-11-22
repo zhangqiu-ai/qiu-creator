@@ -18,6 +18,8 @@
   5. 隱私：「僅本地模型」開關與說明。
 - 狀態：空狀態（都沒設定）、測試中、測試成功、金鑰無效、連不上、額度不足。三語文案長度都要放得下。
 
+**後端已合併（2026-11-21，6b54beb）**：`POST /api/v1/ai/providers/:provider/test`（owner），四家都探測免費的列模型端點；回 `{ok, latency_ms, model_count, text_model_listed, error, tested_at}`，失敗也 200＋ok:false；新增 reason `quota`（402 或提到額度的 429）；不保存上次結果；api-client `ai.testProvider()`。
+
 **步驟二：實作（核准後）**
 - 後端：`POST /api/v1/ai/providers/:provider/test`（owner），用 Keychain 金鑰在 Mac 端做**不產生內容費用**的探測（優先列模型清單端點；New API 用 `/models`），回傳 ok、延遲、模型數、錯誤碼；金鑰不出 Mac、不進日誌；假服務測試。測試連線只在使用者按下時發出。
 - 前端：照核准原型重做設定頁與 AI 服務；QC-054 的模型下拉元件沿用。e2e、三語截圖。
