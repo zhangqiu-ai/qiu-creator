@@ -1,3 +1,12 @@
+## QC-066: 根目錄 lint 在 e2e 有 30 個錯誤
+
+**Priority:** P1 | **Assignee:** qc-test | **Tags:** M3
+
+2026-11-21 總監在 main（3c4c95e 之後）跑 `pnpm exec eslint e2e`：30 個 `no-unsafe-*` 錯誤，集中在 `e2e/specs/ai-workbench.spec.ts`、`library-actions.spec.ts`、`settings-v4.spec.ts`（`page.evaluate` 內 DOM 型別「cannot be resolved」）。前端回報「main 上原有」，代表有合併帶進了未通過 lint 的 e2e，閘門被漏掉。
+- 查清是哪幾次合併帶入、為何子會話回報 lint 通過（是否只跑 `pnpm -r lint` 而沒跑根目錄 eslint 涵蓋 e2e）。
+- 修正型別（e2e tsconfig 的 DOM lib、或在 evaluate 內正確標註），不准 eslint-disable、不放寬規則。
+- 把「根目錄 `eslint .`（含 e2e）」寫進共用規則的交付閘門。
+
 ## QC-065: 全面引入動效設計（Motion／Framer Motion、dnd-kit）
 
 **Priority:** P1 | **Assignee:** qc-frontend（主）＋ qc-prototype（動效規格） | **Tags:** M3, frontend, prototype
@@ -29,30 +38,6 @@
 
 - 時序：與 QC-061、QC-062 同區域；先做步驟一、二與 1、2 區，作品庫與項目區等 QC-061／QC-062 合併後再做，避免衝突。
 - 驗收：每區附前後對照錄影（GIF 或 mp4）、reduced-motion 截圖；e2e 背景模式（QC-064 後），測試要能關閉動畫（測試模式直接用 reduced motion）以免時序不穩。
-
-## QC-062: 作品庫加「項目」分類
-
-**Priority:** P1 | **Assignee:** qc-prototype（原型）→ qc-backend ＋ qc-frontend | **Tags:** M3, prototype, backend, frontend
-
-使用者 2026-11-21 授權發版；後改為 QC-061、QC-062、QC-063、QC-065 合在**同一個版本**發（「三項發在一個版本中」），全部驗收合併後才安裝。
-使用者 2026-11-21：「作品庫目前是全部內容堆積到一個頁面中，我希望能增加項目分類，這樣能根據項目來管理各種內容！」決策見 `docs/decisions.md`：作品可屬多個項目；先只分作品，素材共用但項目內可看用到的素材；原型由總監代核准。
-
-**步驟一：原型（qc-prototype，新 PT）**
-- 項目在哪裡：建議側欄「作品庫」下方列出項目（可收合、可拖曳排序），點項目後作品庫只顯示該項目；另有「全部作品」「未分類」。項目可有名稱、顏色或圖示、描述（可選）。
-- 項目管理：新建、改名（原地雙擊，沿用 QC-052）、改顏色、排序、封存、刪除（刪除項目不刪作品，確認框說清楚）。
-- 作品與項目：新建作品時預設進目前所在的項目；卡片右鍵「加入項目／移出項目」（多選子選單，可勾多個）；多選批量加入／移出（沿用 QC-052 批量列）；拖曳卡片到側欄項目即加入。卡片上顯示所屬項目（小色點或標籤，多個時摺疊）。編輯頁頂部可看、可改所屬項目。
-- 項目頁：作品格狀／列表（沿用 QC-052、QC-061 縮圖卡）、篩選（類型、狀態）沿用；項目概覽（作品數、各狀態數、最近更新）；「這個項目用到的素材」入口（跳到素材庫並篩選）。
-- 與「最近刪除」：刪除的作品不計入項目；還原後回到原本的項目。
-- 空狀態：沒有項目、項目內沒有作品。三語文案長度；淺／深色。
-- 查 qiuge-design（`navigation`、`data-display`、`content-editing`、`empty-states`），引用卡片。
-
-**原型已核准（2026-11-21）**：PT-20261121-003 由總監代核准（依帳本，畫布未上傳），openQuestions 全採建議。
-
-**後端已合併（2026-11-21，21c8158）**：migration 0017_projects（projects、work_projects，change_log 允許 entity project，回滾有測試）；項目 CRUD／排序／封存／軟刪除 30 天清除；作品 `project_ids`、`project_id`／`unassigned` 篩選；`POST /works/batch/projects`；`GET /assets?project_id=`；事件；CLI。全倉 1016／0／1016；e2e NOT_VERIFIED（QC-064 暫停中）。剩前端。
-
-**步驟二：實作（核准後）**
-- 後端：projects 表與 work_projects 多對多（可回滾 migration），CRUD、排序、封存；作品列表 `project_id`／`unassigned` 篩選；批量加入／移出；變更事件；contracts、api-client、agent-sdk CLI；不搬動作品檔案。
-- 前端：照原型。與 QC-061（卡片縮圖）同一區域，等 QC-061 合併後再動卡片。
 
 ## QC-033: Mac 生產可用實機驗收
 

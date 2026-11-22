@@ -1,5 +1,12 @@
 # Done
 
+## QC-062: 作品庫加「項目」分類
+
+**Priority:** P1 | **Assignee:** qc-prototype → qc-backend ＋ qc-frontend | **Tags:** M3, prototype, backend, frontend | **Done:** 2026-11-21
+
+- 原型 PT-20261121-003（總監代核准）。後端：migration 0017_projects、項目 CRUD／排序／封存／軟刪除、作品多對多、批量加入移出、項目用到的素材、事件、CLI。前端：側欄項目（dnd-kit 排序、拖卡片加入、鍵盤排序自實作＋三語播報）、卡片色點、右鍵與批量「項目 ▸」、項目頁概覽、編輯頁所屬項目、素材庫篩選；design-tokens 加動效 tokens 與 CSS 變數；測試模式 `data-motion="off"`。全倉單元全過、e2e 28／28。
+- 接受的偏差：鍵盤排序不用 dnd-kit KeyboardSensor；作品卡片拖放僅滑鼠（鍵盤走選單）；側欄首項仍叫「作品庫」。待補：收合 56 px 圖示列在項目很多時不能捲動、深色／英文／簡中截圖、動效錄影（併入 QC-065 交付）。
+
 ## QC-061: 作品庫卡片顯示真正的縮略圖
 
 **Priority:** P1 | **Assignee:** qc-frontend ＋ qc-backend | **Tags:** M3, frontend, backend | **Done:** 2026-11-21
