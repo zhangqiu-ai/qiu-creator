@@ -1,5 +1,11 @@
 # Done
 
+## QC-079: 搜尋支援拼音（pinyin-pro）；關鍵字高亮改為醒目的黃色
+
+**Priority:** P1 | **Assignee:** qc-backend ＋ qc-frontend | **Tags:** M3, backend, frontend | **Done:** 2026-11-22
+
+- 後端 baabced：pinyin-pro 全拼／首字母／混用／多音字／繁體，命中範圍對回中文字，查詢時比對（大量時變慢另開 QC-080）。前端 52034d1：token hit／onHit（淺 #FFE03D／#1C1B19，深 #F2C94C／#161615），拼音命中標在中文字上，各處共用。單元 1153／0；e2e 一般 48／0、動效 49／0。合併時 DESIGN.md 與 QC-078 衝突，總監保留 QC-079 文字並改用「回收站」。
+
 ## QC-078: 「最近刪除」改名為「回收站」
 
 **Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M3, frontend | **Done:** 2026-11-22
