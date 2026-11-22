@@ -1,5 +1,11 @@
 # Done
 
+## QC-061: 作品庫卡片顯示真正的縮略圖
+
+**Priority:** P1 | **Assignee:** qc-frontend ＋ qc-backend | **Tags:** M3, frontend, backend | **Done:** 2026-11-21
+
+- 後端：列表帶簽名 `card_image.url` 與 `excerpt`；`/works/:id/thumbnail` 有 ffmpeg 用 ffmpeg，沒有則 App 截幀 `PUT thumbnail-frame`（2 MiB、sharp 驗證、version 防舊幀）；縮圖只在 cache。前端：視頻封面幀＋時長徽章、貼圖封面＋張數、文章首圖或文字預覽、缺檔圖示＋徽章。打包版（qc-release 以 30ae100 打 `--mac dir`）背景模式 e2e 1／1 與截圖通過。證據 `docs/evidence/qc061-*`。與 QC-062、063、065 同一版發。
+
 ## QC-064: e2e 視窗完全不出現在螢幕上（QC-060 不足）
 
 **Priority:** P0 | **Assignee:** qc-test | **Tags:** M3 | **Done:** 2026-11-21
