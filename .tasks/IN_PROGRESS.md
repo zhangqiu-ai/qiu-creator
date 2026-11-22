@@ -1,7 +1,20 @@
+## QC-063: 側欄收合按鈕併入 Logo（hover 切換）
+
+**Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M3, frontend
+
+使用者 2026-11-21（截圖箭頭指向側欄頂部的 Logo 與右側收合按鈕）：「這個側邊欄控制按鈕可以簡化設計，比如放到LOGO上，使用鼠標HOVER來控制切換。」
+- 移除 Logo 列右側獨立的收合按鈕。滑鼠移到 Logo 上時，Logo 圖示換成「收合／展開側欄」圖示（帶 tooltip 與快捷鍵提示），點擊切換；移開恢復 Logo。參考 ChatGPT、Claude 桌面版的做法（查 qiuge-design `navigation`）。
+- 收合狀態下同一位置仍可 hover 展開；鍵盤可聚焦（focus-visible 時同樣顯示切換圖示）、VoiceOver 名稱為「收合側欄／展開側欄」；保留既有快捷鍵與選單項，沒有就加 ⌘⌥S 或依 macOS 慣例並說明。
+- 服務狀態綠點保留在原位。三語 tooltip；淺／深色；動畫克制。
+- 與 QC-062（側欄加項目）同區域：先做這張、改動只限 Logo 列，盡快合併。
+- 補 e2e（背景模式）：hover 顯示切換、點擊收合與展開、鍵盤操作。附截圖。
+- 屬既有元件的小改，不另開原型。使用者授權做完與 QC-061 一起發版（若 QC-061 先好就先發，這張下次跟上）。
+
 ## QC-062: 作品庫加「項目」分類
 
 **Priority:** P1 | **Assignee:** qc-prototype（原型）→ qc-backend ＋ qc-frontend | **Tags:** M3, prototype, backend, frontend
 
+使用者 2026-11-21 授權：完成驗收後直接發版安裝（「做完直接發版」）。
 使用者 2026-11-21：「作品庫目前是全部內容堆積到一個頁面中，我希望能增加項目分類，這樣能根據項目來管理各種內容！」決策見 `docs/decisions.md`：作品可屬多個項目；先只分作品，素材共用但項目內可看用到的素材；原型由總監代核准。
 
 **步驟一：原型（qc-prototype，新 PT）**
