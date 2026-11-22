@@ -250,11 +250,22 @@ export class ProjectService {
          WHERE deleted_at IS NULL AND id IN (${PROJECT_ASSETS_SQL})`,
       )
       .get(id, id);
+    // QC-067: works that become 未分類 when this project is deleted.
+    const sole = this.db
+      .prepare<[string], { n: number }>(
+        `SELECT count(*) AS n FROM work_projects wp JOIN works w ON w.id = wp.work_id
+         WHERE wp.project_id = ? AND w.deleted_at IS NULL
+           AND NOT EXISTS (SELECT 1 FROM work_projects o JOIN projects p ON p.id = o.project_id
+                           WHERE o.work_id = w.id AND o.project_id <> wp.project_id
+                             AND p.deleted_at IS NULL)`,
+      )
+      .get(id);
     return {
       project: toProject(row),
       by_status: byStatus,
       last_updated_at: last?.at ?? null,
       asset_count: assets?.n ?? 0,
+      sole_count: sole?.n ?? 0,
     };
   }
 

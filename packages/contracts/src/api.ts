@@ -249,6 +249,13 @@ export const ListWorksQuerySchema = z.object({
   unassigned: z.enum(['0', '1']).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
+  /**
+   * Keyset paging (QC-067): the `next_cursor` of the previous page. With a
+   * cursor `offset` is ignored. A cursor from the other `scope`, or one that
+   * was altered, is a 400 `validation_error` (`details.field` `cursor`): start
+   * again without one. Ignored with `ids`.
+   */
+  cursor: z.string().trim().min(1).max(512).optional(),
 });
 /** Client-side query shape: every field optional, numbers as numbers; `ids` as a list. */
 export type ListWorksQuery = Partial<Omit<z.output<typeof ListWorksQuerySchema>, 'ids'>> & {
@@ -336,11 +343,72 @@ export const ListWorksResponseSchema = z.object({
   items: z.array(WorkListItemSchema),
   /** With `ids`: the requested ids that do not exist (or are outside `scope`). */
   missing_ids: z.array(IdSchema).optional(),
+  /** Every work matching the filters, whatever page this is. */
   total: z.number().int().nonnegative(),
   limit: z.number().int(),
+  /** 0 when the page was asked for with a cursor. */
   offset: z.number().int(),
+  /**
+   * Pass as `cursor` for the next page; null on the last page and with `ids`
+   * (QC-067). Pages follow the list order (`updated_at` newest first, or
+   * `deleted_at` in 最近刪除, then `id`): a work updated while paging moves
+   * ahead of the cursor, so later pages neither repeat nor show it; take its
+   * new place from the change events. A server older than QC-067 sends
+   * none, which reads as null (one page).
+   */
+  next_cursor: z.string().nullable().default(null),
 });
 export type ListWorksResponse = z.infer<typeof ListWorksResponseSchema>;
+
+/** Filters of `GET /api/v1/works/facets` (QC-067): the list filters without type, status and paging. */
+export const WorkFacetsQuerySchema = ListWorksQuerySchema.pick({
+  q: true,
+  tag: true,
+  scope: true,
+  project_id: true,
+  unassigned: true,
+});
+export type WorkFacetsQuery = Partial<z.output<typeof WorkFacetsQuerySchema>>;
+
+export const WorkFacetsResponseSchema = z.object({
+  /** Works matching the filters, all types and statuses. */
+  total: z.number().int().nonnegative(),
+  /** Counts by type, then status; a missing type or status means 0. */
+  by_type_status: z.record(z.string(), z.record(z.string(), z.number().int().nonnegative())),
+});
+export type WorkFacetsResponse = z.infer<typeof WorkFacetsResponseSchema>;
+
+/** Most works `GET /api/v1/works/refs` returns; more is a 413 `payload_too_large`. */
+export const WORK_REFS_MAX = 10_000;
+
+/** Filters of `GET /api/v1/works/refs` (QC-067): the list filters without paging and `ids`. */
+export const WorkRefsQuerySchema = ListWorksQuerySchema.omit({
+  ids: true,
+  limit: true,
+  offset: true,
+  cursor: true,
+});
+export type WorkRefsQuery = Partial<z.output<typeof WorkRefsQuerySchema>>;
+
+/** What selecting and batch actions need of a work, without card fields. */
+export const WorkRefSchema = WorkSchema.pick({
+  id: true,
+  title: true,
+  type: true,
+  status: true,
+  tags: true,
+  current_revision_id: true,
+  storage_mode: true,
+  external_state: true,
+}).extend({ project_ids: z.array(IdSchema) });
+export type WorkRef = z.infer<typeof WorkRefSchema>;
+
+export const WorkRefsResponseSchema = z.object({
+  /** Every matching work, in list order. */
+  items: z.array(WorkRefSchema),
+  total: z.number().int().nonnegative(),
+});
+export type WorkRefsResponse = z.infer<typeof WorkRefsResponseSchema>;
 
 export const WorkIdParamsSchema = z.object({ id: IdSchema });
 

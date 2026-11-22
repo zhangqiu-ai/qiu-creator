@@ -49,6 +49,31 @@ describe('createClient', () => {
     expect(f.calls[0]?.url).toBe(`http://mac/api/v1/works?ids=${a}%2C${b}`);
   });
 
+  it('sends the list cursor and the facets and refs filters (QC-067)', async () => {
+    const f = fakeFetch(200, { items: [], total: 0, limit: 60, offset: 0, next_cursor: 'abc' });
+    const client = createClient({ baseUrl: 'http://mac', token: 't', fetch: f.fetch });
+    expect((await client.works.list({ limit: 60, cursor: 'abc' })).next_cursor).toBe('abc');
+    expect(f.calls[0]?.url).toBe('http://mac/api/v1/works?limit=60&cursor=abc');
+
+    const facets = fakeFetch(200, { total: 1, by_type_status: { article: { drafting: 1 } } });
+    const c2 = createClient({ baseUrl: 'http://mac', token: 't', fetch: facets.fetch });
+    expect((await c2.works.facets({ tag: '京都', scope: 'trash' })).total).toBe(1);
+    expect(facets.calls[0]?.url).toBe(
+      'http://mac/api/v1/works/facets?tag=%E4%BA%AC%E9%83%BD&scope=trash',
+    );
+
+    const refs = fakeFetch(200, { items: [], total: 0 });
+    const c3 = createClient({ baseUrl: 'http://mac', token: 't', fetch: refs.fetch });
+    expect(await c3.works.refs({ unassigned: '1' })).toEqual({ items: [], total: 0 });
+    expect(refs.calls[0]?.url).toBe('http://mac/api/v1/works/refs?unassigned=1');
+  });
+
+  it('reads a list without next_cursor (a server before QC-067) as the last page', async () => {
+    const f = fakeFetch(200, { items: [], total: 0, limit: 50, offset: 0 });
+    const client = createClient({ baseUrl: 'http://mac', token: 't', fetch: f.fetch });
+    expect((await client.works.list()).next_cursor).toBeNull();
+  });
+
   it('sends If-Match as a strong ETag on patch', async () => {
     const f = fakeFetch(409, {
       error: {

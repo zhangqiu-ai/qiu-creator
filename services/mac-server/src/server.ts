@@ -10,6 +10,10 @@ import {
   IDEMPOTENT_REPLAYED_HEADER,
   ListWorksQuerySchema,
   ListWorksResponseSchema,
+  WorkFacetsQuerySchema,
+  WorkFacetsResponseSchema,
+  WorkRefsQuerySchema,
+  WorkRefsResponseSchema,
   PatchWorkRequestSchema,
   RestoreRevisionRequestSchema,
   RevisionConflictResponseSchema,
@@ -474,6 +478,29 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
         ),
       };
     },
+  );
+
+  // QC-067: counts for the filter chips and the whole filtered set for 全選.
+  app.get(
+    '/api/v1/works/facets',
+    {
+      schema: {
+        querystring: WorkFacetsQuerySchema,
+        response: { 200: WorkFacetsResponseSchema, ...errorResponses },
+      },
+    },
+    (req) => works.facets(req.query),
+  );
+
+  app.get(
+    '/api/v1/works/refs',
+    {
+      schema: {
+        querystring: WorkRefsQuerySchema,
+        response: { 200: WorkRefsResponseSchema, ...errorResponses },
+      },
+    },
+    (req) => works.refs(req.query),
   );
 
   app.get(

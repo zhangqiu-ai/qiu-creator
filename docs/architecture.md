@@ -207,7 +207,9 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | --- | --- | --- |
 | GET | `/health` | 不需權杖；回 `version`、`commit`、`built_at`（從原始碼執行時後兩者為 null，QC-030） |
 | POST | `/api/v1/works` | 建立托管作品，回 201 與 `ETag`；`type` 為 `image`／`video` 時寫入 front matter，可帶 `description`（QC-045/046） |
-| GET | `/api/v1/works` | 列表；`scope`（`active` 預設／`trash`，QC-051）、`q`、`type`、`status`、`tag`、`limit`、`offset`；`ids=a,b,c` 依序取回指定作品並列出 `missing_ids`（分頁恢復）；貼圖與視頻作品另有 `thumbnail`、`image_count`、`duration_seconds`、`orientation`、`missing_media` |
+| GET | `/api/v1/works` | 列表；`scope`（`active` 預設／`trash`，QC-051）、`q`、`type`、`status`、`tag`、`project_id`／`unassigned`（QC-062）、`limit`（≤ 200）、`offset`；`cursor` 為上一頁的 `next_cursor`，依列表順序做 keyset 分頁，帶 cursor 時忽略 `offset`（QC-067）；`ids=a,b,c` 依序取回指定作品並列出 `missing_ids`（分頁恢復）；貼圖與視頻作品另有 `thumbnail`、`image_count`、`duration_seconds`、`orientation`、`missing_media` |
+| GET | `/api/v1/works/facets` | 篩選晶片的數量：與列表相同的 `q`、`tag`、`scope`、`project_id`、`unassigned`（不含 `type`、`status`），回 `total` 與 `by_type_status`（QC-067） |
+| GET | `/api/v1/works/refs` | 符合列表篩選的全部作品，只含 id、標題、類型、狀態、標籤、`current_revision_id`、`project_ids`、`storage_mode`、`external_state`，供全選與批量操作；超過 10000 件回 413 `payload_too_large`（QC-067） |
 | GET | `/api/v1/works/:id` | 讀取（含 Markdown），回 `ETag: "<revision>"` |
 | PATCH | `/api/v1/works/:id` | 修改；需要 `base_revision` 或 `If-Match`。貼圖與視頻作品另可一次寫入 `description`、`images`（完整有序的素材 id）、`cover`（`{asset_id}` 或 `{time_seconds}`）、`video_asset_id`；帶 `ai_job_id` 時記為 `ai_accepted` 版本 |
 | DELETE | `/api/v1/works/:id` | 移到最近刪除（QC-051）；需要 `base_revision` 或 `If-Match`；revision 不變；外部作品預設只取消索引，`move_original_to_trash: true`（只限主權杖）才把檔案移到系統垃圾桶 |
@@ -216,7 +218,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET／PATCH／DELETE | `/api/v1/projects/:id` | 讀取、改名／改色／封存（需要 `base_revision` 或 `If-Match`）、軟刪除（QC-062） |
 | POST | `/api/v1/projects/:id/restore` | 復原刪除的項目，作品與位置不變（QC-062） |
 | PUT | `/api/v1/projects/order` | 項目的新順序，必須列出全部未刪除的項目（QC-062） |
-| GET | `/api/v1/projects/:id/summary` | 各狀態作品數、最近更新時間、用到的素材數（QC-062） |
+| GET | `/api/v1/projects/:id/summary` | 各狀態作品數、最近更新時間、用到的素材數（QC-062）、`sole_count`（QC-067） |
 | POST | `/api/v1/works/batch/projects` | 最多 200 個作品批次加入或移出項目，逐項回報（QC-062） |
 | POST | `/api/v1/works/batch` | 最多 200 個作品批次刪除、恢復、改狀態、加減標籤；每項帶 `base_revision`，逐項成功或失敗，回 200 與 `results`；帶 `Idempotency-Key`（QC-051） |
 | DELETE | `/api/v1/trash/works/:id` | 永久刪除最近刪除中的一個作品（只限主權杖，QC-051） |
@@ -340,7 +342,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
   - 歸屬不是作品內容，所以不需要 `base_revision`，作品的 revision 也不變。
   - 重複加入不算變更，不會發事件。
 - **概覽與素材**：
-  - `GET /projects/:id/summary`：各狀態的作品數、最近一次更新時間、用到的素材數。
+  - `GET /projects/:id/summary`：各狀態的作品數、最近一次更新時間、用到的素材數；`sole_count` 是刪除項目後會變成未分類的作品數，也就是不在最近刪除、也不屬於其他未刪除項目的作品（已封存的項目也算其他項目，QC-067）。
   - `GET /assets?project_id=`：項目內未刪除作品用到的素材庫素材，也就是作品與素材的連結，加上貼圖、視頻作品 front matter 記住的素材 id（`media_index`）。
 - **事件**：
   - `project.created`、`project.updated`（`data.fields`、`data.revision`）、`project.deleted`（真正刪除時 `data.purged: true`）、`project.restored`、`project.reordered`（`entity_id` 為 `order`）。
@@ -1141,3 +1143,16 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 - M2：Electron／外部編輯器／Agent 三方衝突的完整驗收（QC-014）。
 - M3：AI 基礎（QC-021）、文字候選與改寫（QC-022）、Gemini 視頻理解（QC-023）已完成；本地模型延後。
 - 生產可用：launchd 實機安裝、崩潰恢復、SQLite 備份與還原（QC-004）。
+
+## 作品庫分頁（QC-067）
+
+- **為什麼用 cursor**：作品庫捲動時，SSE 一更新、作品順序就會變。offset 分頁會因此重複或漏掉作品，所以 `GET /works` 加了 keyset 分頁。
+- **排序鍵**：沿用列表順序，一般是 `updated_at DESC, id`，最近刪除是 `deleted_at DESC, id`。
+- **cursor 內容**：記錄上一頁最後一筆的排序鍵、`id` 和 `scope`，以 base64url JSON 編碼，對用戶端不透明。scope 不符或被改過，回 400 `validation_error`（`details.field: cursor`），用戶端從頭重載。
+- **捲動中有作品被更新**：它會移到 cursor 之前，後面的頁不會重複，也不會出現它。新位置由變更事件補上。
+- **`total`**：一律是整個篩選的總數，與第幾頁無關。
+- **`ids`**：帶 `ids` 時不分頁，`next_cursor` 為 null。
+- **數量與全選**：
+  - 篩選晶片的數量來自 `GET /works/facets`。
+  - ⌘A 全選「目前篩選下的全部」用 `GET /works/refs`，上限 10000 件；批量操作本身仍是每次 200 件。
+
