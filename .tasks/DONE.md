@@ -1,5 +1,11 @@
 # Done
 
+## QC-064: e2e 視窗完全不出現在螢幕上（QC-060 不足）
+
+**Priority:** P0 | **Assignee:** qc-test | **Tags:** M3 | **Done:** 2026-11-21
+
+- 背景模式下視窗永不顯示（不再 `showInactive()`），`backgroundThrottling: false`＋`paintWhenInitiallyHidden`，Playwright 經 CDP 操作與截圖；另支援以 `CREATORHUB_E2E_PROFILE` 指定打包 App 的 userData（QC-061 打包驗證用）。用 CGWindowList 量測：8 項 8／0／8、整套 25／0／25，測試視窗上螢幕 0 次（負載 7.8–9.4）。證據 `docs/evidence/qc064-e2e-hidden-window.md`。暫停整套 e2e 的規則解除。
+
 ## QC-063: 側欄收合按鈕併入 Logo（hover 切換）
 
 **Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M3, frontend | **Done:** 2026-11-21
