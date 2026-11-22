@@ -154,6 +154,7 @@ export class VideoSession {
   private watch: JobWatch | null = null;
   private disposed = false;
   private estimateRequest = 0;
+  private modelPicked = false;
 
   constructor(
     private readonly client: CreatorHubClient,
@@ -189,11 +190,28 @@ export class VideoSession {
       this.set({
         gemini,
         noKey: gemini?.key_configured !== true,
-        model: this.state.model ?? gemini?.video_model ?? null,
+        // A model picked in this panel stays; otherwise follow 設定.
+        model: this.modelPicked ? this.state.model : (gemini?.video_model ?? null),
       });
     } catch {
       // The estimate reports connectivity.
     }
+  }
+
+  /**
+   * Read the status again (key, consent or model may have changed in 設定) and,
+   * when something that affects the estimate changed, estimate again.
+   */
+  async refresh(): Promise<void> {
+    if (this.disposed) return;
+    const before = this.state;
+    await this.loadProvider();
+    const after = this.state;
+    const busy = after.phase === 'running' || after.phase === 'confirm' || after.phase === 'reuse';
+    if (after.asset === null || busy) return;
+    const keyArrived = before.noKey && !after.noKey;
+    const modelChanged = before.model !== after.model && !after.noKey;
+    if (keyArrived || modelChanged) await this.estimate();
   }
 
   async select(asset: AssetRecord): Promise<void> {
@@ -277,6 +295,7 @@ export class VideoSession {
   }
 
   async setModel(model: string): Promise<void> {
+    this.modelPicked = true;
     this.set({ model });
     await this.estimate();
   }

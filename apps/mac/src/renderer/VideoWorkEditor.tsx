@@ -1,4 +1,5 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
+import { watchAiStatus } from './ai-status.js';
 import type {
   AssetRecord,
   PlatformVariantRecord,
@@ -238,10 +239,16 @@ function VideoEditor({
     const v = new VideoSession(client, 3000, work.id);
     setVideo(v);
     void v.loadProvider();
+    const unwatch = watchAiStatus(() => void v.refresh());
     return () => {
+      unwatch();
       v.dispose();
     };
   }, [client, work.id]);
+  // Shown again after another tab or page: a key, consent or model may have changed meanwhile.
+  useEffect(() => {
+    if (active) void video?.refresh();
+  }, [active, video]);
   const vs = useStore<VideoState>(video);
   useEffect(() => {
     if (video === null || asset === null || uploading !== null) return;
