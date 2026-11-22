@@ -45,6 +45,14 @@ export function parseWorkItem(value: string): { id: string; revision?: string } 
   return revision === undefined ? { id } : { id, revision };
 }
 
+function parseColor(value: string): number {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0 || n > 7) {
+    throw new InvalidArgumentError('color must be an integer between 0 and 7');
+  }
+  return n;
+}
+
 function parseTags(value: string): string[] {
   return value
     .split(',')
@@ -130,24 +138,37 @@ export function buildProgram(io: CliIo): Command {
     .option('--status <status>', `filter by status (${WorkStatusSchema.options.join('|')})`)
     .option('--limit <n>', 'page size (1-200)', parseLimit, 50)
     .option('--trash', 'list works in 最近刪除 instead (newest deletion first)')
-    .action(async (opts: { q?: string; status?: string; limit: number; trash?: boolean }) => {
-      const status = opts.status === undefined ? undefined : WorkStatusSchema.parse(opts.status);
-      const page = await client().works.list({
-        limit: opts.limit,
-        ...(opts.trash === true ? { scope: 'trash' as const } : {}),
-        ...(opts.q ? { q: opts.q } : {}),
-        ...(status ? { status } : {}),
-      });
-      if (json()) {
-        io.stdout(`${JSON.stringify(page, null, 2)}\n`);
-        return;
-      }
-      for (const w of page.items) {
-        // With --trash the date is when it was deleted. Revisions: use --json.
-        io.stdout(`${w.id}\t${w.status}\t${w.deleted_at ?? w.updated_at}\t${w.title}\n`);
-      }
-      io.stdout(`${page.items.length} of ${page.total}\n`);
-    });
+    .option('--project <id>', 'only works in this project')
+    .option('--unassigned', 'only works in no project')
+    .action(
+      async (opts: {
+        q?: string;
+        status?: string;
+        limit: number;
+        trash?: boolean;
+        project?: string;
+        unassigned?: boolean;
+      }) => {
+        const status = opts.status === undefined ? undefined : WorkStatusSchema.parse(opts.status);
+        const page = await client().works.list({
+          limit: opts.limit,
+          ...(opts.trash === true ? { scope: 'trash' as const } : {}),
+          ...(opts.project === undefined ? {} : { project_id: opts.project }),
+          ...(opts.unassigned === true ? { unassigned: '1' as const } : {}),
+          ...(opts.q ? { q: opts.q } : {}),
+          ...(status ? { status } : {}),
+        });
+        if (json()) {
+          io.stdout(`${JSON.stringify(page, null, 2)}\n`);
+          return;
+        }
+        for (const w of page.items) {
+          // With --trash the date is when it was deleted. Revisions: use --json.
+          io.stdout(`${w.id}\t${w.status}\t${w.deleted_at ?? w.updated_at}\t${w.title}\n`);
+        }
+        io.stdout(`${page.items.length} of ${page.total}\n`);
+      },
+    );
 
   /**
    * The revision a write is based on: the one the caller saw (`--base-revision`
@@ -294,6 +315,74 @@ export function buildProgram(io: CliIo): Command {
         if (res.failed > 0) throw new CommanderError(1, 'batch.failed', '');
       },
     );
+
+  // ---- Projects (QC-062) ------------------------------------------------------
+
+  const projects = program
+    .command('projects')
+    .description(
+      'group works into projects (membership is kept by CreatorHub, never in your files)',
+    );
+
+  projects
+    .command('list')
+    .description('list projects in sidebar order (needs "read")')
+    .action(async () => {
+      const page = await client().projects.list();
+      if (json()) {
+        io.stdout(`${JSON.stringify(page, null, 2)}\n`);
+        return;
+      }
+      for (const p of page.items) {
+        io.stdout(
+          `${p.id}\t${String(p.work_count)} works\t${p.archived ? 'archived' : 'active'}\t${p.name}\n`,
+        );
+      }
+    });
+
+  projects
+    .command('create')
+    .description('create a project at the end of the list (needs "write")')
+    .requiredOption('--name <name>', 'project name (1-60 characters)')
+    .option('--color <n>', 'color index 0-7', parseColor, 0)
+    .action(async (opts: { name: string; color: number }) => {
+      const project = await client().projects.create({ name: opts.name, color: opts.color });
+      io.stdout(
+        json()
+          ? `${JSON.stringify(project, null, 2)}\n`
+          : `created project ${project.id} ${project.name}\n`,
+      );
+    });
+
+  const membership =
+    (verb: 'add' | 'remove') =>
+    async (projectId: string, workIds: string[]): Promise<void> => {
+      for (const id of [projectId, ...workIds]) {
+        if (!UUID.test(id)) throw new InvalidArgumentError(`"${id}" is not an id`);
+      }
+      const res = await client().projects.batchWorks({ work_ids: workIds, [verb]: [projectId] });
+      if (json()) {
+        io.stdout(`${JSON.stringify(res, null, 2)}\n`);
+      } else {
+        for (const r of res.results) {
+          io.stdout(
+            r.ok ? `ok\t${r.id}\n` : `failed\t${r.id}\t${r.error.code}\t${r.error.message}\n`,
+          );
+        }
+        io.stdout(`${String(res.succeeded)} succeeded, ${String(res.failed)} failed\n`);
+      }
+      if (res.failed > 0) throw new CommanderError(1, 'batch.failed', '');
+    };
+
+  projects
+    .command('add <project-id> <work-ids...>')
+    .description('put works in a project; their files are not touched (needs "write")')
+    .action(membership('add'));
+
+  projects
+    .command('remove <project-id> <work-ids...>')
+    .description('take works out of a project; the works stay (needs "write")')
+    .action(membership('remove'));
 
   const describeJob = (job: ImportJobRecord): string =>
     [

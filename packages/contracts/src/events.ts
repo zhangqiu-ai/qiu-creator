@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { TimestampSchema } from './entities.js';
 
 /** `system`: service-wide events (backups, QC-030); `entity_id` is `database`. */
-export const ChangeEntitySchema = z.enum(['work', 'asset', 'job', 'system']);
+export const ChangeEntitySchema = z.enum(['work', 'asset', 'job', 'system', 'project']);
 export type ChangeEntity = z.infer<typeof ChangeEntitySchema>;
 
 /**
@@ -31,6 +31,16 @@ export const ChangeActionSchema = z.enum([
   'work.trashed',
   /** Back from 最近刪除; revision and history unchanged (QC-051). */
   'work.restored',
+  /** The work joined or left projects (QC-062); `data.added`, `data.removed` (project ids). */
+  'work.projects_changed',
+  /** Project events (entity `project`, QC-062). `data.fields` for updates. */
+  'project.created',
+  'project.updated',
+  /** Soft-deleted (restorable for 30 days), or `data.purged: true` when removed for good. */
+  'project.deleted',
+  'project.restored',
+  /** `PUT /projects/order`; entity id is `order`. */
+  'project.reordered',
   /** Deleted permanently, by hand or after 30 days (QC-051); `data.removal`, `data.reason` (`manual`/`empty`/`expired`). */
   'work.deleted',
   'asset.created',

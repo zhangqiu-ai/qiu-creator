@@ -138,6 +138,12 @@ export const CreateWorkRequestSchema = z.object({
   status: WorkStatusSchema.default('drafting'),
   tags: TagsSchema.default([]),
   source: z.string().trim().min(1).max(200).default('api'),
+  /** Projects to put the new work in (QC-062); 404 for a deleted or unknown project. */
+  project_ids: z
+    .array(IdSchema)
+    .max(100)
+    .refine((ids) => new Set(ids).size === ids.length, 'project_ids must not repeat')
+    .default([]),
 });
 export type CreateWorkRequest = z.input<typeof CreateWorkRequestSchema>;
 
@@ -237,6 +243,10 @@ export const ListWorksQuerySchema = z.object({
    * it are listed in `missing_ids`.
    */
   scope: z.enum(['active', 'trash']).default('active'),
+  /** Only works in this project (QC-062); 404 for a deleted or unknown project. */
+  project_id: IdSchema.optional(),
+  /** `1`: only works in no project (archived projects still count as membership). */
+  unassigned: z.enum(['0', '1']).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });

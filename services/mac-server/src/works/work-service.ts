@@ -195,6 +195,8 @@ export class WorkService {
         body: req.description ?? '',
       });
     }
+    // QC-062: projects are checked before anything is written.
+    this.requireLiveProjects(req.project_ids);
     const id = randomUUID();
     const revisionId = randomUUID();
     const now = new Date().toISOString();
@@ -237,7 +239,15 @@ export class WorkService {
           created_at: now,
         });
         this.indexFts(id, req.title, req.tags, req.markdown);
-        this.feed?.record('work', id, 'work.created', { revision_id: revisionId });
+        for (const projectId of req.project_ids) {
+          this.db
+            .prepare('INSERT INTO work_projects (work_id, project_id, added_at) VALUES (?, ?, ?)')
+            .run(id, projectId, now);
+        }
+        this.feed?.record('work', id, 'work.created', {
+          revision_id: revisionId,
+          ...(req.project_ids.length > 0 ? { project_ids: req.project_ids } : {}),
+        });
       })();
     } catch (err) {
       // Nothing references this directory yet; remove it so a failed create leaves no orphan.
@@ -250,8 +260,8 @@ export class WorkService {
   get(id: string): WorkDetail {
     const row = this.reconcileExternalChange(this.requireRow(id));
     const markdown = this.readCurrent(row);
-    if (!isTypedWork(row.type)) return { ...toWork(row), markdown };
-    return { ...toWork(row), markdown, ...this.typed.describe(location(row), markdown) };
+    if (!isTypedWork(row.type)) return { ...this.workOf(row), markdown };
+    return { ...this.workOf(row), markdown, ...this.typed.describe(location(row), markdown) };
   }
 
   list(query: ListWorksQuery = {}): ListWorksResponse {
@@ -262,6 +272,21 @@ export class WorkService {
       q.scope === 'trash' ? 'w.deleted_at IS NOT NULL' : 'w.deleted_at IS NULL',
     ];
     const params: (string | number)[] = [];
+    // QC-062: one project, or works in no live project (archived ones count).
+    if (q.project_id !== undefined && q.unassigned === '1') {
+      throw new ServiceError(400, 'validation_error', 'send project_id or unassigned, not both');
+    }
+    if (q.project_id !== undefined) {
+      this.requireLiveProjects([q.project_id]);
+      where.push('w.id IN (SELECT work_id FROM work_projects WHERE project_id = ?)');
+      params.push(q.project_id);
+    }
+    if (q.unassigned === '1') {
+      where.push(
+        `NOT EXISTS (SELECT 1 FROM work_projects wp JOIN projects p ON p.id = wp.project_id
+                     WHERE wp.work_id = w.id AND p.deleted_at IS NULL)`,
+      );
+    }
     if (q.ids !== undefined) {
       where.push(`w.id IN (${q.ids.map(() => '?').join(', ')})`);
       params.push(...q.ids);
@@ -333,7 +358,7 @@ export class WorkService {
    * every work its card image and excerpt (QC-061).
    */
   private listItem(row: WorkRow): WorkListItem {
-    const work = toWork(row);
+    const work = this.workOf(row);
     let markdown: string;
     try {
       markdown = this.readCurrent(row);
@@ -679,6 +704,37 @@ export class WorkService {
       )
       .all(id)
       .map(toRevision);
+  }
+
+  // ---- Projects (QC-062) --------------------------------------------------------
+
+  /** Live (not deleted) projects of a work, in sidebar order. Archived ones are included. */
+  projectIds(workId: string): string[] {
+    return this.db
+      .prepare<[string], { id: string }>(
+        `SELECT p.id FROM work_projects wp JOIN projects p ON p.id = wp.project_id
+         WHERE wp.work_id = ? AND p.deleted_at IS NULL ORDER BY p.sort_order, p.id`,
+      )
+      .all(workId)
+      .map((r) => r.id);
+  }
+
+  /** 404 `not_found` (with `details.project_id`) for any unknown or deleted project. */
+  requireLiveProjects(ids: readonly string[]): void {
+    for (const projectId of ids) {
+      const row = this.db
+        .prepare<[string], { deleted_at: string | null }>(
+          'SELECT deleted_at FROM projects WHERE id = ?',
+        )
+        .get(projectId);
+      if (row === undefined || row.deleted_at !== null) {
+        throw new ServiceError(404, 'not_found', 'project not found', { project_id: projectId });
+      }
+    }
+  }
+
+  private workOf(row: WorkRow): Work {
+    return { ...toWork(row), project_ids: this.projectIds(row.id) };
   }
 
   // ---- 最近刪除 (QC-051) -------------------------------------------------------

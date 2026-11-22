@@ -28,7 +28,7 @@
 | `packages/contracts` | Zod 4 契約：第三章全部實體（Work、Asset、WorkAsset、PlatformVariant、Revision、ImportJob、AIJob）與第四章 API DTO、統一錯誤格式、平台列舉 | zod |
 | `packages/domain` | 純函式：sha256 內容雜湊、revision 衝突判定與 `If-Match` 解析、檔名／路徑安全、HTTP Range 解析 | 無 |
 | `packages/api-client` | 型別安全的 fetch 用戶端（base URL + Bearer 權杖），回應以契約驗證；409 時帶出 `currentRevision` | contracts |
-| `packages/agent-sdk` | `creatorhub` CLI（`works create`、`works list [--trash]`、`works delete`／`restore`／`batch`），只走 api-client；`mcp/` 預留 | api-client、commander |
+| `packages/agent-sdk` | `creatorhub` CLI（`works create`、`works list [--trash]`、`works delete`／`restore`／`batch`、`works list --project/--unassigned`、`projects list`／`create`／`add`／`remove`），只走 api-client；`mcp/` 預留 | api-client、commander |
 | `services/mac-server` | Fastify 服務、SQLite、檔案系統、OpenAPI | contracts、domain |
 | `apps/mac` | Electron Mac App（見下節） | api-client、contracts、design-tokens、i18n、markdown-editor-web、platform-preview |
 | `packages/markdown-editor-web` | MDXEditor 視覺模式 + `<textarea>` 原始碼模式；可能有損語法偵測與原文保護；不依賴 Electron，第二期可嵌進 WebView | @mdxeditor/editor、mdast 工具、i18n |
@@ -178,6 +178,13 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 `0011_change_log_system_entity`：`change_log.entity` 允許 `system`（備份事件，QC-030）。SQLite 無法修改 CHECK，所以重建資料表，保留 `seq` 與 AUTOINCREMENT 的最高值，SSE 的 id 不會倒退。
 
+`0017_projects`（QC-062）：
+- 新增 `projects`：`id`、`name`、`color`（0–7）、`sort_order`、`revision`、`archived_at`、`deleted_at`、`created_at`、`updated_at`，並建立未刪除項目的排序索引。
+- 新增 `work_projects`：`work_id`、`project_id`、`added_at`，主鍵是兩者的組合。作品或項目真正刪除時，這裡的對應會一起刪掉。
+- `change_log.entity` 允許 `project`。做法比照 `0011`：重建資料表，保留每一個 `seq` 與 AUTOINCREMENT 的最高值。
+- 作品的 Markdown 與檔案都不動。
+- **回滾**：`PROJECTS_ROLLBACK_SQL` 依序刪除兩張表、把 `change_log` 重建回不含 `project` 的版本（項目事件一併刪除，其他事件與序號保留）、刪除 `schema_migrations` 中的 `0017`。測試 `projects.test.ts` 驗證回滾後舊版遷移仍能正常套用、序號繼續往上，並且能重新套用 `0017`。回滾的代價：所有項目與歸屬都會消失，作品本身不受影響。執行前先備份。
+
 `0016_work_trash`（QC-051）：`works` 增加 `deleted_at` 與 `removal`（`trashed`／`unindexed`／`original_trashed`，與素材相同），並為 `deleted_at` 建部分索引；新增 `work_exclusions`（`mount_id`、`source_path`；掛載記錄只會標成 `removed`，重新掛同一個資料夾沿用同一筆，所以排除仍然有效），記下永久刪除的外部作品，重新掃描時不再收回。只加欄位與資料表。
 
 - **回滾**：`WORK_TRASH_ROLLBACK_SQL`（`src/db/migrations.ts`）依序刪除 `work_exclusions`、索引、兩個欄位，以及 `schema_migrations` 中的 `0016` 記錄，舊版即可開啟資料庫（測試 `work-trash.test.ts` 驗證回滾後舊遷移照常、再升級時 `0016` 能重新套用）。回滾的代價：還在最近刪除的作品會重新出現在列表，永久刪除過的外部檔案下次掃描會再被索引。執行前先備份（QC-030）。
@@ -205,6 +212,12 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | PATCH | `/api/v1/works/:id` | 修改；需要 `base_revision` 或 `If-Match`。貼圖與視頻作品另可一次寫入 `description`、`images`（完整有序的素材 id）、`cover`（`{asset_id}` 或 `{time_seconds}`）、`video_asset_id`；帶 `ai_job_id` 時記為 `ai_accepted` 版本 |
 | DELETE | `/api/v1/works/:id` | 移到最近刪除（QC-051）；需要 `base_revision` 或 `If-Match`；revision 不變；外部作品預設只取消索引，`move_original_to_trash: true`（只限主權杖）才把檔案移到系統垃圾桶 |
 | POST | `/api/v1/works/:id/restore` | 從最近刪除恢復，revision、歷史、連結、平台版本不變；原檔還在垃圾桶時回 409 `source_missing`（QC-051） |
+| GET／POST | `/api/v1/projects` | 項目列表（不含已刪除的，含已封存的；帶 `work_count`）／新建（QC-062） |
+| GET／PATCH／DELETE | `/api/v1/projects/:id` | 讀取、改名／改色／封存（需要 `base_revision` 或 `If-Match`）、軟刪除（QC-062） |
+| POST | `/api/v1/projects/:id/restore` | 復原刪除的項目，作品與位置不變（QC-062） |
+| PUT | `/api/v1/projects/order` | 項目的新順序，必須列出全部未刪除的項目（QC-062） |
+| GET | `/api/v1/projects/:id/summary` | 各狀態作品數、最近更新時間、用到的素材數（QC-062） |
+| POST | `/api/v1/works/batch/projects` | 最多 200 個作品批次加入或移出項目，逐項回報（QC-062） |
 | POST | `/api/v1/works/batch` | 最多 200 個作品批次刪除、恢復、改狀態、加減標籤；每項帶 `base_revision`，逐項成功或失敗，回 200 與 `results`；帶 `Idempotency-Key`（QC-051） |
 | DELETE | `/api/v1/trash/works/:id` | 永久刪除最近刪除中的一個作品（只限主權杖，QC-051） |
 | DELETE | `/api/v1/trash/works` | 清空最近刪除的作品，須帶 `confirm: true`（只限主權杖，QC-051） |
@@ -301,6 +314,38 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 - **託管與外部**：託管檔在 30 天內都留在原位。外部素材預設只解除索引；`move_original_to_trash` 用 macOS 內建的 `/usr/bin/trash`（與 Finder「移到垃圾桶」相同，可「放回原處」），失敗或找不到指令時回 500 `trash_failed`，資料庫不改。伺服器不會從垃圾桶取回檔案：使用者在 Finder 放回原處後再按恢復。測試注入假的 `SystemTrash`，測試執行器下預設的實作一律失敗，不會碰真實垃圾桶。
 - **永久刪除**：手動、清空，或刪除 30 天後由每小時一次的檢查自動執行。刪資料列後，作品連結由外鍵刪除、平台版本封面變 NULL，平台版本的 `image_asset_ids` 移除該 id（不產生新的版本，歷史保留原值）。託管檔與縮圖快取一併刪除；外部原檔永遠不動。刪除前若作品目前的 Markdown 還連到該檔，回應的 `markdown_referrers` 會列出（只提示，不阻擋）。
 - **權限**：讀取（列表、詳情、`references`）需要 `read`；所有變更只限 owner 權杖。
+
+## 項目（QC-062）
+
+實作在 `src/projects/project-service.ts`。一個作品可以屬於多個項目，不做巢狀。
+
+- **只存在資料庫。** 歸屬只記在 `work_projects`，備份時會一起備份。不寫進作品的 Markdown 或 front matter，所以外部掛載的檔案完全不動，也不會搬動任何檔案。
+- **項目本身**：
+  - 名稱去掉前後空白後 1–60 字，中文一字算一個；顏色是 8 色調色盤的索引（0–7）。
+  - 新項目排在最後。改名、改色、封存都要帶 `revision`：沒帶回 428，過期回 409。
+  - 封存的項目仍然出現在列表裡，標 `archived`，也仍算作品的歸屬。
+- **刪除與復原**：
+  - 刪除是軟刪除。項目從所有列表、作品的 `project_ids`、篩選裡消失，讀取回 404。作品不會被刪，仍留在它的其他項目裡。
+  - `POST …/restore` 讓項目帶著原本的作品回到原本的位置（給「復原」提示用）。
+  - 30 天後由每小時一次的檢查真正刪除項目，連同歸屬；作品照樣保留。
+- **作品**：
+  - 作品物件帶 `project_ids`：依側欄順序列出，不含已刪除的項目，含已封存的。
+  - `GET /works?project_id=` 只列某個項目的作品；項目已刪除或不存在時回 404。
+  - `unassigned=1` 列出不屬於任何未刪除項目的作品；屬於已封存項目的作品不算未分類。兩個參數不能同時帶。
+  - `POST /works` 可以帶 `project_ids`，項目先檢查，有任何一個不存在就整個不建立。
+  - 最近刪除中的作品保留歸屬，但不算進任何數量；還原後回到原本的項目。
+- **批量**：`POST /works/batch/projects { work_ids, add, remove }`。
+  - 先檢查項目：有任何一個不存在或已刪除，就回 404（`details.project_id`），什麼都不改。
+  - 之後逐個作品處理，成功或失敗各自獨立：不存在的作品回 `not_found`，最近刪除中的作品回 `work_in_trash`。
+  - 歸屬不是作品內容，所以不需要 `base_revision`，作品的 revision 也不變。
+  - 重複加入不算變更，不會發事件。
+- **概覽與素材**：
+  - `GET /projects/:id/summary`：各狀態的作品數、最近一次更新時間、用到的素材數。
+  - `GET /assets?project_id=`：項目內未刪除作品用到的素材庫素材，也就是作品與素材的連結，加上貼圖、視頻作品 front matter 記住的素材 id（`media_index`）。
+- **事件**：
+  - `project.created`、`project.updated`（`data.fields`、`data.revision`）、`project.deleted`（真正刪除時 `data.purged: true`）、`project.restored`、`project.reordered`（`entity_id` 為 `order`）。
+  - `work.projects_changed`（`data.added`、`data.removed`）。
+- **權限**：讀取需要 `read`；新建、修改、排序、刪除、復原、批量都需要 `write`。刪除可以復原，也不會刪作品。
 
 ## 作品庫卡片圖與摘要（QC-061）
 
@@ -904,7 +949,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 - **權限範圍**（`src/auth/scopes.ts`，依路由樣式判定）：
   - `read`：所有 GET（作品、素材、任務、SSE 事件）。
   - `import`：建立作品、上傳（直傳與 tus）、URL 匯入、重跑匯入任務，以及查看**自己建立的**匯入任務（`GET /api/v1/jobs/:id`；別人的任務回 404，不洩漏網址）。
-  - `write`：修改作品、作品與素材的關聯與排序；把作品移到最近刪除、恢復、批量操作（QC-051）。
+  - `write`：修改作品、作品與素材的關聯與排序；把作品移到最近刪除、恢復、批量操作（QC-051）；項目的所有修改與作品歸屬（QC-062）。
   - 未列出的 `/api` 路由（包括之後新增的）預設只有主權杖能用，不會在無意間開放給 Agent。
 
 ## 冪等鍵
@@ -993,7 +1038,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 
 ## 變更事件（SSE）
 
-`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `ai_job.queued`／`running`／`progress`／`succeeded`／`failed`／`cancelled`（AI 任務）、`work.variant_created`／`work.variant_updated`／`work.variant_deleted`（平台版本）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`（素材進出最近刪除時 `data.change` 為 `trashed`／`restored`／`deleted`）、`asset.created`、`asset.updated`（編輯時 `data.fields`、`data.revision`）、`asset.trashed`（`data.removal`）、`asset.restored`、`asset.deleted`（`data.removal`、`data.reason`：`manual`／`empty`／`expired`）（QC-037）、`work.trashed`（`data.removal`）、`work.restored`、`work.deleted`（`data.removal`、`data.reason`）（QC-051）、`job.queued`、`job.running`、`job.succeeded`、`job.failed`，以及實體 `system`（`entity_id` 為 `database`）的 `backup.created`／`backup.failed`／`backup.restore_started`／`backup.restored`（QC-030）。
+`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `ai_job.queued`／`running`／`progress`／`succeeded`／`failed`／`cancelled`（AI 任務）、`work.variant_created`／`work.variant_updated`／`work.variant_deleted`（平台版本）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`（素材進出最近刪除時 `data.change` 為 `trashed`／`restored`／`deleted`）、`asset.created`、`asset.updated`（編輯時 `data.fields`、`data.revision`）、`asset.trashed`（`data.removal`）、`asset.restored`、`asset.deleted`（`data.removal`、`data.reason`：`manual`／`empty`／`expired`）（QC-037）、`work.trashed`（`data.removal`）、`work.restored`、`work.deleted`（`data.removal`、`data.reason`）（QC-051）、`work.projects_changed` 與實體 `project` 的 `project.created`／`updated`／`deleted`／`restored`／`reordered`（QC-062）、`job.queued`、`job.running`、`job.succeeded`、`job.failed`，以及實體 `system`（`entity_id` 為 `database`）的 `backup.created`／`backup.failed`／`backup.restore_started`／`backup.restored`（QC-030）。
 
 - 和其他 `/api` 路由一樣要 Bearer 權杖。瀏覽器的 `EventSource` 不能帶 header，所以 api-client 用 fetch 讀串流（`client.events.subscribe`）；權杖不接受放在 URL。
 - 事件先寫進 `change_log` 再推送：在寫入方的交易提交後才發出，交易回滾的變更不會被推送。

@@ -96,6 +96,11 @@ export const ListAssetsQuerySchema = z.object({
   scope: AssetScopeSchema.default('active'),
   /** Only assets carrying this tag (exact match). */
   tag: TagSchema.optional(),
+  /**
+   * Only assets used by this project's works (QC-062): linked to them, or
+   * named in their front matter. Works in 最近刪除 do not count.
+   */
+  project_id: IdSchema.optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });

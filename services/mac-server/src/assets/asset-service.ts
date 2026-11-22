@@ -153,6 +153,20 @@ export function toRecord(row: AssetRow): AssetRecord {
   });
 }
 
+/**
+ * Assets used by the live works of one project (QC-062), bound twice to the
+ * project id: work links, and the asset ids remembered for front-matter paths.
+ */
+export const PROJECT_ASSETS_SQL = `
+  SELECT wa.asset_id FROM work_assets wa
+    JOIN work_projects wp ON wp.work_id = wa.work_id
+    JOIN works w ON w.id = wa.work_id
+    WHERE wp.project_id = ? AND w.deleted_at IS NULL
+  UNION
+  SELECT j.value FROM works w
+    JOIN work_projects wp ON wp.work_id = w.id, json_each(w.media_index) j
+    WHERE wp.project_id = ? AND w.deleted_at IS NULL`;
+
 /** Active (not in 最近刪除) assets that some work or platform variant uses. */
 export const REFERENCED_SQL = `(
   EXISTS (SELECT 1 FROM work_assets wa WHERE wa.asset_id = assets.id)
@@ -317,6 +331,19 @@ export class AssetService {
     if (q.scope === 'trash') where.push('deleted_at IS NOT NULL');
     else where.push('deleted_at IS NULL');
     if (q.scope === 'unreferenced') where.push(`NOT ${REFERENCED_SQL}`);
+    if (q.project_id !== undefined) {
+      // QC-062: assets the project's live works use — linked, or named in their front matter.
+      const project = this.db
+        .prepare<[string], { deleted_at: string | null }>(
+          'SELECT deleted_at FROM projects WHERE id = ?',
+        )
+        .get(q.project_id);
+      if (project === undefined || project.deleted_at !== null) {
+        throw new ServiceError(404, 'not_found', 'project not found', { project_id: q.project_id });
+      }
+      where.push(`id IN (${PROJECT_ASSETS_SQL})`);
+      params.push(q.project_id, q.project_id);
+    }
     if (q.tag !== undefined) {
       where.push('EXISTS (SELECT 1 FROM json_each(assets.tags) t WHERE t.value = ?)');
       params.push(q.tag);

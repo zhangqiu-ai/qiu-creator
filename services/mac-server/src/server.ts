@@ -82,6 +82,8 @@ import { ImportService, type DownloadSettings } from './imports/import-service.j
 import { WorkService } from './works/work-service.js';
 import { WorkTrash, type WorkTrashOptions } from './works/work-trash.js';
 import { registerWorkTrashRoutes } from './routes/work-trash.js';
+import { ProjectService, type ProjectServiceOptions } from './projects/project-service.js';
+import { registerProjectRoutes } from './routes/projects.js';
 import {
   applyPendingRestore,
   BackupService,
@@ -168,6 +170,8 @@ export interface BuildServerOptions {
   assetLibrary?: Omit<AssetLibraryOptions, 'markdownReferrers'>;
   /** Work delete and 最近刪除 (QC-051): the macOS Trash (tests inject a fake), clock, purge interval. */
   workTrash?: WorkTrashOptions;
+  /** Projects (QC-062): clock and purge interval for deleted projects. */
+  projects?: ProjectServiceOptions;
 }
 
 export interface CreatorHubServer {
@@ -178,6 +182,7 @@ export interface CreatorHubServer {
   assets: AssetService;
   assetLibrary: AssetLibrary;
   workTrash: WorkTrash;
+  projects: ProjectService;
   feed: ChangeFeed;
   jobs: JobQueue;
   imports: ImportService;
@@ -246,6 +251,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   const attacher = new WorkMediaAttacher(layout, works, assets);
   const composer = new WorkComposer(db, works, attacher, assets);
   const workTrash = new WorkTrash(db, layout, works, composer, feed, options.workTrash);
+  const projects = new ProjectService(db, works, feed, options.projects);
   const assetLibrary = new AssetLibrary(db, layout, assets, feed, {
     ...options.assetLibrary,
     markdownReferrers: (asset) => media.markdownReferrers(asset),
@@ -291,6 +297,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     sleep.stop();
     assetLibrary.stop();
     workTrash.stop();
+    projects.stop();
     await backups.stop();
     await ai.stop();
     await mounts.stop();
@@ -575,6 +582,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerAssetRoutes(app, assets, layout, { tusIdleTimeoutMs: options.tusIdleTimeoutMs });
   registerAssetLibraryRoutes(app, assetLibrary);
   registerWorkTrashRoutes(app, workTrash, works, idempotency);
+  registerProjectRoutes(app, projects);
   await registerWorkThumbnailRoutes(app, works);
   registerEventRoutes(app, feed, options.heartbeatMs);
   registerImportRoutes(app, imports, idempotency);
@@ -595,6 +603,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   backups.start();
   assetLibrary.start();
   workTrash.start();
+  projects.start();
   sleep.start();
   if (options.jobs?.start !== false) jobs.start();
   if (aiOptions.start !== false) ai.start();
@@ -606,6 +615,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     assets,
     assetLibrary,
     workTrash,
+    projects,
     feed,
     jobs,
     imports,

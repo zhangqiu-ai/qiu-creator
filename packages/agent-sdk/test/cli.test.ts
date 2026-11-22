@@ -291,3 +291,58 @@ describe('creatorhub CLI: 最近刪除 and batch (QC-053)', () => {
     expect(server.works.get(w.id).deleted_at).toBeNull();
   });
 });
+
+describe('creatorhub CLI: projects (QC-062)', () => {
+  function token(scopes: ('read' | 'write')[]): NodeJS.ProcessEnv {
+    return {
+      CREATORHUB_TOKEN: server.tokens.create({ name: `cli-${scopes.join('-')}`, scopes }).secret,
+    };
+  }
+
+  it('creates and lists projects, and adds and removes works with a write token', async () => {
+    const env = token(['read', 'write']);
+    const created = await run(['projects', 'create', '--name', '京都', '--color', '3'], env);
+    expect(created.code).toBe(0);
+    const projectId = /^created project ([0-9a-f-]{36}) 京都\n$/.exec(created.stdout)?.[1] ?? '';
+    expect(projectId).not.toBe('');
+    const a = server.works.create({ title: 'A', markdown: '# A\n' });
+    const b = server.works.create({ title: 'B', markdown: '# B\n' });
+
+    const added = await run(['projects', 'add', projectId, a.id, b.id], env);
+    expect(added).toMatchObject({ code: 0, stderr: '' });
+    expect(added.stdout).toContain('2 succeeded, 0 failed');
+    expect(server.works.get(a.id).project_ids).toEqual([projectId]);
+
+    const listed = await run(['projects', 'list'], env);
+    expect(listed.stdout).toBe(`${projectId}\t2 works\tactive\t京都\n`);
+    const inProject = await run(['--json', 'works', 'list', '--project', projectId], env);
+    expect((JSON.parse(inProject.stdout) as { total: number }).total).toBe(2);
+
+    const removed = await run(['projects', 'remove', projectId, b.id], env);
+    expect(removed.code).toBe(0);
+    const loose = await run(['--json', 'works', 'list', '--unassigned'], env);
+    expect(
+      (JSON.parse(loose.stdout) as { items: { id: string }[] }).items.map((i) => i.id),
+    ).toEqual([b.id]);
+    // The works themselves are untouched.
+    expect(server.works.get(b.id).markdown).toBe('# B\n');
+  });
+
+  it('exits 1 when an item fails, refuses bad input, and needs write to change', async () => {
+    const env = token(['read', 'write']);
+    const created = await run(['--json', 'projects', 'create', '--name', 'P'], env);
+    const projectId = (JSON.parse(created.stdout) as { id: string }).id;
+    const missing = '00000000-0000-4000-8000-000000000000';
+    const partial = await run(['projects', 'add', projectId, missing], env);
+    expect(partial.code).toBe(1);
+    expect(partial.stdout).toContain(`failed\t${missing}\tnot_found`);
+    expect((await run(['projects', 'create', '--name', 'x', '--color', '9'], env)).code).toBe(1);
+    expect((await run(['projects', 'add', 'nope', missing], env)).code).toBe(1);
+
+    const reader = token(['read']);
+    expect((await run(['projects', 'list'], reader)).code).toBe(0);
+    const denied = await run(['projects', 'create', '--name', 'x'], reader);
+    expect(denied.code).toBe(1);
+    expect(denied.stderr).toContain('403');
+  });
+});
