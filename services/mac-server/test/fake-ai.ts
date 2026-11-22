@@ -170,8 +170,15 @@ export class FakeAiServer {
             res.writeHead(404).end();
             return;
           }
-          res.writeHead(reply.status ?? 200, { 'content-type': 'application/json' });
-          res.end(JSON.stringify(reply.body));
+          // `delayMs` holds the list as for every other reply (QC-081): 測試連線's
+          // running state and 取消 are only observable while the answer is pending.
+          const send = (): void => {
+            if (res.destroyed) return;
+            res.writeHead(reply.status ?? 200, { 'content-type': 'application/json' });
+            res.end(JSON.stringify(reply.body));
+          };
+          if (reply.delayMs === undefined) send();
+          else setTimeout(send, reply.delayMs).unref();
           return;
         }
         if (req.method === 'POST' && path === '/v1/images/generations') {

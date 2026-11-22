@@ -62,7 +62,9 @@ test('New API 模型：打開才查詢、只列對話／顯示全部、搜尋與
     .click();
   await page
     .getByRole('navigation', { name: '設定分類' })
-    .getByRole('button', { name: 'AI 服務', exact: true })
+    // The name gains the status dot's label (「AI 服務 AI 服務有待處理的項目」) once the
+    // providers load; match its start so the click does not race that (QC-081).
+    .getByRole('button', { name: /^AI 服務/ })
     .click();
   await page.locator('.set-pv', { hasText: 'New API' }).click();
   await expect(field).toHaveValue('gpt-4o-mini');
