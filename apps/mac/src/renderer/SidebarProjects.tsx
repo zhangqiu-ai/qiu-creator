@@ -17,6 +17,7 @@ import { renameProject, useNotice } from './project-actions.js';
 import { sortTransition } from './dnd-motion.js';
 import type { DragData } from './projects-dnd.js';
 import { useMotionMode } from './motion-mode.js';
+import { ExitFade } from './motion.js';
 import { useProjectMenu } from './project-menu.js';
 import {
   moveInOrder,
@@ -277,7 +278,10 @@ export function SidebarProjects({
       >
         <span className="sb-proj__chip" style={{ background: projectColor(p.color) }} />
         <span className="sb__label">{p.name}</span>
-        <span className="sb__count num">{p.work_count}</span>
+        {/* A new count fades in (fast) instead of flashing (DESIGN.md 動效 · 放下). */}
+        <span key={p.work_count} className="sb__count num sb__count--update">
+          {p.work_count}
+        </span>
       </button>
     );
   };
@@ -302,7 +306,11 @@ export function SidebarProjects({
       >
         <Icon name="inbox" />
         <span className="sb__label">{t('projects.unassigned')}</span>
-        {s.unassignedCount !== null && <span className="sb__count num">{s.unassignedCount}</span>}
+        {s.unassignedCount !== null && (
+          <span key={s.unassignedCount} className="sb__count num sb__count--update">
+            {s.unassignedCount}
+          </span>
+        )}
       </button>
 
       {!rail && (
@@ -339,9 +347,10 @@ export function SidebarProjects({
         <div className="sb-proj__list">
           <SortableContext items={live.map((p) => p.id)} strategy={verticalListSortingStrategy}>
             {live.map((p) => (
-              <SortableRow key={p.id} project={p}>
-                {(dnd) => row(p, dnd)}
-              </SortableRow>
+              // A new project's row comes in; a deleted or archived one fades away.
+              <ExitFade key={p.id}>
+                <SortableRow project={p}>{(dnd) => row(p, dnd)}</SortableRow>
+              </ExitFade>
             ))}
           </SortableContext>
           {creating && !rail && (

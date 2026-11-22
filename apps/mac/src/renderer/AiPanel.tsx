@@ -173,9 +173,12 @@ function BlockNotice({ block, onOpenSettings }: { block: AiBlock; onOpenSettings
   );
 }
 
+/** Waiting for candidates; when they come, this fades out (fast) over where they appear. */
 function Generating({ onStop }: { onStop: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useExitFade(ref);
   return (
-    <div className="ai__box" role="status" aria-label={t('ai.generating')}>
+    <div ref={ref} className="ai__box" role="status" aria-label={t('ai.generating')}>
       <div className="skel ai__skel" style={{ width: '90%' }} />
       <div className="skel ai__skel" style={{ width: '75%' }} />
       <div className="skel ai__skel" style={{ width: '82%' }} />

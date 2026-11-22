@@ -21,6 +21,7 @@ import { codeText, t, useLocale } from './i18n.js';
 import { AiPanel, type AiSelection } from './AiPanel.js';
 import { AiProviders, RewriteSession, TitleSession } from './ai-session.js';
 import { Chip } from './Chip.js';
+import { SaveChip } from './SaveChip.js';
 import { ConflictDialog } from './ConflictDialog.js';
 import { useChangeEvents, useEventStatus } from './events.js';
 import { countWords, SAVE_STATUS, WORK_STATUS } from './format.js';
@@ -741,10 +742,7 @@ function SessionEditor({
             </span>
           )}
           <span className="save-status" role="status" aria-live="polite">
-            <Chip tone={save.tone}>
-              {state.status === 'saving' && <span className="pulse" aria-hidden="true" />}
-              {save.label}
-            </Chip>
+            <SaveChip tone={save.tone} label={save.label} saving={state.status === 'saving'} />
           </span>
           {state.status === 'error' && (
             <button

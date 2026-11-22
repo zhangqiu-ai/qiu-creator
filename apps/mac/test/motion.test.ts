@@ -9,6 +9,7 @@ import {
 } from '../src/renderer/motion.js';
 import { besidePointerAt } from '../src/renderer/projects-dnd.js';
 import { glideKeyframes } from '../src/renderer/segment-glide.js';
+import { dropIntoKeyframes, towardCentre } from '../src/renderer/dnd-motion.js';
 
 describe('motion preference from the main process (QC-065)', () => {
   it('e2e runs with motion off unless recording asks for it', () => {
@@ -111,5 +112,24 @@ describe('segment highlight glide (QC-065 area 5)', () => {
     );
     expect(frames[0]).toEqual({ transform: 'translate(-120px, 0px) scaleX(0.75)' });
     expect(frames[1]).toEqual({ transform: 'translate(0px, 0px) scaleX(1)' });
+  });
+});
+
+describe('a drop into a project flies into its row (QC-065 area 6)', () => {
+  it('ends at the row centre, shrunk to 0.6 and faded', () => {
+    const toward = towardCentre(
+      { left: 600, top: 300, width: 120, height: 30 },
+      { left: 10, top: 180, width: 200, height: 32 },
+    );
+    expect(toward).toEqual({ x: -550, y: -119 });
+    const frames = dropIntoKeyframes({ x: 400, y: 100, scaleX: 1, scaleY: 1 }, toward);
+    expect(frames[0]).toEqual({
+      opacity: 1,
+      transform: 'translate3d(400px, 100px, 0) scaleX(1) scaleY(1)',
+    });
+    expect(frames[1]).toEqual({
+      opacity: 0,
+      transform: 'translate3d(-150px, -19px, 0) scaleX(0.6) scaleY(0.6)',
+    });
   });
 });

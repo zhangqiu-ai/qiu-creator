@@ -32,7 +32,7 @@ import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
 import { useChangeEvents } from './events.js';
 import { formatDuration } from './format.js';
-import { progressStyle } from './motion.js';
+import { progressStyle, useExitFade } from './motion.js';
 import { formatBytes, formatNumber, formatWhen, t } from './i18n.js';
 import { budgetWarningText, noticeText } from './server-text.js';
 import { TechnicalDetails } from './TechnicalDetails.js';
@@ -391,32 +391,7 @@ function ResultArea({
     );
   }
   if (s.phase === 'running') {
-    const pct = uploadPercent(s.job);
-    return (
-      <div className="aiw__run" role="status">
-        <div className="aiw__row">
-          <span className="aiw__run-label">{runLabel(s.job)}</span>
-          {pct !== null && <span className="aiw__pct">{pct}%</span>}
-        </div>
-        <div className={pct === null ? 'bar bar--indeterminate' : 'bar'}>
-          <span style={progressStyle(pct)} />
-        </div>
-        <div className="skel aiw__skel" style={{ width: '92%' }} />
-        <div className="skel aiw__skel" style={{ width: '80%' }} />
-        <div className="skel aiw__skel" style={{ width: '66%' }} />
-        <div>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            onClick={() => {
-              void session.cancel();
-            }}
-          >
-            {t('common.cancel')}
-          </button>
-        </div>
-      </div>
-    );
+    return <RunningCard job={s.job} onCancel={() => void session.cancel()} />;
   }
   if (s.phase === 'failed' && s.failure !== null) {
     return (
@@ -1118,5 +1093,35 @@ export function ConfirmDialog({
         )}
       </div>
     </Dialog>
+  );
+}
+
+/**
+ * A running analysis (DESIGN.md 動效 · AI 任務進度): the bar only moves with
+ * trustworthy progress; when the job ends, this card fades out (fast) over
+ * the place where the result comes in.
+ */
+function RunningCard({ job, onCancel }: { job: AiJobRecord | null; onCancel: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useExitFade(ref);
+  const pct = uploadPercent(job);
+  return (
+    <div ref={ref} className="aiw__run" role="status">
+      <div className="aiw__row">
+        <span className="aiw__run-label">{runLabel(job)}</span>
+        {pct !== null && <span className="aiw__pct">{pct}%</span>}
+      </div>
+      <div className={pct === null ? 'bar bar--indeterminate' : 'bar'}>
+        <span style={progressStyle(pct)} />
+      </div>
+      <div className="skel aiw__skel" style={{ width: '92%' }} />
+      <div className="skel aiw__skel" style={{ width: '80%' }} />
+      <div className="skel aiw__skel" style={{ width: '66%' }} />
+      <div>
+        <button type="button" className="btn btn--ghost" onClick={onCancel}>
+          {t('common.cancel')}
+        </button>
+      </div>
+    </div>
   );
 }
