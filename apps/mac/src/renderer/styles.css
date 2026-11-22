@@ -768,13 +768,33 @@ kbd {
   cursor: pointer;
 }
 .wcard {
-  transition:
-    box-shadow var(--qc-motion-hover),
-    border-color var(--qc-motion-hover);
+  transition: border-color var(--qc-motion-hover);
 }
 .wcard:hover {
   border-color: var(--qc-ink3);
+}
+/*
+ * 卡片懸停 (DESIGN.md 動效): only the shadow and border change, `fast`; no lift.
+ * The shadow is a layer behind the card whose opacity changes, so no shadow is
+ * repainted frame by frame (QC-065).
+ */
+.card-grid > li {
+  position: relative;
+  isolation: isolate;
+}
+.card-grid > li::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: var(--qc-radius-card);
   box-shadow: var(--qc-shadow-card);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--qc-dur-fast) var(--qc-ease-out);
+}
+.card-grid > li:hover::after {
+  opacity: 1;
 }
 .wcard--skeleton {
   gap: 10px;
@@ -5573,12 +5593,13 @@ kbd {
 .wcard--selected {
   border-color: var(--qc-accent);
   box-shadow: 0 0 0 1px var(--qc-accent);
+  /* The selection ring comes in `fast` (DESIGN.md 動效 · 卡片選取). */
+  transition:
+    border-color var(--qc-dur-fast) var(--qc-ease-out),
+    box-shadow var(--qc-dur-fast) var(--qc-ease-out);
 }
 .wcard--selected:hover {
   border-color: var(--qc-accent);
-  box-shadow:
-    0 0 0 1px var(--qc-accent),
-    var(--qc-shadow-card);
 }
 .wcard--selected .wcard__body {
   background: var(--qc-accent-soft);

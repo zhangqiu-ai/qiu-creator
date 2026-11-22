@@ -43,7 +43,19 @@ import { CardFrameQueue } from './card-frames.js';
 import { DeleteDialog, TagsDialog } from './LibraryDialogs.js';
 import { TrashView } from './LibraryTrash.js';
 import { tagUndoGroups, unionTags } from './library-trash.js';
-import { ExitFade } from './motion.js';
+import {
+  Animated,
+  AnimatedItem,
+  ExitFade,
+  focusAfterRemoval,
+  LAYOUT_LIMIT,
+  Presence,
+  presetVariants,
+  SettleIn,
+  useSkeletonGate,
+} from './motion.js';
+import { moves, useMotionMode } from './motion-mode.js';
+import { motion } from 'motion/react';
 import { codeText, t } from './i18n.js';
 import { Icon } from './Icon.js';
 import { externalSource, useMounts } from './mounts.js';
@@ -533,7 +545,10 @@ export function LibraryPage({
       const ready = await freshRevisions(client, targets, handles);
       const res = await trashWorks(client, ready, { moveOriginal });
       const gone = new Set(res.ok.map((w) => w.id));
+      // Focus moves on to the next card (or the one before), not back to the page.
+      const next = focusAfterRemoval(latest.current.order, gone);
       setWorks((ws) => ws?.filter((w) => !gone.has(w.id)) ?? ws);
+      if (next !== null) focusWork(next);
       setTrashCount((n) => n + gone.size);
       setSelection(EMPTY_SELECTION);
       if (gone.size > 0) onTrashed([...gone]);
@@ -918,6 +933,14 @@ export function LibraryPage({
     setStatus('all');
   };
 
+  const motionMode = useMotionMode();
+  // Few enough cards to move one by one; the grid's identity depends only on this, so
+  // turning Reduce Motion on or off never redraws it.
+  const fewCards = shown.length <= LAYOUT_LIMIT;
+  const animateCards = moves(motionMode) && fewCards;
+  const gridKey = `${type}|${status}|${appliedQuery}|${libraryScope.kind}|${projectId ?? ''}`;
+  const loadView = useSkeletonGate(works === null && !failed);
+
   return (
     <main className="page" aria-label={t('library.library')}>
       <header className="page__header">
@@ -1080,110 +1103,114 @@ export function LibraryPage({
             </button>
           </div>
 
-          {selectedWorks.length > 0 && (
-            <div
-              className="batch-bar"
-              role="toolbar"
-              aria-label={t('workActions.selected', { count: selectedWorks.length })}
-            >
-              <span className="batch-bar__count" aria-live="polite">
-                {t('workActions.selected', { count: selectedWorks.length })}
-              </span>
-              <button
-                type="button"
-                className="btn btn--small"
-                aria-haspopup="menu"
-                aria-expanded={barMenu !== null}
-                disabled={selectedWorks.every(isMissing)}
-                onClick={(e) => {
-                  const r = e.currentTarget.getBoundingClientRect();
-                  setBarMenu({ x: r.left, y: r.bottom + 4 });
-                }}
+          <Presence>
+            {selectedWorks.length > 0 && (
+              <Animated
+                key="batch-bar"
+                preset={{ kind: 'toast' }}
+                className="batch-bar"
+                role="toolbar"
+                aria-label={t('workActions.selected', { count: selectedWorks.length })}
               >
-                {t('workActions.changeStatus')}
-                <Icon name="chevronDown" size={14} />
-              </button>
-              <button
-                type="button"
-                className="btn btn--small"
-                disabled={busy || selectedWorks.every(isMissing)}
-                onClick={() => {
-                  setConfirm({
-                    kind: 'tags',
-                    mode: 'add',
-                    works: selectedWorks.filter((w) => !isMissing(w)),
-                  });
-                }}
-              >
-                {t('workActions.addTags')}
-              </button>
-              <button
-                type="button"
-                className="btn btn--small"
-                disabled={
-                  busy || unionTags(selectedWorks.filter((w) => !isMissing(w))).length === 0
-                }
-                onClick={() => {
-                  setConfirm({
-                    kind: 'tags',
-                    mode: 'remove',
-                    works: selectedWorks.filter((w) => !isMissing(w)),
-                  });
-                }}
-              >
-                {t('workActions.removeTags')}
-              </button>
-              {store !== null && (
+                <span className="batch-bar__count" aria-live="polite">
+                  {t('workActions.selected', { count: selectedWorks.length })}
+                </span>
                 <button
                   type="button"
                   className="btn btn--small"
                   aria-haspopup="menu"
-                  aria-expanded={projectBar !== null}
+                  aria-expanded={barMenu !== null}
+                  disabled={selectedWorks.every(isMissing)}
                   onClick={(e) => {
                     const r = e.currentTarget.getBoundingClientRect();
-                    setProjectBar({ x: r.left, y: r.bottom + 4 });
+                    setBarMenu({ x: r.left, y: r.bottom + 4 });
                   }}
                 >
-                  {t('projects.projectButton')}
+                  {t('workActions.changeStatus')}
                   <Icon name="chevronDown" size={14} />
                 </button>
-              )}
-              {store !== null && project !== null && (
                 <button
                   type="button"
                   className="btn btn--small"
+                  disabled={busy || selectedWorks.every(isMissing)}
                   onClick={() => {
-                    void removeFromProject(store, project, selectedWorks, notifyProject, load);
+                    setConfirm({
+                      kind: 'tags',
+                      mode: 'add',
+                      works: selectedWorks.filter((w) => !isMissing(w)),
+                    });
                   }}
                 >
-                  {t('projects.removeFromThis')}
+                  {t('workActions.addTags')}
                 </button>
-              )}
-              <button
-                type="button"
-                className="btn btn--small btn--danger"
-                disabled={busy}
-                aria-keyshortcuts="Meta+Backspace"
-                onClick={() => {
-                  setConfirm({ kind: 'delete', works: selectedWorks });
-                }}
-              >
-                <Icon name="trash" size={14} />
-                {t('workActions.deleteItem')}
-              </button>
-              <span className="batch-bar__hint">{t('workActions.selectHint')}</span>
-              <button
-                type="button"
-                className="btn btn--small btn--ghost batch-bar__clear"
-                onClick={() => {
-                  setSelection(EMPTY_SELECTION);
-                }}
-              >
-                {t('workActions.clearSelection')}
-                <kbd>esc</kbd>
-              </button>
-            </div>
-          )}
+                <button
+                  type="button"
+                  className="btn btn--small"
+                  disabled={
+                    busy || unionTags(selectedWorks.filter((w) => !isMissing(w))).length === 0
+                  }
+                  onClick={() => {
+                    setConfirm({
+                      kind: 'tags',
+                      mode: 'remove',
+                      works: selectedWorks.filter((w) => !isMissing(w)),
+                    });
+                  }}
+                >
+                  {t('workActions.removeTags')}
+                </button>
+                {store !== null && (
+                  <button
+                    type="button"
+                    className="btn btn--small"
+                    aria-haspopup="menu"
+                    aria-expanded={projectBar !== null}
+                    onClick={(e) => {
+                      const r = e.currentTarget.getBoundingClientRect();
+                      setProjectBar({ x: r.left, y: r.bottom + 4 });
+                    }}
+                  >
+                    {t('projects.projectButton')}
+                    <Icon name="chevronDown" size={14} />
+                  </button>
+                )}
+                {store !== null && project !== null && (
+                  <button
+                    type="button"
+                    className="btn btn--small"
+                    onClick={() => {
+                      void removeFromProject(store, project, selectedWorks, notifyProject, load);
+                    }}
+                  >
+                    {t('projects.removeFromThis')}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn--small btn--danger"
+                  disabled={busy}
+                  aria-keyshortcuts="Meta+Backspace"
+                  onClick={() => {
+                    setConfirm({ kind: 'delete', works: selectedWorks });
+                  }}
+                >
+                  <Icon name="trash" size={14} />
+                  {t('workActions.deleteItem')}
+                </button>
+                <span className="batch-bar__hint">{t('workActions.selectHint')}</span>
+                <button
+                  type="button"
+                  className="btn btn--small btn--ghost batch-bar__clear"
+                  onClick={() => {
+                    setSelection(EMPTY_SELECTION);
+                  }}
+                >
+                  {t('workActions.clearSelection')}
+                  <kbd>esc</kbd>
+                </button>
+              </Animated>
+            )}
+          </Presence>
 
           <section
             className="page__body"
@@ -1199,15 +1226,17 @@ export function LibraryPage({
                 </button>
               </div>
             ) : works === null ? (
-              <div className="card-grid" aria-label={t('common.loading')}>
-                {Array.from({ length: 8 }, (_, i) => (
-                  <div key={i} className="wcard wcard--skeleton">
-                    <div className="skel wcard__cover" />
-                    <div className="skel skel--line" style={{ width: '80%' }} />
-                    <div className="skel skel--line" style={{ width: '50%' }} />
-                  </div>
-                ))}
-              </div>
+              loadView !== 'skeleton' ? null : (
+                <div className="card-grid" aria-label={t('common.loading')}>
+                  {Array.from({ length: 8 }, (_, i) => (
+                    <div key={i} className="wcard wcard--skeleton">
+                      <div className="skel wcard__cover" />
+                      <div className="skel skel--line" style={{ width: '80%' }} />
+                      <div className="skel skel--line" style={{ width: '50%' }} />
+                    </div>
+                  ))}
+                </div>
+              )
             ) : works.length === 0 && !filtering && project !== null ? (
               <div className="state-card state-card--dashed">
                 <span
@@ -1276,45 +1305,56 @@ export function LibraryPage({
                 </button>
               </div>
             ) : view === 'grid' ? (
-              <ul className="card-grid" aria-multiselectable="true">
-                {shown.map((w) => (
-                  <li key={w.id}>
-                    <WorkCard
-                      work={w}
-                      selected={selection.ids.has(w.id)}
-                      menuTarget={menu?.ids.includes(w.id) === true}
-                      renaming={renaming === w.id}
-                      source={externalSource(w, mounts, userHome)}
-                      imageUrl={imageUrl}
-                      onNeedsFrame={onNeedsFrame}
-                      dots={
-                        <ProjectDots
-                          projectIds={w.project_ids}
-                          projects={projectList}
-                          currentId={projectId}
-                        />
-                      }
-                      dragWorks={store === null ? undefined : dragWorks(w)}
-                      onClick={(e, onTitle) => {
-                        onItemClick(e, w, onTitle);
-                      }}
-                      onTitleDoubleClick={(e) => {
-                        onTitleDoubleClick(e, w);
-                      }}
-                      onMenu={(e) => {
-                        onItemMenu(e, w);
-                      }}
-                      onRename={(title) => {
-                        rename(w, title);
-                      }}
-                      onRenameCancel={() => {
-                        setRenaming(null);
-                        focusWork(w.id);
-                      }}
-                    />
-                  </li>
-                ))}
-              </ul>
+              <motion.ul
+                // Few cards: each slides to its new place. Many: the grid is drawn
+                // anew and fades in once (DESIGN.md 動效 · 重排、篩選切換).
+                key={fewCards ? 'cards' : gridKey}
+                className="card-grid"
+                aria-multiselectable="true"
+                variants={presetVariants({ kind: 'fade' }, motionMode)}
+                initial={fewCards ? false : 'initial'}
+                animate="animate"
+              >
+                <Presence popLayout>
+                  {shown.map((w) => (
+                    <AnimatedItem key={w.id} layout={animateCards} quiet={!animateCards}>
+                      <WorkCard
+                        work={w}
+                        selected={selection.ids.has(w.id)}
+                        menuTarget={menu?.ids.includes(w.id) === true}
+                        renaming={renaming === w.id}
+                        source={externalSource(w, mounts, userHome)}
+                        imageUrl={imageUrl}
+                        onNeedsFrame={onNeedsFrame}
+                        dots={
+                          <ProjectDots
+                            projectIds={w.project_ids}
+                            projects={projectList}
+                            currentId={projectId}
+                          />
+                        }
+                        dragWorks={store === null ? undefined : dragWorks(w)}
+                        onClick={(e, onTitle) => {
+                          onItemClick(e, w, onTitle);
+                        }}
+                        onTitleDoubleClick={(e) => {
+                          onTitleDoubleClick(e, w);
+                        }}
+                        onMenu={(e) => {
+                          onItemMenu(e, w);
+                        }}
+                        onRename={(title) => {
+                          rename(w, title);
+                        }}
+                        onRenameCancel={() => {
+                          setRenaming(null);
+                          focusWork(w.id);
+                        }}
+                      />
+                    </AnimatedItem>
+                  ))}
+                </Presence>
+              </motion.ul>
             ) : (
               <div className="table-wrap">
                 <table className="tbl" aria-multiselectable="true">
@@ -1668,9 +1708,9 @@ function WorkCard({
       </span>
       {selected && <span className="visually-hidden">{t('workActions.isSelected')}</span>}
       {selected && (
-        <span className="wcard__check" aria-hidden="true">
+        <SettleIn className="wcard__check">
           <Icon name="check" size={12} />
-        </span>
+        </SettleIn>
       )}
     </DragWorksButton>
   );

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { motionPreference } from '../src/main/motion.js';
-import { presetVariants, springOf, tween } from '../src/renderer/motion.js';
+import {
+  focusAfterRemoval,
+  LAYOUT_LIMIT,
+  presetVariants,
+  springOf,
+  tween,
+} from '../src/renderer/motion.js';
 import { besidePointerAt } from '../src/renderer/projects-dnd.js';
 
 describe('motion preference from the main process (QC-065)', () => {
@@ -77,5 +83,21 @@ describe('the works drag copy rides beside the pointer', () => {
         { x: 50, y: 30, scaleX: 1, scaleY: 1 },
       ),
     ).toEqual({ x: 50 + 90 + 12, y: 30 + 95 + 12, scaleX: 1, scaleY: 1 });
+  });
+});
+
+describe('library motion helpers (QC-065 area 3)', () => {
+  it('after deleting, focus goes to the next card, or else the one before', () => {
+    const order = ['a', 'b', 'c', 'd'];
+    expect(focusAfterRemoval(order, new Set(['b']))).toBe('c');
+    expect(focusAfterRemoval(order, new Set(['b', 'c']))).toBe('d');
+    expect(focusAfterRemoval(order, new Set(['d']))).toBe('c');
+    expect(focusAfterRemoval(order, new Set(['c', 'd']))).toBe('b');
+    expect(focusAfterRemoval(order, new Set(['a', 'b', 'c', 'd']))).toBeNull();
+    expect(focusAfterRemoval(order, new Set(['x']))).toBeNull();
+  });
+
+  it('at most 40 cards move one by one; more change with one cross-fade', () => {
+    expect(LAYOUT_LIMIT).toBe(40);
   });
 });
