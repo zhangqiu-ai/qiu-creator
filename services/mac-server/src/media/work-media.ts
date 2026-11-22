@@ -37,6 +37,11 @@ export function workFilePath(workId: string, rel: string): string {
   return `${SIGNED_MEDIA_PREFIX}/works/${workId}/files/${encodePathSegments(rel)}`;
 }
 
+/** Signed path of a work's library card image (QC-061). */
+export function workThumbnailPath(workId: string): string {
+  return `${SIGNED_MEDIA_PREFIX}/works/${workId}/thumbnail`;
+}
+
 export function assetMediaPath(assetId: string, variant: 'stream' | 'thumbnail'): string {
   return `${SIGNED_MEDIA_PREFIX}/assets/${assetId}/${variant}`;
 }

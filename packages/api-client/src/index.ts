@@ -46,10 +46,12 @@ import {
   createEventsApi,
   createTrashApi,
   createWorkAssetsApi,
+  createWorkThumbnailsApi,
   type CreatorHubAssetsApi,
   type CreatorHubEventsApi,
   type CreatorHubTrashApi,
   type CreatorHubWorkAssetsApi,
+  type CreatorHubWorkThumbnailsApi,
 } from './assets.js';
 import {
   createImportsApi,
@@ -199,6 +201,8 @@ export interface CreatorHubClient {
   assets: CreatorHubAssetsApi;
   /** Work ↔ asset links: cover, body, video, with ordering. */
   workAssets: CreatorHubWorkAssetsApi;
+  /** Library card images (QC-061). */
+  workThumbnails: CreatorHubWorkThumbnailsApi;
   /** SSE change events. */
   events: CreatorHubEventsApi;
   /** URL imports (QC-006). */
@@ -255,6 +259,7 @@ export function createClient(options: CreatorHubClientOptions): CreatorHubClient
   return {
     assets: createAssetsApi(ctx),
     workAssets: createWorkAssetsApi(ctx),
+    workThumbnails: createWorkThumbnailsApi(ctx),
     events: createEventsApi(ctx),
     imports: createImportsApi(ctx),
     jobs: createJobsApi(ctx),

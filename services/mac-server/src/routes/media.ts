@@ -20,7 +20,13 @@ import { sendRanged } from '../http/ranged.js';
 import { THUMBNAIL_MIME } from '../media/thumbnails.js';
 import type { MediaUrlSigner, SignedQuery } from '../media/url-signer.js';
 import type { WorkMediaAttacher } from '../media/attach.js';
-import { assetMediaPath, workFilePath, type WorkMediaService } from '../media/work-media.js';
+import {
+  assetMediaPath,
+  workFilePath,
+  workThumbnailPath,
+  type WorkMediaService,
+} from '../media/work-media.js';
+import type { WorkService } from '../works/work-service.js';
 
 const errorResponses = {
   400: ErrorResponseSchema,
@@ -56,6 +62,7 @@ export function registerMediaRoutes(
   signer: MediaUrlSigner,
   tokens: TokenService,
   attacher: WorkMediaAttacher,
+  works: WorkService,
 ): void {
   /** Verify a signed request and that the principal that asked for it may still read. */
   const verify = (pathname: string, query: SignedQuery): number => {
@@ -155,6 +162,34 @@ export function registerMediaRoutes(
       const target = await media.openWorkFile(req.params.id, req.params['*']);
       signedHeaders(reply, secondsLeft);
       return sendRanged(req, reply, target);
+    },
+  );
+
+  app.get(
+    `${SIGNED_MEDIA_PREFIX}/works/:id/thumbnail`,
+    {
+      schema: {
+        description:
+          'Signed library card image of a work (QC-061), from `card_image.url` in the works list. Same image and errors as `GET /api/v1/works/:id/thumbnail`.',
+        security: [],
+        params: z.object({ id: IdSchema }),
+        querystring: SignedQuerySchema.extend({ v: z.string().max(32).optional() }),
+      },
+    },
+    async (req, reply) => {
+      const secondsLeft = verify(workThumbnailPath(req.params.id), req.query);
+      const { file, version } = await works.cardImageFile(req.params.id);
+      signedHeaders(reply, secondsLeft);
+      // Same URL for the whole signing period: let the browser keep it that long.
+      if (req.query.v === version) {
+        reply.header('cache-control', `private, max-age=${String(secondsLeft)}, immutable`);
+      }
+      const body = fs.readFileSync(file);
+      return reply
+        .header('etag', `"${version}"`)
+        .header('content-type', THUMBNAIL_MIME)
+        .header('content-length', body.length)
+        .send(body);
     },
   );
 
