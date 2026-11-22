@@ -1,3 +1,11 @@
+## QC-081: new-api.spec、settings-v4.spec 偶發失敗（發版前要清掉）
+
+**Priority:** P1 | **Assignee:** qc-test | **Tags:** M3
+
+QC-077、QC-078 的整套 e2e（動效關閉）各出現一次 `new-api.spec.ts` 等 30 秒找不到設定頁「AI 服務」按鈕，單跑 6 次全過、整套重跑 0 failed。查根因（測試時序或產品），不准加長逾時或重試。
+
+- 2026-11-22 補充：qc-frontend 在未改動的 origin/main 上量到 `settings-v4.spec` 偶發失敗 5／20（機器較忙時）。這兩支要在 QC-074–079 發版前查清根因並修好；產品問題回報總監轉派，測試問題直接修，不准加逾時或重試。
+
 ## QC-076: 平台預覽併入作品編輯頁；編輯區 AI 只留改寫與圖片，標題與封面移到平台預覽
 
 **Priority:** P1 | **Assignee:** qc-prototype（原型，總監代核准，與 QC-075 一起畫）→ qc-frontend（＋ qc-backend 若需要） | **Tags:** M3, prototype, frontend

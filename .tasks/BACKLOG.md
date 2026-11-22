@@ -6,12 +6,6 @@
 
 QC-079 沒有加拼音索引欄位，改為查詢時比對。量測（`docs/evidence/qc079-*`）：300 件 × 2000 字時查詢 ≤44ms；3000 件 × 3000 字時無命中或首字母查詢約 0.6–1.5 秒，即時搜尋會明顯卡頓。作品量接近千件前，評估預先計算讀音索引（可回滾 migration、只動索引）或背景 worker、輸入去抖與取消舊查詢。
 
-## QC-081: new-api.spec 偶發找不到設定頁「AI 服務」按鈕
-
-**Priority:** P3 | **Assignee:** qc-test | **Tags:** M3
-
-QC-077、QC-078 的整套 e2e（動效關閉）各出現一次 `new-api.spec.ts` 等 30 秒找不到設定頁「AI 服務」按鈕，單跑 6 次全過、整套重跑 0 failed。查根因（測試時序或產品），不准加長逾時或重試。
-
 ## QC-058: 刪除素材前提示「也被最近刪除中的作品使用」
 
 **Priority:** P3 | **Assignee:** qc-frontend | **Tags:** M3, frontend
