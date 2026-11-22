@@ -248,12 +248,12 @@ describe('New API model list (QC-054)', () => {
         details: { reason: 'unavailable', status: 503 },
       },
       {
-        name: '429 → unavailable',
+        name: '429 → rate limited',
         handler: (_q, r) => {
           json(r, 429, {});
         },
         code: 'ai_gateway_unreachable',
-        details: { reason: 'unavailable', status: 429 },
+        details: { reason: 'rate_limited', status: 429 },
       },
       {
         name: '404 → unexpected status',

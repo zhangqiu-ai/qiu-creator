@@ -9,7 +9,7 @@ import {
   type AiTextResult,
 } from '../provider.js';
 import type { AdapterOptions } from './anthropic.js';
-import { fetchRelayModels } from './relay-models.js';
+import { effectiveTimeout, fetchRelayModels } from './relay-models.js';
 
 /** GPT via the official `openai` SDK (Responses API). */
 export class OpenAIProvider implements AIProvider {
@@ -18,11 +18,11 @@ export class OpenAIProvider implements AIProvider {
   constructor(private readonly options: AdapterOptions) {}
 
   /** `GET /v1/models` (QC-057 connection test). */
-  listModels(apiKey: string): Promise<string[]> {
+  listModels(apiKey: string, _baseUrl?: string, timeoutMs?: number): Promise<string[]> {
     return fetchRelayModels(
       this.options.baseUrl ?? 'https://api.openai.com/v1',
       apiKey,
-      this.options.timeoutMs,
+      effectiveTimeout(this.options.timeoutMs, timeoutMs),
     );
   }
 
@@ -92,10 +92,10 @@ export class NewApiProvider implements AIProvider {
   constructor(private readonly options: AdapterOptions) {}
 
   /** `GET {base}/models` with the stored key (QC-054); the adapter's base URL wins in tests. */
-  listModels(apiKey: string, baseUrl?: string): Promise<string[]> {
+  listModels(apiKey: string, baseUrl?: string, timeoutMs?: number): Promise<string[]> {
     const base = this.options.baseUrl ?? baseUrl;
     if (base === undefined) return Promise.reject(providerError('missing_key'));
-    return fetchRelayModels(base, apiKey, this.options.timeoutMs);
+    return fetchRelayModels(base, apiKey, effectiveTimeout(this.options.timeoutMs, timeoutMs));
   }
 
   async generateText(req: AiTextRequest, apiKey: string, baseUrl?: string): Promise<AiTextResult> {

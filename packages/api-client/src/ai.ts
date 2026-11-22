@@ -3,6 +3,7 @@ import {
   AiJobRecordSchema,
   AiProviderListResponseSchema,
   AiProviderModelsResponseSchema,
+  AiDefaultsSchema,
   AiProviderTestResponseSchema,
   AiProviderStatusSchema,
   AiSettingsSchema,
@@ -37,6 +38,8 @@ import {
   type AiProvider,
   type AiProviderListResponse,
   type AiProviderModelsResponse,
+  type AiDefaults,
+  type PutAiDefaultsRequest,
   type AiProviderTestResponse,
   type AiProviderStatus,
   type AiSettings,
@@ -71,6 +74,10 @@ export interface CreatorHubAiApi {
    * with `ok: false` and `error` when the probe fails; only a missing key throws (409).
    */
   testProvider(provider: AiProvider): Promise<AiProviderTestResponse>;
+  /** Default provider per task (QC-057); null = the app's own choice. */
+  defaults(): Promise<AiDefaults>;
+  /** Replace all three defaults; omitted fields become null. */
+  putDefaults(input: PutAiDefaultsRequest): Promise<AiDefaults>;
   /** Confirm the displayed notice version and, for New API, its credential ID. */
   consent(
     provider: AiProvider,
@@ -154,6 +161,8 @@ export function createAiApi(ctx: Ctx): CreatorHubAiApi {
         base_url: baseUrl,
       } satisfies SetAiKeyRequest),
     deleteKey: (provider) => call(ctx, AiProviderStatusSchema, 'DELETE', `${p(provider)}/key`),
+    defaults: () => call(ctx, AiDefaultsSchema, 'GET', '/api/v1/ai/defaults'),
+    putDefaults: (input) => call(ctx, AiDefaultsSchema, 'PUT', '/api/v1/ai/defaults', input),
     testProvider: (provider) =>
       call(ctx, AiProviderTestResponseSchema, 'POST', `${p(provider)}/test`),
     newApiModels: (options = {}) =>

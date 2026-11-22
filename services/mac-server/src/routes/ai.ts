@@ -1,5 +1,7 @@
 import {
   AiConsentRequestSchema,
+  AiDefaultsSchema,
+  PutAiDefaultsRequestSchema,
   AiEstimateResponseSchema,
   AiJobRecordSchema,
   AiProviderListResponseSchema,
@@ -43,6 +45,39 @@ const JobParamsSchema = z.object({ id: IdSchema });
  * agent tokens can neither manage keys nor spend money on AI calls.
  */
 export function registerAiRoutes(app: App, ai: AiService, idempotency: IdempotencyService): void {
+  // Provider status shows the New API Base URL (QC-057), which lives in the
+  // Keychain credential: read it once before the first provider response.
+  app.addHook('preHandler', async (req) => {
+    if (req.routeOptions.url?.startsWith('/api/v1/ai/providers') === true) {
+      await ai.loadNewApiBaseUrl();
+    }
+  });
+
+  app.get(
+    '/api/v1/ai/defaults',
+    {
+      schema: {
+        description:
+          'Default provider per task (QC-057): `rewrite`, `title`, `video` (Gemini only). Null = not set; the app keeps choosing the first ready provider.',
+        response: { 200: AiDefaultsSchema, ...errorResponses },
+      },
+    },
+    () => ai.defaults(),
+  );
+
+  app.put(
+    '/api/v1/ai/defaults',
+    {
+      schema: {
+        description:
+          'Replace the defaults per task; omitted fields are cleared to null. Provider ids only; `video` must be `gemini` or null.',
+        body: PutAiDefaultsRequestSchema,
+        response: { 200: AiDefaultsSchema, ...errorResponses },
+      },
+    },
+    (req) => ai.putDefaults(req.body),
+  );
+
   app.get(
     '/api/v1/ai/providers',
     {

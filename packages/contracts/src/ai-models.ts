@@ -40,6 +40,9 @@ export const AiProviderModelsResponseSchema = z.object({
 });
 export type AiProviderModelsResponse = z.infer<typeof AiProviderModelsResponseSchema>;
 
+/** 測試連線 gives up after this long (QC-057), or sooner if the adapter's timeout is shorter. */
+export const AI_TEST_TIMEOUT_MS = 10_000;
+
 /** How long the server reuses a model list for the same key and Base URL. */
 export const AI_MODELS_CACHE_SECONDS = 600;
 
@@ -52,10 +55,12 @@ export const AiGatewayUnreachableReasonSchema = z.enum([
   'dns',
   'tls',
   'connection',
-  /** 429 (rate limited) or 5xx; `details.status`. */
+  /** 5xx from the provider; `details.status`. */
   'unavailable',
-  /** 402, or 429 whose error says quota, billing or balance; `details.status` (QC-057). */
+  /** 402, or 429 whose error says quota, billing or balance (`insufficient_quota`, `RESOURCE_EXHAUSTED`…); `details.status` (QC-057). */
   'quota',
+  /** Any other 429: a plain rate limit, try again shortly; `details.status` (QC-057). */
+  'rate_limited',
 ]);
 export type AiGatewayUnreachableReason = z.infer<typeof AiGatewayUnreachableReasonSchema>;
 

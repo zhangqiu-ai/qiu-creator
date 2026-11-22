@@ -48,7 +48,7 @@ export interface AIProvider {
    * API list, QC-057 connection test). See `fetchModelList`. `baseUrl` is the
    * stored New API Base URL; the other providers ignore it.
    */
-  listModels?(apiKey: string, baseUrl?: string): Promise<string[]>;
+  listModels?(apiKey: string, baseUrl?: string, timeoutMs?: number): Promise<string[]>;
 }
 
 const RETRYABLE: ReadonlySet<AiFailureCode> = new Set([

@@ -107,7 +107,12 @@ describe('New API gateway', () => {
     });
     const providers = await ai.providers();
     expect(JSON.stringify(providers)).not.toContain(apiKey);
-    expect(JSON.stringify(providers)).not.toContain(baseUrl);
+    // QC-057: the Base URL is not a secret and is shown (the key never is).
+    expect(providers.items.find((p) => p.provider === 'new-api')).toMatchObject({
+      base_url: baseUrl,
+      base_url_host: new URL(baseUrl).hostname,
+    });
+    expect(providers.items.find((p) => p.provider === 'openai')).not.toHaveProperty('base_url');
     expect(JSON.stringify(s.db.prepare('SELECT * FROM ai_providers').all())).not.toContain(baseUrl);
     expect((await apiError(ai.submit(jobRequest))).code).toBe('ai_consent_required');
     expect((await apiError(ai.consent('new-api', configured.notice.version))).status).toBe(409);
@@ -670,5 +675,77 @@ describe('estimates, budget reminder and usage', () => {
       'ai_job.succeeded',
     ]);
     for (const e of events) expect(Object.keys(e.data).sort()).toEqual(['provider', 'status']);
+  });
+});
+
+describe('defaults per task and unpriced usage (QC-057)', () => {
+  it('stores provider defaults; null keeps today’s behaviour; video is Gemini only', async () => {
+    const { s } = await start();
+    expect(await s.client.ai.defaults()).toEqual({ rewrite: null, title: null, video: null });
+
+    expect(await s.client.ai.putDefaults({ rewrite: 'anthropic', video: 'gemini' })).toEqual({
+      rewrite: 'anthropic',
+      title: null,
+      video: 'gemini',
+    });
+    for (const body of [{ video: 'openai' }, { rewrite: 'nope' }]) {
+      const res = await fetch(`${s.baseUrl}/api/v1/ai/defaults`, {
+        method: 'PUT',
+        headers: authHeaders({ 'content-type': 'application/json' }),
+        body: JSON.stringify(body),
+      });
+      expect(res.status).toBe(400);
+    }
+    expect((await s.client.ai.defaults()).rewrite).toBe('anthropic');
+    // Defaults only name providers: nothing else about the providers changed.
+    expect((await s.client.ai.providers()).items.every((p) => !p.key_configured)).toBe(true);
+
+    expect(await s.client.ai.putDefaults({})).toEqual({ rewrite: null, title: null, video: null });
+
+    const agent = s.tokens.create({ name: 'agent', scopes: ['read', 'import', 'write'] });
+    const res = await fetch(`${s.baseUrl}/api/v1/ai/defaults`, {
+      headers: { authorization: `Bearer ${agent.secret}` },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('counts finished jobs that have usage but no price as unpriced_jobs', async () => {
+    const { s, fake } = await start();
+    await ready(s, 'openai');
+    const relay = await s.client.ai.setKey(
+      'new-api',
+      'relay_dummy_key_123',
+      'https://relay.example.test/v1',
+    );
+    await s.client.ai.consent('new-api', relay.notice.version, relay.notice.credential_id);
+
+    fake.script('openai', ok('openai', '標題一', 'gpt-5.5'));
+    fake.script(
+      'new-api',
+      ok('new-api', '標題二', 'gpt-4o-mini'),
+      ok('new-api', '標題三', 'gpt-4o-mini'),
+    );
+    const ids = [
+      (await s.client.ai.submit(job('openai', { model: 'gpt-5.5' }))).job.id,
+      (await s.client.ai.submit(job('new-api'))).job.id,
+      (await s.client.ai.submit(job('new-api'))).job.id,
+    ];
+    for (const id of ids) expect((await finished(s, id)).status).toBe('succeeded');
+
+    const usage = await s.client.ai.usage();
+    const by = Object.fromEntries(usage.by_provider.map((p) => [p.provider, p]));
+    expect(by['openai']).toMatchObject({ jobs: 1, unpriced_jobs: 0 });
+    expect(by['openai']?.cost_usd).toBeGreaterThan(0);
+    expect(by['new-api']).toMatchObject({ jobs: 2, unpriced_jobs: 2, cost_usd: 0 });
+
+    // A price override makes later New API jobs priced.
+    await s.client.ai.patchSettings({
+      price_overrides: { 'gpt-4o-mini': { input_per_mtok: 0.15, output_per_mtok: 0.6 } },
+    });
+    fake.script('new-api', ok('new-api', '標題四', 'gpt-4o-mini'));
+    const priced = (await s.client.ai.submit(job('new-api'))).job.id;
+    expect((await finished(s, priced)).status).toBe('succeeded');
+    const after = (await s.client.ai.usage()).by_provider.find((p) => p.provider === 'new-api');
+    expect(after).toMatchObject({ jobs: 3, unpriced_jobs: 2 });
   });
 });
