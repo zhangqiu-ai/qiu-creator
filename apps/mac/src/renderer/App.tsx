@@ -318,6 +318,10 @@ export function App() {
           onRenamed={(id, title) => {
             if (tabs.find(id) !== null) tabs.update(id, { title });
           }}
+          onTrashed={(ids) => {
+            // Saved before deleting, so nothing unsaved is lost; 復原 does not reopen them.
+            for (const id of ids) if (tabs.find(id) !== null) tabs.close(id);
+          }}
         />
       ) : route.page === 'editor' ? null : route.page === 'assets' ? (
         <AssetsPage

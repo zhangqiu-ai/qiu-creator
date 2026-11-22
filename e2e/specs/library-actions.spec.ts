@@ -1,4 +1,5 @@
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
 import { test } from '../fixtures/desktop.js';
@@ -124,6 +125,7 @@ test('作品庫：卡片縮小、原地改名、右鍵選單、改狀態復原�
       '在新分頁開啟',
       '重新命名',
       '改狀態',
+      '刪除…⌘⌫',
     ]);
     await expect(menu.getByRole('menuitem', { name: '開啟', exact: true })).toBeFocused();
     await menu.getByRole('menuitem', { name: '改狀態' }).hover();
@@ -182,7 +184,12 @@ test('作品庫：卡片縮小、原地改名、右鍵選單、改狀態復原�
     await expect(card(page, target)).toHaveClass(/wcard--selected/);
     await card(page, '城市夜景拍法').click({ button: 'right' });
     const many = page.getByRole('menu', { name: `已選 ${String(span)} 個作品的操作` });
-    await expect(many.getByRole('menuitem')).toHaveText(['改狀態']);
+    await expect(many.getByRole('menuitem')).toHaveText([
+      '改狀態',
+      '加標籤…',
+      '移除標籤…',
+      '刪除…⌘⌫',
+    ]);
     await page.keyboard.press('Escape');
 
     await page.keyboard.press('Meta+a');
@@ -288,5 +295,197 @@ test('作品庫：卡片縮小、原地改名、右鍵選單、改狀態復原�
       await page.keyboard.press('Escape');
       await page.emulateMedia({ colorScheme: null });
     });
+  }
+});
+
+test('作品庫：刪除確認與復原、批量標籤、分頁關閉、最近刪除還原與永久刪除、外部作品原檔不動', async ({
+  desktop,
+}) => {
+  const { page, backend } = desktop;
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const c = backend.client;
+  const folder = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'qc052-ext-')));
+  const externalFile = path.join(folder, '外部筆記.md');
+  writeFileSync(externalFile, '# 外部筆記\n\n內文\n');
+  try {
+    for (const title of ['春季選題', '夏日清單', '秋天散步', '冬至食譜']) {
+      await c.works.create({ title, markdown: `# ${title}`, source: 'mac-app' });
+    }
+    await c.mounts.create({ path: folder, name: '寫作' });
+    await expect.poll(async () => (await c.works.list({ limit: 20 })).items.length).toBe(5);
+    const active = async () => (await c.works.list({ limit: 50 })).items;
+    const byTitle = async (title: string) => {
+      const w = (await active()).find((x) => x.title === title);
+      if (w === undefined) throw new Error(`no work ${title}`);
+      return w;
+    };
+    const trashChip = () => page.locator('.filters__trash');
+
+    await nav(page).getByRole('button', { name: '作品庫', exact: true }).click();
+    await expect(works(page).locator('.wcard')).toHaveCount(5);
+    await expect(trashChip()).toContainText('最近刪除0');
+
+    await test.step('右鍵刪除：確認框寫明可還原 30 天，刪除後可復原', async () => {
+      await card(page, '春季選題').click({ button: 'right' });
+      await page.getByRole('menuitem', { name: /^刪除…/ }).click();
+      const dialog = page.getByRole('dialog', { name: '刪除「春季選題」？' });
+      await expect(dialog).toContainText('會移到最近刪除，30 天內可以還原');
+      await expect(dialog.getByRole('button', { name: '刪除', exact: true })).toBeFocused();
+      await shot(page, 'zh-Hant-9-delete-confirm');
+      await page.keyboard.press('Enter');
+      await expect(card(page, '春季選題')).toHaveCount(0);
+      await expect(trashChip()).toContainText('最近刪除1');
+      const toast = page.getByRole('status').filter({ hasText: '已刪除「春季選題」' });
+      await expect(toast).toBeVisible();
+      await shot(page, 'zh-Hant-10-deleted-undo');
+      await toast.getByRole('button', { name: '復原' }).click();
+      await expect(card(page, '春季選題')).toBeVisible();
+      await expect
+        .poll(async () => (await c.works.list({ scope: 'trash', limit: 5 })).total)
+        .toBe(0);
+    });
+
+    await test.step('批量加標籤（組字中的 ↩ 不套用）與復原，再移除標籤', async () => {
+      await card(page, '夏日清單').click({ modifiers: ['Meta'] });
+      await card(page, '秋天散步').click({ modifiers: ['Meta'] });
+      await page.getByRole('toolbar').getByRole('button', { name: '加標籤…' }).click();
+      const dialog = page.getByRole('dialog', { name: '為 2 個作品加標籤' });
+      const field = dialog.getByRole('textbox', { name: '標籤' });
+      await expect(field).toBeFocused();
+      await field.fill('京都，旅行');
+      await page.evaluate(
+        COMPOSING_ENTER.replace(
+          "el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Process', bubbles: true, cancelable: true }));",
+          '',
+        ),
+      );
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toContainText('#京都 #旅行');
+      await shot(page, 'zh-Hant-11-add-tags');
+      await page.keyboard.press('Enter');
+      await expect.poll(async () => (await byTitle('夏日清單')).tags).toEqual(['京都', '旅行']);
+      expect((await byTitle('秋天散步')).tags).toEqual(['京都', '旅行']);
+      await page
+        .getByRole('status')
+        .filter({ hasText: '已為 2 個作品加上標籤' })
+        .getByRole('button', { name: '復原' })
+        .click();
+      await expect.poll(async () => (await byTitle('夏日清單')).tags).toEqual([]);
+
+      await page.getByRole('toolbar').getByRole('button', { name: '加標籤…' }).click();
+      await page.getByRole('dialog').getByRole('textbox').fill('京都');
+      await page.keyboard.press('Enter');
+      await expect.poll(async () => (await byTitle('秋天散步')).tags).toEqual(['京都']);
+      await page.getByRole('toolbar').getByRole('button', { name: '移除標籤…' }).click();
+      const remove = page.getByRole('dialog', { name: '從 2 個作品移除標籤' });
+      await remove.getByRole('checkbox', { name: '#京都' }).check();
+      await remove.getByRole('button', { name: '套用' }).click();
+      await expect.poll(async () => (await byTitle('秋天散步')).tags).toEqual([]);
+    });
+
+    await test.step('⌘⌫ 刪除兩個選取的作品；開著的分頁一起關閉', async () => {
+      await page.keyboard.press('Escape');
+      await card(page, '冬至食譜').click({ button: 'right' });
+      await page.getByRole('menuitem', { name: '在新分頁開啟' }).click();
+      await expect(page.getByRole('tablist', { name: '已開啟的作品' })).toHaveCount(0);
+      await card(page, '夏日清單').click({ modifiers: ['Meta'] });
+      await card(page, '冬至食譜').click({ modifiers: ['Meta'] });
+      await page.keyboard.press('Meta+Backspace');
+      const dialog = page.getByRole('dialog', { name: '刪除 2 個作品？' });
+      await dialog.getByRole('button', { name: '刪除', exact: true }).click();
+      await expect(trashChip()).toContainText('最近刪除2');
+      await expect(page.getByRole('toolbar')).toHaveCount(0);
+      expect((await active()).map((w) => w.title).sort()).toEqual([
+        '外部筆記',
+        '春季選題',
+        '秋天散步',
+      ]);
+      // The background tab of 冬至食譜 closed with it.
+      await card(page, '秋天散步').locator('.wcard__cover').click();
+      await expect(tabBar(page).getByRole('tab')).toHaveCount(1);
+      await nav(page).getByRole('button', { name: '作品庫', exact: true }).click();
+    });
+
+    await test.step('外部作品：只從作品庫移除，原檔不動', async () => {
+      await card(page, '外部筆記').click({ button: 'right' });
+      await page.getByRole('menuitem', { name: /^刪除…/ }).click();
+      const dialog = page.getByRole('dialog', { name: '刪除「外部筆記」？' });
+      await expect(dialog).toContainText('外部資料夾的作品只會從作品庫移除，原檔留在原處。');
+      await expect(
+        dialog.getByRole('checkbox', { name: /原檔也移到 macOS 垃圾桶/ }),
+      ).not.toBeChecked();
+      await dialog.getByRole('button', { name: '刪除', exact: true }).click();
+      await expect(trashChip()).toContainText('最近刪除3');
+      expect(existsSync(externalFile)).toBe(true);
+      expect(desktop.systemTrash.moved).toEqual([]);
+    });
+
+    await test.step('最近刪除：剩餘天數、還原、永久刪除（取消先有焦點）、清空', async () => {
+      await trashChip().click();
+      const list = page.getByRole('region', { name: '已刪除的作品' });
+      await expect(list.locator('.wcard')).toHaveCount(3);
+      await expect(list.locator('.wcard', { hasText: '夏日清單' })).toContainText('30 天後刪除');
+      await expect(list.locator('.wcard', { hasText: '外部筆記' })).toContainText(
+        '只從作品庫移除，原檔未動',
+      );
+      await shot(page, 'zh-Hant-12-trash');
+
+      await list.locator('.wcard', { hasText: '夏日清單' }).click({ button: 'right' });
+      await page.getByRole('menuitem', { name: '還原' }).click();
+      await expect(
+        page.getByRole('status').filter({ hasText: '已還原「夏日清單」' }),
+      ).toBeVisible();
+      await expect(list.locator('.wcard')).toHaveCount(2);
+      expect((await byTitle('夏日清單')).deleted_at ?? null).toBeNull();
+
+      await list.locator('.wcard', { hasText: '冬至食譜' }).click();
+      await page.getByRole('toolbar').getByRole('button', { name: '永久刪除…' }).click();
+      const purge = page.getByRole('dialog', { name: '永久刪除「冬至食譜」？' });
+      await expect(purge).toContainText('無法復原');
+      await expect(purge.getByRole('button', { name: '取消' })).toBeFocused();
+      await shot(page, 'zh-Hant-13-purge-confirm');
+      await purge.getByRole('button', { name: '永久刪除' }).click();
+      await expect(
+        page.getByRole('status').filter({ hasText: '已永久刪除 1 個作品' }),
+      ).toBeVisible();
+      await expect(list.locator('.wcard')).toHaveCount(1);
+
+      await page.getByRole('button', { name: '清空最近刪除' }).click();
+      const empty = page.getByRole('dialog', { name: '清空最近刪除？' });
+      await expect(empty).toContainText('1 個作品會永久刪除');
+      await empty.getByRole('button', { name: '清空最近刪除' }).click();
+      await expect(page.getByText('最近刪除是空的')).toBeVisible();
+      expect((await c.works.list({ scope: 'trash', limit: 5 })).total).toBe(0);
+      // Purging an unindexed external work never touches its file.
+      expect(existsSync(externalFile)).toBe(true);
+
+      await page.getByRole('button', { name: '返回作品庫' }).click();
+      await expect(trashChip()).toContainText('最近刪除0');
+      await expect(works(page).locator('.wcard')).toHaveCount(3);
+    });
+
+    if (shooting()) {
+      await test.step('截圖：最近刪除的簡中、English、深色', async () => {
+        for (const title of ['春季選題', '秋天散步']) {
+          const w = await byTitle(title);
+          await c.works.trash(w.id, { base_revision: w.current_revision_id });
+        }
+        await trashChip().click();
+        // Notices keep the language they were shown in; clear them before switching.
+        const closers = page.locator('.toast button[aria-label]');
+        while ((await closers.count()) > 0) await closers.first().click();
+        for (const lang of ['zh-Hans', 'en'] as const) {
+          await page.evaluate(`window.creatorhub.setLanguage('${lang}')`);
+          await page.locator('.card-grid .wcard').first().click();
+          await shot(page, `${lang}-trash`);
+        }
+        await page.evaluate("window.creatorhub.setLanguage('zh-Hant')");
+        await page.emulateMedia({ colorScheme: 'dark' });
+        await shot(page, 'dark-trash');
+        await page.emulateMedia({ colorScheme: null });
+      });
+    }
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
   }
 });

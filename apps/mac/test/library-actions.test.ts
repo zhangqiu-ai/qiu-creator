@@ -18,7 +18,22 @@ import {
 } from '../src/renderer/library-select.js';
 import { sessionHandle } from '../src/renderer/tab-handle.js';
 import { TabsModel } from '../src/renderer/tabs.js';
-import { changeWork, type EditorHandles } from '../src/renderer/work-actions.js';
+import {
+  daysLeft,
+  parseTags,
+  summarize,
+  tagUndoGroups,
+  unionTags,
+} from '../src/renderer/library-trash.js';
+import {
+  batchWorks,
+  changeWork,
+  freshRevisions,
+  purgeWorks,
+  restoreWorks,
+  trashWorks,
+  type EditorHandles,
+} from '../src/renderer/work-actions.js';
 import { WorkSession } from '../src/renderer/work-session.js';
 
 const ORDER = ['a', 'b', 'c', 'd', 'e'];
@@ -138,6 +153,49 @@ describe('TabsModel.openInBackground (在新分頁開啟)', () => {
   });
 });
 
+describe('最近刪除 and batch helpers (QC-052)', () => {
+  it('days left until a deleted work is purged', () => {
+    const now = Date.parse('2026-11-21T00:00:00Z');
+    expect(daysLeft('2026-12-21T00:00:00Z', now)).toBe(30);
+    expect(daysLeft('2026-11-22T12:00:00Z', now)).toBe(2);
+    expect(daysLeft('2026-11-21T08:00:00Z', now)).toBe(1);
+    expect(daysLeft('2026-11-20T00:00:00Z', now)).toBe(0);
+    expect(daysLeft(null, now)).toBeNull();
+    expect(daysLeft('not a date', now)).toBeNull();
+  });
+
+  it('parses typed tags: commas, 、, spaces and # split; duplicates dropped', () => {
+    expect(parseTags(' 旅行，京都、 #秋天  旅行 ,, ')).toEqual(['旅行', '京都', '秋天']);
+    expect(parseTags('   ')).toEqual([]);
+    expect(parseTags('x'.repeat(80))[0]).toHaveLength(64);
+  });
+
+  it('lists the tags a selection has, and undoes only what each work really changed', () => {
+    const before = [
+      { id: 'a', tags: ['旅行'] },
+      { id: 'b', tags: [] },
+      { id: 'c', tags: ['旅行', '京都'] },
+    ];
+    expect(unionTags(before)).toEqual(['旅行', '京都']);
+    // Adding 旅行 + 京都: a gains 京都 only, b gains both, c gains nothing.
+    expect(tagUndoGroups(before, ['旅行', '京都'], 'add')).toEqual([
+      { tags: ['京都'], ids: ['a'] },
+      { tags: ['旅行', '京都'], ids: ['b'] },
+    ]);
+    // Removing 旅行: a and c lose it, b never had it.
+    expect(tagUndoGroups(before, ['旅行'], 'remove')).toEqual([
+      { tags: ['旅行'], ids: ['a', 'c'] },
+    ]);
+  });
+
+  it('splits batch results into changed works and failures with their codes', () => {
+    const s = summarize([
+      { id: 'x', ok: false, error: { code: 'revision_conflict', message: 'm' } },
+    ]);
+    expect(s).toEqual({ ok: [], failed: [{ id: 'x', code: 'revision_conflict' }] });
+  });
+});
+
 // ---- Against a real mac-server in a throwaway CREATORHUB_HOME ----
 
 const TOKEN = 'test-token-0123456789abcdef';
@@ -230,6 +288,73 @@ describe('changeWork: rename and status from 作品庫 and the tab bar', () => {
     const handle = sessionHandle(session, () => undefined);
     expect(await handle.change({ title: 'y' })).toBe('failed');
     expect((await client.works.get(work.id)).title).toBe('x');
+    session.dispose();
+  });
+
+  it('deletes one work to 最近刪除 and restores it with the same revision', async () => {
+    const work = await client.works.create({
+      title: '要刪的',
+      markdown: '內容',
+      source: 'mac-app',
+    });
+    const out = await trashWorks(client, [work]);
+    expect(out.failed).toEqual([]);
+    expect(out.ok[0]?.deleted_at).toBeTruthy();
+    expect((await client.works.list({ limit: 10 })).items).toHaveLength(0);
+    const trash = await client.works.list({ scope: 'trash', limit: 10 });
+    expect(trash.items.map((w) => w.id)).toEqual([work.id]);
+    expect(trash.items[0]?.purge_at).toBeTruthy();
+
+    const back = await restoreWorks(client, out.ok);
+    expect(back.failed).toEqual([]);
+    const now = await client.works.get(work.id);
+    expect(now.current_revision_id).toBe(work.current_revision_id);
+    expect(now.markdown).toContain('內容');
+    expect((await client.works.list({ scope: 'trash', limit: 10 })).total).toBe(0);
+  });
+
+  it('a stale revision is not deleted; the others in the batch are', async () => {
+    const a = await client.works.create({ title: 'A', markdown: '', source: 'mac-app' });
+    const b = await client.works.create({ title: 'B', markdown: '', source: 'mac-app' });
+    await client.works.patch(b.id, { base_revision: b.current_revision_id, markdown: '別處' });
+    const out = await trashWorks(client, [a, b]);
+    expect(out.ok.map((w) => w.id)).toEqual([a.id]);
+    expect(out.failed).toEqual([{ id: b.id, code: 'revision_conflict' }]);
+    expect((await client.works.list({ limit: 10 })).items.map((w) => w.title)).toEqual(['B']);
+  });
+
+  it('purges works in 最近刪除 one by one and reports what was not there', async () => {
+    const a = await client.works.create({ title: 'A', markdown: '', source: 'mac-app' });
+    const b = await client.works.create({ title: 'B', markdown: '', source: 'mac-app' });
+    await trashWorks(client, [a]);
+    const out = await purgeWorks(client, [a.id, b.id]);
+    expect(out.purged).toEqual([a.id]);
+    expect(out.failed).toEqual([{ id: b.id, code: 'not_found' }]);
+    expect((await client.works.list({ scope: 'trash', limit: 10 })).total).toBe(0);
+    await expect(client.works.get(a.id)).rejects.toThrow();
+  });
+
+  it('batch status and tags write new revisions; an open editor is saved first and keeps its edit', async () => {
+    const open = await client.works.create({ title: '開著', markdown: '一', source: 'mac-app' });
+    const other = await client.works.create({ title: '沒開', markdown: '', source: 'mac-app' });
+    const session = new WorkSession(client, open);
+    const handles: EditorHandles = new Map([[open.id, sessionHandle(session, () => undefined)]]);
+    session.edit({ markdown: '一二三' });
+
+    const ready = await freshRevisions(client, [open, other], handles);
+    expect(ready[0]?.current_revision_id).not.toBe(open.current_revision_id);
+    const status = await batchWorks(client, { action: 'set_status', status: 'ready' }, ready);
+    expect(status.failed).toEqual([]);
+    const tagged = await batchWorks(
+      client,
+      { action: 'add_tags', tags: ['京都'] },
+      status.ok.map((w) => ({ id: w.id, current_revision_id: w.current_revision_id })),
+    );
+    expect(tagged.failed).toEqual([]);
+    const now = await client.works.get(open.id);
+    expect(now).toMatchObject({ status: 'ready', tags: ['京都'] });
+    expect(now.markdown).toContain('一二三');
+    expect((await client.works.get(other.id)).tags).toEqual(['京都']);
     session.dispose();
   });
 
