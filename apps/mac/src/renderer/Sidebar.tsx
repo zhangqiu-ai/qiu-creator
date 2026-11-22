@@ -5,6 +5,7 @@ import {
   useState,
   type CSSProperties,
   type ReactNode,
+  type RefObject,
 } from 'react';
 import { Icon, type IconName } from './Icon.js';
 import {
@@ -172,6 +173,9 @@ export function Sidebar({
   }, [toggle]);
 
   const width = rail ? SIDEBAR_RAIL : prefs.width;
+  const railArea = useRef<HTMLDivElement>(null);
+  const railFoot = useRef<HTMLDivElement>(null);
+  const tip = useRailTip(rail, railArea, railFoot);
   const limit = dragging ? limitLabel(prefs.width) : null;
   const style: CSSProperties = { width, flexBasis: width };
 
@@ -279,7 +283,7 @@ export function Sidebar({
         </span>
       </div>
 
-      <div className="sb__scroll">
+      <div className="sb__scroll" ref={railArea}>
         {GROUPS.map((g) => (
           <div key={g.id} className="sb__grp" role="group" aria-label={t(g.title)}>
             <div className="sb__grp-h" aria-hidden="true">
@@ -299,7 +303,14 @@ export function Sidebar({
         ))}
       </div>
 
-      <div className="sb__foot">{item(SETTINGS)}</div>
+      <div className="sb__foot" ref={railFoot}>
+        {item(SETTINGS)}
+      </div>
+      {rail && tip !== null && (
+        <div className="sb__railtip" role="tooltip" style={{ top: tip.y, left: tip.x }}>
+          {tip.text}
+        </div>
+      )}
 
       {!rail && (
         <div
@@ -349,4 +360,59 @@ export function Sidebar({
       )}
     </nav>
   );
+}
+
+/**
+ * The 56 px rail's tooltip (QC-065): the rail scrolls when there are many
+ * projects, which would clip a CSS ::after tooltip, so one fixed element shows
+ * the hovered or keyboard-focused item's `data-tip` beside it instead.
+ */
+function useRailTip(
+  rail: boolean,
+  scroll: RefObject<HTMLElement | null>,
+  foot: RefObject<HTMLElement | null>,
+): { text: string; x: number; y: number } | null {
+  const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (!rail) {
+      setTip(null);
+      return;
+    }
+    const show = (target: EventTarget | null, keyboard: boolean) => {
+      if (!(target instanceof Element)) return;
+      const el = target.closest<HTMLElement>('[data-tip]');
+      if (el === null || (keyboard && !el.matches(':focus-visible'))) return;
+      const box = el.getBoundingClientRect();
+      // Just past the rail's edge, level with the item.
+      const edge = el.closest('.sb')?.getBoundingClientRect().right ?? box.right;
+      setTip({ text: el.dataset['tip'] ?? '', x: edge + 6, y: box.top + box.height / 2 });
+    };
+    const over = (e: PointerEvent) => {
+      show(e.target, false);
+    };
+    const focus = (e: FocusEvent) => {
+      show(e.target, true);
+    };
+    const hide = () => {
+      setTip(null);
+    };
+    const nodes = [scroll.current, foot.current].filter((n): n is HTMLElement => n !== null);
+    for (const n of nodes) {
+      n.addEventListener('pointerover', over);
+      n.addEventListener('pointerleave', hide);
+      n.addEventListener('focusin', focus);
+      n.addEventListener('focusout', hide);
+      n.addEventListener('scroll', hide);
+    }
+    return () => {
+      for (const n of nodes) {
+        n.removeEventListener('pointerover', over);
+        n.removeEventListener('pointerleave', hide);
+        n.removeEventListener('focusin', focus);
+        n.removeEventListener('focusout', hide);
+        n.removeEventListener('scroll', hide);
+      }
+    };
+  }, [rail, scroll, foot]);
+  return tip;
 }

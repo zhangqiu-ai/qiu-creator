@@ -11,6 +11,7 @@ import {
   ipcMain,
   Menu,
   nativeTheme,
+  powerMonitor,
   protocol,
   session,
   shell,
@@ -22,9 +23,11 @@ import {
   ASSET_SCHEME,
   IPC,
   type AppInfo,
+  type MotionPreference,
   type ProxyRequest,
   type RevealTarget,
 } from '../shared/bridge.js';
+import { motionPreference } from './motion.js';
 import { parsePersistedTabs } from '../shared/tabs.js';
 import {
   APP_INDEX_URL,
@@ -88,6 +91,10 @@ protocol.registerSchemesAsPrivileged([
 function connection(): UploadConnection | null {
   const info = readConnection(config, process.env);
   return info.ok ? { baseUrl: info.baseUrl, token: info.token } : null;
+}
+
+function currentMotion(): MotionPreference {
+  return motionPreference(process.env, backgroundRun, powerMonitor.getCurrentThermalState());
 }
 
 function broadcast(channel: string, payload: unknown): void {
@@ -244,9 +251,7 @@ function registerIpc(): void {
   };
 
   handle(IPC.getConnection, () => readConnection(config, process.env));
-  handle(IPC.motionMode, () =>
-    backgroundRun || process.env['CREATORHUB_MOTION'] === 'off' ? 'off' : 'auto',
-  );
+  handle(IPC.motionMode, () => currentMotion());
   handle(IPC.request, (req) => {
     if (!isProxyRequest(req)) throw new Error('invalid request');
     return performProxyRequest(config.baseUrl, req);
@@ -547,6 +552,14 @@ function applyMenu(): void {
 }
 
 void app.whenReady().then(() => {
+  // A hot Mac switches the renderer to the lite motion set, and back when it cools (QC-065).
+  let lastMotion = currentMotion();
+  powerMonitor.on('thermal-state-change', () => {
+    const next = currentMotion();
+    if (next === lastMotion) return;
+    lastMotion = next;
+    broadcast(IPC.motionModeChanged, next);
+  });
   if (backgroundRun) {
     // An accessory app has no Dock icon and no ⌘Tab entry, and showing its windows does
     // not activate it.

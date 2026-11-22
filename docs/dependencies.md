@@ -150,6 +150,7 @@
 | micromark-extension-gfm / mdast-util-gfm | ^3.0.0 / ^3.1.0 | MIT | markdown-editor-web、mac-server | GFM（表格、腳註、刪除線、待辦）解析 | — |
 | micromark-extension-frontmatter / mdast-util-frontmatter | ^2.0.0 / ^2.0.1 | MIT | markdown-editor-web、mac-server | YAML frontmatter 解析 | — |
 | yaml | ^2.9.1 | ISC | domain（mac-server 經由它） | 讀寫貼圖與視頻作品的 front matter（QC-045/046）。`parseDocument` 保留註解、未知鍵與鍵的順序，App 寫回使用者手寫的檔案時不會丟資料。沒有其他依賴，純 JS，esbuild 直接打包 | js-yaml（MIT，讀寫會丟註解與格式）；gray-matter（依賴 js-yaml，同樣問題）；自寫子集解析器（使用者手寫的 YAML 形式太多，不可靠） |
+| motion | ^14.14.0 | MIT | mac（只在 renderer） | 動效（QC-065）：`MotionConfig`、`AnimatePresence`、motion 元件與 layout 動畫，全部經由 `renderer/motion.tsx` 封裝（見下） | 純 CSS transition 與 keyframes；react-spring；GSAP（授權不同） |
 | @dnd-kit/core / @dnd-kit/sortable / @dnd-kit/utilities | ^6.3.1 / ^10.0.0 / ^3.2.2 | MIT | mac | 作品庫的拖放（QC-062）：把作品拖到側欄的項目（加入），以及拖曳項目列排序（見下） | 原生 HTML5 drag and drop；react-dnd；@atlaskit/pragmatic-drag-and-drop |
 
 QC-010：mac-server 用同一組 mdast 套件與版本，從 Markdown 找出圖片與影音引用（`src/media/markdown-refs.ts`），讓伺服器與編輯器對「什麼算圖片」的判斷一致。沒有新增任何套件。
@@ -169,6 +170,21 @@ QC-010：mac-server 用同一組 mdast 套件與版本，從 Markdown 找出圖�
   - @atlaskit/pragmatic-drag-and-drop：底層是原生 drag and drop，排序動畫要自己做。
 - 沒有用 `KeyboardSensor`：在 e2e 裡實測時序不穩（空白鍵拿起後有時立刻結束，方向鍵也不一定移動）。項目列的鍵盤排序改在 `SidebarProjects.tsx` 自己處理，按鍵與播報都照規格。
 - App 裡其他既有的原生拖放（分頁列、貼圖排序、插入素材）這次沒有改，留給 QC-065 逐區處理。
+
+### 動效：motion 14（Framer Motion 的現行套件，QC-065）
+
+- 使用者要求全面引入動效，指名 Framer Motion 與 dnd-kit。`motion` 是 Framer Motion 改名後的現行套件；14.14.0（2026-11-13）是 MIT，peer 支援 React 18／19，沒有 install script。
+- 只放在 `apps/mac` 的 renderer。`packages/*` 只有 tokens 數值（`packages/design-tokens` 的 `duration`、`easingCurve`、`spring`、`motionDistance`、`motionScale`），不依賴任何動效套件，所以第二期的 React Native 可以沿用同一套數值。
+- 封裝在 `renderer/motion.tsx`。頁面只用這些封裝，不自己寫時長與曲線：
+  - `AppMotion`（`MotionConfig`）：只有 `full` 模式允許位移與縮放；`reduced`、`lite` 一律 `reducedMotion="always"`；`off` 的所有時長都是 0。
+  - `Presence`：包一層 `AnimatePresence`；`off` 模式下不包，讓退場的元素同步移除。
+  - `Animated`：播放 popover、contextMenu、dialog、scrim、panel、toast、listItem、fade 這些預設；退場時設 `inert`，並關掉指標事件。
+  - `tween()` 與 `springOf()`：把 tokens 轉成 motion 的 transition。
+- 體積：打底階段只用到 `MotionConfig`，renderer bundle 從 2,331 kB 增加到 2,339 kB（未壓縮）。之後各區用上 motion 元件和 layout 動畫時，再量一次並記在這裡。
+- 替代方案：
+  - 只用 CSS transition 和 keyframes：做不出退場動畫、layout 重排和可中斷的彈簧。
+  - react-spring：沒有 layout 動畫和 `AnimatePresence`。
+  - GSAP：授權與 React 整合都不如 motion。
 
 ### 介面多語言：自建 `@qiu-creator/i18n`，不用 i18next（QC-042）
 

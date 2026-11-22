@@ -166,7 +166,7 @@ textarea {
   height: 8px;
   border-radius: 50%;
   background: currentColor;
-  animation: pulse 1.2s ease-in-out infinite;
+  animation: pulse var(--qc-dur-skeleton) ease-in-out infinite;
 }
 kbd {
   font-family: inherit;
@@ -181,7 +181,7 @@ kbd {
 .skel {
   background: var(--qc-sunken);
   border-radius: 6px;
-  animation: pulse 1.2s ease-in-out infinite;
+  animation: pulse var(--qc-dur-skeleton) ease-in-out infinite;
 }
 .skel--line {
   height: 14px;
@@ -192,14 +192,41 @@ kbd {
     opacity: 0.5;
   }
 }
-/* Reduce Motion: no transitions or animations; skeletons stay a static fill. */
+/*
+ * Reduce Motion and the lite set (DESIGN.md 動效 · 無障礙、效能): nothing moves
+ * or scales; fades and colour changes stay, shortened to `fast`; skeletons are a
+ * static fill. Spinners keep turning: they are the only sign work goes on.
+ * Test mode (`data-motion="off"`, further down) switches everything off.
+ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation: none !important;
-    transition: none !important;
+    transition-property: opacity, color, background-color, border-color, box-shadow !important;
+    transition-duration: var(--qc-dur-fast) !important;
   }
+  .spin {
+    animation: spin var(--qc-dur-spinner) linear infinite !important;
+  }
+  .set-spin,
+  .set-st--run i {
+    animation: set-spin var(--qc-dur-spinner) linear infinite !important;
+  }
+}
+:root[data-motion='lite'] *,
+:root[data-motion='lite'] *::before,
+:root[data-motion='lite'] *::after {
+  animation: none !important;
+  transition-property: opacity, color, background-color, border-color, box-shadow !important;
+  transition-duration: var(--qc-dur-fast) !important;
+}
+:root[data-motion='lite'] .spin {
+  animation: spin var(--qc-dur-spinner) linear infinite !important;
+}
+:root[data-motion='lite'] .set-spin,
+:root[data-motion='lite'] .set-st--run i {
+  animation: set-spin var(--qc-dur-spinner) linear infinite !important;
 }
 
 /* Shell */
@@ -271,7 +298,7 @@ kbd {
   background: var(--qc-bg);
   color: var(--qc-ink);
   opacity: 0;
-  transition: opacity 0.12s;
+  transition: opacity var(--qc-dur-fast) var(--qc-ease-out);
 }
 .sb__logo:not(:disabled):hover .sb__logo-swap,
 .sb__logo:not(:disabled):focus-visible .sb__logo-swap {
@@ -296,7 +323,7 @@ kbd {
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.12s;
+  transition: opacity var(--qc-dur-fast) var(--qc-ease-out);
 }
 .sb__logo:hover::after,
 .sb__logo:focus-visible::after {
@@ -462,7 +489,7 @@ kbd {
   left: 3px;
   width: 2px;
   background: transparent;
-  transition: background 0.15s;
+  transition: background var(--qc-dur-fast) var(--qc-ease-out);
 }
 .sb__handle:hover::after,
 .sb__handle:focus-visible::after,
@@ -505,8 +532,10 @@ kbd {
   display: none;
 }
 .sb--rail .sb__scroll {
-  /* Tooltips reach past the 56 px rail: the few icons fit without scrolling. */
-  overflow: visible;
+  /* Many projects scroll (QC-065); names show in the floating .sb__railtip, which is not clipped. */
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
   align-items: center;
   gap: 10px;
   padding: 4px 8px;
@@ -532,12 +561,10 @@ kbd {
 .sb--rail .sb__foot .sb__nav {
   flex: none;
 }
-.sb--rail .sb__nav::after {
-  content: attr(data-tip);
-  position: absolute;
-  top: 50%;
-  left: 48px;
-  z-index: 40;
+/* The rail's tooltip: one fixed element beside the hovered or focused item (Sidebar.tsx). */
+.sb__railtip {
+  position: fixed;
+  z-index: 60;
   transform: translateY(-50%);
   padding: 3px 8px;
   border-radius: 6px;
@@ -547,12 +574,7 @@ kbd {
   font-weight: 500;
   white-space: nowrap;
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.12s;
-}
-.sb--rail .sb__nav:hover::after,
-.sb--rail .sb__nav:focus-visible::after {
-  opacity: 1;
+  animation: qc-fade-in var(--qc-dur-fast) var(--qc-ease-out);
 }
 .sb--rail .sb__svc {
   position: absolute;
@@ -567,8 +589,7 @@ kbd {
   left: 0;
 }
 @media (prefers-reduced-motion: reduce) {
-  .sb__handle::after,
-  .sb--rail .sb__nav::after {
+  .sb__handle::after {
     transition: none;
   }
 }
@@ -1803,11 +1824,11 @@ kbd {
   height: 100%;
   border-radius: 2px;
   background: var(--qc-accent);
-  transition: width 0.4s;
+  transition: width var(--qc-dur-progress) var(--qc-ease-out);
 }
 .bar--indeterminate > span {
   width: 35%;
-  animation: bar-slide 1.2s ease-in-out infinite;
+  animation: bar-slide var(--qc-dur-skeleton) ease-in-out infinite;
 }
 @keyframes bar-slide {
   from {
@@ -3758,7 +3779,7 @@ kbd {
   border-radius: 50%;
   border: 2px solid currentColor;
   border-right-color: transparent;
-  animation: spin 0.8s linear infinite;
+  animation: spin var(--qc-dur-spinner) linear infinite;
 }
 @keyframes spin {
   to {
@@ -3859,11 +3880,6 @@ kbd {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
-}
-@media (prefers-reduced-motion: reduce) {
-  .spin {
-    animation: none;
-  }
 }
 
 /* ---- 素材庫 v2 (PT-20261119-001, QC-037) ---- */
@@ -6117,7 +6133,7 @@ kbd {
   background: transparent;
   border: 1.6px solid var(--qc-accent);
   border-right-color: transparent;
-  animation: set-spin 0.8s linear infinite;
+  animation: set-spin var(--qc-dur-spinner) linear infinite;
 }
 .set-spin {
   width: 14px;
@@ -6125,17 +6141,11 @@ kbd {
   border-radius: 50%;
   border: 2px solid currentColor;
   border-right-color: transparent;
-  animation: set-spin 0.8s linear infinite;
+  animation: set-spin var(--qc-dur-spinner) linear infinite;
 }
 @keyframes set-spin {
   to {
     transform: rotate(360deg);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .set-spin,
-  .set-st--run i {
-    animation: none;
   }
 }
 /* 供應商: list and detail side by side; stacked when narrow. */

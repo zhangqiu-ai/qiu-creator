@@ -105,12 +105,8 @@ test('側欄：分組、調寬上下限、收起圖示列、記住狀態與服�
     await page.keyboard.press('Tab');
     await page.keyboard.press('Shift+Tab');
     await expect(library).toHaveAttribute('data-tip', '作品庫');
-    // Page-side code as a string: the e2e project has no DOM types. Poll past the 0.12 s fade.
-    await expect
-      .poll(() =>
-        page.evaluate<string>("getComputedStyle(document.activeElement, '::after').opacity"),
-      )
-      .toBe('1');
+    // QC-065: the rail's tooltip is one floating element, so a scrolling rail cannot clip it.
+    await expect(nav.locator('.sb__railtip')).toHaveText('作品庫');
     await shot(page, '03-rail-tooltip');
   });
 
@@ -155,12 +151,10 @@ test('側欄：分組、調寬上下限、收起圖示列、記住狀態與服�
     await shot(page, '05-expanded-dark');
     await page.keyboard.press('Control+Meta+s');
     await nav.getByRole('button', { name: '素材庫', exact: true }).hover();
-    // The rail never scrolls (no scrollbar), so the tooltips reaching past it are not clipped.
-    await expect
-      .poll(() =>
-        page.evaluate<string>("getComputedStyle(document.querySelector('.sb__scroll')).overflowX"),
-      )
-      .toBe('visible');
+    // The tooltip floats beside the rail (QC-065: the rail scrolls, without a visible scrollbar).
+    await expect(nav.locator('.sb__railtip')).toHaveText('素材庫');
+    const tip = await nav.locator('.sb__railtip').boundingBox();
+    expect(tip?.x ?? 0).toBeGreaterThan(56);
     await shot(page, '06-rail-dark');
     await page.keyboard.press('Control+Meta+s');
   });

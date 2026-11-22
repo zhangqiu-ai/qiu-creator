@@ -79,7 +79,9 @@ export interface CreatorHubBridge {
    * 'off' while e2e runs or with CREATORHUB_MOTION=off (DESIGN.md 動效 · 測試模式):
    * no transitions, animations, drop animations or toast timers.
    */
-  motionMode: () => Promise<'off' | 'auto'>;
+  motionMode: () => Promise<MotionPreference>;
+  /** The Mac got hot or cooled down (`lite` ↔ `auto`). */
+  onMotionMode: (listener: (mode: MotionPreference) => void) => () => void;
 
   /** Change events from the service's SSE feed. Returns an unsubscribe function. */
   onEvent: (listener: (event: ChangeEvent) => void) => () => void;
@@ -170,11 +172,15 @@ export interface LanguageState {
   systemLocale: Locale;
 }
 
+/** What the main process allows (DESIGN.md 動效); Reduce Motion is the renderer's to read. */
+export type MotionPreference = 'auto' | 'lite' | 'off';
+
 export const IPC = {
   getConnection: 'creatorhub:get-connection',
   request: 'creatorhub:request',
   appInfo: 'creatorhub:app-info',
   motionMode: 'creatorhub:motion-mode',
+  motionModeChanged: 'creatorhub:motion-mode-changed',
   event: 'creatorhub:event',
   eventStatus: 'creatorhub:event-status',
   getEventStatus: 'creatorhub:get-event-status',

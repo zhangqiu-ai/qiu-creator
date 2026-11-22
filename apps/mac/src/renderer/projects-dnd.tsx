@@ -9,6 +9,7 @@ import {
   useSensor,
   useSensors,
   type Announcements,
+  type Modifier,
   type CollisionDetection,
   type DropAnimation,
   type DragEndEvent,
@@ -16,7 +17,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import { CSS, type Transform } from '@dnd-kit/utilities';
+import { CSS, getEventCoordinates, type Transform } from '@dnd-kit/utilities';
 import type { Project } from '@qiu-creator/contracts';
 import { DRAG_ACTIVATION_PX, duration, easing, motionScale } from '@qiu-creator/design-tokens';
 import {
@@ -74,6 +75,31 @@ export function dropAction(active: unknown, over: unknown, order: readonly Proje
     ids: [...arrayMove(live, from, to), ...order.filter((p) => p.archived).map((p) => p.id)],
   };
 }
+
+/** How far below and right of the pointer the 「N 個作品」 copy rides. */
+const POINTER_GAP = 12;
+
+/**
+ * The works copy rides just below-right of the pointer, as in Finder; without
+ * this it keeps the grabbed card's top-left corner, up and away from the hand.
+ */
+export function besidePointerAt(
+  at: { x: number; y: number },
+  rect: { left: number; top: number },
+  transform: Transform,
+): Transform {
+  return {
+    ...transform,
+    x: transform.x + at.x - rect.left + POINTER_GAP,
+    y: transform.y + at.y - rect.top + POINTER_GAP,
+  };
+}
+
+export const besidePointer: Modifier = ({ activatorEvent, draggingNodeRect, transform }) => {
+  if (draggingNodeRect === null || activatorEvent === null) return transform;
+  const at = getEventCoordinates(activatorEvent);
+  return at === null ? transform : besidePointerAt(at, draggingNodeRect, transform);
+};
 
 /** Rows under the pointer for works (a precise drop); nearest row while sorting projects. */
 const collision: CollisionDetection = (args) => {
@@ -204,7 +230,10 @@ export function ProjectsDnd({
       }}
     >
       {children}
-      <DragOverlay dropAnimation={dropAnimationFor(landing, mode)}>
+      <DragOverlay
+        dropAnimation={dropAnimationFor(landing, mode)}
+        modifiers={active?.type === 'works' ? [besidePointer] : []}
+      >
         {active?.type === 'works' ? (
           <div className="drag-ghost">
             {active.works.length === 1
