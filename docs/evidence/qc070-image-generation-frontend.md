@@ -1,66 +1,127 @@
-# QC-070 驗收記錄（前端，進行中）：AI 圖片與封面生成
+# QC-070 驗收記錄（前端）：文章編輯的 AI 圖片／封面與選取浮動工具列
 
-日期：2026-11-22　分支：`feat/qc070-image-ui`，基於 main `69547a6`，並 cherry-pick 了 qc-backend 的 `3ea3f53`（`feat/qc070-image-generation`）。後端的部分見 [qc070-image-generation-backend.md](qc070-image-generation-backend.md)。
+日期：2026-11-22　分支：`feat/qc070-image-ui`，基於 main `2f3dc5e`（已含 QC-070 後端 `3ea3f53`、QC-071、QC-072，以及核准的原型 PT-20261122-002）。後端的部分見 [qc070-image-generation-backend.md](qc070-image-generation-backend.md)。
 
-原型還沒核准，所以這一輪照總監指示，只接資料層，不做介面。
+## 做了什麼
 
-## 資料層（`renderer/ai-images.ts`、`work-session.ts`）
+### 選取浮動工具列（`SelectionToolbar.tsx`）
 
-`ImageGenSession` 是編輯器圖片面板的資料層，介面只負責畫出它的狀態。
+- 在視覺模式選取文字約 200ms 後，於選取處上方浮出：潤色、擴寫、縮寫、語氣｜配圖｜更多。
+- 出現時不搶焦點，打字仍然進到文字裡。⌘J 進入工具列，←→ 移動，esc 收起，選取原樣保留。
+- 什麼時候不出現：
+  - 拖曳選取中、打字、輸入法組字中；
+  - 焦點不在編輯器時（例如正在用右側面板）；
+  - 同一段選取用過一次後，要重新選取才會再出現。
+- 「語氣」「更多」會展開補充欄位，↩ 送出。
+- 原始碼模式：工具列直立，放在選取行左側的邊距內，只有圖示，名稱在提示與可及名稱裡，不蓋住文字。改寫結果在右側「改寫」分頁以 diff 顯示，配圖的結果在「圖片」分頁。
+- 沒有圖片模型、或 New API 還沒設定時，「配圖」停用，並在提示裡說明原因。
 
-- **`load()`**：
-  - New API 還不能用時，說明缺的是什麼：沒有金鑰是 `key`，還沒確認告知是 `consent`。
-  - 列出中轉站的圖片模型，只留 `kind: image` 的。
-- **`estimate(request)`**：送出前的費用預估。`max_cost_usd` 是 null 時，介面顯示「無法預估」。比較晚回來的舊估價會被丟掉。
-- **`generate(request)`**：
-  - 先存檔，讓提示詞和封面用到的內文是最新的；
-  - 送出一個作業，用 `JobWatch` 追蹤（SSE 事件為主，慢速輪詢為輔）。
-  - 圖片作業不回報 progress，所以 `queued` 和 `running` 都算「生成中」，介面依請求的張數與比例畫佔位。
-  - 失敗時保留錯誤碼。`停止` 會中止呼叫中轉站；`重試` 會重跑失敗的作業。服務端不會自動重試，避免重複收費。
-- **候選圖**：url 用 `media.absoluteUrl` 轉成可以直接放進 `<img>` 的網址。每張候選有一個 `fate`：`new`、`kept`、`discarded` 或 `expired`。
-- **`keep(index, placement)`**：交給 `WorkSession.keepAiImage`。
-  - 先存檔，以目前的版本當 base 保留：
-    - `insert`：offset 是存檔後 Markdown 裡的位置；
-    - `cover`：寫成封面；
-    - `library`：只放進素材庫，原稿不動。
-  - base 過期（409 `revision_conflict`）時不覆蓋：沒有本機修改就直接換成較新的版本，有本機修改就走既有的衝突流程。候選圖保持 `new`，可以再保留一次。
-  - 候選圖已經被清掉（`ai_job_not_acceptable`）時，標成 `expired`。
-- **`undo()`**：還原最後一次改了原稿的保留（插入或封面），恢復到之前的版本，存成一個新版本。只放進素材庫的保留沒有東西要還原。
-- **`discard(index)`**：捨棄一張候選，刪掉它的暫存檔。
-- **`clear()`**：關閉結果時，捨棄還沒處理的候選。
-- 共用 `ai-session.ts` 的 `blockOf`、`messageOf`；這兩個函式原本只在模組內使用，現在改為匯出。
+### 原位候選（`InlineAi.tsx`）
+
+這一層疊在文件上方。下方的文字要讓出空間時，是在前一段加下邊距，不改動編輯器的文件內容。
+
+- **文字**（沿用 `RewriteSession`）：
+  - 生成中：段落加虛線框和閃光，右上角是「潤色中… 停止」。
+  - 完成後：候選以 diff 原位出現，刪除畫刪除線、新增加底線，下方是 `AI 候選 · 潤色 · Claude · +2`，以及 重試／捨棄 esc／保留 ⌘↩。
+  - ⌘↩ 和 esc 在捕獲階段處理，按鍵不會先被編輯器拿去改動選取的文字。
+  - 保留後寫成 `ai_accepted` 版本，可以在面板或歷史裡復原。
+- **配圖**（`ImageGenSession`，原位作業）：
+  - 佔位框放在選取段落之後，和圖片同比例（預設 16:9，一次 2 張），下方的文字讓出空間。
+  - 生成中：骨架、不確定進度條、「生成圖片中 · 約 20 秒」、取消。
+  - 完成後：圖片淡入落位，可在第 1／2 張之間切換，圖說可以修改（預設是段落文字），以及 重新生成／捨棄／保留。
+  - 保留後圖片寫進作品 `assets/`，Markdown 在段落後面多一張圖。
+  - 失敗：錯誤留在框內，提供重試、移除和技術詳情；原文不動。
+
+### 右側面板的「圖片」分頁（`AiImageTab.tsx`）
+
+- 欄位：插圖或封面、提示詞（可帶入選取）、風格、比例（16:9 橫圖、2.35:1 公眾號封面、3:4 小紅書、1:1 方圖、9:16 直圖、3:2 相片）、張數 1–4、模型（記住上次的選擇）、費用（預估金額，或「費用無法預估」）。
+- 生成記錄：
+  - 生成中的格子先顯示骨架，並可以取消；
+  - 完成後，滑過或聚焦時出現「插入到游標處」「設為封面」和捨棄；
+  - 保留過的格子標示「已插入」或「已設為封面」。
+- 封面模式預設 2.35:1。設為封面後，文章頂部出現封面條；圖片來自作品的卡片圖（QC-061），文章的卡片圖就是 front matter 的 cover。
+- 保留後有「復原」。
+
+### 其他
+
+- **費用無法預估**：每個模型第一次生成前會確認一次（取消／仍要生成，可勾「這個模型不再提示」），記在本機；之後面板一直顯示「費用無法預估」。
+- **頁首**：有候選未保留時，顯示「有候選未保留」膠囊。
+- **分頁狀態**：圖片候選和生成中的作業也算進分頁上的 AI 標記。
+- **關閉作品**：還有 AI 候選沒有保留時，先問「取消／捨棄並關閉」。
+- **資料層**：`ImageGenSession` 可以同時管理多個作業：一個原位佔位，加上面板的生成記錄。新的原位配圖會取代舊的。保留、捨棄、移除、復原都以作業為單位。
+- **編輯器套件**：`MarkdownEditorHandle` 新增 `selectionRect()` 和 `blockElements(range)`；新增 `caret.ts`，用來找原始碼模式選取行的位置。只是加上新方法，沒有改動既有的行為。
+- **測試用假服務**：`FakeAiServer` 加了 `POST /v1/images/generations`，回覆由 `imageReplies` 依序決定。
+- **i18n**：新增 AI 字串約 60 個（三語），tabs 3 個。
+- **DESIGN.md**：「互動合約」加入 QC-070 的工具列、原位候選、圖片分頁、費用與減少動態效果的規則。
+
+## 錄影與截圖
+
+- 正常速度的錄影：[qc070-ai-editor.mp4](qc070-ai-editor.mp4)，依序是工具列、潤色生成中、diff 候選、保留、配圖費用確認、骨架、圖片落位、切換第 2 張、保留。
+- 逐幀拼圖：![](qc070-ai-editor-sheet.png)
+
+| 狀態 | 截圖 |
+| --- | --- |
+| 選取工具列 | ![](qc070-1-toolbar.png) |
+| 文字生成中 | ![](qc070-2-text-generating.png) |
+| 原位 diff 候選 | ![](qc070-3-text-candidate.png) |
+| 費用無法預估 | ![](qc070-4-cost-unknown.png) |
+| 配圖骨架 | ![](qc070-5-image-generating.png) |
+| 圖片候選 | ![](qc070-6-image-candidate.png) |
+| 配圖失敗 | ![](qc070-7-image-failed.png) |
+| 減少動態效果 | ![](qc070-7b-reduced-motion.png) |
+| 圖片分頁：封面 | ![](qc070-8-panel-cover.png) |
+| 已設為封面 | ![](qc070-9-cover-set.png) |
+| 沒有圖片模型 | ![](qc070-10-no-model.png) |
+| 更多：補充指令 | ![](qc070-11-more.png) |
+| 原始碼模式工具列 | ![](qc070-12-source-toolbar.png) |
+| 原始碼模式：結果在面板 | ![](qc070-13-source-panel.png) |
+| English | ![](qc070-14-toolbar-en.png) ![](qc070-15-panel-en.png) |
+| 简体中文 | ![](qc070-14-toolbar-zh-Hans.png) ![](qc070-15-panel-zh-Hans.png) |
+| 深色 | ![](qc070-16-dark.png) |
+| QC-069 篩選彈出層（English、简体，補上次的 NOT_VERIFIED） | ![](qc070-qc069-filter-en.png) ![](qc070-qc069-filter-zh-Hans.png) |
 
 ## 測試
 
-`apps/mac/test/ai-images.test.ts` 有 7 項，用真實的 mac-server 和本機的假 New API 中轉站。金鑰存在測試伺服器的記憶體裡，`CREATORHUB_HOME` 是臨時目錄，沒有任何對外請求。涵蓋：
-
-- 請求組裝：圖片一定要有提示詞、封面不用，空白的文字欄位不送出；
-- 沒有金鑰時是 `key`、沒有確認告知時是 `consent`；確認後只列出圖片模型；
-- 估價：沒有單價時是 null，有單價時是張數 × 單價；
-- 生成兩張：
-  - 保留之前原稿完全不變；
-  - 插入到第一段後面，並能復原；
-  - 只放進素材庫時原稿不變，也不會取代插入的那筆復原；
-- 封面：提示詞含標題，保留後寫進 front matter；捨棄之後，服務端回報 `expired: true`；
-- 另一台裝置先改了原稿：回報 `conflict`，不覆蓋；換成新版本後可以再保留；
-- 中轉站回 500：顯示失敗；重試成功；`clear()` 會捨棄剩下的候選。
-
-## QC-069 補拍（NOT_VERIFIED 補上）
-
-`library-ia.spec.ts` 加了一步：切換到 English 和简体，檢查篩選彈出層的標題、兩組單選的名稱和頁首標題都換了語言，並截圖。
-
-| 語言 | 截圖 |
-| --- | --- |
-| English | ![](qc070-qc069-filter-en.png) |
-| 简体中文 | ![](qc070-qc069-filter-zh-Hans.png) |
-
-觀察：英文側欄寫「All posts」，頁首淡字卻是沿用 `projects.worksCount` 的「5 works」，兩者用詞不一致。這不在這一輪的範圍內，交給總監決定要不要統一。
+- **單元測試**：
+  - `apps/mac/test/ai-images.test.ts`（8 項），用真實的 mac-server 和本機的假中轉站。涵蓋請求組裝、沒有金鑰或告知時的狀態、只列圖片模型、估價、生成、插入並復原、只存素材庫、原位佔位互相取代、封面、捨棄後過期、衝突不覆蓋、失敗重試與移除。
+  - `markdown-editor-web` 的 `selection.test.tsx` 加 1 項：`blockElements` 和 `selectionRect`。
+- **e2e**（`ai-image-editor.spec.ts`），背景模式加假中轉站：
+  - **主要流程**：
+    - 工具列（不搶焦點、⌘J、←→、esc 保留選取）；
+    - 潤色：鎖定、原位 diff、⌘↩ 保留，服務端版本已更新；
+    - 擴寫後 esc 捨棄，原文不變；
+    - 配圖：費用確認、佔位與下文讓位、圖片落位、第 2 張、圖說、保留；Markdown 在段落後多一張 `![清晨的竹林](assets/…)`；
+    - 配圖失敗後移除；
+    - 減少動態效果：骨架的 animation 為 none，取消後收回；
+    - 圖片分頁：封面 2.35:1，設為封面後 front matter 有 cover，頂部出現封面條，先前保留的圖仍然載入；
+    - 有候選未保留時關閉作品：先問，取消時留著，選捨棄並關閉才關。
+  - **第二個測試**：
+    - 沒有圖片模型：配圖停用，提示寫出原因；面板顯示原因和「前往 AI 服務」；
+    - 更多：補充指令有送到模型，候選出現在原位；
+    - 原始碼模式：工具列直立，不超出文字區左邊距；結果在面板；
+    - English、简体、深色的截圖。
+  - **動效錄影**：只在 `QC_E2E_MOTION=on` 時跑，就是上面那支錄影。
 
 ## 閘門結果
 
-GATES_PLACEHOLDER
+在本分支上跑完整閘門（load 3–6，期間持有 full-suite 鎖）：
 
-## 還沒做
+| 閘門 | 結果 |
+| --- | --- |
+| `pnpm typecheck`（含 e2e） | passed |
+| `pnpm lint`（根目錄 `eslint .`） | passed，0 errors |
+| `pnpm format:check` | passed |
+| 單元：mac | 390／390 passed |
+| 單元：mac-server | 495／495 passed |
+| 單元：markdown-editor-web | 62／62 passed |
+| 單元：其他 8 個套件 | 182／182 passed（agent-sdk 12、api-client 22、contracts 23、design-tokens 6、domain 39、i18n 29、installer 39、platform-preview 12） |
+| e2e 全套 | 45 passed，9 skipped（只在 `QC_E2E_MOTION=on` 時跑的動效與錄影用例），0 failed，2.2 分鐘 |
+| `ai-image-editor` 動效錄影（`QC_E2E_MOTION=on`） | 1 passed（本頁的錄影就是這一輪錄的） |
 
-- 介面：生成面板、候選卡片、選取浮動工具列，等原型核准。
-- e2e：等介面做好再寫。
+## 範圍外與 NOT_VERIFIED
+
+- 候選文字以純文字 diff 顯示：如果選取的段落含 Markdown 語法（粗體、連結），diff 裡看得到 `**` 這類符號。這和面板的 diff 一致；保留後寫回的是 Markdown。
+- 「生成圖片中 · 約 20 秒」是原型給的固定提示，不是依模型實測得出的時間。
+- 伺服器會快取中轉站的模型清單 10 分鐘（QC-054），所以新加的圖片模型最多要等 10 分鐘才會出現在面板，除非到設定頁重新整理。
+- 沒有真的呼叫 New API。真實生成要由使用者在安裝版自己操作。NOT_VERIFIED
+- 關閉作品時的提示也涵蓋改寫和標題的候選（同一個 `aiCandidate` 狀態）。這比原型寫的「圖片候選」範圍大一點。

@@ -6,6 +6,7 @@ import { pngBytes } from '../../../services/mac-server/test/fixtures.js';
 import { startTestServer, type TestServer } from '../../../services/mac-server/test/helpers.js';
 import {
   canSend,
+  pendingCandidates,
   ImageGenSession,
   toApiRequest,
   type ImageRequest,
@@ -110,10 +111,15 @@ async function start(options: { key?: boolean; consent?: boolean } = {}) {
   const run = async (): Promise<void> => {
     s.ai.start();
     await s.ai.drain();
-    const id = session.snapshot.jobId;
-    if (id !== null) await session.jobChanged(id);
+    for (const j of session.snapshot.jobs) if (j.jobId !== null) await session.jobChanged(j.jobId);
   };
-  return { s, relay, ws, session, work, run };
+  /** The newest job. */
+  const latest = () => {
+    const j = session.snapshot.jobs[0];
+    if (j === undefined) throw new Error('no job');
+    return j;
+  };
+  return { s, relay, ws, session, work, run, latest };
 }
 
 const request = (over: Partial<ImageRequest> = {}): ImageRequest => ({
@@ -174,15 +180,15 @@ describe('ImageGenSession (QC-070)', () => {
     expect(session.snapshot.estimate?.estimate.max_cost_usd).toBeCloseTo(0.08, 10);
   });
 
-  it('generates candidates outside the work; keeps one inline (復原 undoes it), one in the library, discards the rest', async () => {
-    const { s, relay, ws, session, work, run } = await start();
+  it('generates candidates outside the work; keeps one inline (復原 undoes it), one in the library', async () => {
+    const { s, relay, ws, session, work, run, latest } = await start();
     await relay.images('#cc3300', '#0033cc');
-    await session.generate(request({ count: 2 }));
-    expect(session.snapshot.phase).toBe('generating');
+    const key = await session.generate(request({ count: 2 }));
+    expect(latest()).toMatchObject({ key, phase: 'generating', origin: 'panel' });
     expect(relay.generations).toHaveLength(0);
     await run();
-    const { candidates } = session.snapshot;
-    expect(session.snapshot.phase).toBe('ready');
+    const { candidates } = latest();
+    expect(latest().phase).toBe('ready');
     expect(candidates).toHaveLength(2);
     expect(candidates[0]?.src).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/media\/v1\/image-candidates\//);
     // Nothing reached the work yet.
@@ -190,77 +196,96 @@ describe('ImageGenSession (QC-070)', () => {
 
     // Insert after the first paragraph.
     const offset = MD.indexOf('第一段。') + '第一段。'.length;
-    expect(await session.keep(0, { type: 'insert', offset, alt: '紅葉' })).toBe('kept');
+    expect(await session.keep(key, 0, { type: 'insert', offset, alt: '紅葉' })).toBe('kept');
     expect(ws.snapshot.draft.markdown).toMatch(
       /第一段。\n\n!\[紅葉\]\(assets\/[^)]+\)\n\n第二段。/,
     );
-    expect(session.snapshot.candidates[0]).toMatchObject({ fate: 'kept', keptAs: 'insert' });
+    expect(latest().candidates[0]).toMatchObject({ fate: 'kept', keptAs: 'insert' });
     const afterInsert = ws.snapshot.baseRevision;
     expect(afterInsert).not.toBe(work.current_revision_id);
 
-    // Into the library only: the work stays as it is.
-    expect(await session.keep(1, { type: 'library' })).toBe('kept');
+    // Into the library only: the work stays as it is, and 復原 still undoes the insert.
+    expect(await session.keep(key, 1, { type: 'library' })).toBe('kept');
     expect(ws.snapshot.baseRevision).toBe(afterInsert);
     expect((await s.client.assets.list({ limit: 10 })).total).toBe(2);
-    // The library keep does not replace the inline keep's 復原.
-    expect(session.snapshot.undo?.index).toBe(0);
+    expect(session.snapshot.undo?.placement).toBe('insert');
     expect(await session.undo()).toBe('restored');
     expect(ws.snapshot.draft.markdown).toBe(MD);
   });
 
+  it('an inline placeholder stands after its block; a new one replaces it and the panel keeps its own', async () => {
+    const { relay, session, run } = await start();
+    const end = MD.indexOf('第一段。') + '第一段。'.length;
+    await relay.images('#111111');
+    const panel = await session.generate(request({ count: 1 }));
+    await relay.images('#222222', '#333333');
+    const first = await session.generate(request(), { origin: 'inline', anchor: end });
+    await relay.images('#444444', '#555555');
+    const second = await session.generate(request(), { origin: 'inline', anchor: end });
+    expect(session.snapshot.jobs.map((j) => j.key)).toEqual([second, panel]);
+    expect(session.job(first)).toBeUndefined();
+    await run();
+    expect(session.job(second)).toMatchObject({ phase: 'ready', anchor: end });
+    expect(session.job(panel)?.phase).toBe('ready');
+  });
+
   it('makes a cover from the title and text, discards, and a gone candidate says so', async () => {
-    const { s, relay, ws, session, run } = await start();
+    const { s, relay, ws, session, run, latest } = await start();
     await relay.images('#336633', '#663333');
-    await session.generate(request({ purpose: 'cover', prompt: '', aspectRatio: '2.35:1' }));
+    const key = await session.generate(
+      request({ purpose: 'cover', prompt: '', aspectRatio: '2.35:1' }),
+    );
     await run();
     expect(String(relay.generations[0]?.['prompt'])).toContain('京都散步');
-    expect(await session.keep(0, { type: 'cover' })).toBe('kept');
+    expect(await session.keep(key, 0, { type: 'cover' })).toBe('kept');
     expect(ws.snapshot.draft.markdown).toMatch(/^---\n[\s\S]*cover: assets\//);
+    expect(session.snapshot.undo?.placement).toBe('cover');
 
-    await session.discard(1);
-    expect(session.snapshot.candidates[1]?.fate).toBe('discarded');
-    const job = await s.client.ai.job(session.snapshot.jobId ?? '');
+    await session.discard(key, 1);
+    expect(latest().candidates[1]?.fate).toBe('discarded');
+    const job = await s.client.ai.job(latest().jobId ?? '');
     expect(job.result?.json).toMatchObject({ candidates: [{ expired: true }, { expired: true }] });
     // Neither can be kept again.
-    expect(await session.keep(1, { type: 'library' })).toBe('blocked');
+    expect(await session.keep(key, 1, { type: 'library' })).toBe('blocked');
   });
 
   it('a work changed elsewhere is not overwritten: keep reports a conflict', async () => {
-    const { s, relay, ws, session, work, run } = await start();
+    const { s, relay, ws, session, work, run, latest } = await start();
     await relay.images('#123456');
-    await session.generate(request({ count: 1 }));
+    const key = await session.generate(request({ count: 1 }));
     await run();
     await s.client.works.patch(work.id, {
       base_revision: ws.snapshot.baseRevision,
       markdown: `${MD}\n另一台裝置寫的。\n`,
     });
-    expect(await session.keep(0, { type: 'insert', offset: 0 })).toBe('conflict');
+    expect(await session.keep(key, 0, { type: 'insert', offset: 0 })).toBe('conflict');
     // Nothing was written over the other device's text; with no local edits the
     // editor simply takes the newer revision, and the candidate can still be kept.
     const server = await s.client.works.get(work.id);
     expect(server.markdown).not.toContain('assets/');
     expect(ws.snapshot.draft.markdown).toContain('另一台裝置寫的。');
-    expect(session.snapshot.candidates[0]?.fate).toBe('new');
-    expect(await session.keep(0, { type: 'insert', offset: 0 })).toBe('kept');
+    expect(latest().candidates[0]?.fate).toBe('new');
+    expect(await session.keep(key, 0, { type: 'insert', offset: 0 })).toBe('kept');
     expect(ws.snapshot.draft.markdown).toContain('另一台裝置寫的。');
     expect(ws.snapshot.draft.markdown).toMatch(/!\[\]\(assets\//);
   });
 
-  it('a failed generation says why and can be tried again; clearing discards what was left', async () => {
-    const { s, relay, session, run } = await start();
+  it('a failed generation says why and can be tried again; removing discards what was left', async () => {
+    const { s, relay, session, run, latest } = await start();
     relay.replies.push({ status: 500, body: { error: { message: 'upstream down' } } });
-    await session.generate(request({ count: 1 }));
+    const key = await session.generate(request({ count: 1 }));
     await run();
-    expect(session.snapshot.phase).toBe('failed');
-    expect(session.snapshot.failure?.code).not.toBeNull();
+    expect(latest().phase).toBe('failed');
+    expect(latest().failure?.code).not.toBeNull();
 
     await relay.images('#abcdef');
-    await session.retry();
+    await session.retry(key);
     await run();
-    expect(session.snapshot.phase).toBe('ready');
-    const jobId = session.snapshot.jobId ?? '';
-    await session.clear();
-    expect(session.snapshot).toMatchObject({ phase: 'idle', candidates: [], jobId: null });
+    expect(latest().phase).toBe('ready');
+    expect(pendingCandidates(session.snapshot)).toBe(1);
+    const jobId = latest().jobId ?? '';
+    await session.remove(key);
+    expect(session.snapshot.jobs).toEqual([]);
     const job = await s.client.ai.job(jobId);
     expect(job.result?.json).toMatchObject({ candidates: [{ expired: true }] });
   });

@@ -37,6 +37,9 @@ export type IconName =
   | 'fileMissing'
   | 'phone'
   | 'spark'
+  | 'expandText'
+  | 'shortenText'
+  | 'tone'
   | 'undo'
   | 'send'
   | 'lines'
@@ -124,6 +127,9 @@ const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   fileMissing: ['M14 3H6v18h12V7Z', 'M14 3v4h4', 'm10 12 4 4', 'm14 12-4 4'],
   phone: ['M7 2h10v20H7Z', 'M11 18h2'],
   spark: ['M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z'],
+  expandText: ['M4 6h16', 'M4 11h16', 'M4 16h9', 'M18 14v6', 'M15 17h6'],
+  shortenText: ['M4 6h16', 'M4 11h10', 'M15 17h6'],
+  tone: ['M5 5h14v10H10l-5 4Z', 'M9 10h.01', 'M12 10h.01', 'M15 10h.01'],
   undo: ['M9 14 4 9l5-5', 'M4 9h11a5 5 0 0 1 0 10h-3'],
   send: ['M5 12h14', 'M13 6l6 6-6 6'],
   lines: ['M4 7h16', 'M4 12h16', 'M4 17h10'],

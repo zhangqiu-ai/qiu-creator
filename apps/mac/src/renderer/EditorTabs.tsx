@@ -110,6 +110,8 @@ export function EditorTabs(props: EditorTabsProps) {
   const reopenDrafts = useRef(new Map<string, Draft>());
   const [notice, setNotice] = useState<Notice | null>(null);
   const [confirm, setConfirm] = useState<{ id: string; failedAgain: boolean } | null>(null);
+  /** A tab closed with AI candidates not yet kept (QC-070): ask before they are dropped. */
+  const [confirmCandidates, setConfirmCandidates] = useState<string | null>(null);
 
   useEffect(() => {
     if (notice === null || notice.kind === 'restored') return;
@@ -159,6 +161,11 @@ export function EditorTabs(props: EditorTabsProps) {
           return;
         }
       }
+      if (tab.aiCandidate) {
+        model.activate(id);
+        setConfirmCandidates(id);
+        return;
+      }
       finishClose(id, null);
     },
     [model, finishClose],
@@ -169,7 +176,12 @@ export function EditorTabs(props: EditorTabsProps) {
     (command: TabCommand): boolean => {
       // 設定… is the App's; the tab bar leaves it alone.
       if (command === 'settings') return false;
-      if (confirm !== null || document.querySelector('[aria-modal="true"]') !== null) return false;
+      if (
+        confirm !== null ||
+        confirmCandidates !== null ||
+        document.querySelector('[aria-modal="true"]') !== null
+      )
+        return false;
       if (command === 'close') {
         const active = model.active;
         if (!visible || active === null) return false;
@@ -336,6 +348,43 @@ export function EditorTabs(props: EditorTabsProps) {
         />
       ))}
 
+      {confirmCandidates !== null && (
+        <Dialog
+          title={t('tabs.candidateTitle', {
+            title: tabTitle(model.find(confirmCandidates) ?? { title: '' }),
+          })}
+          onClose={() => {
+            setConfirmCandidates(null);
+          }}
+          footer={
+            <>
+              <button
+                type="button"
+                className="btn btn--danger"
+                onClick={() => {
+                  const id = confirmCandidates;
+                  setConfirmCandidates(null);
+                  finishClose(id, null);
+                }}
+              >
+                {t('tabs.discardCandidatesClose')}
+              </button>
+              <button
+                type="button"
+                className="btn dialog__primary"
+                data-autofocus
+                onClick={() => {
+                  setConfirmCandidates(null);
+                }}
+              >
+                {t('common.cancel')}
+              </button>
+            </>
+          }
+        >
+          <p>{t('tabs.candidateBody')}</p>
+        </Dialog>
+      )}
       {confirm !== null && confirmTab !== null && (
         <Dialog
           title={t('tabs.unsavedTitle', { title: tabTitle(confirmTab) })}

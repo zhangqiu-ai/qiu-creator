@@ -21,6 +21,8 @@ import {
   type TitleSession,
   type WriteOutcome,
 } from './ai-session.js';
+import type { ImageGenSession } from './ai-images.js';
+import { AiImageTab } from './AiImageTab.js';
 import { Icon } from './Icon.js';
 import { useExitFade } from './motion.js';
 import { t } from './i18n.js';
@@ -58,7 +60,16 @@ export interface AiPanelProps {
   onOpenSettings: () => void;
   /** Bumped when the tab comes back to the front (QC-047): re-read the provider list. */
   refreshToken?: number;
+  /** 圖片 tab (QC-070): the image generations, the selected text, where 插入到游標處 puts an image. */
+  images: ImageGenSession;
+  selectionText: string;
+  insertOffset: () => number;
+  onNotice: (text: string) => void;
+  /** Bring a tab to the front (the source-mode toolbar shows its results here); `n` makes each ask new. */
+  tabRequest?: { tab: AiTab; n: number };
 }
+
+export type AiTab = 'rewrite' | 'title' | 'image';
 
 function useStore<S>(store: { subscribe: (l: (s: S) => void) => () => void; snapshot: S }): S {
   return useSyncExternalStore(
@@ -75,7 +86,11 @@ export function AiPanel(props: AiPanelProps) {
   const panelRef = useRef<HTMLElement>(null);
   // The side panel slides in (24 px, moderate) and back out (base).
   useExitFade(panelRef, 'panel');
-  const [tab, setTab] = useState<'rewrite' | 'title'>('rewrite');
+  const [tab, setTab] = useState<AiTab>('rewrite');
+  const { tabRequest } = props;
+  useEffect(() => {
+    if (tabRequest !== undefined) setTab(tabRequest.tab);
+  }, [tabRequest]);
   const rw = useStore(props.rewrite);
   const tt = useStore(props.titles);
   const { providers, rewrite, titles } = props;
@@ -123,8 +138,19 @@ export function AiPanel(props: AiPanelProps) {
           >
             {t('ai.tabTitle')}
           </button>
+          <button
+            type="button"
+            role="tab"
+            className="ai__tab"
+            aria-selected={tab === 'image'}
+            onClick={() => {
+              setTab('image');
+            }}
+          >
+            {t('ai.tabImage')}
+          </button>
         </div>
-        {canChoose ? (
+        {tab === 'image' ? null : canChoose ? (
           <select
             className="input ai__provider ai__provider-select"
             aria-label={t('ai.providerLabel')}
@@ -156,7 +182,20 @@ export function AiPanel(props: AiPanelProps) {
           </span>
         ) : null}
       </div>
-      {tab === 'rewrite' ? <RewriteTab {...props} /> : <TitleTab {...props} />}
+      {tab === 'rewrite' ? (
+        <RewriteTab {...props} />
+      ) : tab === 'title' ? (
+        <TitleTab {...props} />
+      ) : (
+        <AiImageTab
+          images={props.images}
+          selectionText={props.selectionText}
+          readOnly={props.readOnly}
+          insertOffset={props.insertOffset}
+          onOpenSettings={props.onOpenSettings}
+          onNotice={props.onNotice}
+        />
+      )}
     </aside>
   );
 }

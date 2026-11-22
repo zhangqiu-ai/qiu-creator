@@ -47,7 +47,8 @@ export function springOf(name: keyof typeof spring): Transition {
 }
 
 /** Where a popover grows from: the side of its trigger (it flips when the menu opens upwards). */
-export type Origin = 'top left' | 'top right' | 'bottom left' | 'bottom right' | 'center';
+export type Origin =
+  'top left' | 'top right' | 'bottom left' | 'bottom right' | 'bottom center' | 'center';
 
 export type Preset =
   | { kind: 'popover'; origin: Origin }

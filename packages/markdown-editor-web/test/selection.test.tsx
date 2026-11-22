@@ -114,4 +114,24 @@ describe('MarkdownEditor selection range', () => {
     outside.remove();
     m.unmount();
   });
+
+  it('finds the rendered elements of a source range, and where a selection is (QC-070)', async () => {
+    const ref = createRef<MarkdownEditorHandle>();
+    const m = await mount(<MarkdownEditor ref={ref} markdown={MD} onChange={() => undefined} />);
+    const second = MD.indexOf('第二段');
+    const els = ref.current?.blockElements({ start: second, end: second + 4 });
+    expect(els?.map((e) => e.textContent)).toEqual(['第二段。']);
+    const all = ref.current?.blockElements({ start: 0, end: MD.length });
+    expect(all).toHaveLength(4);
+    // No selection, or only a caret: nowhere to stand.
+    window.getSelection()?.removeAllRanges();
+    expect(ref.current?.selectionRect()).toBeNull();
+    const text = els?.[0]?.firstChild?.firstChild ?? els?.[0]?.firstChild ?? null;
+    const range = document.createRange();
+    range.setStart(text as Node, 0);
+    range.setEnd(text as Node, 2);
+    window.getSelection()?.addRange(range);
+    expect(ref.current?.selectionRect()).not.toBeNull();
+    m.unmount();
+  });
 });

@@ -137,6 +137,12 @@ export class FakeAiServer {
    */
   modelsReply: FakeReply | null = null;
   modelRequests = 0;
+  /**
+   * New API's `POST /v1/images/generations` (QC-070): scripted replies, FIFO;
+   * without one the relay answers 500. `imageRequests` holds the bodies sent.
+   */
+  readonly imageReplies: FakeReply[] = [];
+  readonly imageRequests: Record<string, unknown>[] = [];
 
   script(provider: Provider, ...replies: FakeReply[]): void {
     this.queues[provider].push(...replies);
@@ -166,6 +172,22 @@ export class FakeAiServer {
           }
           res.writeHead(reply.status ?? 200, { 'content-type': 'application/json' });
           res.end(JSON.stringify(reply.body));
+          return;
+        }
+        if (req.method === 'POST' && path === '/v1/images/generations') {
+          const raw = Buffer.concat(chunks).toString('utf8');
+          this.imageRequests.push(raw === '' ? {} : (JSON.parse(raw) as Record<string, unknown>));
+          const reply = this.imageReplies.shift() ?? {
+            status: 500,
+            body: { error: { message: 'no scripted image' } },
+          };
+          const send = (): void => {
+            if (res.destroyed) return;
+            res.writeHead(reply.status ?? 200, { 'content-type': 'application/json' });
+            res.end(JSON.stringify(reply.body ?? {}));
+          };
+          if (reply.delayMs === undefined) send();
+          else setTimeout(send, reply.delayMs).unref();
           return;
         }
         const provider: Provider | undefined = path.startsWith('/v1/messages')
