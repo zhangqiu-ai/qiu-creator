@@ -89,6 +89,12 @@ export const ProjectSummarySchema = z.object({
   last_updated_at: TimestampSchema.nullable(),
   /** Library assets the project's works use (see `GET /api/v1/assets?project_id=`). */
   asset_count: z.number().int().nonnegative(),
+  /**
+   * Works (not in 最近刪除) in this project and in no other live project,
+   * archived ones counting as other projects: those that become 未分類 when
+   * the project is deleted (QC-067).
+   */
+  sole_count: z.number().int().nonnegative(),
 });
 export type ProjectSummary = z.infer<typeof ProjectSummarySchema>;
 

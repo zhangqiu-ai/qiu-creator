@@ -3,6 +3,8 @@ import {
   ErrorResponseSchema,
   HealthResponseSchema,
   ListWorksResponseSchema,
+  WorkFacetsResponseSchema,
+  WorkRefsResponseSchema,
   RevisionDetailSchema,
   RevisionListResponseSchema,
   SignedAssetUrlsRequestSchema,
@@ -31,6 +33,10 @@ import {
   type HealthResponse,
   type ListWorksQuery,
   type ListWorksResponse,
+  type WorkFacetsQuery,
+  type WorkFacetsResponse,
+  type WorkRefsQuery,
+  type WorkRefsResponse,
   type PatchWorkRequest,
   type RestoreRevisionRequest,
   type RevisionDetail,
@@ -139,12 +145,31 @@ export interface PatchWorkOptions {
   ifMatch?: string;
 }
 
+/** Query string for the works list routes; `ids` travels as one comma-separated value (QC-045/046). */
+function worksQuery(query: ListWorksQuery | WorkFacetsQuery | WorkRefsQuery): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query) as [
+    string,
+    string | number | string[] | undefined,
+  ][]) {
+    if (value === undefined) continue;
+    params.set(key, Array.isArray(value) ? value.join(',') : String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
 export interface CreatorHubClient {
   health(): Promise<HealthResponse>;
   works: {
     /** `options.idempotencyKey` is required when using an agent token. */
     create(input: CreateWorkRequest, options?: IdempotencyOptions): Promise<WorkDetail>;
+    /** One page; pass the page's `next_cursor` as `cursor` for the next (QC-067). */
     list(query?: ListWorksQuery): Promise<ListWorksResponse>;
+    /** Counts by type and status under the list filters, for filter chips (QC-067). */
+    facets(query?: WorkFacetsQuery): Promise<WorkFacetsResponse>;
+    /** Every work matching the filters, light fields only; 413 above `WORK_REFS_MAX` (QC-067). */
+    refs(query?: WorkRefsQuery): Promise<WorkRefsResponse>;
     get(id: string): Promise<WorkDetail>;
     patch(id: string, input: PatchWorkRequest, options?: PatchWorkOptions): Promise<WorkDetail>;
     revisions(id: string): Promise<RevisionListResponse>;
@@ -281,19 +306,12 @@ export function createClient(options: CreatorHubClientOptions): CreatorHubClient
           body: CreateWorkRequestSchema.parse(input),
           headers: idempotencyHeaders(createOptions),
         }),
-      list: (query = {}) => {
-        const params = new URLSearchParams();
-        for (const [key, value] of Object.entries(query) as [
-          string,
-          string | number | string[] | undefined,
-        ][]) {
-          if (value === undefined) continue;
-          // `ids` travels as one comma-separated value (QC-045/046).
-          params.set(key, Array.isArray(value) ? value.join(',') : String(value));
-        }
-        const qs = params.toString();
-        return request(ListWorksResponseSchema, 'GET', `/api/v1/works${qs ? `?${qs}` : ''}`);
-      },
+      list: (query = {}) =>
+        request(ListWorksResponseSchema, 'GET', `/api/v1/works${worksQuery(query)}`),
+      facets: (query = {}) =>
+        request(WorkFacetsResponseSchema, 'GET', `/api/v1/works/facets${worksQuery(query)}`),
+      refs: (query = {}) =>
+        request(WorkRefsResponseSchema, 'GET', `/api/v1/works/refs${worksQuery(query)}`),
       get: (id) => request(WorkDetailSchema, 'GET', `/api/v1/works/${encodeURIComponent(id)}`),
       patch: (id, input, patchOptions = {}) =>
         request(WorkDetailSchema, 'PATCH', `/api/v1/works/${encodeURIComponent(id)}`, {

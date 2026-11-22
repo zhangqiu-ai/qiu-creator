@@ -6,6 +6,10 @@ import {
   WORK_TRASH_RETENTION_DAYS,
   WorkRemovalSchema,
   ListWorksQuerySchema,
+  WORK_REFS_MAX,
+  WorkFacetsQuerySchema,
+  WorkRefSchema,
+  WorkRefsQuerySchema,
   WorkSchema,
   type CreateWorkRequest,
   type ExternalState,
@@ -18,6 +22,11 @@ import {
   type WorkDetail,
   type WorkCardImage,
   type WorkListItem,
+  type WorkFacetsQuery,
+  type WorkFacetsResponse,
+  type WorkRef,
+  type WorkRefsQuery,
+  type WorkRefsResponse,
   type WorkRemoval,
 } from '@qiu-creator/contracts';
 import {
@@ -60,6 +69,19 @@ interface WorkRow {
   /** Set while the work is in 最近刪除 (QC-051). */
   deleted_at: string | null;
   removal: string | null;
+}
+
+/** The columns `refs` reads (QC-067); `project_ids` is a JSON array. */
+interface WorkRefRow {
+  id: string;
+  title: string;
+  type: string;
+  status: string;
+  tags: string;
+  current_revision_id: string;
+  storage_mode: string;
+  external_state: string | null;
+  project_ids: string;
 }
 
 /** What 最近刪除 needs to know about a work (QC-051). */
@@ -268,6 +290,130 @@ export class WorkService {
     const q = ListWorksQuerySchema.parse(
       query.ids === undefined ? query : { ...query, ids: query.ids.join(',') },
     );
+    const { where, params } = this.filterSql(q);
+    if (q.ids !== undefined) {
+      where.push(`w.id IN (${q.ids.map(() => '?').join(', ')})`);
+      params.push(...q.ids);
+    }
+    const whereSql = `WHERE ${where.join(' AND ')}`;
+    if (q.ids !== undefined) {
+      // Restoring tabs (QC-045/046): exactly these works, in the order asked, no paging.
+      const found = new Map(
+        this.db
+          .prepare<(string | number)[], WorkRow>(`SELECT w.* FROM works w ${whereSql}`)
+          .all(...params)
+          .map((r) => [r.id, r]),
+      );
+      const rows = q.ids.flatMap((wid) => {
+        const r = found.get(wid);
+        return r === undefined ? [] : [r];
+      });
+      return {
+        items: rows.map((r) => this.listItem(r)),
+        total: rows.length,
+        limit: rows.length,
+        offset: 0,
+        missing_ids: q.ids.filter((wid) => !found.has(wid)),
+        next_cursor: null,
+      };
+    }
+    const total = this.db
+      .prepare<(string | number)[], { n: number }>(`SELECT count(*) AS n FROM works w ${whereSql}`)
+      .get(...params);
+    // QC-067: keyset paging on the list order; the key column is never null in its scope.
+    const key = q.scope === 'trash' ? 'deleted_at' : 'updated_at';
+    const pageWhere = [...where];
+    const pageParams = [...params];
+    if (q.cursor !== undefined) {
+      const after = decodeWorkCursor(q.cursor, q.scope);
+      pageWhere.push(`(w.${key} < ? OR (w.${key} = ? AND w.id > ?))`);
+      pageParams.push(after.key, after.key, after.id);
+    }
+    const rows = this.db
+      .prepare<(string | number)[], WorkRow>(
+        `SELECT w.* FROM works w WHERE ${pageWhere.join(' AND ')}
+         ORDER BY w.${key} DESC, w.id LIMIT ? OFFSET ?`,
+      )
+      .all(...pageParams, q.limit + 1, q.cursor === undefined ? q.offset : 0);
+    const more = rows.length > q.limit;
+    const page = more ? rows.slice(0, q.limit) : rows;
+    const last = page.at(-1);
+    return {
+      items: page.map((r) => this.listItem(r)),
+      total: total?.n ?? 0,
+      limit: q.limit,
+      offset: q.cursor === undefined ? q.offset : 0,
+      next_cursor:
+        more && last !== undefined
+          ? encodeWorkCursor(q.scope, cursorKey(last, q.scope), last.id)
+          : null,
+    };
+  }
+
+  /** Work counts by type and status for the library filter chips (QC-067). */
+  facets(query: WorkFacetsQuery = {}): WorkFacetsResponse {
+    const q = WorkFacetsQuerySchema.parse(query);
+    const { where, params } = this.filterSql(q);
+    const rows = this.db
+      .prepare<(string | number)[], { type: string; status: string; n: number }>(
+        `SELECT w.type, w.status, count(*) AS n FROM works w
+         WHERE ${where.join(' AND ')} GROUP BY w.type, w.status`,
+      )
+      .all(...params);
+    const byTypeStatus: Record<string, Record<string, number>> = {};
+    let total = 0;
+    for (const r of rows) {
+      byTypeStatus[r.type] = { ...byTypeStatus[r.type], [r.status]: r.n };
+      total += r.n;
+    }
+    return { total, by_type_status: byTypeStatus };
+  }
+
+  /**
+   * Every work matching the filters, light fields only, for 全選 and batch
+   * actions over the whole filtered set (QC-067). 413 above `WORK_REFS_MAX`.
+   */
+  refs(query: WorkRefsQuery = {}): WorkRefsResponse {
+    const q = WorkRefsQuerySchema.parse(query);
+    const { where, params } = this.filterSql(q);
+    const whereSql = `WHERE ${where.join(' AND ')}`;
+    const total =
+      this.db
+        .prepare<(string | number)[], { n: number }>(
+          `SELECT count(*) AS n FROM works w ${whereSql}`,
+        )
+        .get(...params)?.n ?? 0;
+    if (total > WORK_REFS_MAX) {
+      throw new ServiceError(413, 'payload_too_large', 'too many works match; narrow the filters', {
+        total,
+        max: WORK_REFS_MAX,
+      });
+    }
+    const order = q.scope === 'trash' ? 'w.deleted_at DESC, w.id' : 'w.updated_at DESC, w.id';
+    const rows = this.db
+      .prepare<(string | number)[], WorkRefRow>(
+        `SELECT w.id, w.title, w.type, w.status, w.tags, w.current_revision_id,
+                w.storage_mode, w.external_state,
+                (SELECT json_group_array(id) FROM (
+                   SELECT p.id FROM work_projects wp JOIN projects p ON p.id = wp.project_id
+                   WHERE wp.work_id = w.id AND p.deleted_at IS NULL
+                   ORDER BY p.sort_order, p.id)) AS project_ids
+         FROM works w ${whereSql} ORDER BY ${order}`,
+      )
+      .all(...params);
+    return { items: rows.map(toWorkRef), total };
+  }
+
+  /** The list filters shared by `list`, `facets` and `refs` (all but `ids` and paging). */
+  private filterSql(q: {
+    scope: 'active' | 'trash';
+    project_id?: string | undefined;
+    unassigned?: '0' | '1' | undefined;
+    type?: string | undefined;
+    status?: string | undefined;
+    tag?: string | undefined;
+    q?: string | undefined;
+  }): { where: string[]; params: (string | number)[] } {
     const where: string[] = [
       q.scope === 'trash' ? 'w.deleted_at IS NOT NULL' : 'w.deleted_at IS NULL',
     ];
@@ -286,10 +432,6 @@ export class WorkService {
         `NOT EXISTS (SELECT 1 FROM work_projects wp JOIN projects p ON p.id = wp.project_id
                      WHERE wp.work_id = w.id AND p.deleted_at IS NULL)`,
       );
-    }
-    if (q.ids !== undefined) {
-      where.push(`w.id IN (${q.ids.map(() => '?').join(', ')})`);
-      params.push(...q.ids);
     }
     if (q.type) {
       where.push('w.type = ?');
@@ -315,42 +457,7 @@ export class WorkService {
         params.push(like, like);
       }
     }
-    const whereSql = `WHERE ${where.join(' AND ')}`;
-    const order = q.scope === 'trash' ? 'w.deleted_at DESC, w.id' : 'w.updated_at DESC, w.id';
-    if (q.ids !== undefined) {
-      // Restoring tabs (QC-045/046): exactly these works, in the order asked, no paging.
-      const found = new Map(
-        this.db
-          .prepare<(string | number)[], WorkRow>(`SELECT w.* FROM works w ${whereSql}`)
-          .all(...params)
-          .map((r) => [r.id, r]),
-      );
-      const rows = q.ids.flatMap((wid) => {
-        const r = found.get(wid);
-        return r === undefined ? [] : [r];
-      });
-      return {
-        items: rows.map((r) => this.listItem(r)),
-        total: rows.length,
-        limit: rows.length,
-        offset: 0,
-        missing_ids: q.ids.filter((wid) => !found.has(wid)),
-      };
-    }
-    const total = this.db
-      .prepare<(string | number)[], { n: number }>(`SELECT count(*) AS n FROM works w ${whereSql}`)
-      .get(...params);
-    const rows = this.db
-      .prepare<(string | number)[], WorkRow>(
-        `SELECT w.* FROM works w ${whereSql} ORDER BY ${order} LIMIT ? OFFSET ?`,
-      )
-      .all(...params, q.limit, q.offset);
-    return {
-      items: rows.map((r) => this.listItem(r)),
-      total: total?.n ?? 0,
-      limit: q.limit,
-      offset: q.offset,
-    };
+    return { where, params };
   }
 
   /**
@@ -1195,6 +1302,50 @@ function toRevision(r: RevisionRow): Revision {
     source: r.source as RevisionSource,
     ai_job_id: r.ai_job_id ?? null,
   };
+}
+
+function toWorkRef(row: WorkRefRow): WorkRef {
+  return WorkRefSchema.parse({
+    ...row,
+    tags: parseTags(row.tags),
+    project_ids: parseTags(row.project_ids),
+  });
+}
+
+/** Where a list page ended (QC-067): the scope's sort key and id of its last work. */
+interface WorkCursor {
+  key: string;
+  id: string;
+}
+
+function cursorKey(row: WorkRow, scope: 'active' | 'trash'): string {
+  return scope === 'trash' ? (row.deleted_at ?? '') : row.updated_at;
+}
+
+/** Opaque to clients: base64url JSON `{ s, k, i }`, `s` being the scope it belongs to. */
+function encodeWorkCursor(scope: 'active' | 'trash', key: string, id: string): string {
+  return Buffer.from(JSON.stringify({ s: scope, k: key, i: id }), 'utf8').toString('base64url');
+}
+
+function decodeWorkCursor(raw: string, scope: 'active' | 'trash'): WorkCursor {
+  const invalid = (): ServiceError =>
+    new ServiceError(400, 'validation_error', 'invalid cursor; list again without one', {
+      field: 'cursor',
+    });
+  let value: unknown;
+  try {
+    value = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
+  } catch {
+    throw invalid();
+  }
+  if (typeof value !== 'object' || value === null) throw invalid();
+  const s: unknown = Reflect.get(value, 's');
+  const k: unknown = Reflect.get(value, 'k');
+  const i: unknown = Reflect.get(value, 'i');
+  if (s !== scope || typeof k !== 'string' || k === '' || typeof i !== 'string' || i === '') {
+    throw invalid();
+  }
+  return { key: k, id: i };
 }
 
 function parseTags(raw: string): string[] {
