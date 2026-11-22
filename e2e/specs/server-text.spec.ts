@@ -33,11 +33,24 @@ test('服務端文字跟隨介面語言：English 的 AI 錯誤、简体的備�
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.emulateMedia({ colorScheme: 'light' });
 
+  // 設定 v4 (QC-057): each category is its own page; 語言 is on 外觀.
+  const CATS: Readonly<Record<string, [string, string]>> = {
+    設定: ['設定分類', '外觀'],
+    Settings: ['Settings categories', 'Appearance'],
+  };
+  const category = async (settings: string, name: string) => {
+    const [label] = CATS[settings] ?? ['', ''];
+    await page
+      .getByRole('navigation', { name: label })
+      .getByRole('button', { name, exact: true })
+      .click();
+  };
   const pick = async (navName: string, settings: string, language: string, card: string) => {
     await page
       .getByRole('navigation', { name: navName })
       .getByRole('button', { name: settings, exact: true })
       .click();
+    await category(settings, CATS[settings]?.[1] ?? '');
     await page
       .getByRole('radiogroup', { name: language, exact: true })
       .getByRole('radio', { name: new RegExp(card) })
@@ -46,11 +59,14 @@ test('服務端文字跟隨介面語言：English 的 AI 錯誤、简体的備�
 
   await test.step('切到 English：已確認的告知不需再確認', async () => {
     await pick('主導航', '設定', '語言', 'English');
-    const gpt = page
-      .getByRole('region', { name: 'AI services' })
-      .getByRole('group', { name: 'GPT', exact: true });
-    await expect(gpt.getByRole('status')).toHaveText('Keychain · on');
-    await expect(gpt.getByRole('button', { name: 'I understand, turn it on' })).toHaveCount(0);
+    await category('Settings', 'AI services');
+    const gpt = page.locator('.set-pv', { hasText: 'GPT' });
+    await gpt.click();
+    // Confirmed and not tested yet: 測試連線 only runs when pressed.
+    await expect(gpt).toContainText('Not tested');
+    await expect(
+      page.locator('.set-md__detail').getByRole('button', { name: 'I understand, turn it on' }),
+    ).toHaveCount(0);
     const { items } = await c.ai.providers();
     expect(items.find((p) => p.provider === 'openai')).toMatchObject({
       consent: consented.consent,
@@ -80,6 +96,10 @@ test('服務端文字跟隨介面語言：English 的 AI 錯誤、简体的備�
 
   await test.step('切到简体中文：備份失敗的類別句與技術細節', async () => {
     await pick('Main navigation', 'Settings', 'Language', '简体中文');
+    await page
+      .getByRole('navigation', { name: '设置分类' })
+      .getByRole('button', { name: '备份与还原', exact: true })
+      .click();
     const dir = path.join(backend.home, 'backups');
     mkdirSync(dir, { recursive: true });
     chmodSync(dir, 0o500); // the copy cannot be written

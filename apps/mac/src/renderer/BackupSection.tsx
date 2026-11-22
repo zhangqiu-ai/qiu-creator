@@ -48,11 +48,32 @@ export function BackupSection({
   const rows = list === null ? [] : showAll ? list.backups : list.backups.slice(0, VISIBLE_ROWS);
 
   return (
-    <section className="settings__sec" aria-labelledby="set-backup">
-      <h2 id="set-backup" className="settings__h" tabIndex={-1}>
-        {t('serviceSettings.backupTitle')}
-      </h2>
-      <p className="settings__sub">{t('serviceSettings.backupSub')}</p>
+    <section className="set-sec" aria-labelledby="set-backup">
+      <header className="set-h">
+        <h1 id="set-backup" className="set-h__title" tabIndex={-1}>
+          {t('serviceSettings.backupTitle')}
+        </h1>
+        <div className="set-h__r">
+          {s.creating ? (
+            <span className="chip chip--accent" role="status">
+              <span className="spin" aria-hidden="true" />
+              {t('serviceSettings.backupInProgress')}
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="btn btn--primary btn--small"
+              disabled={busy || s.externalRestore}
+              onClick={() => {
+                void session.create();
+              }}
+            >
+              {t('serviceSettings.backupNow')}
+            </button>
+          )}
+        </div>
+      </header>
+      <p className="set-fn">{t('serviceSettings.backupSub')}</p>
 
       <RestoreNotice
         restore={s.restore}
@@ -96,23 +117,6 @@ export function BackupSection({
               </span>
             )}
           </div>
-          {s.creating ? (
-            <span className="chip chip--accent" role="status">
-              <span className="spin" aria-hidden="true" />
-              {t('serviceSettings.backupInProgress')}
-            </span>
-          ) : (
-            <button
-              type="button"
-              className="btn"
-              disabled={busy || s.externalRestore}
-              onClick={() => {
-                void session.create();
-              }}
-            >
-              {t('serviceSettings.backupNow')}
-            </button>
-          )}
         </div>
 
         <div className="ln">

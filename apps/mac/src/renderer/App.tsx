@@ -273,6 +273,15 @@ export function App() {
 
   // The work in the active tab, so 平台預覽 in the navigation goes straight to it.
   const lastWorkId = tabsState.activeId;
+  // 設定… (⌘,) from the app menu (QC-057).
+  useEffect(
+    () =>
+      window.creatorhub?.onTabCommand((command) => {
+        if (command === 'settings') setRoute({ page: 'settings' });
+      }),
+    [],
+  );
+
   const go = (page: NavPage) => {
     if (page === 'assets') setRoute({ page, focusAssetId: null });
     else if (page === 'preview') setRoute({ page, workId: lastWorkId, from: null });

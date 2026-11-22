@@ -49,10 +49,9 @@ test('New API 模型：打開才查詢、只列對話／顯示全部、搜尋與
     'deepseek-chat',
   ]);
 
-  const newApi: Locator = page
-    .getByRole('region', { name: 'AI 服務' })
-    .getByRole('group', { name: 'New API', exact: true });
-  const field = newApi.getByRole('combobox', { name: 'New API 文字模型 ID' });
+  // 設定 v4 (QC-057): AI 服務 → 供應商 → New API's detail.
+  const newApi: Locator = page.locator('.set-md__detail');
+  const field = newApi.getByRole('combobox', { name: '文字模型', exact: true });
   const options = page.getByRole('listbox', { name: '中轉站提供的模型' }).getByRole('option');
   const savedModel = async () =>
     (await backend.client.ai.providers()).items.find((p) => p.provider === 'new-api')?.text_model;
@@ -61,6 +60,11 @@ test('New API 模型：打開才查詢、只列對話／顯示全部、搜尋與
     .getByRole('navigation', { name: '主導航' })
     .getByRole('button', { name: '設定', exact: true })
     .click();
+  await page
+    .getByRole('navigation', { name: '設定分類' })
+    .getByRole('button', { name: 'AI 服務', exact: true })
+    .click();
+  await page.locator('.set-pv', { hasText: 'New API' }).click();
   await expect(field).toHaveValue('gpt-4o-mini');
 
   await test.step('頁面載入不查詢；打開下拉才查，預設只列對話模型', async () => {

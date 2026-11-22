@@ -22,7 +22,7 @@ export const CATEGORIES: readonly { key: SettingsCategory; label: string; icon: 
   cat('about', 'settings.catAbout', 'info'),
 ];
 
-/** The heading each category scrolls to (and that the sections already label themselves with). */
+/** Each category page's title; focus moves there when the page is shown. */
 export const CATEGORY_HEADING: Readonly<Record<SettingsCategory, string>> = {
   appearance: 'set-appearance-h',
   service: 'set-service',
@@ -32,50 +32,41 @@ export const CATEGORY_HEADING: Readonly<Record<SettingsCategory, string>> = {
   about: 'set-about',
 };
 
+const LAST_KEY = 'qc.settings.category';
+
+/** The category shown last (QC-057: 設定 reopens where it was), or 外觀. */
+export function readLastCategory(): SettingsCategory {
+  try {
+    const v = localStorage.getItem(LAST_KEY);
+    return CATEGORIES.some((c) => c.key === v) ? (v as SettingsCategory) : 'appearance';
+  } catch {
+    return 'appearance';
+  }
+}
+
+export function writeLastCategory(cat: SettingsCategory): void {
+  try {
+    localStorage.setItem(LAST_KEY, cat);
+  } catch {
+    // a per-viewer convenience only
+  }
+}
+
 /**
- * The category being read: the last one whose heading has scrolled to within
- * 48 px of the top of the scrolling body; at the very bottom, the last one
- * (a short final section never reaches the top).
+ * Left category list of 設定 (QC-057): each category is a page of its own;
+ * picking one swaps the page on the right, nothing scrolls.
  */
-export function pickCategory(
-  headingTops: readonly { key: SettingsCategory; top: number }[],
-  scroll: { top: number; height: number; scrollHeight: number },
-): SettingsCategory {
-  if (scroll.top + scroll.height >= scroll.scrollHeight - 2) {
-    return headingTops.at(-1)?.key ?? 'appearance';
-  }
-  let current: SettingsCategory = headingTops[0]?.key ?? 'appearance';
-  for (const h of headingTops) {
-    if (h.top - scroll.top <= 48) current = h.key;
-  }
-  return current;
-}
-
-export function currentCategory(body: HTMLElement): SettingsCategory {
-  const bodyTop = body.getBoundingClientRect().top;
-  const tops: { key: SettingsCategory; top: number }[] = [];
-  for (const c of CATEGORIES) {
-    const el = document.getElementById(CATEGORY_HEADING[c.key]);
-    if (el !== null) {
-      tops.push({ key: c.key, top: el.getBoundingClientRect().top - bodyTop + body.scrollTop });
-    }
-  }
-  return pickCategory(tops, {
-    top: body.scrollTop,
-    height: body.clientHeight,
-    scrollHeight: body.scrollHeight,
-  });
-}
-
-/** Left category list of 設定 (in-page anchors; the content scrolls on its own). */
 export function SettingsNav({
   current,
   tone,
+  aiTone = null,
   onPick,
 }: {
   current: SettingsCategory;
   /** The sidebar dot's tone (one source); null while the first check runs. */
   tone: ServiceTone | null;
+  /** AI 服務: red when a provider is broken, yellow when one needs attention (QC-057). */
+  aiTone?: 'bad' | 'warn' | null;
   onPick: (cat: SettingsCategory) => void;
 }) {
   return (
@@ -85,7 +76,7 @@ export function SettingsNav({
           key={c.key}
           type="button"
           className="set-nav__item"
-          aria-current={current === c.key ? 'true' : undefined}
+          aria-current={current === c.key ? 'page' : undefined}
           onClick={() => {
             onPick(c.key);
           }}
@@ -103,6 +94,13 @@ export function SettingsNav({
                     ? t('settings.dotBad')
                     : t('settings.dotRestoring')
               }
+            />
+          )}
+          {c.key === 'ai' && aiTone !== null && (
+            <span
+              className={`set-nav__dot set-nav__dot--${aiTone === 'bad' ? 'bad' : 'warn'}`}
+              role="img"
+              aria-label={aiTone === 'bad' ? t('aiServices.navBad') : t('aiServices.navWarn')}
             />
           )}
         </button>

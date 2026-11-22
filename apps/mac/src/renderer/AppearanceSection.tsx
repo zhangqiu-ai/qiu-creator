@@ -73,10 +73,12 @@ export function AppearanceSection() {
   };
   const themeKeys = THEME_OPTIONS.map((o) => o.key);
   return (
-    <section className="settings__sec" id="set-appearance" aria-labelledby="set-appearance-h">
-      <h2 id="set-appearance-h" className="settings__h" tabIndex={-1}>
-        {t('settings.appearance')}
-      </h2>
+    <section className="set-sec" id="set-appearance" aria-labelledby="set-appearance-h">
+      <header className="set-h">
+        <h1 id="set-appearance-h" className="set-h__title" tabIndex={-1}>
+          {t('settings.appearance')}
+        </h1>
+      </header>
       <h3 className="settings__sub-h" id="set-theme-h">
         {t('settings.theme')}
       </h3>

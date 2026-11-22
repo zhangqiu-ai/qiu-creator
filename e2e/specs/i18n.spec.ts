@@ -113,7 +113,7 @@ test('語言：三種語言即時切換，側欄、設定頁、編輯器與原�
     // 2. 設定 → 外觀 with the language cards.
     await n.getByRole('button', { name: L[lang].settings, exact: true }).click();
     await expect(page.getByRole('heading', { name: L[lang].settings, level: 1 })).toBeVisible();
-    await expect(page.getByRole('heading', { name: L[lang].appearance, level: 2 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: L[lang].appearance, level: 1 })).toBeVisible();
     await expect(
       page.getByRole('radiogroup', { name: L[lang].language, exact: true }),
     ).toBeVisible();

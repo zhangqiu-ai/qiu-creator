@@ -1,5 +1,6 @@
 import type { CatalogArea } from '../define.js';
 import { ai } from './ai.js';
+import { aiServices } from './aiServices.js';
 import { assets } from './assets.js';
 import { common } from './common.js';
 import { editor } from './editor.js';
@@ -37,6 +38,7 @@ export const catalog = {
   videoWork,
   workActions,
   modelPicker,
+  aiServices,
 } as const;
 
 type Areas = typeof catalog;

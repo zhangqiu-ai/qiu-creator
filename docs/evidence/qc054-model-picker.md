@@ -61,7 +61,7 @@
 
 ## 第一次全套 e2e 的一個失敗（交 qc-test 追查）
 
-- **時間與範圍**：2026-11-21 20:30:11，第一次對本分支（當時的基底是 `18c2539`）跑全套 e2e，結果 20 passed、1 failed，開始時負載 5.21。完整輸出存在 [qc054-e2e-editor-tabs-failure.log](qc054-e2e-editor-tabs-failure.log)。
+- **時間與範圍**：2026-11-21 20:30:11，第一次對本分支（當時的基底是 `18c2539`）跑全套 e2e，結果 20 passed、1 failed，開始時負載 5.21。完整輸出不在倉庫裡（`.log` 被 gitignore），已放到共用筆記資料夾 `side-session-notes/local_2cc861c6-…/qc054-e2e-editor-tabs-failure.log`，交 qc-test 追查（QC-059）。
 - **哪個測試**：`e2e/specs/editor-tabs.spec.ts:63` 的「開多個作品、切換保留狀態、重複開啟、快捷鍵與選單」，失敗在步驟「切換時保留模式、草稿、游標與捲動」。
 - **錯誤**：`editor-tabs.spec.ts:121`，`expect.poll(() => source.selectionStart).toBe(11)` 在 5000 ms 內一直拿到 `10`。這一步是用 ⌘⇧[ 切回「甲篇長文」分頁後，檢查原始碼模式的游標有沒有還原到第 11 格。
 - **Trace**：當時的位置是 `tmp/playwright/editor-tabs-開多個作品、切換保留狀態、重複開啟、快捷鍵與選單/`（Electron trace 與 `trace.zip`，以及 `error-context.md`）。之後重跑時 Playwright 會清空 `outputDir`，所以這份 trace 已經不在了，只留下上面那份 log。

@@ -152,6 +152,8 @@ export function EditorTabs(props: EditorTabsProps) {
   // ⌘1–9, ⌘⇧[ ], ⌘W from the keyboard and from the menu bar.
   const run = useCallback(
     (command: TabCommand): boolean => {
+      // 設定… is the App's; the tab bar leaves it alone.
+      if (command === 'settings') return false;
       if (confirm !== null || document.querySelector('[aria-modal="true"]') !== null) return false;
       if (command === 'close') {
         const active = model.active;

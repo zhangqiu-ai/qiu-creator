@@ -53,7 +53,7 @@ test('設定：分類導覽、主題即時套用並記住、備份預設 3 份',
     ]);
     await expect(cats.getByRole('button', { name: '外觀' })).toHaveAttribute(
       'aria-current',
-      'true',
+      'page',
     );
     await expect(cats.getByRole('img', { name: '服務正常' })).toBeVisible();
     await expect(
@@ -100,30 +100,22 @@ test('設定：分類導覽、主題即時套用並記住、備份預設 3 份',
     await expect.poll(() => pageBackground(page)).toBe(LIGHT_BG);
   });
 
-  await test.step('分類導覽捲到對應段落，捲動時跟著標示', async () => {
+  await test.step('分類各自一頁：切換只換右側、焦點到頁標題、分類欄不動（QC-057）', async () => {
     await cats.getByRole('button', { name: '備份與還原' }).click();
-    const backup = page.getByRole('heading', { name: '備份與還原' });
-    await expect(backup).toBeInViewport();
+    const backup = page.getByRole('heading', { level: 1, name: '備份與還原' });
     await expect(backup).toBeFocused();
     await expect(cats.getByRole('button', { name: '備份與還原' })).toHaveAttribute(
       'aria-current',
-      'true',
+      'page',
     );
-    // The category list stays put while the content scrolls.
+    await expect(themes).toHaveCount(0);
     const navBox = await cats.boundingBox();
     expect(navBox?.y ?? -1).toBeGreaterThan(0);
     await cats.getByRole('button', { name: '關於' }).click();
-    await expect(page.getByRole('heading', { name: '關於' })).toBeInViewport();
-    await expect(cats.getByRole('button', { name: '關於' })).toHaveAttribute(
-      'aria-current',
-      'true',
-    );
+    await expect(page.getByRole('heading', { level: 1, name: '關於' })).toBeFocused();
     expect((await cats.boundingBox())?.y).toBe(navBox?.y);
-    await page.evaluate("document.querySelector('.set-body').scrollTop = 0");
-    await expect(cats.getByRole('button', { name: '外觀' })).toHaveAttribute(
-      'aria-current',
-      'true',
-    );
+    await cats.getByRole('button', { name: '外觀' }).click();
+    await expect(themes).toBeVisible();
   });
 
   await test.step('備份清單預設 3 份，可展開與收起', async () => {
@@ -138,6 +130,7 @@ test('設定：分類導覽、主題即時套用並記住、備份預設 3 份',
   });
 
   await test.step('深色與窄視窗截圖', async () => {
+    await cats.getByRole('button', { name: '外觀' }).click();
     await themes.getByRole('radio', { name: '深色' }).click();
     await cats.getByRole('button', { name: '備份與還原' }).click();
     await shot(page, '04-backups-dark');

@@ -20,8 +20,17 @@ test('設定 New API、獨立確認使用告知，並切換供應商改寫', asy
 
   const nav = page.getByRole('navigation', { name: '主導航' });
   const settingsButton = nav.getByRole('button', { name: '設定', exact: true });
-  const settings = page.getByRole('region', { name: 'AI 服務' });
-  const newApi = settings.getByRole('group', { name: 'New API', exact: true });
+  // 設定 v4 (QC-057): AI 服務 is its own page; providers are a list and a detail.
+  const pv = (name: string) => page.locator('.set-pv', { hasText: name });
+  const detail = page.locator('.set-md__detail');
+  const openAiSettings = async (provider: string) => {
+    await settingsButton.click();
+    await page
+      .getByRole('navigation', { name: '設定分類' })
+      .getByRole('button', { name: 'AI 服務', exact: true })
+      .click();
+    await pv(provider).click();
+  };
   const openWork = async () => {
     await nav.getByRole('button', { name: '作品庫', exact: true }).click();
     await page
@@ -34,8 +43,8 @@ test('設定 New API、獨立確認使用告知，並切換供應商改寫', asy
   const rewrite = panel.getByRole('button', { name: '改寫全文', exact: true });
 
   await test.step('儲存 New API 設定後仍需獨立確認使用告知', async () => {
-    await settingsButton.click();
-    await expect(newApi.getByRole('status')).toHaveText('未設定');
+    await openAiSettings('New API');
+    await expect(pv('New API')).toContainText('未設定');
     const { items } = await backend.client.ai.providers();
     expect(items).toContainEqual(
       expect.objectContaining({
@@ -47,12 +56,11 @@ test('設定 New API、獨立確認使用告知，並切換供應商改寫', asy
       }),
     );
 
-    await newApi.getByRole('button', { name: '新增', exact: true }).click();
-    await newApi.getByLabel('New API Base URL', { exact: true }).fill(BASE_URL);
-    await newApi.getByLabel('New API API 金鑰', { exact: true }).fill(FAKE_KEY);
-    await newApi.getByRole('button', { name: '存到鑰匙圈', exact: true }).click();
-    await expect(newApi.getByRole('status')).toHaveText('待確認告知');
-    await expect(newApi.getByLabel('New API 文字模型 ID', { exact: true })).toHaveValue(
+    await detail.getByLabel('New API Base URL', { exact: true }).fill(BASE_URL);
+    await detail.getByLabel('New API API 金鑰', { exact: true }).fill(FAKE_KEY);
+    await detail.getByRole('button', { name: '存到鑰匙圈', exact: true }).click();
+    await expect(pv('New API')).toContainText('待確認告知');
+    await expect(detail.getByRole('combobox', { name: '文字模型', exact: true })).toHaveValue(
       DEFAULT_MODEL,
     );
 
@@ -64,18 +72,18 @@ test('設定 New API、獨立確認使用告知，並切換供應商改寫', asy
   });
 
   await test.step('確認各自的告知後，從 GPT 切換到 New API 並顯示改寫候選', async () => {
-    await settingsButton.click();
-    const notice = newApi.getByRole('group', { name: 'New API 使用告知', exact: true });
+    await openAiSettings('New API');
+    const notice = detail.getByRole('group', { name: 'New API 使用告知', exact: true });
     await notice.getByRole('button', { name: '我已了解，啟用', exact: true }).click();
-    await expect(newApi.getByRole('status')).toHaveText('鑰匙圈 · 已啟用');
+    // Ready, and nothing tested yet: tests only run when 測試連線 is pressed.
+    await expect(pv('New API')).toContainText('未測試');
     const { items } = await backend.client.ai.providers();
     expect(items.find(({ provider }) => provider === 'openai')?.consent).toEqual(gpt.consent);
 
-    const gptRow = settings.getByRole('group', { name: 'GPT', exact: true });
-    await gptRow.getByRole('button', { name: '新增', exact: true }).click();
-    await gptRow.getByLabel('GPT API 金鑰', { exact: true }).fill('fake-openai-key');
-    await gptRow.getByRole('button', { name: '存到鑰匙圈', exact: true }).click();
-    await expect(gptRow.getByRole('status')).toHaveText('鑰匙圈 · 已啟用');
+    await pv('GPT').click();
+    await detail.getByLabel('GPT API 金鑰', { exact: true }).fill('fake-openai-key');
+    await detail.getByRole('button', { name: '存到鑰匙圈', exact: true }).click();
+    await expect(pv('GPT')).toContainText('未測試');
 
     await openWork();
     await expect(providerSelect).toHaveValue('openai');

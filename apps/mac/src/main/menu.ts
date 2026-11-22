@@ -52,6 +52,8 @@ export function menuTemplate(
       submenu: [
         { role: 'about', label: t('main.menuAbout', { app: appName }) },
         { type: 'separator' },
+        tab('settings', t('main.menuSettings'), 'CommandOrControl+,'),
+        { type: 'separator' },
         { role: 'services', label: t('main.menuServices') },
         { type: 'separator' },
         { role: 'hide', label: t('main.menuHide', { app: appName }) },

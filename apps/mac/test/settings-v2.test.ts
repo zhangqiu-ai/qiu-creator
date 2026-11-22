@@ -9,7 +9,12 @@ import {
   writePreferences,
 } from '../src/main/preferences.js';
 import { VISIBLE_ROWS } from '../src/renderer/BackupSection.js';
-import { CATEGORIES, CATEGORY_HEADING, pickCategory } from '../src/renderer/SettingsNav.js';
+import {
+  CATEGORIES,
+  CATEGORY_HEADING,
+  readLastCategory,
+  writeLastCategory,
+} from '../src/renderer/SettingsNav.js';
 import { applyTheme, effectiveScheme, THEME_OPTIONS } from '../src/renderer/theme.js';
 
 const dirs: string[] = [];
@@ -70,19 +75,27 @@ describe('設定 categories', () => {
     expect(Object.keys(CATEGORY_HEADING)).toHaveLength(6);
   });
 
-  it('follows the heading scrolled past last, and the last one at the bottom', () => {
-    const tops = [
-      { key: 'appearance', top: 28 },
-      { key: 'service', top: 300 },
-      { key: 'backup', top: 600 },
-      { key: 'about', top: 1500 },
-    ] as const;
-    const at = (top: number) => pickCategory(tops, { top, height: 700, scrollHeight: 2400 });
-    expect(at(0)).toBe('appearance');
-    expect(at(260)).toBe('service');
-    expect(at(590)).toBe('backup');
-    expect(at(1000)).toBe('backup');
-    expect(pickCategory(tops, { top: 1700, height: 700, scrollHeight: 2400 })).toBe('about');
+  it('reopens on the category shown last, and on 外觀 when nothing (valid) is stored (QC-057)', () => {
+    const store = new Map<string, string>();
+    const g = globalThis as { localStorage?: unknown };
+    const before = g.localStorage;
+    g.localStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        store.set(k, v);
+      },
+    };
+    try {
+      expect(readLastCategory()).toBe('appearance');
+      writeLastCategory('ai');
+      expect(readLastCategory()).toBe('ai');
+      store.set('qc.settings.category', 'nonsense');
+      expect(readLastCategory()).toBe('appearance');
+    } finally {
+      g.localStorage = before;
+    }
+    // No storage at all (a private window): still 外觀, never a throw.
+    expect(readLastCategory()).toBe('appearance');
   });
 
   it('shows 3 backups before 「全部 N 份」', () => {
