@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   CreateWorkRequestSchema,
+  WORK_TRASH_RETENTION_DAYS,
+  WorkRemovalSchema,
   ListWorksQuerySchema,
   WorkSchema,
   type CreateWorkRequest,
@@ -15,6 +17,7 @@ import {
   type Work,
   type WorkDetail,
   type WorkListItem,
+  type WorkRemoval,
 } from '@qiu-creator/contracts';
 import {
   checkRevision,
@@ -52,7 +55,23 @@ interface WorkRow {
   external_state: string | null;
   /** JSON object: front-matter path → library asset id (QC-045/046). */
   media_index: string;
+  /** Set while the work is in 最近刪除 (QC-051). */
+  deleted_at: string | null;
+  removal: string | null;
 }
+
+/** What 最近刪除 needs to know about a work (QC-051). */
+export interface WorkTrashTarget {
+  id: string;
+  storageMode: 'managed' | 'external';
+  mountId: string | null;
+  sourcePath: string;
+  deletedAt: string | null;
+  removal: WorkRemoval | null;
+  currentRevision: string;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 interface RevisionRow {
   revision_id: string;
@@ -234,7 +253,9 @@ export class WorkService {
     const q = ListWorksQuerySchema.parse(
       query.ids === undefined ? query : { ...query, ids: query.ids.join(',') },
     );
-    const where: string[] = [];
+    const where: string[] = [
+      q.scope === 'trash' ? 'w.deleted_at IS NOT NULL' : 'w.deleted_at IS NULL',
+    ];
     const params: (string | number)[] = [];
     if (q.ids !== undefined) {
       where.push(`w.id IN (${q.ids.map(() => '?').join(', ')})`);
@@ -264,7 +285,8 @@ export class WorkService {
         params.push(like, like);
       }
     }
-    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const whereSql = `WHERE ${where.join(' AND ')}`;
+    const order = q.scope === 'trash' ? 'w.deleted_at DESC, w.id' : 'w.updated_at DESC, w.id';
     if (q.ids !== undefined) {
       // Restoring tabs (QC-045/046): exactly these works, in the order asked, no paging.
       const found = new Map(
@@ -290,7 +312,7 @@ export class WorkService {
       .get(...params);
     const rows = this.db
       .prepare<(string | number)[], WorkRow>(
-        `SELECT w.* FROM works w ${whereSql} ORDER BY w.updated_at DESC, w.id LIMIT ? OFFSET ?`,
+        `SELECT w.* FROM works w ${whereSql} ORDER BY ${order} LIMIT ? OFFSET ?`,
       )
       .all(...params, q.limit, q.offset);
     return {
@@ -429,9 +451,18 @@ export class WorkService {
     return this.readSnapshot(this.requireRevision(id, revisionId));
   }
 
-  /** Reconcile, then enforce the revision precondition (428 when absent, 409 when stale). */
-  private checkedRow(id: string, baseRevision: string | null, action: string): WorkRow {
+  /**
+   * Reconcile, then enforce the revision precondition (428 when absent, 409
+   * when stale). Works in 最近刪除 are 409 `work_in_trash` unless `inTrash`.
+   */
+  private checkedRow(
+    id: string,
+    baseRevision: string | null,
+    action: string,
+    inTrash = false,
+  ): WorkRow {
     const row = this.reconcileExternalChange(this.requireRow(id));
+    if (!inTrash) this.requireActiveRow(row);
     const check = checkRevision(baseRevision, row.current_revision_id);
     if (!check.ok) {
       if (check.reason === 'missing_base') {
@@ -612,6 +643,93 @@ export class WorkService {
       .map(toRevision);
   }
 
+  // ---- 最近刪除 (QC-051) -------------------------------------------------------
+
+  /** 409 `work_in_trash` when the work is in 最近刪除; 404 when unknown. */
+  requireActive(id: string): void {
+    this.requireActiveRow(this.requireRow(id));
+  }
+
+  /** The work for a delete or restore, after reconciling and the revision check. */
+  trashTarget(id: string, baseRevision: string | null, action: string): WorkTrashTarget {
+    return toTrashTarget(this.checkedRow(id, baseRevision, action, true));
+  }
+
+  /** A work in 最近刪除, without a revision check (purging). 404 when it is not there. */
+  trashedTarget(id: string): WorkTrashTarget {
+    const row = this.requireRow(id);
+    if (row.deleted_at === null)
+      throw new ServiceError(404, 'not_found', 'work is not in 最近刪除');
+    return toTrashTarget(row);
+  }
+
+  /** Works in 最近刪除, oldest deletion first; `before` limits to deletions at or before it. */
+  trashedTargets(before?: string): WorkTrashTarget[] {
+    const rows =
+      before === undefined
+        ? this.db
+            .prepare<[], WorkRow>(
+              'SELECT * FROM works WHERE deleted_at IS NOT NULL ORDER BY deleted_at, id',
+            )
+            .all()
+        : this.db
+            .prepare<[string], WorkRow>(
+              'SELECT * FROM works WHERE deleted_at IS NOT NULL AND deleted_at <= ? ORDER BY deleted_at, id',
+            )
+            .all(before);
+    return rows.map(toTrashTarget);
+  }
+
+  /**
+   * Absolute path of an external work's file, when it is present and safe to
+   * hand to the Trash; 409 `source_missing` otherwise.
+   */
+  externalSourceFile(id: string): string {
+    const row = this.reconcileExternalChange(this.requireRow(id));
+    if (row.storage_mode !== 'external') {
+      throw new ServiceError(400, 'validation_error', 'not an external work');
+    }
+    return this.writableSource(row);
+  }
+
+  /** Whether an external work's file is readable right now. */
+  externalSourcePresent(id: string): boolean {
+    const row = this.reconcileExternalChange(this.requireRow(id));
+    return row.storage_mode === 'external' && this.readSourceFile(row) !== null;
+  }
+
+  /** One work as a list row (any scope). */
+  listItemById(id: string): WorkListItem {
+    return this.listItem(this.reconcileExternalChange(this.requireRow(id)));
+  }
+
+  /**
+   * Remove a work's database records for good: revisions, links and variants
+   * go through the foreign keys; the search index by hand. A permanently
+   * deleted external file is excluded from later rescans. Files are the
+   * caller's to remove. Must run inside the caller's transaction.
+   */
+  deleteRecords(target: WorkTrashTarget): void {
+    this.db.prepare('DELETE FROM works_fts WHERE work_id = ?').run(target.id);
+    this.db.prepare('DELETE FROM works WHERE id = ?').run(target.id);
+    if (target.storageMode === 'external' && target.mountId !== null) {
+      this.db
+        .prepare(
+          `INSERT OR IGNORE INTO work_exclusions (mount_id, source_path, created_at)
+           SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM mounts WHERE id = ?)`,
+        )
+        .run(target.mountId, target.sourcePath, new Date().toISOString(), target.mountId);
+    }
+  }
+
+  private requireActiveRow(row: WorkRow): void {
+    if (row.deleted_at !== null) {
+      throw new ServiceError(409, 'work_in_trash', 'the work is in 最近刪除; restore it first', {
+        deleted_at: row.deleted_at,
+      });
+    }
+  }
+
   // ---- External (mounted) works ---------------------------------------------
 
   /**
@@ -631,6 +749,13 @@ export class WorkService {
       this.reconcileExternalChange(existing);
       return existing.id;
     }
+    // QC-051: deleted permanently from the library; the file stays, unindexed.
+    const excluded = this.db
+      .prepare<[string, string], { n: number }>(
+        'SELECT count(*) AS n FROM work_exclusions WHERE mount_id = ? AND source_path = ?',
+      )
+      .get(mountId, rel);
+    if ((excluded?.n ?? 0) > 0) return null;
     const location = this.externalLocation(mountId, rel);
     if (location === null) return null;
     const content = readRegularFile(location.file);
@@ -761,7 +886,8 @@ export class WorkService {
     return this.db
       .prepare<[string, string], WorkRow>(
         `SELECT w.* FROM works w JOIN revisions r ON r.revision_id = w.current_revision_id
-         WHERE w.mount_id = ? AND w.external_state = 'missing' AND r.content_hash = ?
+         WHERE w.mount_id = ? AND w.external_state = 'missing' AND w.deleted_at IS NULL
+           AND r.content_hash = ?
          ORDER BY w.updated_at DESC LIMIT 1`,
       )
       .get(mountId, hash);
@@ -1009,5 +1135,23 @@ function toWork(row: WorkRow): Work {
     mount_id: row.mount_id,
     external_state: row.external_state,
     external_path: external ? row.source_path : null,
+    deleted_at: row.deleted_at,
+    purge_at:
+      row.deleted_at === null
+        ? null
+        : new Date(Date.parse(row.deleted_at) + WORK_TRASH_RETENTION_DAYS * DAY_MS).toISOString(),
+    removal: row.removal,
   });
+}
+
+function toTrashTarget(row: WorkRow): WorkTrashTarget {
+  return {
+    id: row.id,
+    storageMode: row.storage_mode === 'external' ? 'external' : 'managed',
+    mountId: row.mount_id,
+    sourcePath: row.source_path,
+    deletedAt: row.deleted_at,
+    removal: row.removal === null ? null : WorkRemovalSchema.parse(row.removal),
+    currentRevision: row.current_revision_id,
+  };
 }

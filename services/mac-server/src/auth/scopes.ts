@@ -10,6 +10,11 @@ export type RequiredAccess = TokenScope | 'owner' | 'read_or_own_import';
 
 const WRITE_ROUTES = new Set([
   'PATCH /api/v1/works/:id',
+  // QC-051: 最近刪除 keeps works for 30 days, so deleting is reversible. Purging
+  // (`/api/v1/trash/works…`) and moving a file to the macOS Trash stay owner-only.
+  'DELETE /api/v1/works/:id',
+  'POST /api/v1/works/:id/restore',
+  'POST /api/v1/works/batch',
   'POST /api/v1/works/:id/assets',
   // QC-039: copies an asset into the work's own folder and links it (like linking an asset).
   'POST /api/v1/works/:id/media/attach',

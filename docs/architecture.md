@@ -177,6 +177,10 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 `0011_change_log_system_entity`：`change_log.entity` 允許 `system`（備份事件，QC-030）。SQLite 無法修改 CHECK，所以重建資料表，保留 `seq` 與 AUTOINCREMENT 的最高值，SSE 的 id 不會倒退。
 
+`0016_work_trash`（QC-051）：`works` 增加 `deleted_at` 與 `removal`（`trashed`／`unindexed`／`original_trashed`，與素材相同），並為 `deleted_at` 建部分索引；新增 `work_exclusions`（`mount_id`、`source_path`；掛載記錄只會標成 `removed`，重新掛同一個資料夾沿用同一筆，所以排除仍然有效），記下永久刪除的外部作品，重新掃描時不再收回。只加欄位與資料表。
+
+- **回滾**：`WORK_TRASH_ROLLBACK_SQL`（`src/db/migrations.ts`）依序刪除 `work_exclusions`、索引、兩個欄位，以及 `schema_migrations` 中的 `0016` 記錄，舊版即可開啟資料庫（測試 `work-trash.test.ts` 驗證回滾後舊遷移照常、再升級時 `0016` 能重新套用）。回滾的代價：還在最近刪除的作品會重新出現在列表，永久刪除過的外部檔案下次掃描會再被索引。執行前先備份（QC-030）。
+
 `0015_typed_works_media`（QC-045/046）：`works` 增加 `media_index`（JSON：front matter 路徑對應的素材 id，列表與縮圖不必雜湊檔案）；`platform_variants` 與 `platform_variant_revisions` 增加 `inherit`（沿用共用文案）與 `cover_time_seconds`（以視頻某一幀為封面）。接在 `0014`（QC-043）之後。
 
 `0014_ai_job_error_detail`（QC-043）：`ai_jobs` 增加 `error_detail`，存失敗的技術細節原文（HTTP 狀態、供應商的簡短錯誤文字），已去除金鑰；`error` 仍是繁體的說明。
@@ -195,9 +199,14 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | --- | --- | --- |
 | GET | `/health` | 不需權杖；回 `version`、`commit`、`built_at`（從原始碼執行時後兩者為 null，QC-030） |
 | POST | `/api/v1/works` | 建立托管作品，回 201 與 `ETag`；`type` 為 `image`／`video` 時寫入 front matter，可帶 `description`（QC-045/046） |
-| GET | `/api/v1/works` | 列表；`q`、`type`、`status`、`tag`、`limit`、`offset`；`ids=a,b,c` 依序取回指定作品並列出 `missing_ids`（分頁恢復）；貼圖與視頻作品另有 `thumbnail`、`image_count`、`duration_seconds`、`orientation`、`missing_media` |
+| GET | `/api/v1/works` | 列表；`scope`（`active` 預設／`trash`，QC-051）、`q`、`type`、`status`、`tag`、`limit`、`offset`；`ids=a,b,c` 依序取回指定作品並列出 `missing_ids`（分頁恢復）；貼圖與視頻作品另有 `thumbnail`、`image_count`、`duration_seconds`、`orientation`、`missing_media` |
 | GET | `/api/v1/works/:id` | 讀取（含 Markdown），回 `ETag: "<revision>"` |
 | PATCH | `/api/v1/works/:id` | 修改；需要 `base_revision` 或 `If-Match`。貼圖與視頻作品另可一次寫入 `description`、`images`（完整有序的素材 id）、`cover`（`{asset_id}` 或 `{time_seconds}`）、`video_asset_id`；帶 `ai_job_id` 時記為 `ai_accepted` 版本 |
+| DELETE | `/api/v1/works/:id` | 移到最近刪除（QC-051）；需要 `base_revision` 或 `If-Match`；revision 不變；外部作品預設只取消索引，`move_original_to_trash: true`（只限主權杖）才把檔案移到系統垃圾桶 |
+| POST | `/api/v1/works/:id/restore` | 從最近刪除恢復，revision、歷史、連結、平台版本不變；原檔還在垃圾桶時回 409 `source_missing`（QC-051） |
+| POST | `/api/v1/works/batch` | 最多 200 個作品批次刪除、恢復、改狀態、加減標籤；每項帶 `base_revision`，逐項成功或失敗，回 200 與 `results`；帶 `Idempotency-Key`（QC-051） |
+| DELETE | `/api/v1/trash/works/:id` | 永久刪除最近刪除中的一個作品（只限主權杖，QC-051） |
+| DELETE | `/api/v1/trash/works` | 清空最近刪除的作品，須帶 `confirm: true`（只限主權杖，QC-051） |
 | GET | `/api/v1/works/:id/revisions` | 版本歷史 |
 | GET | `/api/v1/works/:id/revisions/:rid` | 單一歷史版本：標題與完整 Markdown 快照 |
 | POST | `/api/v1/works/:id/revisions/:rid/restore` | 恢復某版本：追加一個 `restore` revision；需要 `base_revision` 或 `If-Match` |
@@ -285,6 +294,34 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 - **託管與外部**：託管檔在 30 天內都留在原位。外部素材預設只解除索引；`move_original_to_trash` 用 macOS 內建的 `/usr/bin/trash`（與 Finder「移到垃圾桶」相同，可「放回原處」），失敗或找不到指令時回 500 `trash_failed`，資料庫不改。伺服器不會從垃圾桶取回檔案：使用者在 Finder 放回原處後再按恢復。測試注入假的 `SystemTrash`，測試執行器下預設的實作一律失敗，不會碰真實垃圾桶。
 - **永久刪除**：手動、清空，或刪除 30 天後由每小時一次的檢查自動執行。刪資料列後，作品連結由外鍵刪除、平台版本封面變 NULL，平台版本的 `image_asset_ids` 移除該 id（不產生新的版本，歷史保留原值）。託管檔與縮圖快取一併刪除；外部原檔永遠不動。刪除前若作品目前的 Markdown 還連到該檔，回應的 `markdown_referrers` 會列出（只提示，不阻擋）。
 - **權限**：讀取（列表、詳情、`references`）需要 `read`；所有變更只限 owner 權杖。
+
+## 作品刪除、最近刪除與批量操作（QC-051）
+
+比照素材（QC-037），實作在 `src/works/work-trash.ts`。
+
+- **刪除**：只在 `works` 標記 `deleted_at` 與 `removal`。revision、歷史、作品與素材的連結、平台版本都不動，所以恢復後與刪除前完全相同。需要 `base_revision` 或 `If-Match`，過期回 409，避免刪掉別處剛改過的版本。
+- **刪除期間**：
+  - 列表預設不含；`scope=trash` 只列已刪除的，依刪除時間新到舊；`ids=` 也遵守 `scope`，已刪除的列在 `missing_ids`。
+  - `GET /works/:id` 仍可讀，給最近刪除預覽用。
+  - PATCH、恢復版本、`/works/:id/…` 底下的所有寫入（平台版本、素材連結、attach、文字 AI）回 409 `work_in_trash`。PATCH 在 `WorkService` 檢查，其他由 `server.ts` 的 `preHandler` 統一檢查，之後新增的子路由也自動受保護。
+  - 掛載的作品數（`work_count`）不計入。
+- **託管與外部**：
+  - 託管作品的資料夾在 30 天內都留在 `library/works/<id>/`，從不直接 `rm`。
+  - 外部作品預設只取消索引（`unindexed`），檔案不動；重新掃描不會把它加回來（既有的資料列保持刪除狀態，搬移偵測也略過已刪除作品）。
+  - `move_original_to_trash` 只限主權杖、只限單筆刪除，走與素材相同、可注入的 `SystemTrash`；失敗回 500 `trash_failed`，資料庫不改。恢復前要先在 Finder「放回原處」，否則 409 `source_missing`。
+- **永久刪除**：手動、清空，或刪除 30 天後由每小時一次的檢查自動執行（`WORK_TRASH_RETENTION_DAYS`）。
+  - 刪資料列：版本、作品與素材連結、平台版本由外鍵連帶刪除；`works_fts` 手動刪除；匯入與 AI 任務的作品 id 變 NULL。
+  - 託管作品：先把路徑在作品資料夾內的素材庫素材（例如 Markdown 匯入的圖片）搬到 `library/assets/<素材 id>/`，再刪整個資料夾。有素材搬不動時保留資料夾，不刪它們的檔案。
+  - 外部作品：只刪快照資料夾，原檔永遠不動，並記進 `work_exclusions`，之後掃描不再索引同一路徑（資料夾裡的新檔照常索引）。
+- **批量**（`POST /works/batch`）：
+  - 動作：`trash`、`restore`、`set_status`、`add_tags`、`remove_tags`；每項帶自己的 `base_revision`。
+  - 依序逐項處理，各自成功或失敗，前面成功的不回滾。失敗項帶與錯誤回應相同的 `error`（`not_found`、`revision_conflict` 附 `current_revision`、`work_in_trash`、`source_missing`…），整個請求仍回 200，附 `succeeded`／`failed`。
+  - 改狀態、加減標籤走與 PATCH 相同的寫入（貼圖與視頻作品的標籤寫進 front matter），產生新 revision；結果沒變的項目不寫入、revision 不變。
+  - 批量刪除對外部作品一律只取消索引。
+  - 冪等鍵：見「冪等鍵」一節。
+- **改名**：沿用 `PATCH /works/:id` 的 `title`，不另設端點。貼圖與視頻作品同時寫進 front matter 的 `title`；文章只改作品標題（資料庫與 revision 的標題），Markdown 內的 H1 與檔名都不動，外部檔案也不會被改名。重新掃描保留改過的標題。
+- **事件**：`work.trashed`（`data.removal`）、`work.restored`、`work.deleted`（`data.removal`、`data.reason`：`manual`／`empty`／`expired`）。
+- **權限**：刪除、恢復、批量需要 `write`（最近刪除保留 30 天，可以挽回）；永久刪除、清空、移到系統垃圾桶只限主權杖。
 
 ## 貼圖與視頻作品（QC-045/046）
 
@@ -713,17 +750,18 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 - **權限範圍**（`src/auth/scopes.ts`，依路由樣式判定）：
   - `read`：所有 GET（作品、素材、任務、SSE 事件）。
   - `import`：建立作品、上傳（直傳與 tus）、URL 匯入、重跑匯入任務，以及查看**自己建立的**匯入任務（`GET /api/v1/jobs/:id`；別人的任務回 404，不洩漏網址）。
-  - `write`：修改作品、作品與素材的關聯與排序。
+  - `write`：修改作品、作品與素材的關聯與排序；把作品移到最近刪除、恢復、批量操作（QC-051）。
   - 未列出的 `/api` 路由（包括之後新增的）預設只有主權杖能用，不會在無意間開放給 Agent。
 
 ## 冪等鍵
 
-`POST /api/v1/works` 與 `POST /api/v1/imports/urls` 接受 `Idempotency-Key` header（8–200 個可見 ASCII 字元）。
+`POST /api/v1/works`、`POST /api/v1/imports/urls` 與 `POST /api/v1/works/batch`（QC-051）接受 `Idempotency-Key` header（8–200 個可見 ASCII 字元）。
 
-- Agent 權杖在這兩個端點**必須**帶冪等鍵，否則回 428；主權杖可省略（Electron 介面由使用者操作）。
+- Agent 權杖在這些端點**必須**帶冪等鍵，否則回 428；主權杖可省略（Electron 介面由使用者操作）。
 - 同一個權杖、同一個端點、同一個鍵：回原本的結果並加上 `Idempotent-Replayed: true`，不會重建作品或重新下載。URL 匯入的重送回的是任務的**目前**狀態。
 - 同一個鍵配不同的請求內容（依排序後的 JSON 計算雜湊）回 422 `idempotency_key_reused`，不會悄悄回舊結果。
 - 鍵依權杖分開，兩個 Agent 用到同一個字串不會互相干擾。記錄存在 `idempotency_records`；查核、建立、記錄在同一個同步區段內完成，同一行程內不會重複建立。
+- 批量端點的寫入是非同步的（貼圖與視頻作品走 `WorkComposer`），用 `runAsync`：完成後才記錄；同一個鍵的第二個請求若在第一個還沒完成時到達，會等它完成並拿到同一份結果（`Idempotent-Replayed: true`），不會再做一次。處理中途丟出未預期的例外時不記錄，可用同一個鍵重試。
 
 ## URL 匯入與 SSRF 防護
 
@@ -801,7 +839,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 
 ## 變更事件（SSE）
 
-`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `ai_job.queued`／`running`／`progress`／`succeeded`／`failed`／`cancelled`（AI 任務）、`work.variant_created`／`work.variant_updated`／`work.variant_deleted`（平台版本）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`（素材進出最近刪除時 `data.change` 為 `trashed`／`restored`／`deleted`）、`asset.created`、`asset.updated`（編輯時 `data.fields`、`data.revision`）、`asset.trashed`（`data.removal`）、`asset.restored`、`asset.deleted`（`data.removal`、`data.reason`：`manual`／`empty`／`expired`）（QC-037）、`job.queued`、`job.running`、`job.succeeded`、`job.failed`，以及實體 `system`（`entity_id` 為 `database`）的 `backup.created`／`backup.failed`／`backup.restore_started`／`backup.restored`（QC-030）。
+`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `ai_job.queued`／`running`／`progress`／`succeeded`／`failed`／`cancelled`（AI 任務）、`work.variant_created`／`work.variant_updated`／`work.variant_deleted`（平台版本）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`（素材進出最近刪除時 `data.change` 為 `trashed`／`restored`／`deleted`）、`asset.created`、`asset.updated`（編輯時 `data.fields`、`data.revision`）、`asset.trashed`（`data.removal`）、`asset.restored`、`asset.deleted`（`data.removal`、`data.reason`：`manual`／`empty`／`expired`）（QC-037）、`work.trashed`（`data.removal`）、`work.restored`、`work.deleted`（`data.removal`、`data.reason`）（QC-051）、`job.queued`、`job.running`、`job.succeeded`、`job.failed`，以及實體 `system`（`entity_id` 為 `database`）的 `backup.created`／`backup.failed`／`backup.restore_started`／`backup.restored`（QC-030）。
 
 - 和其他 `/api` 路由一樣要 Bearer 權杖。瀏覽器的 `EventSource` 不能帶 header，所以 api-client 用 fetch 讀串流（`client.events.subscribe`）；權杖不接受放在 URL。
 - 事件先寫進 `change_log` 再推送：在寫入方的交易提交後才發出，交易回滾的變更不會被推送。

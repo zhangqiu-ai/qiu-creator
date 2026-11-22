@@ -78,6 +78,8 @@ import { WorkMediaService } from './media/work-media.js';
 import { MountService, type MountServiceOptions } from './mounts/mount-service.js';
 import { ImportService, type DownloadSettings } from './imports/import-service.js';
 import { WorkService } from './works/work-service.js';
+import { WorkTrash, type WorkTrashOptions } from './works/work-trash.js';
+import { registerWorkTrashRoutes } from './routes/work-trash.js';
 import {
   applyPendingRestore,
   BackupService,
@@ -156,6 +158,8 @@ export interface BuildServerOptions {
    * the clock and the purge interval.
    */
   assetLibrary?: Omit<AssetLibraryOptions, 'markdownReferrers'>;
+  /** Work delete and 最近刪除 (QC-051): the macOS Trash (tests inject a fake), clock, purge interval. */
+  workTrash?: WorkTrashOptions;
 }
 
 export interface CreatorHubServer {
@@ -165,6 +169,7 @@ export interface CreatorHubServer {
   works: WorkService;
   assets: AssetService;
   assetLibrary: AssetLibrary;
+  workTrash: WorkTrash;
   feed: ChangeFeed;
   jobs: JobQueue;
   imports: ImportService;
@@ -227,6 +232,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   const variants = new VariantService(db, works, assets, media, feed);
   const attacher = new WorkMediaAttacher(layout, works, assets);
   const composer = new WorkComposer(db, works, attacher, assets);
+  const workTrash = new WorkTrash(db, layout, works, composer, feed, options.workTrash);
   const assetLibrary = new AssetLibrary(db, layout, assets, feed, {
     ...options.assetLibrary,
     markdownReferrers: (asset) => media.markdownReferrers(asset),
@@ -271,6 +277,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     unsubscribeSleep();
     sleep.stop();
     assetLibrary.stop();
+    workTrash.stop();
     await backups.stop();
     await ai.stop();
     await mounts.stop();
@@ -350,6 +357,17 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
         }),
       );
     }
+  });
+
+  // QC-051: a work in 最近刪除 can be read and restored, not changed. PATCH
+  // checks this itself; this covers its sub-resources (variants, media, AI, …).
+  app.addHook('preHandler', async (req) => {
+    const route = req.routeOptions.url;
+    if (req.method === 'GET' || req.method === 'HEAD' || route === undefined) return;
+    if (!route.startsWith('/api/v1/works/:id/') || route === '/api/v1/works/:id/restore') return;
+    const id = (req.params as { id?: unknown }).id;
+    if (typeof id === 'string') works.requireActive(id);
+    return Promise.resolve();
   });
 
   await app.register(fastifySwagger, {
@@ -524,6 +542,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
 
   registerAssetRoutes(app, assets, layout, { tusIdleTimeoutMs: options.tusIdleTimeoutMs });
   registerAssetLibraryRoutes(app, assetLibrary);
+  registerWorkTrashRoutes(app, workTrash, works, idempotency);
   registerEventRoutes(app, feed, options.heartbeatMs);
   registerImportRoutes(app, imports, idempotency);
   registerTokenRoutes(app, tokens);
@@ -542,6 +561,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   mounts.start();
   backups.start();
   assetLibrary.start();
+  workTrash.start();
   sleep.start();
   if (options.jobs?.start !== false) jobs.start();
   if (aiOptions.start !== false) ai.start();
@@ -552,6 +572,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     works,
     assets,
     assetLibrary,
+    workTrash,
     feed,
     jobs,
     imports,

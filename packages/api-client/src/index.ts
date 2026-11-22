@@ -11,7 +11,21 @@ import {
   WorkMediaResponseSchema,
   AttachWorkMediaRequestSchema,
   AttachWorkMediaResponseSchema,
+  BatchWorksRequestSchema,
+  BatchWorksResponseSchema,
+  DeleteWorkRequestSchema,
+  DeleteWorkResponseSchema,
+  EmptyWorkTrashResponseSchema,
+  PurgedWorkSchema,
+  RestoreWorkRequestSchema,
   type AttachWorkMediaResponse,
+  type BatchWorksRequest,
+  type BatchWorksResponse,
+  type DeleteWorkRequest,
+  type DeleteWorkResponse,
+  type EmptyWorkTrashResponse,
+  type PurgedWork,
+  type RestoreWorkRequest,
   type CreateWorkRequest,
   type ErrorResponse,
   type HealthResponse,
@@ -149,6 +163,31 @@ export interface CreatorHubClient {
      * `src` to insert. External works answer 409 `attach_external_unsupported`.
      */
     attachMedia(id: string, assetId: string): Promise<AttachWorkMediaResponse>;
+    /**
+     * Move to 最近刪除 (QC-051). Pass `base_revision` or `options.ifMatch`.
+     * External works are only unindexed unless `move_original_to_trash` (owner only).
+     */
+    trash(
+      id: string,
+      input?: DeleteWorkRequest,
+      options?: PatchWorkOptions,
+    ): Promise<DeleteWorkResponse>;
+    /** Back from 最近刪除 with the same revision (QC-051). */
+    restoreFromTrash(
+      id: string,
+      input?: RestoreWorkRequest,
+      options?: PatchWorkOptions,
+    ): Promise<WorkDetail>;
+    /** Delete one work in 最近刪除 permanently (owner only). List them with `list({ scope: 'trash' })`. */
+    purge(id: string): Promise<PurgedWork>;
+    /** Delete every work in 最近刪除 permanently (owner only). */
+    emptyTrash(): Promise<EmptyWorkTrashResponse>;
+    /**
+     * Delete, restore, set status, or add/remove tags on many works (QC-051).
+     * Each item fails on its own; check `results[].ok`. Send `options.idempotencyKey`
+     * (required for agent tokens) so a retry does not apply the change twice.
+     */
+    batch(input: BatchWorksRequest, options?: IdempotencyOptions): Promise<BatchWorksResponse>;
   };
   /** Signed, header-less URLs for `<img>`/`<video>` (QC-010). */
   media: {
@@ -286,6 +325,31 @@ export function createClient(options: CreatorHubClientOptions): CreatorHubClient
           `/api/v1/works/${encodeURIComponent(id)}/media/attach`,
           { body: AttachWorkMediaRequestSchema.parse({ asset_id: assetId }) },
         ),
+      trash: (id, input = {}, trashOptions = {}) =>
+        request(DeleteWorkResponseSchema, 'DELETE', `/api/v1/works/${encodeURIComponent(id)}`, {
+          body: DeleteWorkRequestSchema.parse(input),
+          headers:
+            trashOptions.ifMatch === undefined ? {} : { 'if-match': `"${trashOptions.ifMatch}"` },
+        }),
+      restoreFromTrash: (id, input = {}, restoreOptions = {}) =>
+        request(WorkDetailSchema, 'POST', `/api/v1/works/${encodeURIComponent(id)}/restore`, {
+          body: RestoreWorkRequestSchema.parse(input),
+          headers:
+            restoreOptions.ifMatch === undefined
+              ? {}
+              : { 'if-match': `"${restoreOptions.ifMatch}"` },
+        }),
+      purge: (id) =>
+        request(PurgedWorkSchema, 'DELETE', `/api/v1/trash/works/${encodeURIComponent(id)}`),
+      emptyTrash: () =>
+        request(EmptyWorkTrashResponseSchema, 'DELETE', '/api/v1/trash/works', {
+          body: { confirm: true },
+        }),
+      batch: (input, batchOptions) =>
+        request(BatchWorksResponseSchema, 'POST', '/api/v1/works/batch', {
+          body: BatchWorksRequestSchema.parse(input),
+          headers: idempotencyHeaders(batchOptions),
+        }),
     },
     media: {
       signedAssetUrls: (input) =>
