@@ -72,6 +72,8 @@ describe('design tokens', () => {
         [p.warn, p.warnSoft],
         [p.bad, p.badSoft],
         [p.onAccent, p.accent],
+        // 搜尋高亮 (QC-079): the marked words stay readable on the yellow.
+        [p.onHit, p.hit],
       );
       // Accent and status colours are also used as plain text (links, tabs, error lines) (QC-038).
       for (const bg of [p.bg, p.surface, p.sunken]) {

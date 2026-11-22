@@ -24,6 +24,9 @@ export const COLOR_TOKENS = [
   'warnSoft',
   'bad',
   'badSoft',
+  /** 搜尋高亮 (QC-079): a bright yellow highlighter, with dark text on it in both schemes. */
+  'hit',
+  'onHit',
   'scrim',
 ] as const;
 
@@ -51,6 +54,8 @@ const light: ColorPalette = {
   warnSoft: '#fbefd9',
   bad: '#b42318',
   badSoft: '#fbe7e4',
+  hit: '#ffe03d',
+  onHit: '#1c1b19',
   scrim: 'rgba(28, 27, 25, 0.32)',
 };
 
@@ -71,6 +76,8 @@ const dark: ColorPalette = {
   warnSoft: '#3a2b12',
   bad: '#ff8b7e',
   badSoft: '#3d1c18',
+  hit: '#f2c94c',
+  onHit: '#161615',
   scrim: 'rgba(0, 0, 0, 0.55)',
 };
 
