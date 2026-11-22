@@ -282,3 +282,13 @@ exit 0。升級前備份 id：**`20261121T154449342Z-manual`**。
 - 升級後：`/health` commit 4f64fdd、built_at `2026-11-21T17:39:56.524Z`；launchd running（pid 82141）；schema 最新 `0015|typed_works_media`；`server.prev`（31a1b23）與 `app.prev` 在；日誌 level-50 為 0 筆、err.log 0 位元組；服務正常啟動（yaml 可載入）。
 - 使用者 App 行程（pid 46004）未動，仍是舊行程。
 - NOT_VERIFIED：front matter 實際讀寫（只確認服務啟動、`yaml` 已打包）、新版介面、視窗截圖。
+
+## 升級到 3e3b250（2026-11-21，QC-051–056，遷移 0016）：成功
+
+- 建置：乾淨 worktree，commit `3e3b250e1576f173a91ab866fc01b195f4bbd75d`（無 `-dirty`），`codesign --verify --deep --strict` 通過。
+- 升級前（20:46:31）：7420 只有 launchd 服務（pid 82141），7431 無監聽；`/health` 為 4f64fdd；schema 最新 0015。
+- 乾跑後 `upgrade --yes`（20:47:11）exit 0；升級前備份 `20261122T044711579Z-manual`（ok）。
+- 升級後：`/health` commit 3e3b250、built_at `2026-11-22T04:46:46.398Z`；launchd running（pid 19500）；schema 最新 `0016|work_trash`，其次 0015；`server.prev`（4f64fdd）與 `app.prev` 在；日誌 level-50 為 0 筆、err.log 0 位元組。
+- 偏好檔 `preferences.json`：升級前後 sha256 前 16 碼皆 `2abaf5ad151afcee`（檔案位元組不變）；theme `light`、language `zh-Hans`、tabs 三個（image、video、article）。
+- 使用者 App 行程（pid 80306）未動，仍是舊行程；未碰金鑰與 Keychain，未發 AI 請求。
+- NOT_VERIFIED：新版介面、視窗截圖。
