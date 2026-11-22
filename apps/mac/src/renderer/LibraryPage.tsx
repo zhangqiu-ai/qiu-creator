@@ -33,6 +33,7 @@ import {
   type ByTypeStatus,
 } from './library-counts.js';
 import { LibraryFeed } from './library-feed.js';
+import { Highlight, SearchHighlight } from './Highlight.js';
 import { LoadMore } from './LoadMore.js';
 import { RenameField } from './RenameField.js';
 import { useToast, type ToastAction } from './toasts.js';
@@ -204,6 +205,8 @@ export function LibraryPage({
   const failed = createFailed || (feedState.failed && works === null);
   const [query, setQuery] = useState('');
   const [appliedQuery, setAppliedQuery] = useState('');
+  /** What the loaded works mark as hits: every keystroke, never mid-composition (QC-068). */
+  const [highlight, setHighlight] = useState('');
   const [type, setType] = useState<TypeFilter>('all');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [view, setView] = useState<View>(readView);
@@ -321,6 +324,7 @@ export function LibraryPage({
     setQuery(value);
     if (timer.current !== null) clearTimeout(timer.current);
     if (composing) return;
+    setHighlight(value);
     timer.current = setTimeout(() => {
       setAppliedQuery(value);
     }, 250);
@@ -1010,6 +1014,7 @@ export function LibraryPage({
   const loadView = useSkeletonGate(works === null && !failed);
 
   return (
+    <SearchHighlight query={highlight}>
     <main className="page" aria-label={t('library.library')}>
       <header className="page__header">
         {project !== null ? (
@@ -1494,7 +1499,7 @@ export function LibraryPage({
                                     onTitleDoubleClick(e, w);
                                   }}
                                 >
-                                  {w.title}
+                                  <Highlight text={w.title} />
                                 </span>
                                 {selection.ids.has(w.id) && (
                                   <span className="visually-hidden">
@@ -1642,6 +1647,7 @@ export function LibraryPage({
         />
       )}
     </main>
+    </SearchHighlight>
   );
 }
 
@@ -1782,7 +1788,7 @@ function WorkCard({
           }}
           onDoubleClick={onTitleDoubleClick}
         >
-          {work.title}
+          <Highlight text={work.title} />
         </span>
         {meta}
       </span>

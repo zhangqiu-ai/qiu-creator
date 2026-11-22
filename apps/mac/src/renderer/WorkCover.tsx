@@ -2,6 +2,7 @@ import type { WorkListItem } from '@qiu-creator/contracts';
 import { useEffect, useState } from 'react';
 import { formatDuration, WORK_TYPE } from './format.js';
 import { t } from './i18n.js';
+import { Highlight } from './Highlight.js';
 import { Icon } from './Icon.js';
 
 /**
@@ -49,7 +50,9 @@ export function CardCover({
         />
       ) : work.type === 'article' && excerpt !== null ? (
         <span className="wcard__text">
-          <span className="wcard__text-body">{excerpt}</span>
+          <span className="wcard__text-body">
+            <Highlight text={excerpt} />
+          </span>
         </span>
       ) : (
         <Icon name={WORK_TYPE[work.type].icon} size={28} />

@@ -56,6 +56,7 @@ import {
   tildePath,
 } from './format.js';
 import { useToast } from './toasts.js';
+import { Highlight, SearchHighlight } from './Highlight.js';
 import { Icon } from './Icon.js';
 import { formatDateTime, formatNumber, t } from './i18n.js';
 
@@ -384,6 +385,7 @@ export function AssetsPage({
   );
 
   return (
+    <SearchHighlight query={appliedQuery}>
     <main
       className="page page--split"
       aria-label={t('assets.title')}
@@ -762,6 +764,7 @@ export function AssetsPage({
         </div>
       )}
     </main>
+    </SearchHighlight>
   );
 }
 
@@ -896,7 +899,9 @@ function AssetTile({
             <span className="atile__dur">{formatDuration(asset.duration)}</span>
           )}
         </span>
-        <span className="atile__name">{name}</span>
+        <span className="atile__name">
+          <Highlight text={name} />
+        </span>
       </button>
       <input
         type="checkbox"

@@ -232,6 +232,9 @@ importers:
       '@qiu-creator/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens
+      '@qiu-creator/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@qiu-creator/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
