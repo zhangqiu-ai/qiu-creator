@@ -1,5 +1,11 @@
 # Backlog
 
+## QC-083: 視頻理解摘要作為 AI 標題素材
+
+**Priority:** P3 | **Assignee:** qc-backend ＋ qc-frontend | **Tags:** M3
+
+QC-076 前端建議：視頻作品在平台預覽生成標題時，以視頻理解摘要作為素材；後端 title suggestions 需加欄位。
+
 ## QC-080: 拼音搜尋在大量作品時變慢，評估預先計算讀音索引
 
 **Priority:** P3 | **Assignee:** qc-backend | **Tags:** M3, backend

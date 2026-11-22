@@ -1,5 +1,17 @@
 # Done
 
+## QC-076: 平台預覽併入作品編輯頁；編輯區 AI 只留改寫與圖片，標題與封面移到平台預覽
+
+**Priority:** P1 | **Assignee:** qc-prototype → qc-backend ＋ qc-frontend | **Tags:** M3, prototype, frontend | **Done:** 2026-11-22
+
+- PT-20261122-004（總監代核准）。預覽改為編輯頁右側分欄（⌘⇧P），文章／貼圖／視頻共用，獨立頁刪除；平台切換、版本表單、手機模擬；AI 標題依平台字數、點選套用可復原；AI 封面依平台比例、保留只設該平台；窄視窗「版本｜手機」；AI 面板只留改寫與圖片；入口盤點十項處理。接受：插圖格保留「設為封面」（作品封面）；「用作品封面」僅以比例顯示裁切不產生檔（NOT_VERIFIED）。
+
+## QC-075: AI 輸出語言、Prompt 庫頁面、工具列快速切換模型與插入 prompt
+
+**Priority:** P1 | **Assignee:** qc-prototype → qc-backend ＋ qc-frontend | **Tags:** M3, prototype, backend, frontend | **Done:** 2026-11-22
+
+- PT-20261122-003（總監代核准）。後端 b041243（語言偏好、prompts 表 0019、AI 建議指令、記住模型）；前端 1ce61d1：工具列「Prompt」⌘K 快選、語言與模型切換（服務端同步）、候選標示語言與模型、Prompt 頁（內建唯讀可複製、AI 建議候選＋diff、排序、匯出匯入、空狀態）。單元 1186／0；e2e 一般 57／0、動效 58／0。Prompt 頁拖曳排序、原生存檔／開檔對話框 NOT_VERIFIED。
+
 ## QC-079: 搜尋支援拼音（pinyin-pro）；關鍵字高亮改為醒目的黃色
 
 **Priority:** P1 | **Assignee:** qc-backend ＋ qc-frontend | **Tags:** M3, backend, frontend | **Done:** 2026-11-22
