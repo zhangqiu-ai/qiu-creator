@@ -292,3 +292,14 @@ exit 0。升級前備份 id：**`20261121T154449342Z-manual`**。
 - 偏好檔 `preferences.json`：升級前後 sha256 前 16 碼皆 `2abaf5ad151afcee`（檔案位元組不變）；theme `light`、language `zh-Hans`、tabs 三個（image、video、article）。
 - 使用者 App 行程（pid 80306）未動，仍是舊行程；未碰金鑰與 Keychain，未發 AI 請求。
 - NOT_VERIFIED：新版介面、視窗截圖。
+
+## 升級到 272c754（2026-11-21，QC-057、QC-059、QC-060，無新遷移）：成功
+
+- 建置：乾淨 worktree，commit `272c754a843ddb3d4356581a4cf7ad56815aafd9`（無 `-dirty`），`codesign --verify --deep --strict` 通過。
+- 升級前（21:46:53）：7420 只有 launchd 服務（pid 19500），7431 無監聽；`/health` 為 3e3b250；schema 最新 0016。
+- 乾跑後 `upgrade --yes`（21:47:47）exit 0；升級前備份 `20261122T054747219Z-manual`（ok）。
+- 升級後：`/health` commit 272c754、built_at `2026-11-22T05:47:12.597Z`；launchd running（pid 39866）；schema 最新仍是 `0016|work_trash`；`server.prev`（3e3b250）與 `app.prev` 在；日誌 level-50 為 0 筆、err.log 0 位元組。
+- 偏好檔 `preferences.json`：升級前後 sha256 完全相同（`2abaf5ad…f48003`）。
+- 背景模式：`main.ts` 只在環境變數 `CREATORHUB_E2E_BACKGROUND=1` 時啟用；打包的 `Info.plist` 沒有 `LSUIElement`／`LSBackgroundOnly`；launchd 服務與登入環境都沒設該變數。依此判斷打包 App 不會進背景模式（Dock 圖示、可取得焦點）。
+- 使用者 App 行程（pid 80306）未動，仍是舊行程；未碰金鑰與 Keychain，未發 AI 請求或連線測試。
+- NOT_VERIFIED：沒有實際開啟新版 App 確認 Dock 圖示與焦點（不能開關使用者的 App）、新版介面、視窗截圖。
