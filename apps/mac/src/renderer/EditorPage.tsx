@@ -24,7 +24,7 @@ import { Chip } from './Chip.js';
 import { SaveChip } from './SaveChip.js';
 import { ConflictDialog } from './ConflictDialog.js';
 import { useChangeEvents, useEventStatus } from './events.js';
-import { countWords, SAVE_STATUS, WORK_STATUS } from './format.js';
+import { countWords, WORK_STATUS } from './format.js';
 import { HistoryPanel } from './HistoryPanel.js';
 import { Icon } from './Icon.js';
 import { useToast } from './toasts.js';
@@ -675,9 +675,6 @@ function SessionEditor({
   };
   const dragKind = (types: readonly string[]): 'asset' | 'files' | null =>
     types.includes(ASSET_DRAG_TYPE) ? 'asset' : types.includes('Files') ? 'files' : null;
-  const save = readOnly
-    ? { label: t('editor.readOnlyChip'), tone: 'neutral' as const }
-    : SAVE_STATUS[state.status];
   const rev = numbers.get(state.baseRevision);
   const words = useMemo(() => countWords(state.draft.markdown), [state.draft.markdown]);
   const conflict = state.status === 'conflict';
@@ -742,7 +739,14 @@ function SessionEditor({
             </span>
           )}
           <span className="save-status" role="status" aria-live="polite">
-            <SaveChip tone={save.tone} label={save.label} saving={state.status === 'saving'} />
+            <SaveChip
+              status={state.status}
+              readOnly={readOnly}
+              onAct={() => {
+                if (conflict) setDialogOpen(true);
+                else void session.save();
+              }}
+            />
           </span>
           {state.status === 'error' && (
             <button

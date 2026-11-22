@@ -32,7 +32,7 @@ import { Dialog } from './Dialog.js';
 import { sessionHandle, type EditorTabHandle } from './tab-handle.js';
 import { InsertSession, type InsertState } from './editor-insert.js';
 import { useChangeEvents } from './events.js';
-import { formatDuration, SAVE_STATUS, WORK_STATUS } from './format.js';
+import { formatDuration, WORK_STATUS } from './format.js';
 import { FrameGrabber } from './frames.js';
 import { HistoryPanel } from './HistoryPanel.js';
 import { progressStyle } from './motion.js';
@@ -534,9 +534,6 @@ function VideoEditor({
   );
 
   // ---- Derived ---------------------------------------------------------------------------------
-  const save = readOnly
-    ? { label: t('editor.readOnlyChip'), tone: 'neutral' as const }
-    : SAVE_STATUS[state.status];
   const rev = numbers.get(state.baseRevision);
   const orientation = orientationOf(asset?.width ?? null, asset?.height ?? null);
   const moments = result?.key_moments ?? [];
@@ -591,7 +588,13 @@ function VideoEditor({
             {t('format.typeVideo')}
           </span>
           <span className="save-status" role="status" aria-live="polite">
-            <SaveChip tone={save.tone} label={save.label} saving={state.status === 'saving'} />
+            <SaveChip
+              status={state.status}
+              readOnly={readOnly}
+              onAct={() => {
+                void session.save();
+              }}
+            />
           </span>
           {rev !== undefined && <Chip>r{rev}</Chip>}
           <div className="editor__actions">
