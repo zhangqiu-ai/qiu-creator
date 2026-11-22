@@ -17,6 +17,15 @@ export class OpenAIProvider implements AIProvider {
 
   constructor(private readonly options: AdapterOptions) {}
 
+  /** `GET /v1/models` (QC-057 connection test). */
+  listModels(apiKey: string): Promise<string[]> {
+    return fetchRelayModels(
+      this.options.baseUrl ?? 'https://api.openai.com/v1',
+      apiKey,
+      this.options.timeoutMs,
+    );
+  }
+
   async generateText(req: AiTextRequest, apiKey: string): Promise<AiTextResult> {
     const client = new OpenAI({
       apiKey,
@@ -83,8 +92,10 @@ export class NewApiProvider implements AIProvider {
   constructor(private readonly options: AdapterOptions) {}
 
   /** `GET {base}/models` with the stored key (QC-054); the adapter's base URL wins in tests. */
-  listModels(apiKey: string, baseUrl: string): Promise<string[]> {
-    return fetchRelayModels(this.options.baseUrl ?? baseUrl, apiKey, this.options.timeoutMs);
+  listModels(apiKey: string, baseUrl?: string): Promise<string[]> {
+    const base = this.options.baseUrl ?? baseUrl;
+    if (base === undefined) return Promise.reject(providerError('missing_key'));
+    return fetchRelayModels(base, apiKey, this.options.timeoutMs);
   }
 
   async generateText(req: AiTextRequest, apiKey: string, baseUrl?: string): Promise<AiTextResult> {

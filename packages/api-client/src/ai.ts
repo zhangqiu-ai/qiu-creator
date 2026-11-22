@@ -3,6 +3,7 @@ import {
   AiJobRecordSchema,
   AiProviderListResponseSchema,
   AiProviderModelsResponseSchema,
+  AiProviderTestResponseSchema,
   AiProviderStatusSchema,
   AiSettingsSchema,
   AiUsageResponseSchema,
@@ -36,6 +37,7 @@ import {
   type AiProvider,
   type AiProviderListResponse,
   type AiProviderModelsResponse,
+  type AiProviderTestResponse,
   type AiProviderStatus,
   type AiSettings,
   type AiUsageResponse,
@@ -64,6 +66,11 @@ export interface CreatorHubAiApi {
    * 10-minute cache.
    */
   newApiModels(options?: { refresh?: boolean }): Promise<AiProviderModelsResponse>;
+  /**
+   * 測試連線 (QC-057): a free model-list request with the stored key. Resolves
+   * with `ok: false` and `error` when the probe fails; only a missing key throws (409).
+   */
+  testProvider(provider: AiProvider): Promise<AiProviderTestResponse>;
   /** Confirm the displayed notice version and, for New API, its credential ID. */
   consent(
     provider: AiProvider,
@@ -147,6 +154,8 @@ export function createAiApi(ctx: Ctx): CreatorHubAiApi {
         base_url: baseUrl,
       } satisfies SetAiKeyRequest),
     deleteKey: (provider) => call(ctx, AiProviderStatusSchema, 'DELETE', `${p(provider)}/key`),
+    testProvider: (provider) =>
+      call(ctx, AiProviderTestResponseSchema, 'POST', `${p(provider)}/test`),
     newApiModels: (options = {}) =>
       call(
         ctx,

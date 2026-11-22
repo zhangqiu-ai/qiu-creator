@@ -4,6 +4,7 @@ import {
   AI_MODELS_CACHE_SECONDS,
   classifyModelKind,
   type AiProviderModelsResponse,
+  type AiProviderTestResponse,
   AI_NOTICE_VERSION,
   AI_PRICE_TABLE,
   AI_PRICES_AS_OF,
@@ -278,6 +279,70 @@ export class AiService {
       this.modelCache = { credentialId, fetchedAt, ids };
     }
     return this.modelsResponse(ids, fetchedAt);
+  }
+
+  /**
+   * 測試連線 (QC-057): list the provider's models with the stored key. Free
+   * and content-free, so it needs no consent; sent only when the user asks.
+   * A failure of the probe itself is a 200 with `ok: false` and the error;
+   * 409 `ai_key_missing` when there is no key to test. New API goes through
+   * `listModels`, so a test also refreshes the dropdown's cache.
+   */
+  async testProvider(provider: AiProvider): Promise<AiProviderTestResponse> {
+    const status = this.providerStatus(provider);
+    const adapter = this.providers[provider];
+    if (adapter.listModels === undefined) {
+      throw new ServiceError(400, 'validation_error', `${status.name} cannot be tested`);
+    }
+    const listModels = adapter.listModels.bind(adapter);
+    let probe: () => Promise<string[]>;
+    if (provider === 'new-api') {
+      probe = async () => (await this.listModels('new-api', true)).models.map((m) => m.id);
+    } else {
+      const apiKey = status.key_configured ? await this.secrets.get(provider) : null;
+      if (apiKey === null || apiKey === '') {
+        throw new ServiceError(409, 'ai_key_missing', `no API key stored for ${status.name}`, {
+          provider,
+        });
+      }
+      probe = () => listModels(apiKey);
+    }
+    const started = performance.now();
+    const elapsed = (): number => Math.max(0, Math.round(performance.now() - started));
+    try {
+      const ids = await probe();
+      return {
+        provider,
+        ok: true,
+        latency_ms: elapsed(),
+        model_count: ids.length,
+        text_model_listed: ids.includes(status.text_model),
+        error: null,
+        tested_at: this.now().toISOString(),
+      };
+    } catch (err) {
+      if (
+        !(err instanceof ServiceError) ||
+        (err.code !== 'ai_key_invalid' &&
+          err.code !== 'ai_gateway_unreachable' &&
+          err.code !== 'ai_gateway_bad_response')
+      ) {
+        throw err;
+      }
+      return {
+        provider,
+        ok: false,
+        latency_ms: elapsed(),
+        model_count: null,
+        text_model_listed: null,
+        error: {
+          code: err.code,
+          message: err.message,
+          ...(err.details === undefined ? {} : { details: err.details }),
+        },
+        tested_at: this.now().toISOString(),
+      };
+    }
   }
 
   private modelsResponse(ids: string[], fetchedAt: Date): AiProviderModelsResponse {

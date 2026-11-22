@@ -255,6 +255,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | DELETE | `/api/v1/mounts/:id` | 卸載；檔案不動，作品與歷史保留並標成 `unmounted` |
 | GET | `/api/v1/ai/providers` | 供應商的金鑰狀態、模型、首次使用告知、確認狀態與 `ready` |
 | PATCH | `/api/v1/ai/providers/:provider` | 設定文字模型（Gemini 另可設視頻模型） |
+| POST | `/api/v1/ai/providers/:provider/test` | 測試連線：用 Keychain 的金鑰呼叫一次供應商的列模型端點（不送內容、不計費），回 `ok`、`latency_ms`、`model_count`、`text_model_listed`、`error`（QC-057） |
 | GET | `/api/v1/ai/providers/new-api/models` | 用 Keychain 的金鑰向中轉站查可用模型，回 `models[{id, kind, priced}]` 與 `fetched_at`；快取 10 分鐘，`refresh=1` 重新查（QC-054） |
 | PUT／DELETE | `/api/v1/ai/providers/:provider/key` | 存入／刪除 Keychain 憑證；New API 的 PUT 同時接收 `base_url` 與 `api_key`，兩欄都是唯寫 |
 | POST／DELETE | `/api/v1/ai/providers/:provider/consent` | 確認／撤回使用告知；POST 須傳目前的 `notice_version`，New API 另須傳 `notice.credential_id` |
@@ -543,9 +544,26 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 - **錯誤**：都附 `details`，三語文案在 App。
   - 沒有憑證：409 `ai_key_missing`。
   - 401／403：502 `ai_key_invalid`，附 `status`。
-  - 連不上：502 `ai_gateway_unreachable`，`reason` 是 `timeout`／`dns`／`tls`／`connection`，或 `unavailable`（429／5xx，附 `status`）。可能附 `detail`：Node 的錯誤碼，例如 `ECONNREFUSED`。
+  - 連不上：502 `ai_gateway_unreachable`，`reason` 是 `timeout`／`dns`／`tls`／`connection`，`unavailable`（429／5xx，附 `status`），或 `quota`（402，或錯誤內容提到額度、帳單、餘額的 429，附 `status`；QC-057）。可能附 `detail`：Node 的錯誤碼，例如 `ECONNREFUSED`。
   - 回應不是模型清單：502 `ai_gateway_bad_response`，`reason` 是 `not_json`／`missing_data`／`too_large`／`redirect`，或 `unexpected_status`（例如 Base URL 路徑錯了的 404，附 `status`）。
   - 其他供應商：400。Gemini／Claude／GPT 是否也改成線上查詢不在範圍內。
+
+### 測試連線（QC-057）
+
+`POST /api/v1/ai/providers/:provider/test`，只限主權杖。App 只在使用者按「測試連線」時呼叫。
+- **探測**：每家都打一次列模型端點，不送任何內容、不產生費用，所以不需要先確認使用告知。共用 `fetchModelList`（`src/ai/providers/relay-models.ts`）。
+  - Gemini：`GET /v1beta/models?pageSize=1000`，`x-goog-api-key`；id 去掉 `models/` 前綴。
+  - Claude：`GET /v1/models?limit=1000`，`x-api-key` 加 `anthropic-version: 2023-06-01`。
+  - GPT：`GET /v1/models`，`Authorization: Bearer`。
+  - New API：走模型清單的流程（`GET {base_url}/models`），順便更新模型清單的快取。
+  - 規則與模型清單相同：不跟隨重新導向、最多 2 MiB、逾時沿用轉接器的 `timeoutMs`；金鑰只放在標頭，不進回應、錯誤與日誌。
+- **回應**：探測本身失敗也回 200，帶 `ok: false` 和 `error`（形狀同錯誤回應的 `error`，錯誤碼同模型清單：`ai_key_invalid`、`ai_gateway_unreachable`、`ai_gateway_bad_response`），方便畫面直接顯示結果與延遲。
+  - `latency_ms`：到收到完整回應或失敗為止的毫秒數。
+  - `model_count`：可用模型數。
+  - `text_model_listed`：目前設定的文字模型在不在清單裡，只是提示；有些中轉站列出的模型比實際能用的少。
+  - 沒有金鑰：409 `ai_key_missing`。
+- **限制**：列模型不消耗額度，所以額度用完時探測多半仍會成功；只有供應商在這個端點就回 402，或回提到額度、帳單、餘額的 429，才會顯示 `quota`。真正的額度問題會在實際任務失敗時出現（`rate_limited` 等）。
+- **不保存結果**：伺服器不記錄上次測試的結果，畫面上要顯示「上次測試」的話，由 App 保留 `tested_at`。
 
 ## 文字 AI：平台候選與改寫（QC-022）
 
