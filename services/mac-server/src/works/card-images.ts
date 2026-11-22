@@ -322,6 +322,22 @@ function unavailable(reason: UnavailableReason): ServiceError {
  * `WORK_EXCERPT_MAX_CHARS` characters, with `…` when cut. Null without text.
  */
 export function workExcerpt(type: string, markdown: string): string | null {
+  const text = workPlainText(type, markdown);
+  if (text === null) return null;
+  const chars = Array.from(text);
+  return chars.length <= WORK_EXCERPT_MAX_CHARS
+    ? text
+    : `${chars
+        .slice(0, WORK_EXCERPT_MAX_CHARS - 1)
+        .join('')
+        .trimEnd()}…`;
+}
+
+/**
+ * The whole plain text a card excerpt is cut from (QC-061, QC-068): no front
+ * matter, no first H1 for articles, no images or Markdown syntax. Null when empty.
+ */
+export function workPlainText(type: string, markdown: string): string | null {
   let text = parseWorkSource(markdown).body;
   if (!isTypedWork(type)) text = text.replace(/^[ \t]*#[ \t]+.*$/m, '');
   text = text
@@ -335,12 +351,5 @@ export function workExcerpt(type: string, markdown: string): string | null {
     .replace(/(\*\*|__|~~|`|\*)/g, '')
     .replace(/\s+/g, ' ')
     .trim();
-  if (text === '') return null;
-  const chars = Array.from(text);
-  return chars.length <= WORK_EXCERPT_MAX_CHARS
-    ? text
-    : `${chars
-        .slice(0, WORK_EXCERPT_MAX_CHARS - 1)
-        .join('')
-        .trimEnd()}…`;
+  return text === '' ? null : text;
 }

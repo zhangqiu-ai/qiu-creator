@@ -1,4 +1,4 @@
-import tsCharacters from 'opencc-js/dict/TSCharacters';
+import tsCharacters from '#opencc/ts-characters';
 
 /**
  * 搜尋比對 (QC-068): one rule for what a search matches, shared by the service

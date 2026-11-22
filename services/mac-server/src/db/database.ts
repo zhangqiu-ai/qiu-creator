@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { sha256Hex } from '@qiu-creator/domain';
+import { foldForSearch } from '@qiu-creator/domain/search';
 import Database from 'better-sqlite3';
 import { migrations as defaultMigrations, type Migration } from './migrations.js';
 
@@ -20,6 +21,17 @@ export function openDatabase(
   return db;
 }
 
+/**
+ * SQL functions the schema and queries rely on (QC-068): `search_fold(text)`
+ * folds text the way search matches it (see `@qiu-creator/domain/search`).
+ * Registered per connection; migrations need it, so `runMigrations` calls this.
+ */
+export function registerSqlFunctions(db: Db): void {
+  db.function('search_fold', { deterministic: true }, (value: unknown) =>
+    typeof value === 'string' ? foldForSearch(value) : value,
+  );
+}
+
 interface AppliedRow {
   id: string;
   checksum: string;
@@ -27,6 +39,7 @@ interface AppliedRow {
 
 /** Apply pending migrations in order. Append-only: edited or unknown applied migrations abort startup. */
 export function runMigrations(db: Db, migrations: readonly Migration[]): string[] {
+  registerSqlFunctions(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       id         TEXT PRIMARY KEY,

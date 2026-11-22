@@ -7,6 +7,12 @@
     ".": "./src/index.ts",
     "./search": "./src/search.ts"
   },
+  "imports": {
+    "#opencc/ts-characters": {
+      "types": "./src/opencc-dict.d.ts",
+      "default": "opencc-js/dict/TSCharacters"
+    }
+  },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",

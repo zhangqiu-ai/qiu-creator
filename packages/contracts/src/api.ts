@@ -336,6 +336,13 @@ export const WorkListItemSchema = WorkSchema.extend({
    * image and video works use their description. Null when there is no text.
    */
   excerpt: z.string().nullable().optional(),
+  /**
+   * With `q` only (QC-068): when the title does not match but the card's plain
+   * text does, the passage around the first hit, at most
+   * `WORK_EXCERPT_MAX_CHARS`, with `…` where it was cut. Null otherwise,
+   * including hits only in tags. Highlight it with `findMatches`.
+   */
+  match_excerpt: z.string().nullable().optional(),
 });
 export type WorkListItem = z.infer<typeof WorkListItemSchema>;
 

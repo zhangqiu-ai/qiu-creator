@@ -159,7 +159,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 遷移在 `services/mac-server/src/db/migrations.ts`，**只能新增**：執行器記錄每個遷移的 sha256，已套用的遷移內容被改動、或資料庫有本版本不認得的遷移時，服務拒絕啟動。
 
-`0001_initial_schema` 建立：`works`、`revisions`、`assets`、`work_assets`、`platform_variants`（每作品每平台唯一）、`import_jobs`（`idempotency_key` 唯一）、`ai_jobs`（含 `cache_key`），以及 FTS5 虛擬表 `works_fts`（title、tags、body，`trigram` 分詞器）。搜尋 3 字以上走 FTS（支援中文子字串），1–2 字退回 `LIKE`。
+`0001_initial_schema` 建立：`works`、`revisions`、`assets`、`work_assets`、`platform_variants`（每作品每平台唯一）、`import_jobs`（`idempotency_key` 唯一）、`ai_jobs`（含 `cache_key`），以及 FTS5 虛擬表 `works_fts`（title、tags、body，`trigram` 分詞器）。搜尋 3 字以上走 FTS（支援中文子字串），1–2 字退回 `LIKE`。QC-068 起改為比對 fold 過的文字，見「搜尋比對（QC-068）」。
 
 `0002_assets_jobs_change_log`：
 
@@ -1160,4 +1160,23 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 - **數量與全選**：
   - 篩選晶片的數量來自 `GET /works/facets`。
   - ⌘A 全選「目前篩選下的全部」用 `GET /works/refs`，上限 10000 件；批量操作本身仍是每次 200 件。
+
+## 搜尋比對（QC-068）
+
+服務端（找作品、素材）和 App（高亮命中）共用 `@qiu-creator/domain/search` 的同一套規則，所以高亮的位置一定是服務端找到的位置。
+
+- **fold 規則**：一次處理一個字，依序做 NFKC（全半形）、轉小寫、繁轉簡（OpenCC `TSCharacters` 逐字字表）。查詢用 `searchKey(q)`，也就是先 trim 再 fold；結果為空就當作沒有搜尋。
+- **作品索引**：
+  - `works_fts` 的 title、tags、body 存 fold 過的文字，所有寫入都經過 `indexFts`。
+  - migration `0018_search_fold` 就地 fold 既有索引，用的是每條連線都會註冊的 SQL 函式 `search_fold`（`registerSqlFunctions`，`runMigrations` 一開始就會註冊）。
+- **作品查詢**：
+  - `searchKey(q)` 有 3 個 code point 以上：trigram `MATCH` 片語。
+  - 不滿 3 個：在 `works_fts` 三欄做 `instr(...) > 0` 掃描。2 個字的查詢因此也比對內文，作品數千件以內可接受。
+  - list、facets、refs 共用同一份篩選。
+- **素材查詢**：`instr(search_fold(original_name), ?) OR instr(search_fold(display_name), ?)`，逐列計算，不建索引。
+- **命中摘要**：列表在帶 `q` 時，每件作品多回 `match_excerpt`。
+  - 只有標題沒有命中、而卡片純文字（`workPlainText`，與 `excerpt` 同一份文字但不截斷）有命中時，才回命中處附近的一段，最多 `WORK_EXCERPT_MAX_CHARS` 字，截斷處加 `…`。
+  - 其他情況回 null：標題命中、只有標籤命中、命中在 Markdown 語法、URL、front matter 或被去掉的 H1。
+- **回退**：`SEARCH_FOLD_ROLLBACK_SQL` 只刪掉 migration 紀錄，索引無法還原成未 fold 的文字。舊版仍能找到小寫、半形、簡體的文字；其餘作品在重新儲存後恢復。
+- **規則變更時**：以後 fold 規則改變（例如更新字表），要再加一個 migration 重新 fold，或從原稿重建索引。
 
