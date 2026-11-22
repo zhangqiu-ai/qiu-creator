@@ -1,3 +1,14 @@
+## QC-064: e2e 視窗完全不出現在螢幕上（QC-060 不足）
+
+**Priority:** P0 | **Assignee:** qc-test | **Tags:** M3
+
+使用者 2026-11-21 再次回報（截圖：一個灰色標題列、未取得焦點的 qiu-creator 測試視窗蓋在畫面上，空作品庫）：「為什麼現在自動化測試還是會跑到前台來干擾我，沒有辦法解決嗎？」
+- 原因：QC-060 只做到「不搶焦點、不進 Dock」，`showInactive()` 仍把視窗畫在螢幕上，會蓋住使用者正在用的視窗。QC-060 的驗收只量了「前景 App」，沒量「螢幕上有沒有出現視窗」，驗收標準錯了。
+- 目標：背景模式下測試視窗**完全不出現在任何螢幕上**，也不攔截使用者的滑鼠。
+- 方向（評估後選一個並說明）：視窗維持隱藏（`show: false`）＋`webPreferences.backgroundThrottling: false`＋`paintWhenInitiallyHidden: true`，Playwright 經 CDP 操作與截圖；需要 focus／visibility 的測試用 CDP `Emulation.setFocusEmulationEnabled` 等模擬。或移到所有螢幕範圍外（注意 macOS 會把視窗夾回螢幕，需實測）。不可用透明度 0（仍會攔截點擊）。
+- 驗收：整套 e2e 期間用 `CGWindowListCopyWindowInfo`（或 `osascript`／`screencapture` 比對）證明沒有任何 qiu-creator／Electron 測試視窗出現在螢幕上；前景 App 不變；全部 e2e 通過，不放寬斷言、不加逾時。
+- 修好前：各子會話**暫停整套 e2e**，只在必要時跑最少的單一 spec。
+
 ## QC-063: 側欄收合按鈕併入 Logo（hover 切換）
 
 **Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M3, frontend
