@@ -1,3 +1,13 @@
+## QC-078: 「最近刪除」改名為「回收站」
+
+**Priority:** P2 | **Assignee:** qc-bugfix（QC-077 之後） | **Tags:** M3, frontend
+
+使用者 2026-11-22（截圖箭頭：素材庫篩選「最近刪除 2」、側欄底部「最近刪除 4」、詳情「移到最近刪除」）：「"最近刪除"改成回收站」。
+- 全部介面文案改名：简体「回收站」、繁體「回收站」、English「Trash」；動作「移到回收站／Move to Trash」、「清空回收站／Empty Trash」、確認框與提示（例如「會移到回收站，30 天內可以還原」）、空狀態、VoiceOver 名稱、快捷鍵提示一併改。作品與素材兩處都改。
+- 只改文案與 i18n key 的值；API、資料欄位（trash、deleted_at）不變。更新 GLOSSARY／DESIGN.md 用語與 docs 中的介面描述；e2e 依新文案更新 locator（不放寬斷言）。
+- 檢查三語不殘留「最近刪除／最近删除／Recently Deleted」（加一個 i18n 測試鎖住）。
+- e2e 兩種模式都要 0 failed。併入 QC-074–077 同一版。
+
 ## QC-077: 素材庫支援查看大圖（Quick Look 式預覽）
 
 **Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M3, frontend
