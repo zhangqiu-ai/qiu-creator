@@ -78,6 +78,7 @@
 | @tus/file-store | ^2.1.2 | MIT | mac-server | tus 上傳暫存（`data/uploads/`） | — |
 | file-type | ^22.3.0 | MIT | mac-server | magic bytes 類型判斷 | libmagic |
 | sharp | ^0.35.5 | Apache-2.0（libvips：LGPL-3.0） | mac-server | 圖片縮圖與尺寸 | sips、jimp |
+| opencc-js | ^1.4.2 | MIT（字表 Apache-2.0，來自 OpenCC） | domain（mac-server 與 Mac App 共用） | 搜尋比對的繁轉簡逐字字表：只載入 `dict/TSCharacters`（約 29 KB），不載入詞組表與轉換器（QC-068） | 自帶字表檔（需自行更新）；不做簡繁互通 |
 | chokidar | ^6.0.0 | MIT | mac-server | 外部資料夾監控 | fs.watch、@parcel/watcher |
 | @anthropic-ai/sdk | ^1.9.0 | MIT | mac-server | Claude（Messages API）adapter（QC-021） | 自寫 fetch（官方建議用 SDK；型別與錯誤類別省工） |
 | openai | ^7.57.0 | Apache-2.0 | mac-server | GPT（Responses API）adapter（QC-021） | 自寫 fetch |
