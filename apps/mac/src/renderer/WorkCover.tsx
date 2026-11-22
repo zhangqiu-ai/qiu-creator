@@ -1,30 +1,58 @@
 import type { WorkListItem } from '@qiu-creator/contracts';
-import { assetMediaUrl, thumbnailUrl } from '../shared/bridge.js';
+import { useEffect, useState } from 'react';
 import { formatDuration, WORK_TYPE } from './format.js';
 import { t } from './i18n.js';
 import { Icon } from './Icon.js';
 
 /**
- * The card's picture (PT-20261121-001): an image post shows its cover or
- * first image and how many images; a video its cover frame, length and
- * orientation; an article (no picture) its type icon.
+ * The card's picture (PT-20261121-001, QC-061): the image the service picked
+ * (cover, first image, first Markdown image or a video frame), loaded lazily
+ * through its signed URL; never a `<video>` in the list. Without an image an
+ * article shows a text preview, anything else its type icon — also when the
+ * image fails to load, so a card is never blank.
  */
-export function CardCover({ work }: { work: WorkListItem }) {
-  const thumb = work.thumbnail ?? null;
-  const assetId = thumb?.asset_id ?? null;
+export function CardCover({
+  work,
+  imageUrl,
+  onNeedsFrame,
+}: {
+  work: WorkListItem;
+  /** Server-relative URL → absolute (`client.media.absoluteUrl`). */
+  imageUrl: (relative: string) => string;
+  /** A video card whose frame the service could not take: the App grabs it off-screen. */
+  onNeedsFrame?: (work: WorkListItem) => void;
+}) {
+  const card = work.card_image ?? null;
+  const url = card?.url ?? null;
+  const [failed, setFailed] = useState<string | null>(null);
+  const needsFrame = card?.needs_frame === true;
+  useEffect(() => {
+    if (needsFrame) onNeedsFrame?.(work);
+  }, [needsFrame, onNeedsFrame, work]);
+  const showImage = url !== null && failed !== url;
+  const excerpt = work.excerpt ?? null;
   return (
-    <span className="wcard__cover" aria-hidden="true">
-      {thumb === null || assetId === null ? (
-        <Icon name={WORK_TYPE[work.type].icon} size={28} />
-      ) : thumb.kind === 'video' ? (
-        <video
+    <span
+      className={showImage ? 'wcard__cover' : 'wcard__cover wcard__cover--empty'}
+      aria-hidden="true"
+    >
+      {showImage ? (
+        <img
           className="wcard__media"
-          src={`${assetMediaUrl(assetId)}#t=${String(thumb.time_seconds ?? 0.1)}`}
-          muted
-          preload="metadata"
+          src={imageUrl(url)}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onError={() => {
+            setFailed(url);
+          }}
         />
+      ) : work.type === 'article' && excerpt !== null ? (
+        <span className="wcard__text">
+          <span className="wcard__text-body">{excerpt}</span>
+        </span>
       ) : (
-        <img className="wcard__media" src={thumbnailUrl(assetId)} alt="" loading="lazy" />
+        <Icon name={WORK_TYPE[work.type].icon} size={28} />
       )}
       {work.type === 'image' && work.image_count != null && work.image_count > 0 && (
         <span className="wcard__badge">

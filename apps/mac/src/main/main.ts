@@ -36,6 +36,7 @@ import {
 } from './app-protocol.js';
 import { abbreviateHome, assetServicePath, forwardableRange, resolveInsideHome } from './assets.js';
 import { readConnection, resolveConfig } from './config.js';
+import { cardFrameRequest } from './card-frame.js';
 import { contentSecurityPolicy } from './csp.js';
 import { LanguageController } from './language.js';
 import { menuTemplate } from './menu.js';
@@ -65,7 +66,6 @@ if (e2eProfile !== undefined && e2eProfile !== '') {
   app.setPath('userData', e2eProfile);
   app.setPath('sessionData', e2eProfile);
 }
-
 const devServerUrl = process.env['VITE_DEV_SERVER_URL'] ?? null;
 /**
  * e2e sets this so a run never takes the user's screen: no Dock icon or ⌘Tab entry (QC-060),
@@ -285,6 +285,29 @@ function registerIpc(): void {
       throw new Error('invalid paths');
     }
     return uploads.addWithIds(paths as string[]);
+  });
+  handle(IPC.putCardFrame, async (workId, data, frame) => {
+    const req = cardFrameRequest(workId, data, frame);
+    const conn = connection();
+    if (req === null) throw new Error('invalid card frame');
+    if (conn === null) return { ok: false, status: 0, code: null };
+    const res = await fetch(`${conn.baseUrl}${req.path}`, {
+      method: 'PUT',
+      headers: {
+        authorization: `Bearer ${conn.token}`,
+        'content-type': 'image/jpeg',
+        accept: 'application/json',
+      },
+      body: Buffer.from(req.body),
+      redirect: 'error',
+      signal: AbortSignal.timeout(20_000),
+    });
+    let code: string | null = null;
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { error?: { code?: unknown } } | null;
+      code = typeof body?.error?.code === 'string' ? body.error.code : null;
+    }
+    return { ok: res.ok, status: res.status, code };
   });
   handle(IPC.insertBytes, async (name, data) => {
     if (typeof name !== 'string' || !(data instanceof Uint8Array)) throw new Error('invalid paste');

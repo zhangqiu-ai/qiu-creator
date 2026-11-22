@@ -826,6 +826,16 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
   - 原生選單「檔案 → 關閉分頁」、「視窗 → 顯示上一個／下一個分頁、前往分頁」有同樣的快捷鍵，點選後經 IPC `tabCommand` 交給 renderer。
   - 「關閉視窗」改為 ⌘⇧W。沒有分頁在前景時，⌘W 照舊關閉視窗。
 
+## 作品庫卡片縮圖（QC-061 前端）
+
+- **卡面（`WorkCover.tsx`）**：只用列表裡的 `card_image.url`（服務簽名，`client.media.absoluteUrl`）放進延遲載入的 `<img>`，列表裡不開 `<video>`。
+  - 沒有 url 的文章：用 `excerpt` 做文字預覽。
+  - 其他情況，以及 `onerror`：顯示類型圖示，並保留缺少媒體徽章。
+- **視頻幀**：服務沒有 ffmpeg 時標 `needs_frame`。這時由 `card-frames.ts` 的 `CardFrameQueue` 在畫面外截幀，一次一支，每個版本只截一次。
+  - 截好的幀經 IPC `putCardFrame`，由主程序上傳到 `PUT /works/:id/thumbnail-frame`：renderer 的請求代理只能傳文字，而且只有主程序握有權杖。參數檢查在 `main/card-frame.ts`。
+  - 上傳成功後重新讀取列表。
+- **用打包版跑 e2e**：e2e 可以用 `CREATORHUB_E2E_APP` 指定打包好的執行檔；主程序讀取 `CREATORHUB_E2E_PROFILE`，以臨時目錄作為 userData。
+
 ## 作品庫：改名、右鍵選單、多選（QC-052 前端）
 
 - **原地改名**：`RenameField` 用在卡片標題、列表列的標題和分頁標籤上。

@@ -353,7 +353,7 @@ export function TrashView({
                       });
                     }}
                   >
-                    <CardCover work={w} />
+                    <CardCover work={w} imageUrl={(rel) => client.media.absoluteUrl(rel)} />
                     <span className="wcard__body">
                       <span className="wcard__title">{w.title}</span>
                       <span className="wcard__meta">
