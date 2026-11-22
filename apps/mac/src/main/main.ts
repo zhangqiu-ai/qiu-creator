@@ -57,10 +57,20 @@ import { UploadManager, type UploadConnection } from './uploads.js';
  * "服務未運行" with a retry, and closing windows leaves the service alone.
  */
 
+// e2e against a packaged build (QC-061): the e2e entry script, which sets the test
+// profile in development, cannot run inside a packaged app, so the profile is set here.
+// The real app never sets this variable.
+const e2eProfile = process.env['CREATORHUB_E2E_PROFILE'];
+if (e2eProfile !== undefined && e2eProfile !== '') {
+  app.setPath('userData', e2eProfile);
+  app.setPath('sessionData', e2eProfile);
+}
+
 const devServerUrl = process.env['VITE_DEV_SERVER_URL'] ?? null;
 /**
- * e2e sets this so a run never takes the user's screen (QC-060): no Dock icon or ⌘Tab entry,
- * windows show without focus, no native dialogs, Finder is not opened. The real app never sets it.
+ * e2e sets this so a run never takes the user's screen: no Dock icon or ⌘Tab entry (QC-060),
+ * windows are never shown on any screen (QC-064; Playwright drives and captures them over
+ * CDP), no native dialogs, Finder is not opened. The real app never sets it.
  */
 const backgroundRun = process.env['CREATORHUB_E2E_BACKGROUND'] === '1';
 const config = resolveConfig(process.env, app.isPackaged);
@@ -438,14 +448,19 @@ function createWindow(): void {
       sandbox: true,
       webSecurity: true,
       spellcheck: false,
+      // e2e (QC-064): the window stays hidden, so keep it rendering and its timers and
+      // animation frames running as if it were in front.
+      ...(backgroundRun ? { backgroundThrottling: false, paintWhenInitiallyHidden: true } : {}),
     },
   });
 
-  win.once('ready-to-show', () => {
-    // e2e runs in the background (QC-060): the window appears without taking focus.
-    if (backgroundRun) win.showInactive();
-    else win.show();
-  });
+  // e2e (QC-064): never shown, not even inactive, so it cannot cover the user's windows
+  // or take their clicks.
+  if (!backgroundRun) {
+    win.once('ready-to-show', () => {
+      win.show();
+    });
+  }
 
   // No in-app navigation away from the renderer; external links open in the browser.
   win.webContents.on('will-navigate', (event, url) => {
