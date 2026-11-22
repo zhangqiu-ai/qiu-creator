@@ -1034,6 +1034,310 @@
         "既有的混合類型作品怎麼顯示？": "保留「混合」標籤，只出現在「全部」（推薦）。"
       },
       "approvalCaveat": "總監核准時畫布無法讀取（artifact 網路錯誤），依 ledger 的畫板與狀態清單核准；施工時以畫布為準，畫布與 ledger 不一致時回報總監。畫布上的「待使用者核准」註記待網路恢復後由 qc-prototype 更新。"
+    },
+    {
+      "id": "PT-20261121-002",
+      "title": "設定 v4：每個分類一頁，AI 服務重整並加測試連線",
+      "date": "2026-11-21",
+      "status": "pending",
+      "model": "claude-opus-5-5",
+      "session": "qc-prototype",
+      "requestedBy": "使用者 via 開發總監",
+      "userRequest": "不要所有設置都堆在一個頁面中來滾動，左側的設置選項各自一個頁面，並且佈局和排版要重新設計得更合理、美觀和優雅。AI服務的設置頁面裡的佈局和分類也要重新設計，目前非常不合理，理解起來很困難，還有模型測試聯通等等功能也缺少，要再優化！（2026-11-21，見 .tasks QC-057）",
+      "tasks": ["QC-057", "QC-054"],
+      "approvedBy": null,
+      "approvedAt": null,
+      "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "baseCanvasVersion": "41 (version id 1795275033-35aa)",
+      "canvasVersion": "NOT_PUBLISHED: the canvas server refused every connection on 2026-11-21 (proxy refused). Ready-to-publish files are in the shared notes folder pt-20261121-002-boards/; fill in the version after upload.",
+      "sharedStylesheets": [
+        "/_blob/ce383cde01b175413fc4b99a21feb132 (qc-v2.css)",
+        "/_blob/a801184fe6d1b75f3cf8e2f73e8e3dc4 (qc-v3.css)",
+        "qc-v4.css (settings v4) inlined in each board because the asset upload also failed"
+      ],
+      "boards": [
+        {
+          "file": "Settings4.dc.html",
+          "title": "v4 · 設定：外觀（左側切換六個分類）",
+          "tweaks": {
+            "dark": "boolean",
+            "narrow": "boolean",
+            "lang": ["繁中", "简中", "English"],
+            "cat": ["外觀", "本機服務", "備份與還原", "AI 服務", "資料夾", "關於"],
+            "aiTab": ["供應商", "用途", "用量", "隱私"],
+            "provider": ["Gemini", "Claude", "GPT", "New API"],
+            "state": [
+              "正常",
+              "空狀態",
+              "測試中",
+              "測試成功",
+              "金鑰無效",
+              "連不上",
+              "額度不足",
+              "首次告知"
+            ]
+          },
+          "states": [
+            "設定內左側分類清單＋右側單頁；切換分類只換右側頁面並把焦點移到頁標題，不捲動整份；⌘, 開啟設定、記住上次分類（偏好存本機）",
+            "每頁：頁標題 20px＋頁面動作靠右；內容用分組清單（組標題 12px ink3、白底列 48px、左標籤右值或控制）；正文欄寬上限 720px，AI 供應商頁放寬到 1000px",
+            "外觀：三張主題卡（淺色／深色／跟隨系統，點了即時套用）、介面語言分段（點了整個畫板即時換語言）",
+            "本機服務：狀態（執行中／檢查中）、位址、即時更新；系統組：開機自動啟動、防止睡眠只陳述（無 API，不放假開關）",
+            "備份與還原：頁首「立即備份」（備份中轉圈）；自動備份、保留、位置；備份紀錄表（時間、種類、大小、還原…）",
+            "資料夾：頁首「新增資料夾」；托管目錄；外部資料夾列（監控中／找不到／已卸載，對應的動作）",
+            "關於：App 圖示、版本、複製版本資訊、服務版本、建置時間、資料目錄",
+            "AI 分類在有金鑰無效／連不上時於左側顯示紅點，待確認告知或額度不足顯示黃點",
+            "窄視窗：App 側欄變 56px 圖示列、設定分類欄 168px，供應商清單與詳情改為上下排列"
+          ]
+        },
+        {
+          "file": "SetService.dc.html",
+          "title": "v4 · 本機服務",
+          "wraps": "Settings4.dc.html",
+          "props": {
+            "cat": "本機服務"
+          }
+        },
+        {
+          "file": "SetBackup.dc.html",
+          "title": "v4 · 備份與還原",
+          "wraps": "Settings4.dc.html",
+          "props": {
+            "cat": "備份與還原"
+          }
+        },
+        {
+          "file": "SetFolders.dc.html",
+          "title": "v4 · 資料夾",
+          "wraps": "Settings4.dc.html",
+          "props": {
+            "cat": "資料夾"
+          }
+        },
+        {
+          "file": "SetAbout.dc.html",
+          "title": "v4 · 關於",
+          "wraps": "Settings4.dc.html",
+          "props": {
+            "cat": "關於"
+          }
+        },
+        {
+          "file": "SetAi.dc.html",
+          "title": "v4 · AI 服務：供應商與詳情（New API）",
+          "wraps": "Settings4.dc.html",
+          "props": {
+            "cat": "AI 服務",
+            "aiTab": "供應商",
+            "provider": "New API"
+          },
+          "states": [
+            "左：供應商清單（Gemini／Claude／GPT／New API＋停用的本地模型），每列顯示用途與狀態：未設定、待確認告知、未測試、測試中、連線正常、金鑰無效、連不上、額度不足",
+            "右：供應商詳情。頁首名稱＋「內容送到 X」＋「測試連線」按鈕；下方是測試結果卡（延遲、可用模型數、測試時間；錯誤時原因＋下一步＋技術詳情可複製）",
+            "連線組：Base URL（New API）、API 金鑰（已設定 · 時間存入／更換／刪除；未設定時直接是輸入框＋存到鑰匙圈）",
+            "模型組：文字模型（Gemini 另有視頻模型），都用可搜尋下拉；New API 開啟時才查中轉站清單（載入骨架）、對話／全部切換、未定價標記、不在清單時「使用「…」」手動輸入、已存模型不在清單時提示",
+            "使用告知組：已確認 · 日期＋撤回；未確認時黃底告知＋「我已了解，啟用」",
+            "刪除金鑰、撤回確認走確認對話框（沿用既有文案）；存金鑰、啟用後有 toast",
+            "測試連線可點：測試中可取消，1.5 秒後得到該供應商的模擬結果（狀態 Tweak 決定錯誤種類）"
+          ]
+        },
+        {
+          "file": "SetAiUse.dc.html",
+          "title": "v4 · AI 服務：用途對應",
+          "wraps": "Settings4.dc.html",
+          "props": {
+            "cat": "AI 服務",
+            "aiTab": "用途"
+          }
+        },
+        {
+          "file": "SetAiUsage.dc.html",
+          "title": "v4 · AI 服務：用量與費用",
+          "wraps": "Settings4.dc.html",
+          "props": {
+            "cat": "AI 服務",
+            "aiTab": "用量"
+          }
+        },
+        {
+          "file": "SetAiPrivacy.dc.html",
+          "title": "v4 · AI 服務：隱私",
+          "wraps": "Settings4.dc.html",
+          "props": {
+            "cat": "AI 服務",
+            "aiTab": "隱私"
+          }
+        },
+        {
+          "file": "AiStates.dc.html",
+          "title": "v4 · AI 連線狀態全覽",
+          "tweaks": {
+            "dark": "boolean",
+            "lang": ["繁中", "简中", "English"]
+          },
+          "states": [
+            "供應商列 8 種狀態",
+            "測試結果 6 種：空狀態（先存入金鑰）、測試中、測試成功、金鑰無效、連不上（New API 多一個「檢查 Base URL」）、額度不足"
+          ]
+        },
+        {
+          "file": "ModelPicker.dc.html",
+          "title": "v4 · New API 模型下拉狀態",
+          "tweaks": {
+            "dark": "boolean",
+            "lang": ["繁中", "简中", "English"]
+          },
+          "states": [
+            "對話模型（預設）",
+            "全部＋搜尋",
+            "載入中",
+            "沒有符合：使用「輸入值」",
+            "載入失敗：重試或手動輸入",
+            "已存模型不在清單"
+          ]
+        },
+        {
+          "file": "Settings4Dark.dc.html",
+          "title": "v4 · 設定（深色）",
+          "wraps": "Settings4.dc.html",
+          "props": {
+            "dark": true
+          }
+        },
+        {
+          "file": "SetAiDark.dc.html",
+          "title": "v4 · AI 服務：金鑰無效（深色）",
+          "wraps": "Settings4.dc.html",
+          "props": {
+            "dark": true,
+            "cat": "AI 服務",
+            "aiTab": "供應商",
+            "provider": "Gemini",
+            "state": "金鑰無效"
+          }
+        },
+        {
+          "file": "AiStatesDark.dc.html",
+          "title": "v4 · AI 連線狀態（深色）",
+          "wraps": "AiStates.dc.html",
+          "props": {
+            "dark": true
+          }
+        },
+        {
+          "file": "ModelPickerDark.dc.html",
+          "title": "v4 · 模型下拉（深色）",
+          "wraps": "ModelPicker.dc.html",
+          "props": {
+            "dark": true
+          }
+        }
+      ],
+      "decisions": [
+        "AI 服務分成四個分頁（供應商、用途、用量、隱私），不是卡片提議的五段長頁：使用者明確不要長捲動；「隱私」與「僅本地模型」放在一起，用量與提醒金額獨立一頁。",
+        "供應商用「清單＋詳情」雙欄，不用點進去再返回：測試連線時左側列的狀態同步變化，一眼看到其他供應商；窄視窗才改為上下排列。",
+        "模型選擇只放在供應商詳情；「用途」頁只選預設供應商，模型跟著該供應商設定：同一個模型不在兩處設定。視頻理解目前只有 Gemini，列鎖定。",
+        "撤回告知只在供應商詳情；「隱私」頁列出每家內容送往哪裡與確認狀態，用「管理」跳到詳情，避免兩處操作同一件事。",
+        "測試連線結果用卡片呈現原因＋下一步（金鑰無效→更換金鑰；連不上→重試／檢查 Base URL；額度不足→重試），技術詳情單獨一列可複製，不含金鑰。",
+        "少文字：每頁不放副標；只保留做決定時需要的頁尾說明（服務常駐、只備份資料庫、金鑰只在鑰匙圈、估算以帳單為準、只在按下時送出）。"
+      ],
+      "backendNeeds": {
+        "api": [
+          "POST /api/v1/ai/providers/:provider/test (owner) → { ok, latency_ms, model_count, tested_at, error?: { code: invalid_key | unreachable | quota_exhausted | rate_limited | bad_response, http_status?, detail } }. Probe the free list-models endpoint (Gemini GET /v1beta/models, Anthropic GET /v1/models, OpenAI GET /v1/models, New API GET {base_url}/models), 10 s timeout, Keychain key never leaves the Mac or reaches logs; sent only when the user presses 測試連線. Fake services in tests.",
+          "Map 429 by provider error code: insufficient_quota / RESOURCE_EXHAUSTED → quota_exhausted (額度不足); plain rate limit → rate_limited (shown as 暫時受限，稍後重試, not drawn).",
+          "Provider settings response gains last_test { status, at, latency_ms, model_count } so the list shows 連線正常 · 2 分鐘前 after restart; and base_url_host for New API so 隱私 can say where content goes.",
+          "Model list: generalise QC-054 GET /api/v1/ai/providers/:provider/models to every provider (known list as fallback, refresh=1); the test call can fill the same cache.",
+          "Defaults per task: GET/PUT /api/v1/ai/defaults { rewrite, title, video } (provider ids; video must be gemini). Absent → current behaviour (AI 工作台 picks).",
+          "Usage: existing GET /api/v1/ai/usage by_provider gains unpriced_jobs so New API runs on unpriced models show 無法預估 instead of US$0.00."
+        ],
+        "storage": [
+          "No change to stored keys or provider settings. New: ai_defaults and last_test per provider in the service settings table (no key material). Last settings category and ⌘, are client preferences in the Mac app."
+        ],
+        "limits": {
+          "testTimeoutSeconds": 10,
+          "modelListCacheMinutes": 10
+        }
+      },
+      "references": [
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/dual-agent-searchable-model-picker/case.md",
+          "kind": "concept",
+          "borrowed": "Search field at the top of the model popover, current choice checked, an add/manual entry separated below.",
+          "adaptation": "One provider per picker (provider is chosen in the list), a Chat/All filter instead of tool tabs, 未定價 and kind tags per row, and “使用「…」” as the manual fallback when the relay list misses an alias."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/nowdex-error-recovery-next-action/case.md",
+          "kind": "concept",
+          "borrowed": "Put the problem, its cause and the fix on the same card; separate technical details with a copy action; promise no secrets in the report.",
+          "adaptation": "Test result card: 金鑰無效 → 更換金鑰, 連不上 → 重試 / 檢查 Base URL, 額度不足 → 重試; technical line shows HTTP status, error code and endpoint, never the key; last result keeps its time."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-020-choice-controls/case.md",
+          "kind": "concept",
+          "borrowed": "Pick controls by behaviour: segmented for 2–5 short options, select for longer lists, search for many; actions are buttons, not values.",
+          "adaptation": "Theme cards and language segmented apply immediately; models use a searchable combobox; 測試連線 and 立即備份 are buttons whose result shows elsewhere."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/agent-ui-copy-essential-information/case.md",
+          "kind": "concept",
+          "borrowed": "Keep only copy needed to finish the task; keep risks and consequences next to the action.",
+          "adaptation": "No page subtitles; one footnote per page only where it states a consequence (data sent, cost estimate, backup scope)."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/ember-dashboard-visual-subtraction/case.md",
+          "kind": "concept",
+          "borrowed": "Keep the information structure, cut decorative colour, reserve colour for data and state.",
+          "adaptation": "Usage page: one large number, thin meter and grey per-provider bars; colour only on status dots and chips."
+        }
+      ],
+      "referenceGaps": "The library has no macOS System Settings, Raycast or Linear settings cards (searched settings/設定/provider/api key/combobox/sidebar). The layout follows DESIGN.md and general macOS grouped-list conventions instead.",
+      "verified": [
+        "Static check on all 15 boards: balanced tags, valid data-props JSON, node --check on the script.",
+        "Node harness ran Settings4 renderVals and every handler for all 4,608 tweak combinations (light/dark, narrow), plus AiStates and ModelPicker: 0 errors; every template hole resolves.",
+        "Platform limits not involved; provider names, default models and notice wording match packages/contracts ai.ts and the i18n catalog."
+      ],
+      "notVerified": [
+        "NOT_VERIFIED: canvas upload (server refused connections); canvas version is unknown until upload.",
+        "NOT_VERIFIED: rendering in the Design canvas, including dc-import wrappers that pass cat/aiTab/provider/state props (only the dark prop was used before).",
+        "NOT_VERIFIED: three-language fit was checked by estimate (column widths vs. longest English strings), not by screenshots."
+      ],
+      "openQuestions": [
+        {
+          "q": "AI 服務改成四個分頁＋供應商雙欄，取代卡片提議的五段長頁，可以嗎？",
+          "recommendation": "可以；理由見 decisions。"
+        },
+        {
+          "q": "未確認使用告知時能不能測試連線？",
+          "recommendation": "可以。測試只帶金鑰查模型清單，不送作品內容，也不產生費用。"
+        },
+        {
+          "q": "存入金鑰後要不要自動測一次？",
+          "recommendation": "不要。照 QC-057 卡片，只在使用者按「測試連線」時發出；存好後狀態顯示「未測試」。"
+        },
+        {
+          "q": "New API 的 Base URL 目前存好後不再顯示，要改成顯示嗎？",
+          "recommendation": "顯示完整 Base URL（不是憑證），隱私頁顯示主機名；金鑰仍不顯示。"
+        },
+        {
+          "q": "「用途」要不要能為每個任務選不同模型？",
+          "recommendation": "第一版只選供應商，模型跟著供應商設定；之後有需要再加每任務模型。"
+        },
+        {
+          "q": "Gemini／Claude／GPT 的模型清單也要線上查詢嗎（QC-054 列為範圍外）？",
+          "recommendation": "用同一個下拉元件，預設內建清單；「重新整理」和測試連線共用 list-models 結果。可分到後續任務。"
+        },
+        {
+          "q": "429 要不要細分「額度不足」與「暫時受限」？",
+          "recommendation": "要，依供應商錯誤碼區分；原型只畫了額度不足。"
+        },
+        {
+          "q": "上次測試結果要不要保存並顯示時間？",
+          "recommendation": "要，存狀態與時間（不含金鑰），不自動重測。"
+        },
+        {
+          "q": "設定要不要加搜尋？",
+          "recommendation": "不要，只有六個分類。"
+        }
+      ]
     }
   ]
 }
