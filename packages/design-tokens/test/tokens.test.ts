@@ -49,7 +49,7 @@ describe('design tokens', () => {
     const css = buildCssVariables();
     expect(css).toContain('--qc-bg: #f6f5f1;');
     expect(css).toContain('--qc-radius-control: 7px;');
-    expect(css).toContain('--qc-motion-hover: 150ms ease;');
+    expect(css).toContain('--qc-motion-hover: 120ms cubic-bezier(0.22, 1, 0.36, 1);');
     // DESIGN.md「動效」(QC-065).
     expect(css).toContain('--qc-dur-fast: 120ms;');
     expect(css).toContain('--qc-dur-moderate: 240ms;');

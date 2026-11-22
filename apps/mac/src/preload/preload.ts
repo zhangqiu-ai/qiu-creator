@@ -11,6 +11,7 @@ import {
   type RevealTarget,
   type UploadItem,
   type LanguageState,
+  type MotionPreference,
   type TabCommand,
   type ThemeSource,
 } from '../shared/bridge.js';
@@ -30,7 +31,11 @@ const bridge: CreatorHubBridge = {
   getConnection: () => ipcRenderer.invoke(IPC.getConnection) as Promise<ConnectionInfo>,
   request: (req: ProxyRequest) => ipcRenderer.invoke(IPC.request, req) as Promise<ProxyResponse>,
   appInfo: () => ipcRenderer.invoke(IPC.appInfo) as Promise<AppInfo>,
-  motionMode: () => ipcRenderer.invoke(IPC.motionMode) as Promise<'off' | 'auto'>,
+  motionMode: () => ipcRenderer.invoke(IPC.motionMode) as Promise<MotionPreference>,
+  onMotionMode: (listener) =>
+    listen(IPC.motionModeChanged, (p) => {
+      listener(p as MotionPreference);
+    }),
 
   onEvent: (listener) =>
     listen(IPC.event, (p) => {

@@ -158,7 +158,8 @@ export const breakpoints = {
 
 /** Motion; all of it is switched off under Reduce Motion. */
 export const motion = {
-  hover: { durationMs: 150, easing: 'ease' },
+  // DESIGN.md 動效: hover is the `fast` token (120 ms, ease-out); was 150 ms ease.
+  hover: { durationMs: 120, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
   progress: { durationMs: 400, easing: 'ease' },
   skeleton: { durationMs: 1200, easing: 'ease-in-out' },
   spinner: { durationMs: 800, easing: 'linear' },
@@ -180,10 +181,20 @@ export const duration = {
 } as const;
 export type DurationToken = keyof typeof duration;
 
+/** Cubic-bézier control points, for animation libraries that take numbers. */
+export const easingCurve = {
+  out: [0.22, 1, 0.36, 1],
+  in: [0.4, 0, 1, 1],
+  inOut: [0.45, 0, 0.25, 1],
+} as const satisfies Record<string, readonly [number, number, number, number]>;
+
+const bezier = (c: readonly number[]): string => `cubic-bezier(${c.join(', ')})`;
+
+/** The same curves as CSS timing functions. */
 export const easing = {
-  out: 'cubic-bezier(0.22, 1, 0.36, 1)',
-  in: 'cubic-bezier(0.4, 0, 1, 1)',
-  inOut: 'cubic-bezier(0.45, 0, 0.25, 1)',
+  out: bezier(easingCurve.out),
+  in: bezier(easingCurve.in),
+  inOut: bezier(easingCurve.inOut),
   linear: 'linear',
 } as const;
 export type EasingToken = keyof typeof easing;
@@ -233,6 +244,8 @@ export function buildCssVariables(): string {
     `  --qc-motion-hover: ${motion.hover.durationMs}ms ${motion.hover.easing};`,
     `  --qc-motion-progress: ${motion.progress.durationMs}ms ${motion.progress.easing};`,
     ...Object.entries(duration).map(([k, v]) => `  --qc-dur-${k}: ${String(v)}ms;`),
+    `  --qc-dur-skeleton: ${String(motion.skeleton.durationMs)}ms;`,
+    `  --qc-dur-spinner: ${String(motion.spinner.durationMs)}ms;`,
     ...Object.entries(easing).map(
       ([k, v]) => `  --qc-ease-${k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}: ${v};`,
     ),

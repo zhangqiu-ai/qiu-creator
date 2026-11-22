@@ -364,11 +364,21 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
   - 項目列可以拖曳排序（`useSortable`），已封存的項目維持在後面。
   - 放下後要做什麼由純函式 `dropAction` 決定。未分類和已封存的項目都不接受放置。
   - 鍵盤排序（空白鍵、↑↓、空白鍵、Esc）由 `SidebarProjects.tsx` 自己處理，不用 dnd-kit 的 KeyboardSensor：拿起時只在畫面上預覽順序，放下時才送出一次排序。
-- **動效模式**（`renderer/motion-mode.ts`）：`full`、`reduced`（`prefers-reduced-motion`）、`off`。
-  - `off` 由主程序決定：e2e（`CREATORHUB_E2E_BACKGROUND=1`）或 `CREATORHUB_MOTION=off`，經 `creatorhub.motionMode()` 告訴 renderer。
-  - renderer 在第一次渲染前設 `<html data-motion="off">`，CSS 就把所有 transition 與 animation 關掉。
-  - 動效的數值來自 `packages/design-tokens` 的 `duration`、`easing`、`spring`、`motionScale`，以及 CSS 變數 `--qc-dur-*`、`--qc-ease-*`。
-  - QC-065 會在這裡加上 `lite` 模式和 `motion` 的 `MotionConfig`。
+- **動效模式**（`renderer/motion-mode.ts`，QC-065）有四種：`full`、`reduced`（`prefers-reduced-motion`）、`lite`、`off`。
+  - 主程序經 `creatorhub.motionMode()` 和 `onMotionMode()` 決定 `off` 與 `lite`（`main/motion.ts`）：
+    - `off`：e2e（`CREATORHUB_E2E_BACKGROUND=1`）或 `CREATORHUB_MOTION=off`。
+    - e2e 加上 `CREATORHUB_MOTION=on`（fixture 的 `QC_E2E_MOTION=on`）時保留動效，用來錄影。
+    - `lite`：`powerMonitor` 的熱狀態是 `serious` 或 `critical` 時切過去，變涼後切回來。Electron 在 macOS 上讀不到低電量模式，所以只看熱狀態。
+  - renderer 在第一次渲染前設 `<html data-motion="off|lite">`：
+    - `off`：CSS 把所有 transition 與 animation 關掉。
+    - `lite`：和減少動態效果一樣，只保留 `fast` 的淡入淡出和顏色變化，轉圈照轉。
+  - 動效的數值來自 `packages/design-tokens`，以及 CSS 變數 `--qc-dur-*`、`--qc-ease-*`。motion 的封裝在 `renderer/motion.tsx`（見 `docs/dependencies.md`）。
+- **錄影**（`e2e/fixtures/screencast.ts`）：
+  - Playwright 的 `recordVideo` 會讓隱藏的 e2e 視窗卡住，所以改用 CDP 的 `Page.startScreencast` 收集帶時間戳記的畫格，再用 ffmpeg 依真實時間組成 mp4。
+  - 用法：`QC_E2E_MOTION=on QC_E2E_VIDEO=<dir>`。
+- **收起的側欄**：
+  - 項目很多時，`.sb__scroll` 會捲動（不顯示捲軸）。
+  - 名稱提示改成一個 `position: fixed` 的浮動元素（`.sb__railtip`），顯示在被懸停或鍵盤聚焦的項目旁邊。原本的 `::after` 會被捲動區裁掉，所以不再使用。
 - **卡片圓點**：只顯示作品「其他」的未封存項目，最多 2 個，其餘以 +N 表示（`cardDots`）。
 
 ## 作品庫卡片圖與摘要（QC-061）

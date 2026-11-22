@@ -24,6 +24,7 @@
     "@qiu-creator/i18n": "workspace:*",
     "@qiu-creator/markdown-editor-web": "workspace:*",
     "@qiu-creator/platform-preview": "workspace:*",
+    "motion": "^14.14.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

@@ -93,6 +93,7 @@ export const test = base.extend<{ desktop: Desktop }>({
         path.join(profile, 'preferences.json'),
         `${JSON.stringify({ language: 'zh-Hant' })}\n`,
       );
+      const motionOn = process.env['QC_E2E_MOTION'] === 'on';
       const address = new URL(backend.baseUrl);
       const launch = () =>
         playwright._electron.launch({
@@ -108,6 +109,9 @@ export const test = base.extend<{ desktop: Desktop }>({
             CREATORHUB_E2E_PROFILE: profile,
             // QC-060/QC-064: no Dock icon, no window on screen, no native dialogs, no Finder.
             CREATORHUB_E2E_BACKGROUND: '1',
+            // QC-065: e2e runs with motion off; QC_E2E_MOTION=on keeps it, to record it
+            // (see fixtures/screencast.ts; Playwright's recordVideo hangs the hidden window).
+            ...(motionOn ? { CREATORHUB_MOTION: 'on' } : {}),
           },
         });
       const app = await launch();
