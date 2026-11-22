@@ -6947,6 +6947,27 @@ kbd {
 :root[data-motion='lite'] .panel.drawer {
   animation: qc-fade-in var(--qc-dur-fast) var(--qc-ease-out) !important;
 }
+/* 貼圖格的拖曳排序 (QC-065 area 4, DESIGN.md 動效 · 拖放). */
+.post__tile--dragging {
+  opacity: 0.4;
+}
+.post__tile.post__tile--lifted {
+  width: 100%;
+  height: 100%;
+  box-shadow: var(--qc-shadow-dialog);
+  cursor: grabbing;
+  transform: scale(1.02);
+  animation: qc-lift var(--qc-dur-fast) var(--qc-ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .post__tile.post__tile--lifted {
+    transform: none;
+  }
+}
+:root[data-motion='lite'] .post__tile.post__tile--lifted,
+:root[data-motion='lite'] .drag-ghost {
+  transform: none;
+}
 /* Test mode (DESIGN.md 動效 · 測試模式): e2e runs with nothing animating. */
 :root[data-motion='off'] *,
 :root[data-motion='off'] *::before,
