@@ -6,6 +6,7 @@ import type {
   WorkListItem,
   WorkStatus,
   WorkType,
+  WorkRef,
 } from '@qiu-creator/contracts';
 import {
   useCallback,
@@ -13,6 +14,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
@@ -23,9 +25,15 @@ import {
   contextTargets,
   EMPTY_SELECTION,
   keepShown,
-  selectAll,
   type Selection,
 } from './library-select.js';
+import {
+  statusCounts as countByStatus,
+  typeCounts as countByType,
+  type ByTypeStatus,
+} from './library-counts.js';
+import { LibraryFeed } from './library-feed.js';
+import { LoadMore } from './LoadMore.js';
 import { RenameField } from './RenameField.js';
 import { useToast, type ToastAction } from './toasts.js';
 import {
@@ -56,7 +64,7 @@ import {
 } from './motion.js';
 import { moves, useMotionMode } from './motion-mode.js';
 import { motion } from 'motion/react';
-import { codeText, t } from './i18n.js';
+import { codeText, errorText, t } from './i18n.js';
 import { Icon } from './Icon.js';
 import { externalSource, useMounts } from './mounts.js';
 import { ProjectDots, ProjectOverview, projectEntries } from './LibraryProjects.js';
@@ -130,6 +138,12 @@ export interface LibraryPageProps {
 const ALL: LibraryScope = { kind: 'all' };
 
 /** A click on a card title waits this long for a second click (rename) before opening. */
+/**
+ * A work as selection and batch actions see it (QC-067): a loaded card, or
+ * the lighter ref ⌘A fetches for works not loaded yet.
+ */
+type LibraryWork = Omit<WorkRef, 'project_ids'> & { project_ids?: string[] | undefined };
+
 const OPEN_DELAY_MS = 260;
 
 const STATUS_ORDER: readonly WorkStatus[] = ['drafting', 'in_review', 'ready', 'published'];
@@ -139,8 +153,8 @@ type Notice =
   | { kind: 'undo'; message: string; undo: () => void };
 
 type Confirm =
-  | { kind: 'delete'; works: readonly WorkListItem[] }
-  | { kind: 'tags'; mode: 'add' | 'remove'; works: readonly WorkListItem[] };
+  | { kind: 'delete'; works: readonly LibraryWork[] }
+  | { kind: 'tags'; mode: 'add' | 'remove'; works: readonly LibraryWork[] };
 
 /** True when an external work's file is gone or its folder unmounted (PT-20261117-001). */
 export function isMissing(work: Pick<Work, 'external_state'>): boolean {
@@ -175,8 +189,19 @@ export function LibraryPage({
   const projectId = libraryScope.kind === 'project' ? libraryScope.id : null;
   const unassigned = libraryScope.kind === 'unassigned';
   const notifyProject = useNotice();
-  const [works, setWorks] = useState<readonly WorkListItem[] | null>(null);
-  const [failed, setFailed] = useState(false);
+  // 作品庫分頁 (QC-067): the works matching the filter, a page at a time.
+  const [feed] = useState(
+    () =>
+      new LibraryFeed<WorkListItem>(() =>
+        Promise.resolve({ items: [], next_cursor: null, total: 0 }),
+      ),
+  );
+  const feedState = useSyncExternalStore(feed.subscribe, feed.getSnapshot);
+  const works = feedState.items;
+  /** Counts for the type and status filters: the service's totals for the whole filter. */
+  const [facets, setFacets] = useState<ByTypeStatus>({});
+  const [createFailed, setFailed] = useState(false);
+  const failed = createFailed || (feedState.failed && works === null);
   const [query, setQuery] = useState('');
   const [appliedQuery, setAppliedQuery] = useState('');
   const [type, setType] = useState<TypeFilter>('all');
@@ -192,24 +217,32 @@ export function LibraryPage({
   const searchRef = useRef<HTMLInputElement>(null);
   const request = useRef(0);
 
-  const load = useCallback(() => {
-    const id = ++request.current;
-    setFailed(false);
+  /** The filter as the service reads it: type and status filter on the service now. */
+  const listQuery = useMemo(() => {
     const q = appliedQuery.trim();
-    // All types at once: the type filter shows a count for each and filters here.
+    return {
+      ...(q === '' ? {} : { q }),
+      ...(projectId === null ? {} : { project_id: projectId }),
+      ...(unassigned ? { unassigned: '1' as const } : {}),
+      ...(type === 'all' ? {} : { type }),
+      ...(status === 'all' ? {} : { status }),
+    };
+  }, [appliedQuery, projectId, unassigned, type, status]);
+
+  /** Counts and the 最近刪除 total (these follow every change). */
+  const loadCounts = useCallback(() => {
+    const id = request.current;
+    const q = appliedQuery.trim();
     client.works
-      .list({
-        limit: 200,
+      .facets({
         ...(q === '' ? {} : { q }),
         ...(projectId === null ? {} : { project_id: projectId }),
         ...(unassigned ? { unassigned: '1' as const } : {}),
       })
       .then((res) => {
-        if (id === request.current) setWorks(res.items);
+        if (id === request.current) setFacets(res.by_type_status);
       })
-      .catch(() => {
-        if (id === request.current) setFailed(true);
-      });
+      .catch(() => undefined);
     // How many works 最近刪除 holds, for its entry in the filter row.
     client.works
       .list({ scope: 'trash', limit: 1 })
@@ -219,22 +252,34 @@ export function LibraryPage({
       .catch(() => undefined);
   }, [client, appliedQuery, projectId, unassigned]);
 
+  /** A new filter: start again from its first page. */
+  const load = useCallback(() => {
+    ++request.current;
+    setFailed(false);
+    setAllRefs(null);
+    void feed.reset((cursor, limit) =>
+      client.works
+        .list({ ...listQuery, limit, ...(cursor === null ? {} : { cursor }) })
+        .then((res) => ({ items: res.items, next_cursor: res.next_cursor, total: res.total })),
+    );
+    loadCounts();
+  }, [client, feed, listQuery, loadCounts]);
+
+  /** Something changed (here, elsewhere, on another device): read again as far as loaded. */
+  const refresh = useCallback(() => {
+    void feed.refresh();
+    loadCounts();
+  }, [feed, loadCounts]);
+
   useEffect(load, [load]);
-  useRefreshOn(['work', 'project'], load, 300);
-  // A new scope starts with nothing chosen and its own loading state.
-  const scopeKey = `${libraryScope.kind}:${projectId ?? ''}`;
-  const [loadedScope, setLoadedScope] = useState(scopeKey);
-  if (loadedScope !== scopeKey) {
-    setLoadedScope(scopeKey);
-    setWorks(null);
-  }
+  useRefreshOn(['work', 'project'], refresh, 300);
 
   // Card images (QC-061): signed URLs from the list; video frames the service could not
   // take are grabbed off-screen one at a time and uploaded, then the list is read again.
-  const loadRef = useRef(load);
+  const loadRef = useRef(refresh);
   useEffect(() => {
-    loadRef.current = load;
-  }, [load]);
+    loadRef.current = refresh;
+  }, [refresh]);
   const [frames] = useState(
     () =>
       new CardFrameQueue(
@@ -327,36 +372,10 @@ export function LibraryPage({
     };
   }, []);
 
-  const ofType = useMemo(
-    () => (works ?? []).filter((w) => type === 'all' || w.type === type),
-    [works, type],
-  );
-  const shown = useMemo(
-    () => ofType.filter((w) => status === 'all' || w.status === status),
-    [ofType, status],
-  );
-  const typeCounts = useMemo(() => {
-    const c: Record<TypeFilter, number> = { all: 0, article: 0, image: 0, video: 0, mixed: 0 };
-    for (const w of works ?? []) {
-      c.all++;
-      c[w.type]++;
-    }
-    return c;
-  }, [works]);
-  const counts = useMemo(() => {
-    const c: Record<StatusFilter, number> = {
-      all: 0,
-      drafting: 0,
-      in_review: 0,
-      ready: 0,
-      published: 0,
-    };
-    for (const w of ofType) {
-      c.all++;
-      c[w.status]++;
-    }
-    return c;
-  }, [ofType]);
+  // The service filters by type and status; what is loaded is what is shown.
+  const shown = useMemo(() => works ?? [], [works]);
+  const typeCounts = useMemo(() => countByType(facets), [facets]);
+  const counts = useMemo(() => countByStatus(facets, type), [facets, type]);
 
   // ---- Selection, rename, right-click menu (QC-052) ----
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
@@ -364,10 +383,29 @@ export function LibraryPage({
   const [menu, setMenu] = useState<{ anchor: MenuAnchor; ids: readonly string[] } | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const order = useMemo(() => shown.map((w) => w.id), [shown]);
-  const latest = useRef({ order, works, askDelete: (): void => undefined });
+  /**
+   * ⌘A (QC-067): every work matching the filter, not only those loaded. The
+   * service lists them all (`works.refs`); the selection holds their ids and
+   * batch actions work on these refs.
+   */
+  const [allRefs, setAllRefs] = useState<readonly LibraryWork[] | null>(null);
+  const allRefsRef = useRef(allRefs);
+  allRefsRef.current = allRefs;
+  const loadedById = useMemo(() => new Map(shown.map((w) => [w.id, w])), [shown]);
+  const allRefsById = useMemo(() => new Map((allRefs ?? []).map((r) => [r.id, r])), [allRefs]);
+  /** A work by id: its loaded card if there is one, else what ⌘A fetched. */
+  const refById = (id: string): LibraryWork | undefined =>
+    loadedById.get(id) ?? allRefsById.get(id);
+  const latest = useRef({
+    order,
+    works,
+    askDelete: (): void => undefined,
+    selectAll: (): void => undefined,
+  });
   useEffect(() => {
     latest.current = { ...latest.current, order, works };
-    setSelection((sel) => keepShown(sel, order));
+    // With ⌘A the selection reaches past what is loaded: keep it.
+    if (allRefsRef.current === null) setSelection((sel) => keepShown(sel, order));
   }, [order, works]);
 
   useEffect(() => {
@@ -399,9 +437,12 @@ export function LibraryPage({
         },
   );
 
-  const patchLocal = useCallback((id: string, change: Partial<WorkListItem>) => {
-    setWorks((ws) => ws?.map((w) => (w.id === id ? { ...w, ...change } : w)) ?? ws);
-  }, []);
+  const patchLocal = useCallback(
+    (id: string, change: Partial<WorkListItem>) => {
+      feed.patch(id, change);
+    },
+    [feed],
+  );
   /** Take what the service returned for changed works (new revisions, status, tags). */
   const applyServer = (changed: readonly Work[]) => {
     for (const w of changed) {
@@ -451,7 +492,7 @@ export function LibraryPage({
 
   /** Change the status of one or more works; 復原 puts each back (QC-052). */
   const changeStatus = async (
-    targets: readonly WorkListItem[],
+    targets: readonly LibraryWork[],
     status: WorkStatus,
     undoing = false,
   ) => {
@@ -460,8 +501,8 @@ export function LibraryPage({
     for (const w of changing) patchLocal(w.id, { status });
     // The newest revision this page knows of (a rename or an undo may have moved it).
     const current = changing.map((w) => latest.current.works?.find((x) => x.id === w.id) ?? w);
-    const done: WorkListItem[] = [];
-    const failed: { work: WorkListItem; reason: string }[] = [];
+    const done: LibraryWork[] = [];
+    const failed: { work: LibraryWork; reason: string }[] = [];
     const only = current[0];
     if (current.length === 1 && only !== undefined) {
       const { outcome, work } = await changeWork(client, only, { status }, handles);
@@ -538,7 +579,7 @@ export function LibraryPage({
   const [busy, setBusy] = useState(false);
 
   /** Move works to 最近刪除; the notice's 復原 brings them back. */
-  const deleteWorks = async (targets: readonly WorkListItem[], moveOriginal: boolean) => {
+  const deleteWorks = async (targets: readonly LibraryWork[], moveOriginal: boolean) => {
     setConfirm(null);
     setBusy(true);
     try {
@@ -547,7 +588,8 @@ export function LibraryPage({
       const gone = new Set(res.ok.map((w) => w.id));
       // Focus moves on to the next card (or the one before), not back to the page.
       const next = focusAfterRemoval(latest.current.order, gone);
-      setWorks((ws) => ws?.filter((w) => !gone.has(w.id)) ?? ws);
+      feed.remove(gone);
+      setAllRefs(null);
       if (next !== null) focusWork(next);
       setTrashCount((n) => n + gone.size);
       setSelection(EMPTY_SELECTION);
@@ -599,7 +641,7 @@ export function LibraryPage({
 
   /** 加標籤／移除標籤 on the selection; 復原 undoes only what really changed on each work. */
   const changeTags = async (
-    targets: readonly WorkListItem[],
+    targets: readonly LibraryWork[],
     mode: 'add' | 'remove',
     tags: readonly string[],
     undoing = false,
@@ -645,8 +687,8 @@ export function LibraryPage({
           void (async () => {
             for (const g of groups) {
               const back = g.ids
-                .map((id) => latest.current.works?.find((w) => w.id === id))
-                .filter((w): w is WorkListItem => w !== undefined);
+                .map((id) => latest.current.works?.find((w) => w.id === id) ?? refById(id))
+                .filter((w): w is LibraryWork => w !== undefined);
               await changeTags(back, mode === 'add' ? 'remove' : 'add', g.tags, true);
             }
           })();
@@ -668,6 +710,8 @@ export function LibraryPage({
     cancelOpen();
     if (e.metaKey || e.shiftKey) {
       e.preventDefault();
+      // ⇧ alone replaces the selection with a range of shown works: a ⌘A selection ends.
+      if (!e.metaKey) setAllRefs(null);
       setSelection((sel) => clickSelect(sel, w.id, order, { meta: e.metaKey, shift: e.shiftKey }));
       return;
     }
@@ -692,7 +736,12 @@ export function LibraryPage({
   const onItemMenu = (e: ReactMouseEvent<HTMLElement>, w: WorkListItem) => {
     e.preventDefault();
     cancelOpen();
-    setMenu({ anchor: anchorOf(e), ids: contextTargets(selection, w.id, order) });
+    // On a work that is part of a ⌘A selection: every selected work, loaded or not.
+    const ids =
+      allRefs !== null && selection.ids.has(w.id)
+        ? allRefs.filter((r) => selection.ids.has(r.id)).map((r) => r.id)
+        : contextTargets(selection, w.id, order);
+    setMenu({ anchor: anchorOf(e), ids });
   };
 
   // ⌘A selects every work shown, esc clears; never while typing or with a dialog open.
@@ -702,12 +751,13 @@ export function LibraryPage({
       if (document.querySelector('[aria-modal="true"], .ctx-menu') !== null) return;
       if (e.metaKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
-        setSelection(selectAll(latest.current.order));
+        latest.current.selectAll();
       } else if (e.metaKey && e.key === 'Backspace') {
         // ⌘⌫ as in Finder: delete the selection, after the confirmation.
         e.preventDefault();
         latest.current.askDelete();
       } else if (e.key === 'Escape' && !e.metaKey) {
+        setAllRefs(null);
         setSelection((sel) => (sel.ids.size === 0 ? sel : EMPTY_SELECTION));
       }
     };
@@ -718,7 +768,7 @@ export function LibraryPage({
   }, []);
 
   const menuItems = (ids: readonly string[]): MenuEntry[] => {
-    const targets = shown.filter((w) => ids.includes(w.id));
+    const targets = ids.map(refById).filter((w): w is LibraryWork => w !== undefined);
     const editable = targets.filter((w) => !isMissing(w));
     const statusMenu: MenuEntry = {
       kind: 'sub',
@@ -772,7 +822,9 @@ export function LibraryPage({
         deleteItem,
       ];
     }
-    const file = externalFile(one, mounts);
+    // Its folder and file path are on the loaded card (a right-clicked work always is).
+    const oneLoaded = loadedById.get(one.id);
+    const file = oneLoaded === undefined ? null : externalFile(oneLoaded, mounts);
     return [
       {
         kind: 'item',
@@ -835,22 +887,38 @@ export function LibraryPage({
       deleteItem,
     ];
   };
-  const menuTargets = menu === null ? [] : shown.filter((w) => menu.ids.includes(w.id));
-  const selectedWorks = shown.filter((w) => selection.ids.has(w.id));
+  const menuTargets =
+    menu === null ? [] : menu.ids.map(refById).filter((w): w is LibraryWork => w !== undefined);
+  // The selection as works: loaded cards where there are any, the service's refs beyond.
+  const selectedWorks: readonly LibraryWork[] =
+    allRefs !== null
+      ? allRefs.filter((r) => selection.ids.has(r.id)).map((r) => loadedById.get(r.id) ?? r)
+      : shown.filter((w) => selection.ids.has(w.id));
   useEffect(() => {
     latest.current.askDelete = () => {
       if (selectedWorks.length > 0) setConfirm({ kind: 'delete', works: selectedWorks });
+    };
+    latest.current.selectAll = () => {
+      // Every work matching the filter (QC-067), not just the pages loaded so far.
+      void client.works
+        .refs(listQuery)
+        .then((res) => {
+          setAllRefs(res.items);
+          setSelection({ ids: new Set(res.items.map((r) => r.id)), anchor: order[0] ?? null });
+        })
+        .catch((err: unknown) => {
+          setNotice({ kind: 'text', tone: 'bad', message: errorText(err) });
+        });
     };
   });
   const [barMenu, setBarMenu] = useState<MenuAnchor | null>(null);
 
   // ---- 項目 (QC-062) ----
   const [projectBar, setProjectBar] = useState<MenuAnchor | null>(null);
-  const [newProjectFor, setNewProjectFor] = useState<readonly WorkListItem[] | null>(null);
+  const [newProjectFor, setNewProjectFor] = useState<readonly LibraryWork[] | null>(null);
   const [renamingProject, setRenamingProject] = useState(false);
   const projectMenu = useProjectMenu({
     store,
-    client,
     notify: notifyProject,
     onRename: () => {
       setRenamingProject(true);
@@ -859,7 +927,7 @@ export function LibraryPage({
       onScope?.(ALL);
     },
   });
-  const projectItems = (targets: readonly WorkListItem[]): MenuEntry[] =>
+  const projectItems = (targets: readonly LibraryWork[]): MenuEntry[] =>
     store === null
       ? []
       : [
@@ -893,7 +961,7 @@ export function LibraryPage({
               ]),
         ];
   const createProjectWith = async (
-    targets: readonly WorkListItem[],
+    targets: readonly LibraryWork[],
     name: string,
     color: number,
   ) => {
@@ -922,7 +990,7 @@ export function LibraryPage({
     if (store !== null && project !== null)
       void renameProject(store, project, typed, notifyProject);
   };
-  const dragWorks = (w: WorkListItem): readonly WorkListItem[] =>
+  const dragWorks = (w: WorkListItem): readonly LibraryWork[] =>
     selection.ids.has(w.id) ? selectedWorks : [w];
 
   const filtering = appliedQuery.trim() !== '' || type !== 'all' || status !== 'all';
@@ -979,7 +1047,7 @@ export function LibraryPage({
           </h1>
         )}
         <span className="page__count">
-          {scope === 'trash' ? trashCount : works === null ? '' : shown.length}
+          {scope === 'trash' ? trashCount : feedState.total === null ? '' : feedState.total}
         </span>
         {project !== null && (
           <button
@@ -1294,7 +1362,7 @@ export function LibraryPage({
                   {t('library.new')}
                 </button>
               </div>
-            ) : type !== 'all' && ofType.length === 0 && appliedQuery.trim() === '' ? (
+            ) : type !== 'all' && shown.length === 0 && appliedQuery.trim() === '' ? (
               <TypeEmpty type={type} busy={creating} onCreate={create} />
             ) : shown.length === 0 ? (
               <div className="state-card state-card--dashed">
@@ -1469,6 +1537,18 @@ export function LibraryPage({
                 </table>
               </div>
             )}
+            {works !== null && works.length > 0 && (
+              // The rest of the works load as the end of the list comes near (QC-067).
+              <LoadMore
+                hasMore={feedState.hasMore}
+                loading={feedState.loading}
+                failed={feedState.failed}
+                onMore={() => {
+                  // After a failure (a stale cursor, the service away) read again from the top.
+                  void (feedState.failed ? feed.refresh() : feed.loadMore());
+                }}
+              />
+            )}
           </section>
         </>
       )}
@@ -1617,7 +1697,7 @@ function WorkCard({
   /** The work's other projects as colour dots (QC-062). */
   dots?: ReactNode;
   /** What dragging this card onto a sidebar project adds; undefined: not draggable. */
-  dragWorks?: readonly WorkListItem[] | undefined;
+  dragWorks?: readonly LibraryWork[] | undefined;
   selected: boolean;
   /** The right-click menu is open for it. */
   menuTarget: boolean;

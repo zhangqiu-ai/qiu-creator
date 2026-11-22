@@ -1,6 +1,19 @@
 import type { CreatorHubClient } from '@qiu-creator/api-client';
-import { WORK_TRASH_RETENTION_DAYS, type Project, type WorkListItem } from '@qiu-creator/contracts';
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import {
+  WORK_TRASH_RETENTION_DAYS,
+  type Project,
+  type WorkListItem,
+  type WorkRef,
+} from '@qiu-creator/contracts';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type MouseEvent,
+} from 'react';
 import { anchorOf, ContextMenu, type MenuAnchor, type MenuEntry } from './ContextMenu.js';
 import { useRefreshOn } from './events.js';
 import { WORK_TYPE } from './format.js';
@@ -12,17 +25,23 @@ import {
   contextTargets,
   EMPTY_SELECTION,
   keepShown,
-  selectAll,
   type Selection,
 } from './library-select.js';
 import { daysLeft } from './library-trash.js';
+import { LibraryFeed } from './library-feed.js';
+import { LoadMore } from './LoadMore.js';
 import { useToast } from './toasts.js';
 import { purgeWorks, restoreWorks } from './work-actions.js';
 import { CardCover } from './WorkCover.js';
 import { Animated, AnimatedItem, LAYOUT_LIMIT, Presence, SettleIn } from './motion.js';
 
 type Notice = { message: string; tone: 'ok' | 'bad' };
-type Purge = { works: readonly WorkListItem[]; empty: boolean };
+/** A deleted work as selection and actions see it: a loaded card or a ⌘A ref (QC-067). */
+type TrashWork = Pick<
+  WorkRef,
+  'id' | 'title' | 'tags' | 'current_revision_id' | 'storage_mode' | 'external_state'
+>;
+type Purge = { works: readonly TrashWork[]; empty: boolean };
 
 /**
  * 最近刪除 in 作品庫 (QC-052 on the QC-051 API): works deleted in the last
@@ -45,7 +64,17 @@ export function TrashView({
   onBack: () => void;
   onCount: (count: number) => void;
 }) {
-  const [works, setWorks] = useState<readonly WorkListItem[] | null>(null);
+  // Paged like 作品庫 (QC-067), so a long 最近刪除 shows every deleted work.
+  const [feed] = useState(
+    () =>
+      new LibraryFeed<WorkListItem>(() =>
+        Promise.resolve({ items: [], next_cursor: null, total: 0 }),
+      ),
+  );
+  const feedState = useSyncExternalStore(feed.subscribe, feed.getSnapshot);
+  const works = feedState.items;
+  /** ⌘A: every deleted work matching the search, loaded or not. */
+  const [allRefs, setAllRefs] = useState<readonly TrashWork[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
   const [menu, setMenu] = useState<{ anchor: MenuAnchor; ids: readonly string[] } | null>(null);
@@ -53,32 +82,51 @@ export function TrashView({
   const [notice, setNotice] = useState<Notice | null>(null);
   const [busy, setBusy] = useState(false);
   const request = useRef(0);
+  const queryRef = useRef(query);
+  queryRef.current = query;
 
   const load = useCallback(() => {
-    const id = ++request.current;
+    ++request.current;
     setFailed(false);
+    setAllRefs(null);
     const q = query.trim();
-    client.works
-      .list({ scope: 'trash', limit: 200, ...(q === '' ? {} : { q }) })
-      .then((res) => {
-        if (id !== request.current) return;
-        setWorks(res.items);
-        if (q === '') onCount(res.total);
-      })
-      .catch(() => {
-        if (id === request.current) setFailed(true);
-      });
-  }, [client, query, onCount]);
+    void feed.reset((cursor, limit) =>
+      client.works
+        .list({
+          scope: 'trash',
+          limit,
+          ...(q === '' ? {} : { q }),
+          ...(cursor === null ? {} : { cursor }),
+        })
+        .then((res) => {
+          if (q === '') onCount(res.total);
+          return { items: res.items, next_cursor: res.next_cursor, total: res.total };
+        }),
+    );
+  }, [client, feed, query, onCount]);
+  const refresh = useCallback(() => {
+    void feed.refresh();
+  }, [feed]);
   useEffect(load, [load]);
-  useRefreshOn(['work'], load, 300);
+  useRefreshOn(['work'], refresh, 300);
 
   const order = useMemo(() => (works ?? []).map((w) => w.id), [works]);
   const orderRef = useRef(order);
+  const allRefsRef = useRef(allRefs);
+  allRefsRef.current = allRefs;
   useEffect(() => {
     orderRef.current = order;
-    setSelection((sel) => keepShown(sel, order));
+    if (allRefsRef.current === null) setSelection((sel) => keepShown(sel, order));
   }, [order]);
-  const selected = (works ?? []).filter((w) => selection.ids.has(w.id));
+  const byId = useMemo(() => {
+    const m = new Map<string, TrashWork>((allRefs ?? []).map((r) => [r.id, r]));
+    for (const w of works ?? []) m.set(w.id, w);
+    return m;
+  }, [works, allRefs]);
+  const selected: readonly TrashWork[] =
+    allRefs !== null
+      ? allRefs.filter((r) => selection.ids.has(r.id)).map((r) => byId.get(r.id) ?? r)
+      : (works ?? []).filter((w) => selection.ids.has(w.id));
 
   useEffect(() => {
     if (notice === null) return;
@@ -101,13 +149,14 @@ export function TrashView({
         },
   );
 
-  const restore = async (targets: readonly WorkListItem[]) => {
+  const restore = async (targets: readonly TrashWork[]) => {
     if (targets.length === 0) return;
     setBusy(true);
     try {
       const res = await restoreWorks(client, targets);
       const back = new Set(res.ok.map((w) => w.id));
-      setWorks((ws) => ws?.filter((w) => !back.has(w.id)) ?? ws);
+      feed.remove(back);
+      setAllRefs(null);
       setSelection(EMPTY_SELECTION);
       const firstFailed = res.failed[0];
       if (firstFailed !== undefined) {
@@ -145,7 +194,7 @@ export function TrashView({
     try {
       if (empty) {
         const res = await client.works.emptyTrash();
-        setWorks([]);
+        feed.remove(new Set((works ?? []).map((w) => w.id)));
         setNotice({ tone: 'ok', message: t('workActions.purged', { count: res.purged.length }) });
       } else {
         const res = await purgeWorks(
@@ -153,7 +202,7 @@ export function TrashView({
           targets.map((w) => w.id),
         );
         const gone = new Set(res.purged);
-        setWorks((ws) => ws?.filter((w) => !gone.has(w.id)) ?? ws);
+        feed.remove(gone);
         const firstFailed = res.failed[0];
         setNotice(
           firstFailed === undefined
@@ -169,6 +218,7 @@ export function TrashView({
         );
       }
       setSelection(EMPTY_SELECTION);
+      setAllRefs(null);
     } catch (err) {
       setNotice({ tone: 'bad', message: errorText(err) });
     } finally {
@@ -190,11 +240,25 @@ export function TrashView({
       if (document.querySelector('[aria-modal="true"], .ctx-menu') !== null) return;
       if (e.metaKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
-        setSelection(selectAll(orderRef.current));
+        // Every deleted work matching the search (QC-067), not only those loaded.
+        const q = queryRef.current.trim();
+        void client.works
+          .refs({ scope: 'trash', ...(q === '' ? {} : { q }) })
+          .then((res) => {
+            setAllRefs(res.items);
+            setSelection({
+              ids: new Set(res.items.map((r) => r.id)),
+              anchor: orderRef.current[0] ?? null,
+            });
+          })
+          .catch((err: unknown) => {
+            setNotice({ tone: 'bad', message: errorText(err) });
+          });
       } else if (e.metaKey && e.key === 'Backspace' && selectedRef.current.length > 0) {
         e.preventDefault();
         setPurge({ works: selectedRef.current, empty: false });
       } else if (e.key === 'Escape' && !e.metaKey) {
+        setAllRefs(null);
         setSelection((sel) => (sel.ids.size === 0 ? sel : EMPTY_SELECTION));
       }
     };
@@ -210,7 +274,7 @@ export function TrashView({
     );
   };
   const menuItems = (ids: readonly string[]): MenuEntry[] => {
-    const targets = (works ?? []).filter((w) => ids.includes(w.id));
+    const targets = ids.map((id) => byId.get(id)).filter((w): w is TrashWork => w !== undefined);
     return [
       {
         kind: 'item',
@@ -233,7 +297,10 @@ export function TrashView({
       },
     ];
   };
-  const menuTargets = menu === null ? [] : (works ?? []).filter((w) => menu.ids.includes(w.id));
+  const menuTargets =
+    menu === null
+      ? []
+      : menu.ids.map((id) => byId.get(id)).filter((w): w is TrashWork => w !== undefined);
   const firstMenuTarget = menuTargets[0];
 
   return (
@@ -358,7 +425,10 @@ export function TrashView({
                         e.preventDefault();
                         setMenu({
                           anchor: anchorOf(e),
-                          ids: contextTargets(selection, w.id, orderRef.current),
+                          ids:
+                            allRefs !== null && selection.ids.has(w.id)
+                              ? allRefs.filter((r) => selection.ids.has(r.id)).map((r) => r.id)
+                              : contextTargets(selection, w.id, orderRef.current),
                         });
                       }}
                     >
@@ -396,6 +466,16 @@ export function TrashView({
               })}
             </Presence>
           </ul>
+        )}
+        {works !== null && works.length > 0 && (
+          <LoadMore
+            hasMore={feedState.hasMore}
+            loading={feedState.loading}
+            failed={feedState.failed}
+            onMore={() => {
+              void (feedState.failed ? feed.refresh() : feed.loadMore());
+            }}
+          />
         )}
       </section>
 

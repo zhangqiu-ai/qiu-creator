@@ -352,7 +352,6 @@ export function App() {
                       <SidebarProjects
                         store={projects}
                         s={projectsState}
-                        client={client}
                         rail={rail}
                         scope={scope}
                         active={current === 'library' && route.page === 'library'}

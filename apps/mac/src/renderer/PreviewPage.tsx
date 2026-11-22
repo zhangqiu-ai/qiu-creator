@@ -23,6 +23,8 @@ import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
 import { useChangeEvents, useRefreshOn } from './events.js';
 import { SAVE_STATUS, WORK_STATUS } from './format.js';
+import { LibraryFeed } from './library-feed.js';
+import { LoadMore } from './LoadMore.js';
 import { t, useLocale } from './i18n.js';
 import { Icon } from './Icon.js';
 import { warningText } from './image-post.js';
@@ -102,17 +104,20 @@ function WorkPicker({
   client: CreatorHubClient;
   onPick: (id: string) => void;
 }) {
-  const [works, setWorks] = useState<Work[] | null>(null);
+  // Every work to choose from, a page at a time (QC-067).
+  const [feed] = useState(
+    () =>
+      new LibraryFeed<Work>((cursor, limit) =>
+        client.works
+          .list({ limit, ...(cursor === null ? {} : { cursor }) })
+          .then((r) => ({ items: r.items, next_cursor: r.next_cursor, total: r.total })),
+      ),
+  );
+  const feedState = useSyncExternalStore(feed.subscribe, feed.getSnapshot);
+  const works = feedState.items;
   useEffect(() => {
-    client.works
-      .list({ limit: 200 })
-      .then((r) => {
-        setWorks(r.items);
-      })
-      .catch(() => {
-        setWorks([]);
-      });
-  }, [client]);
+    void feed.loadMore();
+  }, [feed]);
   return (
     <main className="page" aria-label={t('library.preview')}>
       <header className="page__header">
@@ -137,6 +142,14 @@ function WorkPicker({
             </li>
           ))}
         </ul>
+        <LoadMore
+          hasMore={feedState.hasMore}
+          loading={feedState.loading}
+          failed={feedState.failed}
+          onMore={() => {
+            void (feedState.failed ? feed.refresh() : feed.loadMore());
+          }}
+        />
       </section>
     </main>
   );

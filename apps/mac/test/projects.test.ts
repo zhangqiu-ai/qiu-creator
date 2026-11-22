@@ -18,7 +18,6 @@ import {
   projectColor,
   projectName,
   ProjectsStore,
-  unsortedAfterRemoving,
 } from '../src/renderer/projects-store.js';
 
 const TOKEN = 'qc-062-token';
@@ -65,15 +64,6 @@ describe('project helpers (QC-062)', () => {
     expect(cardDots(undefined, list, null)).toEqual({ dots: [], more: 0 });
     // A project the list does not know (deleted) is not shown.
     expect(cardDots(['zz', 'a'], list, null).dots.map((p) => p.id)).toEqual(['a']);
-  });
-
-  it('counts the works that would become 未分類', () => {
-    expect(
-      unsortedAfterRemoving(
-        [{ project_ids: ['p'] }, { project_ids: ['p', 'q'] }, { project_ids: [] }],
-        'p',
-      ),
-    ).toBe(2);
   });
 
   it('moves with ⌥↑/⌥↓ in the sidebar order', () => {

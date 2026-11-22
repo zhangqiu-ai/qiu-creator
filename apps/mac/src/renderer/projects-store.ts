@@ -71,14 +71,6 @@ export function cardDots(
   return { dots: shown.slice(0, 2), more: Math.max(0, shown.length - 2) };
 }
 
-/** Works that would become 未分類 when the project goes: those in no other (live) project. */
-export function unsortedAfterRemoving(
-  works: readonly { project_ids?: readonly string[] | undefined }[],
-  projectId: string,
-): number {
-  return works.filter((w) => (w.project_ids ?? []).every((id) => id === projectId)).length;
-}
-
 /** The order after moving `id` by `step` (⌥↑/⌥↓, 上移／下移); unchanged at an end. */
 export function moveInOrder(ids: readonly string[], id: string, step: -1 | 1): string[] {
   const at = ids.indexOf(id);
