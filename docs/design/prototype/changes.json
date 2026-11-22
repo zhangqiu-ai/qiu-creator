@@ -1351,6 +1351,304 @@
         "設定不加搜尋：同意。",
         "用量頁 unpriced_jobs 顯示「無法預估」：同意。"
       ]
+    },
+    {
+      "id": "PT-20261121-003",
+      "title": "作品庫項目：側欄項目、多項目歸屬、項目頁、最近刪除與素材",
+      "date": "2026-11-21",
+      "status": "pending",
+      "model": "claude-opus-5-5",
+      "session": "qc-prototype",
+      "requestedBy": "使用者 via 開發總監",
+      "userRequest": "作品庫目前是全部內容堆積到一個頁面中，我希望能增加項目分類，這樣能根據項目來管理各種內容！（2026-11-21，見 docs/decisions.md「作品庫加「項目」分類（QC-062）」）",
+      "tasks": ["QC-062"],
+      "approvedBy": null,
+      "approvedAt": null,
+      "approvalNote": "使用者授權總監代為核准（docs/decisions.md 2026-11-21 QC-062）",
+      "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "baseCanvasVersion": "41 (version id 1795275033-35aa) + the unpublished PT-20261121-002 canvas.json",
+      "canvasVersion": "NOT_PUBLISHED: the canvas server still refused connections on 2026-11-21. Files are in the shared notes folder pt-20261121-003-boards/ (its canvas.json also contains the PT-20261121-002 boards); fill in the version after upload.",
+      "sharedStylesheets": [
+        "/_blob/ce383cde01b175413fc4b99a21feb132 (qc-v2.css)",
+        "/_blob/a801184fe6d1b75f3cf8e2f73e8e3dc4 (qc-v3.css)",
+        "qc-v5.css (projects) inlined in each board"
+      ],
+      "boards": [
+        {
+          "file": "Projects.dc.html",
+          "title": "v5 · 項目頁：概覽與作品",
+          "tweaks": {
+            "dark": "boolean",
+            "narrow": "boolean",
+            "lang": ["繁中", "简中", "English"],
+            "state": [
+              "全部作品",
+              "項目頁",
+              "未分類",
+              "右鍵加入項目",
+              "多選批量",
+              "拖到側欄",
+              "項目選單",
+              "新建項目",
+              "改名",
+              "刪除項目",
+              "已封存",
+              "沒有項目",
+              "項目沒有作品",
+              "最近刪除",
+              "項目素材"
+            ]
+          },
+          "states": [
+            "側欄「創作」：全部作品（數量）、未分類（數量）、「項目」小標（可收合、＋新建）、項目列（色塊、名稱、數量，可拖曳排序、⌥↑↓ 排序、雙擊或 F2 改名、右鍵選單）、已封存（收合，展開後淡色）",
+            "項目頁頁首：色塊＋名稱＋數量、搜尋、⋯ 項目選單、新建（新作品自動屬於這個項目）；概覽列：作品數、四種狀態數、最近更新、「用到的素材 N ›」",
+            "類型與狀態篩選、最近刪除入口沿用 QC-052；卡片沿用 QC-052 緊湊卡（最小 164px、16:10）與 QC-061 縮圖（視頻封面幀＋時長、貼圖第一張＋張數、無圖文章用文字預覽）",
+            "卡片底列：狀態點、狀態、其他所屬項目的色點（最多 2 個＋N，懸停顯示名稱；目前項目不重複顯示；已封存項目不顯示）、更新時間",
+            "⌘ 點選多選、⇧ 範圍選取；選取時卡片左上勾選標記",
+            "右鍵「項目 ▸」子選單：每個項目一個勾選框，多選時顯示三態（全部／部分／沒有），點了立即生效並出現可復原的提示；最下方「新建項目…」會把新項目套用到這些作品；在項目頁另有「從「X」移出」",
+            "批量列：「項目」按鈕（同一個三態勾選清單）、在項目頁「移出此項目」，以及原有的改狀態、加標籤、刪除、取消選取",
+            "把卡片（或整個選取）拖到側欄項目：拖曳時顯示「N 個作品」浮標，項目列高亮，放下即加入（不是移動），提示可復原",
+            "項目選單：重新命名、8 色色票、上移／下移、封存／取消封存、刪除項目…",
+            "刪除項目確認：作品留在作品庫；其中幾個會變成未分類另寫一句；刪除後提示可復原",
+            "空狀態：沒有任何項目時側欄只留「＋ 新建項目」；項目內沒有作品時顯示新建與前往全部作品；未分類為空時顯示「所有作品都已歸入項目」",
+            "最近刪除：每列顯示原本所屬的項目標籤；刪除的作品不計入項目數量；還原後回到原本仍存在的項目，否則回到未分類",
+            "項目用到的素材：素材庫加上「用在「X」」篩選標籤（可清除）與「回到「X」」；每張素材顯示被幾個作品使用",
+            "窄視窗：側欄 56px 圖示列時項目只顯示色塊"
+          ]
+        },
+        {
+          "file": "ProjAll.dc.html",
+          "title": "v5 · 全部作品：卡片上的項目色點",
+          "wraps": "Projects.dc.html",
+          "props": {
+            "state": "全部作品"
+          }
+        },
+        {
+          "file": "ProjMenu.dc.html",
+          "title": "v5 · 右鍵：加入／移出項目（可勾多個）",
+          "wraps": "Projects.dc.html",
+          "props": {
+            "state": "右鍵加入項目"
+          }
+        },
+        {
+          "file": "ProjBatch.dc.html",
+          "title": "v5 · 多選批量：項目",
+          "wraps": "Projects.dc.html",
+          "props": {
+            "state": "多選批量"
+          }
+        },
+        {
+          "file": "ProjDrag.dc.html",
+          "title": "v5 · 拖到側欄項目",
+          "wraps": "Projects.dc.html",
+          "props": {
+            "state": "拖到側欄"
+          }
+        },
+        {
+          "file": "ProjManage.dc.html",
+          "title": "v5 · 項目選單：改名、顏色、排序、封存、刪除",
+          "wraps": "Projects.dc.html",
+          "props": {
+            "state": "項目選單"
+          }
+        },
+        {
+          "file": "ProjDelete.dc.html",
+          "title": "v5 · 刪除項目（不刪作品）",
+          "wraps": "Projects.dc.html",
+          "props": {
+            "state": "刪除項目"
+          }
+        },
+        {
+          "file": "ProjEmpty.dc.html",
+          "title": "v5 · 沒有項目",
+          "wraps": "Projects.dc.html",
+          "props": {
+            "state": "沒有項目"
+          }
+        },
+        {
+          "file": "ProjEmptyIn.dc.html",
+          "title": "v5 · 項目沒有作品",
+          "wraps": "Projects.dc.html",
+          "props": {
+            "state": "項目沒有作品"
+          }
+        },
+        {
+          "file": "ProjTrash.dc.html",
+          "title": "v5 · 最近刪除：保留原項目",
+          "wraps": "Projects.dc.html",
+          "props": {
+            "state": "最近刪除"
+          }
+        },
+        {
+          "file": "ProjAssets.dc.html",
+          "title": "v5 · 項目用到的素材",
+          "wraps": "Projects.dc.html",
+          "props": {
+            "state": "項目素材"
+          }
+        },
+        {
+          "file": "ProjectEditor.dc.html",
+          "title": "v5 · 編輯頁：所屬項目",
+          "tweaks": {
+            "dark": "boolean",
+            "lang": ["繁中", "简中", "English"],
+            "state": ["正常", "選單開啟", "搜尋新建", "沒有項目", "新作品預設"]
+          },
+          "states": [
+            "編輯頁頭下方一列項目標籤（可 × 移出）＋「項目」按鈕",
+            "彈出清單：搜尋、勾選多個、↑↓↩ 操作、查無時「新建「…」」直接建立並加入",
+            "沒有項目時按鈕寫「加入項目」",
+            "在項目頁新建的作品預設帶該項目"
+          ]
+        },
+        {
+          "file": "ProjectsDark.dc.html",
+          "title": "v5 · 項目頁（深色）",
+          "wraps": "Projects.dc.html",
+          "props": {
+            "dark": true
+          }
+        },
+        {
+          "file": "ProjMenuDark.dc.html",
+          "title": "v5 · 右鍵加入項目（深色）",
+          "wraps": "Projects.dc.html",
+          "props": {
+            "dark": true,
+            "state": "右鍵加入項目"
+          }
+        },
+        {
+          "file": "ProjectEditorDark.dc.html",
+          "title": "v5 · 編輯頁所屬項目（深色）",
+          "wraps": "ProjectEditor.dc.html",
+          "props": {
+            "dark": true
+          }
+        }
+      ],
+      "decisions": [
+        "項目放在側欄「創作」裡、作品庫的位置（全部作品、未分類、項目清單），不另開頁面或頂部分頁：側欄一直看得到，才能當拖放目標，也一眼看到數量。",
+        "因為作品可屬多個項目，拖曳、右鍵、批量都只做「加入」，不做「移動」；離開某個項目用「移出此項目」或取消勾選。",
+        "項目歸屬用勾選框（三態），點了立即生效並給可復原的提示，不另設「套用」按鈕；這是值，不是動作（依 choice-controls 卡片）。",
+        "卡片只放色點，不放項目名稱文字：卡片已縮到 164px，名稱會擠掉標題與狀態；名稱放在懸停提示與編輯頁。",
+        "項目只用顏色識別（8 個低飽和色），先不做圖示：圖示會和作品類型圖示混淆。",
+        "刪除項目只解除歸屬；確認框寫清作品保留、哪些會變未分類，刪除後可復原。",
+        "最近刪除維持全域一個；被刪的作品保留原歸屬但不計數，還原時回到仍存在的項目。",
+        "「未分類」不是拖放目標，避免一次拖放默默移出所有項目。"
+      ],
+      "backendNeeds": {
+        "storage": [
+          "projects (id, name, color 0–7, sort_order, archived_at, deleted_at, created_at, updated_at) and work_projects (work_id, project_id, added_at) many-to-many; reversible migration. Membership lives only in the database (and its backups), never in the user's .md files, so external mounted works stay untouched and no file moves. Trashed works keep their rows; counts exclude them."
+        ],
+        "api": [
+          "GET /api/v1/projects → items with work_count (excluding trashed), archived, color, sort_order; POST, PATCH /api/v1/projects/:id {name?, color?, archived?}, PUT /api/v1/projects/order {ids}.",
+          "DELETE /api/v1/projects/:id soft-deletes (deleted_at) and drops it from lists; POST /api/v1/projects/:id/restore for the undo toast; purge later. Works are never deleted.",
+          "GET /api/v1/works?project_id=…|unassigned=1 (unassigned = no live project; archived projects still count as membership); work items gain project_ids.",
+          "POST /api/v1/works/batch/projects {work_ids, add?: project_ids, remove?: project_ids} → per-item results like the QC-052 batch; POST /api/v1/works accepts project_ids.",
+          "GET /api/v1/projects/:id/summary → counts by status, last_updated_at, asset_count; GET /api/v1/assets?project_id=… = assets referenced by the project's live works (existing media refs).",
+          "Change events project.created/updated/deleted and work.projects_changed; contracts, api-client and agent-sdk CLI (list, create, add/remove works)."
+        ],
+        "limits": {
+          "colors": 8,
+          "projectNameMaxChars": "proposed 60"
+        }
+      },
+      "references": [
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-005-drag-sort/case.md",
+          "kind": "concept",
+          "borrowed": "Insertion line for reorder; keep keyboard reordering and cancel; drop target must be obvious.",
+          "adaptation": "Project rows reorder by drag with an insertion line and by ⌥↑/⌥↓; dropping cards highlights the target row (accent ring) instead of moving rows."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-020-choice-controls/case.md",
+          "kind": "concept",
+          "borrowed": "Separate values that apply at once from actions; checkboxes for multiple values.",
+          "adaptation": "Project membership is a checkbox list (tri-state for mixed selections) that applies immediately with an undo toast; delete and archive are actions in the project menu."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-empty-state-svg/case.md",
+          "kind": "product",
+          "borrowed": "Define each empty state with the action you can take, and keep one visual language.",
+          "adaptation": "Three empty states (no projects, empty project, nothing unsorted), each with at most two actions and no explanation copy."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-014-card-deletion/case.md",
+          "kind": "concept",
+          "borrowed": "Separate data change, card exit and reflow; always offer undo and decide where focus goes.",
+          "adaptation": "Removing works from the current project drops them from the grid with an undo toast; selection clears."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/codex-project-chat-artifact-workspace/case.md",
+          "kind": "product",
+          "borrowed": "Let navigation collapse; keep the working area primary.",
+          "adaptation": "The 項目 section collapses; in the 56px rail projects show as colour blocks only."
+        }
+      ],
+      "referenceGaps": "No card in the library covers project or collection sidebars (e.g. Things, Linear, Notion) or multi-membership badges; the structure follows DESIGN.md and the existing QC-052 library patterns.",
+      "verified": [
+        "Static check on all 16 boards: balanced tags, valid data-props JSON, node --check.",
+        "Node harness ran Projects and ProjectEditor renderVals and every handler for all tweak combinations (90 and 30): no handler errors; every template hole resolves in each of the 15 + 5 states."
+      ],
+      "notVerified": [
+        "NOT_VERIFIED: canvas upload (server refused connections), so no canvas version.",
+        "NOT_VERIFIED: rendering in the Design canvas, including dc-import wrappers passing the state prop and HTML5 drag-and-drop inside the canvas.",
+        "NOT_VERIFIED: three-language fit by screenshot; checked by estimate only. Sample user content (work and project names) stays Chinese in every language.",
+        "QC-061 thumbnails are drawn as placeholders (colour blocks and a text preview), not real media."
+      ],
+      "openQuestions": [
+        {
+          "q": "在項目之間拖曳作品是「加入」還是「移動」？",
+          "recommendation": "加入。要移動就再「移出此項目」；不設修飾鍵。"
+        },
+        {
+          "q": "拖到「未分類」要不要等於移出所有項目？",
+          "recommendation": "不要，未分類不是拖放目標。"
+        },
+        {
+          "q": "項目要不要有圖示、描述？",
+          "recommendation": "第一版只要名稱和顏色；描述延後（卡片列為可選，原型沒畫）。"
+        },
+        {
+          "q": "封存的項目在卡片與編輯頁怎麼顯示？",
+          "recommendation": "卡片不顯示它的色點；編輯頁的標籤淡色並標「已封存」（原型未畫）；作品照常出現在全部作品。"
+        },
+        {
+          "q": "刪除項目要不要進最近刪除？",
+          "recommendation": "不用，刪除後提示可復原；後端軟刪除，之後清除。"
+        },
+        {
+          "q": "最近刪除要不要每個項目各一個？",
+          "recommendation": "不要，維持一個全域最近刪除，列上顯示原項目。"
+        },
+        {
+          "q": "項目歸屬存在哪？",
+          "recommendation": "只存資料庫（隨備份），不寫進 .md front matter，外部資料夾的檔案不動。"
+        },
+        {
+          "q": "「用到的素材」怎麼算？",
+          "recommendation": "項目內未刪除作品引用到的素材（圖片、視頻、封面、Markdown 圖片），沿用既有 media refs。"
+        },
+        {
+          "q": "要不要子項目（巢狀）？",
+          "recommendation": "不要。"
+        },
+        {
+          "q": "項目名稱長度上限？",
+          "recommendation": "60 字；側欄與標籤截斷加懸停全名。"
+        }
+      ]
     }
   ]
 }
