@@ -240,8 +240,67 @@ kbd {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.sb__toggle {
-  margin-left: auto;
+/* The logo is the sidebar toggle (QC-063): hover or keyboard focus swaps it for the panel icon. */
+.sb__logo {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: 0 -3px;
+  border: 0;
+  border-radius: var(--qc-radius-small);
+  background: transparent;
+  color: var(--qc-text);
+  cursor: pointer;
+}
+.sb__logo:disabled {
+  cursor: default;
+}
+.sb__logo-swap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  /* Same as a hovered nav item; opaque, so the mark does not show through. */
+  background: var(--qc-bg);
+  color: var(--qc-ink);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.sb__logo:not(:disabled):hover .sb__logo-swap,
+.sb__logo:not(:disabled):focus-visible .sb__logo-swap {
+  opacity: 1;
+}
+.sb__logo:focus-visible {
+  outline: 2px solid var(--qc-focus);
+  outline-offset: 1px;
+}
+.sb__logo::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--qc-ink);
+  color: var(--qc-bg);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.sb__logo:hover::after,
+.sb__logo:focus-visible::after {
+  opacity: 1;
 }
 .sb__svc {
   position: relative;
@@ -444,9 +503,6 @@ kbd {
 .sb--rail .sb__label,
 .sb--rail .sb__count {
   display: none;
-}
-.sb--rail .sb__toggle {
-  margin-left: 0;
 }
 .sb--rail .sb__scroll {
   /* Tooltips reach past the 56 px rail: the few icons fit without scrolling. */
