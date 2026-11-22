@@ -1,6 +1,6 @@
 # QC-062 驗收記錄（前端）：作品庫的項目
 
-日期：2026-11-21　分支：`feat/qc062-projects-fe`，基底是 main `3880bab`（已包含 qc-backend 的 QC-062、QC-064 與 QC-065 的動效規格），並疊在 QC-061 的 `8910e24` 上（QC-061 尚未合併）。
+日期：2026-11-21　分支：`feat/qc062-projects-fe`，基底是 main `3c4c95e`（已包含 qc-backend 的 QC-062、QC-061、QC-064 與 QC-065 的動效規格）。
 原型：PT-20261121-003（看板在 `pt-20261121-003-boards/`）。動效依 DESIGN.md「動效」（QC-065，已核准）。
 
 ## 做了什麼
@@ -124,7 +124,7 @@
 
 ## 閘門結果
 
-2026-11-21 23:18–23:20，負載約 3–4.5，持有全套鎖。
+2026-11-21 23:21–23:23，rebase 到 main `3c4c95e` 之後重跑，負載約 2–6.5，持有全套鎖。
 
 - `pnpm typecheck`（含 e2e）：通過。
 - lint：**failed**，共 30 個錯誤，全部在 `ai-workbench.spec.ts`、`library-actions.spec.ts`、`settings-v4.spec.ts` 的既有程式行。main 上一樣是 30 個，這次沒有增加。
