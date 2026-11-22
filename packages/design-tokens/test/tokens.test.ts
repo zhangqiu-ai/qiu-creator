@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  duration,
+  spring,
   buildCssVariables,
   COLOR_TOKENS,
   cssVar,
@@ -48,6 +50,11 @@ describe('design tokens', () => {
     expect(css).toContain('--qc-bg: #f6f5f1;');
     expect(css).toContain('--qc-radius-control: 7px;');
     expect(css).toContain('--qc-motion-hover: 150ms ease;');
+    // DESIGN.md「動效」(QC-065).
+    expect(css).toContain('--qc-dur-fast: 120ms;');
+    expect(css).toContain('--qc-dur-moderate: 240ms;');
+    expect(css).toContain('--qc-ease-out: cubic-bezier(0.22, 1, 0.36, 1);');
+    expect(css).toContain('--qc-ease-in-out: cubic-bezier(0.45, 0, 0.25, 1);');
     expect(css).toContain('prefers-color-scheme: dark');
     expect(css).toContain(":root[data-theme='dark']");
   });
@@ -74,5 +81,15 @@ describe('design tokens', () => {
         expect(contrast(fg, bg), `${scheme} ${fg} on ${bg}`).toBeGreaterThanOrEqual(4.74);
       }
     }
+  });
+});
+
+describe('motion tokens (DESIGN.md 動效)', () => {
+  it('springs never bounce past 0.15 and blocking motion stays within moderate', () => {
+    for (const s of Object.values(spring)) expect(s.bounce).toBeLessThanOrEqual(0.15);
+    expect(duration.instant).toBeLessThan(duration.fast);
+    expect(duration.fast).toBeLessThan(duration.base);
+    expect(duration.base).toBeLessThan(duration.moderate);
+    expect(duration.moderate).toBe(240);
   });
 });

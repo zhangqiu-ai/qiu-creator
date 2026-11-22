@@ -6534,3 +6534,489 @@ kbd {
   overflow-wrap: anywhere;
   text-align: justify;
 }
+
+/* ---- 項目 (QC-062) ---- */
+.ctx-menu__box {
+  position: relative;
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid var(--qc-ink3);
+  border-radius: 3px;
+}
+.ctx-menu__box--true,
+.ctx-menu__box--mixed {
+  border-color: var(--qc-accent);
+  background: var(--qc-accent);
+}
+.ctx-menu__box--true::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0;
+  width: 4px;
+  height: 7px;
+  border: solid #fff;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+.ctx-menu__box--mixed::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 4.5px;
+  height: 1.5px;
+  background: #fff;
+}
+.ctx-menu__swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+/* Sidebar: 未分類 and the 項目 section */
+.sb__library,
+.sb-proj,
+.sb-proj__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.sb-proj__head {
+  display: flex;
+  align-items: center;
+  height: 26px;
+  margin-top: 4px;
+  padding: 0 4px 0 6px;
+}
+.sb-proj__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--qc-ink3);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.sb-proj__toggle:hover {
+  color: var(--qc-ink);
+}
+.sb-proj__toggle--archived {
+  margin: 4px 0 0 6px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.sb-proj__add {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--qc-ink3);
+  cursor: pointer;
+}
+.sb-proj__add:hover {
+  background: var(--qc-bg);
+  color: var(--qc-ink);
+}
+.sb-proj__row {
+  padding-left: 14px;
+}
+.sb-proj__chip {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin: 0 3px;
+  border-radius: 3px;
+}
+.sb-proj__row--archived {
+  color: var(--qc-ink3);
+}
+.sb-proj__row--archived .sb-proj__chip {
+  opacity: 0.55;
+}
+.sb-proj__row--menu {
+  box-shadow: 0 0 0 1.5px var(--qc-accent) inset;
+}
+.sb-proj__row--drop {
+  background: color-mix(in srgb, var(--qc-accent) 14%, transparent);
+  color: var(--qc-ink);
+  box-shadow: 0 0 0 1.5px var(--qc-accent) inset;
+}
+.sb-proj__row--edit {
+  cursor: default;
+}
+.sb-proj__row--edit:hover {
+  background: transparent;
+}
+.sb-proj__new {
+  color: var(--qc-ink3);
+}
+.sb--rail .sb-proj__head,
+.sb--rail .sb-proj__new {
+  display: none;
+}
+.sb--rail .sb-proj__row {
+  justify-content: center;
+  padding: 0;
+  width: 40px;
+}
+.sb--rail .sb__library,
+.sb--rail .sb-proj,
+.sb--rail .sb-proj__list {
+  align-items: center;
+}
+
+/* Cards and rows: the work's other projects */
+.wcard__dots {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+}
+.wcard__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.wcard__more {
+  font-size: 10.5px;
+  color: var(--qc-ink3);
+}
+.tbl__title .wcard__dots {
+  margin-left: 6px;
+}
+.wcard__from {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.drag-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 220px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  background: var(--qc-ink);
+  color: var(--qc-surface);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: var(--qc-shadow-dialog);
+  cursor: grabbing;
+  /* 拖放：拿起 — the floating copy lifts to 1.02 (DESIGN.md 動效). */
+  transform: scale(1.02);
+  animation: qc-lift var(--qc-dur-fast) var(--qc-ease-out);
+}
+@keyframes qc-lift {
+  from {
+    transform: scale(1);
+  }
+}
+.drag-ghost--project {
+  background: var(--qc-surface);
+  color: var(--qc-ink);
+}
+/* The work or row left behind while its copy is dragged. */
+.wcard.is-dragging,
+.tbl__open.is-dragging,
+.sb-proj__row--dragging {
+  opacity: 0.4;
+}
+.sb-proj__row {
+  touch-action: none;
+  transition:
+    background-color var(--qc-dur-fast) var(--qc-ease-out),
+    box-shadow var(--qc-dur-fast) var(--qc-ease-out);
+}
+/* A row picked up with Space (keyboard reorder): lifted like the drag copy. */
+.sb-proj__row--lifted {
+  background: var(--qc-surface);
+  color: var(--qc-ink);
+  box-shadow:
+    0 0 0 1.5px var(--qc-accent) inset,
+    var(--qc-shadow-dialog);
+  transform: scale(1.02);
+  transition: transform var(--qc-dur-fast) var(--qc-ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sb-proj__row--lifted {
+    transform: none;
+  }
+}
+/* The insertion line while a project row is dragged over another. */
+.sb-proj__row--insert-before::before,
+.sb-proj__row--insert-after::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 6px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--qc-accent);
+  pointer-events: none;
+}
+.sb-proj__row--insert-before::before {
+  top: -2px;
+}
+.sb-proj__row--insert-after::after {
+  bottom: -2px;
+}
+@keyframes qc-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ptags__pop {
+    animation-name: qc-fade-in;
+    animation-duration: var(--qc-dur-fast);
+  }
+  .drag-ghost {
+    transform: none;
+    animation: none;
+  }
+}
+@keyframes qc-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+/* Test mode (DESIGN.md 動效 · 測試模式): e2e runs with nothing animating. */
+:root[data-motion='off'] *,
+:root[data-motion='off'] *::before,
+:root[data-motion='off'] *::after {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* A project's 作品庫 header and overview */
+.proj-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.proj-title__chip {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+}
+.proj-title__chip--big {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+.proj-title__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.proj-overview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin: 12px 28px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-radius-card);
+  background: var(--qc-surface);
+  font-size: 12.5px;
+  color: var(--qc-ink2);
+}
+.proj-overview__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.proj-overview__item:first-child {
+  font-weight: 600;
+  color: var(--qc-ink);
+}
+.proj-overview__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--qc-ink3);
+}
+.proj-overview__dot--ok {
+  background: var(--qc-ok);
+}
+.proj-overview__dot--warn {
+  background: var(--qc-warn);
+}
+.proj-overview__dot--accent {
+  background: var(--qc-accent);
+}
+.proj-overview__assets {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--qc-accent);
+  font: inherit;
+  cursor: pointer;
+}
+.proj-overview__assets:hover {
+  background: var(--qc-bg);
+}
+.proj-colors {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.proj-colors__swatch {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.proj-colors__swatch[aria-checked='true'] {
+  box-shadow:
+    0 0 0 2px var(--qc-surface),
+    0 0 0 4px var(--qc-accent);
+}
+
+/* 素材庫 filtered to one project */
+.proj-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 28px 0;
+}
+.proj-filter__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 4px;
+}
+.proj-filter__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.proj-filter__clear {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.proj-filter__clear:hover {
+  background: var(--qc-bg);
+}
+
+/* Editor: 所屬項目 */
+.ptags {
+  position: relative;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ptags__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 4px 0 8px;
+  border: 1px solid var(--qc-line);
+  border-radius: 12px;
+  background: var(--qc-surface);
+  font-size: 12px;
+  color: var(--qc-ink);
+}
+.ptags__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.ptags__x {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--qc-ink3);
+  cursor: pointer;
+}
+.ptags__x:hover {
+  background: var(--qc-bg);
+  color: var(--qc-ink);
+}
+.ptags__pop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  right: 0;
+  width: 240px;
+  padding: 6px;
+  /* Grows from the 項目 button at its top right (DESIGN.md 動效 · 選單、彈出層). */
+  transform-origin: top right;
+  animation: qc-pop-in var(--qc-dur-base) var(--qc-ease-out);
+  border: 1px solid var(--qc-line);
+  border-radius: 10px;
+  background: var(--qc-surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 14%);
+}
+.ptags__search {
+  width: 100%;
+}
+.ptags__list {
+  max-height: 240px;
+  margin: 6px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.ptags__opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ptags__opt--active {
+  background: var(--qc-bg);
+}
+.ptags__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ptags__empty {
+  padding: 6px 8px;
+  font-size: 12.5px;
+}

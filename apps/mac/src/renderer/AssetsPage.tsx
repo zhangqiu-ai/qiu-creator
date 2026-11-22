@@ -6,6 +6,7 @@ import type {
   AssetReferences,
   AssetWorkItem,
   Mount,
+  Project,
   WorkAssetRole,
 } from '@qiu-creator/contracts';
 import {
@@ -38,6 +39,7 @@ import {
 } from './asset-session.js';
 import { formatStamp } from './backups.js';
 import { Dialog } from './Dialog.js';
+import { projectColor } from './projects-store.js';
 import { TagEditor } from './TagEditor.js';
 import { assetMediaUrl, thumbnailUrl } from '../shared/bridge.js';
 import { Chip } from './Chip.js';
@@ -162,8 +164,15 @@ export function AssetsPage({
   onOpenWork,
   onOpenImports,
   onOpenSettings,
+  project = null,
+  onClearProject,
+  onBackToProject,
 }: {
   client: CreatorHubClient;
+  /** Only the assets this project's works use (用到的素材, QC-062). */
+  project?: Project | null;
+  onClearProject?: () => void;
+  onBackToProject?: (projectId: string) => void;
   home: string | null;
   userHome: string | null;
   onOpenWork: (workId: string) => void;
@@ -201,6 +210,7 @@ export function AssetsPage({
         kind: kind === 'all' || scope === 'trash' ? undefined : kind,
         q: q === '' ? undefined : q,
         limit: Math.min(limit.current, 200),
+        ...(project === null || scope === 'trash' ? {} : { project_id: project.id }),
       })
       .then((res) => {
         if (id !== request.current) return;
@@ -219,7 +229,7 @@ export function AssetsPage({
         })
         .catch(() => undefined);
     }
-  }, [client, kind, appliedQuery, scope]);
+  }, [client, kind, appliedQuery, scope, project]);
 
   useEffect(() => {
     limit.current = PAGE_SIZE;
@@ -470,6 +480,36 @@ export function AssetsPage({
             </>
           )}
         </header>
+
+        {project !== null && scope !== 'trash' && (
+          <div className="proj-filter" role="status">
+            <span className="fchip proj-filter__chip" aria-pressed="true">
+              <span
+                className="proj-filter__dot"
+                style={{ background: projectColor(project.color) }}
+              />
+              {t('projects.usedIn', { name: project.name })}
+              <button
+                type="button"
+                className="proj-filter__clear"
+                aria-label={t('projects.clearFilter')}
+                onClick={onClearProject}
+              >
+                <Icon name="close" size={12} />
+              </button>
+            </span>
+            <button
+              type="button"
+              className="btn btn--ghost btn--small"
+              onClick={() => {
+                onBackToProject?.(project.id);
+              }}
+            >
+              <Icon name="back" size={14} />
+              {t('projects.backTo', { name: project.name })}
+            </button>
+          </div>
+        )}
 
         {queuedNote !== null && (
           <div className="notice" role="status">

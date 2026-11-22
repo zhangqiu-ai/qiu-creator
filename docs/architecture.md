@@ -347,6 +347,30 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
   - `work.projects_changed`（`data.added`、`data.removed`）。
 - **權限**：讀取需要 `read`；新建、修改、排序、刪除、復原、批量都需要 `write`。刪除可以復原，也不會刪作品。
 
+### Mac 介面（QC-062 前端）
+
+- **共用狀態**：`renderer/projects-store.ts` 的 `ProjectsStore`。每個連線一份，收到 SSE 的 `project` 或 `work` 事件時重新讀取。側欄、作品庫、素材庫篩選和編輯器（經 `ProjectsContext`）都用這一份。
+  - 讀取時一併取「全部」和「未分類」的總數，未分類用 `works.list({ unassigned: '1', limit: 1 })` 的 `total`。
+  - 改名、改色、封存遇到 409 時重新讀取，不套用修改。
+  - 排序先在畫面上更新，再以服務的回應為準。
+- **只加不搬**：拖放、右鍵和批量工具列只會加入或移出項目，不會把作品搬到別的項目。
+  - 加入只送原本不在項目裡的作品；「復原」也只撤回這些（`project-actions.ts`）。
+  - 項目 ▸ 的勾選框分三態，有作品在、有作品不在時顯示半選：全勾時按一下會全部移出，否則把不在的補進去。
+- **作品庫範圍**：App 狀態 `LibraryScope` 有三種：全部、未分類、單一項目。它和路由分開，回到作品庫時保留。
+  - 在項目內新建的作品會帶上 `project_ids: [該項目]`。
+  - 項目被刪除或封存後，畫面回到「全部」。
+- **拖放**：用 dnd-kit（`renderer/projects-dnd.tsx`）。App 層的 `DndContext` 同時包住側欄和頁面。
+  - 作品卡片和列表列可以拖到側欄的項目上，結果只有加入。
+  - 項目列可以拖曳排序（`useSortable`），已封存的項目維持在後面。
+  - 放下後要做什麼由純函式 `dropAction` 決定。未分類和已封存的項目都不接受放置。
+  - 鍵盤排序（空白鍵、↑↓、空白鍵、Esc）由 `SidebarProjects.tsx` 自己處理，不用 dnd-kit 的 KeyboardSensor：拿起時只在畫面上預覽順序，放下時才送出一次排序。
+- **動效模式**（`renderer/motion-mode.ts`）：`full`、`reduced`（`prefers-reduced-motion`）、`off`。
+  - `off` 由主程序決定：e2e（`CREATORHUB_E2E_BACKGROUND=1`）或 `CREATORHUB_MOTION=off`，經 `creatorhub.motionMode()` 告訴 renderer。
+  - renderer 在第一次渲染前設 `<html data-motion="off">`，CSS 就把所有 transition 與 animation 關掉。
+  - 動效的數值來自 `packages/design-tokens` 的 `duration`、`easing`、`spring`、`motionScale`，以及 CSS 變數 `--qc-dur-*`、`--qc-ease-*`。
+  - QC-065 會在這裡加上 `lite` 模式和 `motion` 的 `MotionConfig`。
+- **卡片圓點**：只顯示作品「其他」的未封存項目，最多 2 個，其餘以 +N 表示（`cardDots`）。
+
 ## 作品庫卡片圖與摘要（QC-061）
 
 實作在 `src/works/card-images.ts`。卡片只載入一張圖片，列表裡不開 `<video>`。
