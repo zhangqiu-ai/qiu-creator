@@ -26,6 +26,7 @@ import {
   translation$,
   type RealmPlugin,
 } from '@mdxeditor/editor';
+import { rawSyntaxPlugin } from './raw-nodes.js';
 import { SOURCE_LOCALE, translate, type Locale } from '@qiu-creator/i18n';
 
 /** Code-block languages the editor offers; 純文字 is the only interface text (QC-042). */
@@ -99,6 +100,11 @@ export interface EditorPluginOptions {
    * Display only: the Markdown keeps the original `src`.
    */
   resolveImage?: (src: string) => Promise<string>;
+  /**
+   * The original text behind each `<qc-raw n="…" />` placeholder (see raw.ts),
+   * read when a document is imported. Omit for documents with no raw syntax.
+   */
+  rawOriginals?: { current: readonly string[] };
 }
 
 /**
@@ -122,6 +128,10 @@ export function createEditorPlugins(options: EditorPluginOptions = {}): RealmPlu
     codeBlockPlugin({ defaultCodeBlockLanguage: '' }),
     codeMirrorPlugin({ codeBlockLanguages: codeBlockLanguages(options.locale) }),
     markdownShortcutPlugin(),
+    rawSyntaxPlugin({
+      originals: options.rawOriginals ?? { current: [] },
+      ...(options.resolveImage === undefined ? {} : { resolveImage: options.resolveImage }),
+    }),
   ];
   if (options.toolbar !== false) {
     plugins.push(toolbarPlugin({ toolbarContents: () => <Toolbar /> }));

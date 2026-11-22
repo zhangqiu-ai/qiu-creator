@@ -249,7 +249,7 @@ function SessionEditor({
   /** Bumped when the draft is replaced from outside the editor, to remount it. */
   const [editorKey, setEditorKey] = useState(0);
   const [mode, setMode] = useState<EditorMode>('visual');
-  // Only `source` is forced back: forcing visual could skip the lossy-syntax check.
+  // Only `source` is forced back: visual is the default, and a document it cannot take stays in source.
   const forcedMode = useRef<EditorMode | undefined>(
     initialView?.mode === 'source' ? 'source' : undefined,
   );
@@ -1045,6 +1045,9 @@ function SessionEditor({
               resolveImage={resolveImage}
               showModeSwitch={false}
               onModeChange={setMode}
+              onVisualUnavailable={() => {
+                setNotice(t('editor.visualUnavailable'));
+              }}
               onChange={(markdown) => {
                 session.edit({ markdown });
               }}

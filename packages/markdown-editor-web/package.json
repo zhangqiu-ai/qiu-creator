@@ -17,8 +17,11 @@
     "react-dom": "^19.0.0"
   },
   "dependencies": {
+    "@lexical/react": "^0.48.0",
+    "@lexical/utils": "^0.48.0",
     "@mdxeditor/editor": "^4.5.0",
     "@qiu-creator/i18n": "workspace:*",
+    "lexical": "^0.48.0",
     "mdast-util-from-markdown": "^2.1.0",
     "mdast-util-frontmatter": "^2.0.1",
     "mdast-util-gfm": "^3.1.0",
