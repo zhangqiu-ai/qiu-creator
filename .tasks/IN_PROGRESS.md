@@ -1,12 +1,3 @@
-## QC-066: 根目錄 lint 在 e2e 有 30 個錯誤
-
-**Priority:** P1 | **Assignee:** qc-test | **Tags:** M3
-
-2026-11-21 總監在 main（3c4c95e 之後）跑 `pnpm exec eslint e2e`：30 個 `no-unsafe-*` 錯誤，集中在 `e2e/specs/ai-workbench.spec.ts`、`library-actions.spec.ts`、`settings-v4.spec.ts`（`page.evaluate` 內 DOM 型別「cannot be resolved」）。前端回報「main 上原有」，代表有合併帶進了未通過 lint 的 e2e，閘門被漏掉。
-- 查清是哪幾次合併帶入、為何子會話回報 lint 通過（是否只跑 `pnpm -r lint` 而沒跑根目錄 eslint 涵蓋 e2e）。
-- 修正型別（e2e tsconfig 的 DOM lib、或在 evaluate 內正確標註），不准 eslint-disable、不放寬規則。
-- 把「根目錄 `eslint .`（含 e2e）」寫進共用規則的交付閘門。
-
 ## QC-065: 全面引入動效設計（Motion／Framer Motion、dnd-kit）
 
 **Priority:** P1 | **Assignee:** qc-frontend（主）＋ qc-prototype（動效規格） | **Tags:** M3, frontend, prototype

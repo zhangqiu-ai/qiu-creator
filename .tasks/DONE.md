@@ -1,5 +1,11 @@
 # Done
 
+## QC-066: 根目錄 lint 在 e2e 有 30 個錯誤
+
+**Priority:** P1 | **Assignee:** qc-test | **Tags:** M3 | **Done:** 2026-11-21
+
+- 修正三個 spec 中 `page.evaluate` 的 DOM 型別，根目錄 `eslint .` 由 30 錯誤降到 0，無 eslint-disable、未放寬規則。AGENTS.md 與共用規則的交付閘門改為根目錄 `pnpm lint`（涵蓋 e2e），`pnpm -r lint` 不能代替。
+
 ## QC-062: 作品庫加「項目」分類
 
 **Priority:** P1 | **Assignee:** qc-prototype → qc-backend ＋ qc-frontend | **Tags:** M3, prototype, backend, frontend | **Done:** 2026-11-21
