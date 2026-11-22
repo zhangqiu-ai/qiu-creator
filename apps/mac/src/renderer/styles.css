@@ -664,8 +664,9 @@ kbd {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
-  gap: 16px;
+  /* Compact cards (QC-052): six to a row in a 1440-wide window. */
+  grid-template-columns: repeat(auto-fill, minmax(min(164px, 100%), 1fr));
+  gap: 12px;
 }
 .wcard {
   display: flex;
@@ -697,7 +698,7 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: center;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 10;
   width: 100%;
   border-radius: 0;
   background: var(--qc-sunken);
@@ -706,25 +707,36 @@ kbd {
 .wcard__body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
+  gap: 6px;
+  padding: 8px 10px 10px;
 }
 .wcard__title {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  min-height: 39px;
-  font-size: 14px;
+  min-height: 36px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 .wcard__meta {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  min-width: 0;
+  font-size: 11.5px;
   color: var(--qc-ink3);
+  white-space: nowrap;
+}
+.wcard__type {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wcard__ext {
+  display: inline-flex;
+  flex: none;
 }
 .wcard__when {
   margin-left: auto;
@@ -5363,4 +5375,156 @@ kbd {
   border-radius: 8px;
   background: var(--qc-sunken);
   font-weight: 500;
+}
+
+/* ---- 作品庫：選取、右鍵選單、原地改名、批量列 (QC-052) ---- */
+.wcard,
+.tbl__open {
+  user-select: none;
+}
+.wcard {
+  position: relative;
+}
+.wcard--selected {
+  border-color: var(--qc-accent);
+  box-shadow: 0 0 0 1px var(--qc-accent);
+}
+.wcard--selected:hover {
+  border-color: var(--qc-accent);
+  box-shadow:
+    0 0 0 1px var(--qc-accent),
+    var(--qc-shadow-card);
+}
+.wcard--selected .wcard__body {
+  background: var(--qc-accent-soft);
+}
+.wcard--menu:not(.wcard--selected) {
+  border-color: var(--qc-accent);
+}
+.wcard__check {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--qc-accent);
+  color: #fff;
+}
+.wcard--renaming {
+  cursor: default;
+  border-color: var(--qc-accent);
+}
+.tbl__row--selected td {
+  background: var(--qc-accent-soft);
+}
+.tbl__row--menu:not(.tbl__row--selected) td {
+  box-shadow:
+    inset 0 1px 0 var(--qc-accent),
+    inset 0 -1px 0 var(--qc-accent);
+}
+.tbl__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tbl__open--renaming {
+  cursor: default;
+}
+
+.rename {
+  min-width: 0;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--qc-accent);
+  border-radius: 6px;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--qc-accent-soft);
+  background: var(--qc-surface);
+  color: var(--qc-ink);
+  font: inherit;
+  user-select: text;
+}
+.rename--card {
+  width: 100%;
+  /* Same height as the two-line title it replaces, so the card does not jump. */
+  height: 28px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.rename--row {
+  width: 280px;
+  font-weight: 500;
+}
+.rename--tab {
+  flex: 1;
+  height: 22px;
+  font-size: 12.5px;
+}
+.tab--menu:not(.tab--active) {
+  background: var(--qc-accent-soft);
+}
+
+.ctx-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 200px;
+}
+.ctx-menu__item {
+  gap: 6px;
+  padding: 0 10px 0 6px;
+}
+.ctx-menu__item[aria-expanded='true'] {
+  background: var(--qc-accent-soft);
+}
+.ctx-menu__item[data-disabled] {
+  color: var(--qc-ink3);
+  cursor: default;
+}
+.ctx-menu__item[data-disabled]:hover {
+  background: transparent;
+}
+.ctx-menu__item--danger {
+  color: var(--qc-bad);
+}
+.ctx-menu__check {
+  display: inline-flex;
+  width: 16px;
+  flex: none;
+  color: var(--qc-accent);
+}
+.ctx-menu__label {
+  flex: 1;
+}
+
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 28px 12px;
+  padding: 6px 8px 6px 14px;
+  border: 1px solid var(--qc-accent);
+  border-radius: var(--qc-radius-card);
+  background: var(--qc-accent-soft);
+}
+.batch-bar__count {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.batch-bar__hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--qc-ink3);
+}
+.batch-bar__clear kbd {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--qc-ink3);
 }

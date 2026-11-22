@@ -13,6 +13,7 @@ import { settings } from './settings.js';
 import { shell } from './shell.js';
 import { tabs } from './tabs.js';
 import { videoWork } from './videoWork.js';
+import { workActions } from './workActions.js';
 
 /**
  * All messages by area. Each area is its own file so pages can be translated
@@ -33,6 +34,7 @@ export const catalog = {
   tabs,
   imagePost,
   videoWork,
+  workActions,
 } as const;
 
 type Areas = typeof catalog;

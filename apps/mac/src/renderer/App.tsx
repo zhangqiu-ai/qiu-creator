@@ -17,6 +17,7 @@ import { Sidebar, type NavPage } from './Sidebar.js';
 import { serviceSummary } from './sidebar-prefs.js';
 import { t, useLocale } from './i18n.js';
 import { TabsModel } from './tabs.js';
+import type { EditorHandles } from './work-actions.js';
 import { ToastHost } from './toasts.js';
 
 type Connection = { state: 'connecting' } | ConnectResult;
@@ -241,6 +242,8 @@ export function App() {
     setFocusToken((n) => n + 1);
     setRoute({ page: 'editor' });
   }, []);
+  // Editors mounted in tabs, so 作品庫 renames an open work through its editor (QC-052).
+  const [editorHandles] = useState<EditorHandles>(() => new Map());
   const openTab = useCallback(
     (work: WorkDetail) => {
       if (tabs.find(work.id) === null) preloaded.set(work.id, work);
@@ -308,6 +311,13 @@ export function App() {
           userHome={userHome}
           onOpen={openWork}
           onCreated={openTab}
+          handles={editorHandles}
+          onOpenInBackground={(work) => {
+            tabs.openInBackground({ id: work.id, kind: work.type, title: work.title });
+          }}
+          onRenamed={(id, title) => {
+            if (tabs.find(id) !== null) tabs.update(id, { title });
+          }}
         />
       ) : route.page === 'editor' ? null : route.page === 'assets' ? (
         <AssetsPage
@@ -382,6 +392,7 @@ export function App() {
       {client !== null && (
         <EditorTabs
           model={tabs}
+          handles={editorHandles}
           client={client}
           userHome={userHome}
           visible={route.page === 'editor'}

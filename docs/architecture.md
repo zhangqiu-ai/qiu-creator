@@ -699,6 +699,35 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
   - 原生選單「檔案 → 關閉分頁」、「視窗 → 顯示上一個／下一個分頁、前往分頁」有同樣的快捷鍵，點選後經 IPC `tabCommand` 交給 renderer。
   - 「關閉視窗」改為 ⌘⇧W。沒有分頁在前景時，⌘W 照舊關閉視窗。
 
+## 作品庫：改名、右鍵選單、多選（QC-052 前端）
+
+- **原地改名**：`RenameField` 用在卡片標題、列表列的標題和分頁標籤上。
+  - ↩ 或失焦就儲存，esc 取消。名稱留空或沒改時，不送出請求。
+  - 輸入法組字中按 ↩（`isComposing`、`Process` 或組字事件之間）只會選字，不會提交。
+  - 卡片標題的單擊會等 260 ms，讓雙擊有機會進入改名。點封面等其他位置照舊立刻開啟。
+- **改名和改狀態走哪條路**：都經過 `work-actions.ts` 的 `changeWork`。
+  - 作品已在分頁開著時，透過該編輯器 `EditorTabHandle.change`（`tab-handle.ts` 的 `sessionHandle`）進 `WorkSession` 的儲存佇列，不會另開一個寫入者和編輯器搶修訂。
+  - 其他作品用列表上的 `current_revision_id` 當 `base_revision` 去 `PATCH /works/:id`。作品在別處改過時會回 409，什麼都不寫，提示後重新載入。
+  - 編輯器的 handle 表（`EditorHandles`）由 `App` 建立，分頁區和作品庫共用。
+- **右鍵選單**：`ContextMenu` 由 App 自己畫，不用 Electron 原生 `Menu`。理由：
+  - 文案能跟著介面語言即時切換。
+  - 樣式和其他浮層（`.pop`）一致。
+  - e2e 能直接操作。
+  - 鍵盤支援 ↑↓、→ 開子選單、← 收回、↩ 選取，esc 或點外面關閉並把焦點還回原處。
+  - 子選單切換延遲 280 ms，參考 `qiuge-design/cases/kubai-999-002-menu-safe-triangle`。
+  - 視窗邊緣放不下時，選單會翻到另一側。
+- **選單內容**：
+  - 作品：開啟、在新分頁開啟（`TabsModel.openInBackground`，不載入、不切頁）、重新命名、改狀態子選單。
+  - 外部掛載的作品另有「複製路徑」和「在 Finder 顯示」。後者用 `RevealTarget { kind: 'work' }`，由主程序查掛載根目錄加 `external_path`。託管作品沒有可顯示的檔案。
+  - 分頁：重新命名、關閉分頁、關閉其他分頁。
+- **多選**：規則都在 `library-select.ts`，是純函式。
+  - ⌘ 點選加選或取消，⇧ 點選從錨點選到該處，⌘A 全選目前顯示的作品，esc 取消選取。
+  - 右鍵點在已選取的作品上時，作用於全部選取；點在其他作品上時只作用於該作品，不改變選取。
+  - 有選取時，頂部出現批量列。
+- **改狀態**：完成後提示帶「復原」，按下後每個作品各自回到原來的狀態。
+- **卡片尺寸**：最小寬度 164 px，封面 16:10。一張卡片只顯示標題（兩行）、狀態、類型和時間，來源移到 tooltip。在 1440 寬的視窗一列放 6 張。
+- **待 QC-051**：刪除、最近刪除、批量標籤、批量端點。
+
 ## AI 工作台與設定頁 AI 服務（QC-025）
 
 前端在 `apps/mac/src/renderer`：設定邏輯在 `ai-settings.ts`，畫面在 `AiSettingsSection.tsx`；工作台邏輯在 `ai-video.ts`，畫面在 `AiWorkbenchPage.tsx`。邏輯都不依賴 React，可以直接對真實 mac-server 測試。

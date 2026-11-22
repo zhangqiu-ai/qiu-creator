@@ -1,7 +1,33 @@
 import type { CreatorHubClient } from '@qiu-creator/api-client';
-import type { Work, WorkDetail, WorkListItem, WorkStatus, WorkType } from '@qiu-creator/contracts';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type {
+  Mount,
+  Work,
+  WorkDetail,
+  WorkListItem,
+  WorkStatus,
+  WorkType,
+} from '@qiu-creator/contracts';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
 import { Chip } from './Chip.js';
+import { anchorOf, ContextMenu, type MenuAnchor, type MenuEntry } from './ContextMenu.js';
+import {
+  clickSelect,
+  contextTargets,
+  EMPTY_SELECTION,
+  keepShown,
+  selectAll,
+  type Selection,
+} from './library-select.js';
+import { RenameField } from './RenameField.js';
+import { useToast, type ToastAction } from './toasts.js';
+import { changeWork, type EditorHandles } from './work-actions.js';
 import { useRefreshOn } from './events.js';
 import { assetMediaUrl, thumbnailUrl } from '../shared/bridge.js';
 import { formatDuration, formatWhen, sourceLabel, WORK_STATUS, WORK_TYPE } from './format.js';
@@ -53,7 +79,22 @@ export interface LibraryPageProps {
   userHome: string | null;
   onOpen: (id: string) => void;
   onCreated: (work: WorkDetail) => void;
+  /** 在新分頁開啟: add a tab without leaving 作品庫 (QC-052). */
+  onOpenInBackground: (work: Pick<Work, 'id' | 'type' | 'title'>) => void;
+  /** Editors open in tabs: renaming or re-statusing an open work goes through its editor. */
+  handles: EditorHandles;
+  /** A work was renamed here, so its tab (if any) shows the new title. */
+  onRenamed: (id: string, title: string) => void;
 }
+
+/** A click on a card title waits this long for a second click (rename) before opening. */
+const OPEN_DELAY_MS = 260;
+
+const STATUS_ORDER: readonly WorkStatus[] = ['drafting', 'in_review', 'ready', 'published'];
+
+type Notice =
+  | { kind: 'text'; message: string; tone: 'ok' | 'bad' | 'neutral' }
+  | { kind: 'status'; message: string; undo: () => void };
 
 /** True when an external work's file is gone or its folder unmounted (PT-20261117-001). */
 export function isMissing(work: Pick<Work, 'external_state'>): boolean {
@@ -65,7 +106,15 @@ export function isMissing(work: Pick<Work, 'external_state'>): boolean {
  * list. Refreshes live from SSE work events; external works show their mount
  * and a 檔案遺失 chip when the file is gone (PT-20261117-001).
  */
-export function LibraryPage({ client, userHome, onOpen, onCreated }: LibraryPageProps) {
+export function LibraryPage({
+  client,
+  userHome,
+  onOpen,
+  onCreated,
+  onOpenInBackground,
+  handles,
+  onRenamed,
+}: LibraryPageProps) {
   const [works, setWorks] = useState<readonly WorkListItem[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState('');
@@ -185,6 +234,293 @@ export function LibraryPage({ client, userHome, onOpen, onCreated }: LibraryPage
     return c;
   }, [ofType]);
 
+  // ---- Selection, rename, right-click menu (QC-052) ----
+  const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ anchor: MenuAnchor; ids: readonly string[] } | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const order = useMemo(() => shown.map((w) => w.id), [shown]);
+  const latest = useRef({ order, works });
+  useEffect(() => {
+    latest.current = { order, works };
+    setSelection((sel) => keepShown(sel, order));
+  }, [order, works]);
+
+  useEffect(() => {
+    if (notice === null) return;
+    const timer = setTimeout(
+      () => {
+        setNotice(null);
+      },
+      notice.kind === 'status' ? 8000 : 5000,
+    );
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [notice]);
+  const undoAction: ToastAction[] =
+    notice?.kind === 'status'
+      ? [{ label: t('workActions.undo'), onClick: notice.undo, shortcut: undefined }]
+      : [];
+  useToast(
+    notice === null
+      ? null
+      : {
+          message: notice.message,
+          tone: notice.kind === 'status' ? 'ok' : notice.tone,
+          actions: undoAction,
+          onClose: () => {
+            setNotice(null);
+          },
+        },
+  );
+
+  const patchLocal = useCallback((id: string, change: Partial<WorkListItem>) => {
+    setWorks((ws) => ws?.map((w) => (w.id === id ? { ...w, ...change } : w)) ?? ws);
+  }, []);
+  const focusWork = (id: string) => {
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(`[data-work-id="${id}"]`)?.focus();
+    });
+  };
+
+  const rename = (w: WorkListItem, title: string) => {
+    setRenaming(null);
+    focusWork(w.id);
+    patchLocal(w.id, { title });
+    onRenamed(w.id, title);
+    void changeWork(client, w, { title }, handles).then(({ outcome, work }) => {
+      if (work !== null) {
+        patchLocal(w.id, {
+          current_revision_id: work.current_revision_id,
+          updated_at: work.updated_at,
+        });
+      }
+      if (outcome === 'saved' || outcome === 'pending') return;
+      patchLocal(w.id, { title: w.title });
+      onRenamed(w.id, w.title);
+      setNotice({
+        kind: 'text',
+        tone: 'bad',
+        message: t(
+          outcome === 'conflict' ? 'workActions.renameConflict' : 'workActions.renameFailed',
+          {
+            title: w.title,
+          },
+        ),
+      });
+      load();
+    });
+  };
+
+  /** Change the status of one or more works; 復原 puts each back (QC-052). */
+  const changeStatus = async (
+    targets: readonly WorkListItem[],
+    status: WorkStatus,
+    undoing = false,
+  ) => {
+    const changing = targets.filter((w) => w.status !== status);
+    if (changing.length === 0) return;
+    for (const w of changing) patchLocal(w.id, { status });
+    const done: WorkListItem[] = [];
+    let failed: WorkListItem | null = null;
+    for (const w of changing) {
+      // The newest revision this page knows of (a rename or an undo may have moved it).
+      const current = latest.current.works?.find((x) => x.id === w.id) ?? w;
+      const { outcome, work } = await changeWork(client, current, { status }, handles);
+      if (outcome === 'saved' || outcome === 'pending') {
+        done.push(w);
+        if (work !== null) {
+          patchLocal(w.id, {
+            current_revision_id: work.current_revision_id,
+            updated_at: work.updated_at,
+          });
+        }
+      } else {
+        patchLocal(w.id, { status: w.status });
+        failed ??= w;
+      }
+    }
+    if (failed !== null) {
+      setNotice({
+        kind: 'text',
+        tone: 'bad',
+        message: t('workActions.statusFailed', { title: failed.title }),
+      });
+      load();
+      return;
+    }
+    if (undoing) {
+      setNotice({ kind: 'text', tone: 'ok', message: t('workActions.undone') });
+      return;
+    }
+    const first = done[0];
+    if (first === undefined) return;
+    const label = WORK_STATUS[status].label;
+    setNotice({
+      kind: 'status',
+      message:
+        done.length === 1
+          ? t('workActions.statusChanged', { title: first.title, status: label })
+          : t('workActions.statusChangedMany', { count: done.length, status: label }),
+      undo: () => {
+        setNotice(null);
+        void (async () => {
+          // Each work goes back to its own earlier status.
+          for (const previous of STATUS_ORDER) {
+            const back = done.filter((w) => w.status === previous);
+            if (back.length > 0)
+              await changeStatus(
+                back.map((w) => ({ ...w, status })),
+                previous,
+                true,
+              );
+          }
+        })();
+      },
+    });
+  };
+
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelOpen = () => {
+    if (openTimer.current !== null) clearTimeout(openTimer.current);
+    openTimer.current = null;
+  };
+  useEffect(() => cancelOpen, []);
+  /** ⌘/⇧ select; a plain click opens (on the title, after a moment, so a double-click can rename). */
+  const onItemClick = (e: ReactMouseEvent, w: WorkListItem, onTitle: boolean) => {
+    cancelOpen();
+    if (e.metaKey || e.shiftKey) {
+      e.preventDefault();
+      setSelection((sel) => clickSelect(sel, w.id, order, { meta: e.metaKey, shift: e.shiftKey }));
+      return;
+    }
+    // The second click of a double-click: the first one already decided.
+    if (e.detail > 1) return;
+    if (onTitle && e.detail === 1 && !isMissing(w)) {
+      openTimer.current = setTimeout(() => {
+        openTimer.current = null;
+        onOpen(w.id);
+      }, OPEN_DELAY_MS);
+      return;
+    }
+    onOpen(w.id);
+  };
+  const onTitleDoubleClick = (e: ReactMouseEvent, w: WorkListItem) => {
+    if (e.metaKey || e.shiftKey || isMissing(w)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    cancelOpen();
+    setRenaming(w.id);
+  };
+  const onItemMenu = (e: ReactMouseEvent<HTMLElement>, w: WorkListItem) => {
+    e.preventDefault();
+    cancelOpen();
+    setMenu({ anchor: anchorOf(e), ids: contextTargets(selection, w.id, order) });
+  };
+
+  // ⌘A selects every work shown, esc clears; never while typing or with a dialog open.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.isComposing || isEditable(e.target)) return;
+      if (document.querySelector('[aria-modal="true"], .ctx-menu') !== null) return;
+      if (e.metaKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        setSelection(selectAll(latest.current.order));
+      } else if (e.key === 'Escape' && !e.metaKey) {
+        setSelection((sel) => (sel.ids.size === 0 ? sel : EMPTY_SELECTION));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
+
+  const menuItems = (ids: readonly string[]): MenuEntry[] => {
+    const targets = shown.filter((w) => ids.includes(w.id));
+    const editable = targets.filter((w) => !isMissing(w));
+    const statusMenu: MenuEntry = {
+      kind: 'sub',
+      id: 'status',
+      label: t('workActions.changeStatus'),
+      disabled: editable.length === 0,
+      items: STATUS_ORDER.map((st) => ({
+        kind: 'item',
+        id: `status-${st}`,
+        label: WORK_STATUS[st].label,
+        checked: editable.length > 0 && editable.every((w) => w.status === st),
+        onSelect: () => {
+          void changeStatus(editable, st);
+        },
+      })),
+    };
+    const one = targets.length === 1 ? targets[0] : undefined;
+    if (one === undefined) return [statusMenu];
+    const file = externalFile(one, mounts);
+    return [
+      {
+        kind: 'item',
+        id: 'open',
+        label: t('workActions.open'),
+        onSelect: () => {
+          onOpen(one.id);
+        },
+      },
+      {
+        kind: 'item',
+        id: 'open-tab',
+        label: t('workActions.openInNewTab'),
+        onSelect: () => {
+          onOpenInBackground(one);
+          setNotice({
+            kind: 'text',
+            tone: 'ok',
+            message: t('workActions.openedInBackground', { title: one.title }),
+          });
+        },
+      },
+      { kind: 'sep', id: 'sep-1' },
+      {
+        kind: 'item',
+        id: 'rename',
+        label: t('workActions.rename'),
+        disabled: isMissing(one),
+        onSelect: () => {
+          setRenaming(one.id);
+        },
+      },
+      statusMenu,
+      ...(file === null
+        ? []
+        : ([
+            { kind: 'sep', id: 'sep-2' },
+            {
+              kind: 'item',
+              id: 'copy-path',
+              label: t('workActions.copyPath'),
+              onSelect: () => {
+                void window.creatorhub?.copyText(file).then(() => {
+                  setNotice({ kind: 'text', tone: 'ok', message: t('workActions.pathCopied') });
+                });
+              },
+            },
+            {
+              kind: 'item',
+              id: 'reveal',
+              label: t('common.revealInFinder'),
+              disabled: isMissing(one),
+              onSelect: () => {
+                void window.creatorhub?.reveal({ kind: 'work', id: one.id });
+              },
+            },
+          ] satisfies MenuEntry[])),
+    ];
+  };
+  const menuTargets = menu === null ? [] : shown.filter((w) => menu.ids.includes(w.id));
+  const selectedWorks = shown.filter((w) => selection.ids.has(w.id));
+  const [barMenu, setBarMenu] = useState<MenuAnchor | null>(null);
+
   const filtering = appliedQuery.trim() !== '' || type !== 'all' || status !== 'all';
   const clearFilters = () => {
     setQuery('');
@@ -270,6 +606,43 @@ export function LibraryPage({ client, userHome, onOpen, onCreated }: LibraryPage
         </div>
       </div>
 
+      {selectedWorks.length > 0 && (
+        <div
+          className="batch-bar"
+          role="toolbar"
+          aria-label={t('workActions.selected', { count: selectedWorks.length })}
+        >
+          <span className="batch-bar__count" aria-live="polite">
+            {t('workActions.selected', { count: selectedWorks.length })}
+          </span>
+          <button
+            type="button"
+            className="btn btn--small"
+            aria-haspopup="menu"
+            aria-expanded={barMenu !== null}
+            disabled={selectedWorks.every(isMissing)}
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              setBarMenu({ x: r.left, y: r.bottom + 4 });
+            }}
+          >
+            {t('workActions.changeStatus')}
+            <Icon name="chevronDown" size={14} />
+          </button>
+          <span className="batch-bar__hint">{t('workActions.selectHint')}</span>
+          <button
+            type="button"
+            className="btn btn--small btn--ghost batch-bar__clear"
+            onClick={() => {
+              setSelection(EMPTY_SELECTION);
+            }}
+          >
+            {t('workActions.clearSelection')}
+            <kbd>esc</kbd>
+          </button>
+        </div>
+      )}
+
       <section
         className="page__body"
         aria-label={t('library.works')}
@@ -318,38 +691,38 @@ export function LibraryPage({ client, userHome, onOpen, onCreated }: LibraryPage
             </button>
           </div>
         ) : view === 'grid' ? (
-          <ul className="card-grid">
+          <ul className="card-grid" aria-multiselectable="true">
             {shown.map((w) => (
               <li key={w.id}>
-                <button
-                  type="button"
-                  className={isMissing(w) ? 'wcard wcard--missing' : 'wcard'}
-                  onClick={() => {
-                    onOpen(w.id);
+                <WorkCard
+                  work={w}
+                  selected={selection.ids.has(w.id)}
+                  menuTarget={menu?.ids.includes(w.id) === true}
+                  renaming={renaming === w.id}
+                  source={externalSource(w, mounts, userHome)}
+                  onClick={(e, onTitle) => {
+                    onItemClick(e, w, onTitle);
                   }}
-                >
-                  <CardCover work={w} />
-                  <span className="wcard__body">
-                    <span className="wcard__title">{w.title}</span>
-                    <span className="wcard__meta">
-                      <Chip tone={WORK_STATUS[w.status].tone}>{WORK_STATUS[w.status].label}</Chip>
-                      <span>{WORK_TYPE[w.type].label}</span>
-                      {isMissing(w) && <MissingChip />}
-                    </span>
-                    <span className="wcard__meta wcard__meta--muted">
-                      <span title={externalSource(w, mounts, userHome)?.file ?? undefined}>
-                        {externalSource(w, mounts, userHome)?.label ?? sourceLabel(w)}
-                      </span>
-                      <span className="wcard__when">{formatWhen(w.updated_at)}</span>
-                    </span>
-                  </span>
-                </button>
+                  onTitleDoubleClick={(e) => {
+                    onTitleDoubleClick(e, w);
+                  }}
+                  onMenu={(e) => {
+                    onItemMenu(e, w);
+                  }}
+                  onRename={(title) => {
+                    rename(w, title);
+                  }}
+                  onRenameCancel={() => {
+                    setRenaming(null);
+                    focusWork(w.id);
+                  }}
+                />
               </li>
             ))}
           </ul>
         ) : (
           <div className="table-wrap">
-            <table className="tbl">
+            <table className="tbl" aria-multiselectable="true">
               <thead>
                 <tr>
                   <th scope="col">{t('library.colTitle')}</th>
@@ -364,26 +737,65 @@ export function LibraryPage({ client, userHome, onOpen, onCreated }: LibraryPage
               </thead>
               <tbody>
                 {shown.map((w) => (
-                  <tr key={w.id}>
+                  <tr
+                    key={w.id}
+                    className={[
+                      selection.ids.has(w.id) ? 'tbl__row--selected' : '',
+                      menu?.ids.includes(w.id) === true ? 'tbl__row--menu' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    aria-selected={selection.ids.has(w.id)}
+                    onContextMenu={(e) => {
+                      onItemMenu(e, w);
+                    }}
+                  >
                     <td>
                       <span className="tbl__title">
-                        <button
-                          type="button"
-                          className="tbl__open"
-                          onClick={() => {
-                            onOpen(w.id);
-                          }}
-                        >
-                          <span
-                            className={
-                              isMissing(w) ? 'tbl__thumb tbl__thumb--missing' : 'tbl__thumb'
-                            }
-                            aria-hidden="true"
-                          >
-                            <Icon name={WORK_TYPE[w.type].icon} size={14} />
+                        {renaming === w.id ? (
+                          <span className="tbl__open tbl__open--renaming">
+                            <RowThumb work={w} />
+                            <RenameField
+                              value={w.title}
+                              label={t('workActions.renameField', { title: w.title })}
+                              className="rename--row"
+                              onCommit={(title) => {
+                                rename(w, title);
+                              }}
+                              onCancel={() => {
+                                setRenaming(null);
+                                focusWork(w.id);
+                              }}
+                            />
                           </span>
-                          {w.title}
-                        </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="tbl__open"
+                            data-work-id={w.id}
+                            onClick={(e) => {
+                              onItemClick(e, w, false);
+                            }}
+                          >
+                            <RowThumb work={w} />
+                            <span
+                              className="tbl__name"
+                              title={isMissing(w) ? undefined : t('workActions.renameTip')}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onItemClick(e, w, true);
+                              }}
+                              onDoubleClick={(e) => {
+                                onTitleDoubleClick(e, w);
+                              }}
+                            >
+                              {w.title}
+                            </span>
+                            {selection.ids.has(w.id) && (
+                              <span className="visually-hidden">{t('workActions.isSelected')}</span>
+                            )}
+                          </button>
+                        )}
                         {w.storage_mode === 'external' && (
                           <span
                             className="src-ext src-ext--small"
@@ -412,7 +824,181 @@ export function LibraryPage({ client, userHome, onOpen, onCreated }: LibraryPage
           </div>
         )}
       </section>
+
+      {menu !== null && menuTargets.length > 0 && (
+        <ContextMenu
+          anchor={menu.anchor}
+          label={
+            menuTargets.length === 1
+              ? t('workActions.menuFor', { title: menuTargets[0]?.title ?? '' })
+              : t('workActions.menuForMany', { count: menuTargets.length })
+          }
+          items={menuItems(menu.ids)}
+          onClose={() => {
+            setMenu(null);
+          }}
+        />
+      )}
+      {barMenu !== null && selectedWorks.length > 0 && (
+        <ContextMenu
+          anchor={barMenu}
+          label={t('workActions.changeStatus')}
+          items={STATUS_ORDER.map((st) => ({
+            kind: 'item',
+            id: `bar-status-${st}`,
+            label: WORK_STATUS[st].label,
+            checked: selectedWorks.every((w) => w.status === st),
+            onSelect: () => {
+              void changeStatus(
+                selectedWorks.filter((w) => !isMissing(w)),
+                st,
+              );
+            },
+          }))}
+          onClose={() => {
+            setBarMenu(null);
+          }}
+        />
+      )}
     </main>
+  );
+}
+
+function isEditable(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
+}
+
+/** The full path of an external work's file, for 複製路徑; null for managed works. */
+function externalFile(
+  work: Pick<Work, 'storage_mode' | 'mount_id' | 'external_path'>,
+  mounts: ReadonlyMap<string, Mount>,
+): string | null {
+  if (work.storage_mode !== 'external' || work.mount_id == null || work.external_path == null)
+    return null;
+  const mount = mounts.get(work.mount_id);
+  if (mount === undefined) return null;
+  return `${mount.root_path.replace(/\/+$/, '')}/${work.external_path}`;
+}
+
+function RowThumb({ work }: { work: WorkListItem }) {
+  return (
+    <span
+      className={isMissing(work) ? 'tbl__thumb tbl__thumb--missing' : 'tbl__thumb'}
+      aria-hidden="true"
+    >
+      <Icon name={WORK_TYPE[work.type].icon} size={14} />
+    </span>
+  );
+}
+
+/**
+ * A compact card (QC-052: 5–6 to a row at 1440 wide): picture, title (two
+ * lines), status and when. The source moves to the tooltip.
+ */
+function WorkCard({
+  work,
+  selected,
+  menuTarget,
+  renaming,
+  source,
+  onClick,
+  onTitleDoubleClick,
+  onMenu,
+  onRename,
+  onRenameCancel,
+}: {
+  work: WorkListItem;
+  selected: boolean;
+  /** The right-click menu is open for it. */
+  menuTarget: boolean;
+  renaming: boolean;
+  source: ReturnType<typeof externalSource>;
+  onClick: (e: ReactMouseEvent, onTitle: boolean) => void;
+  onTitleDoubleClick: (e: ReactMouseEvent) => void;
+  onMenu: (e: ReactMouseEvent<HTMLElement>) => void;
+  onRename: (title: string) => void;
+  onRenameCancel: () => void;
+}) {
+  const className = [
+    'wcard',
+    isMissing(work) ? 'wcard--missing' : '',
+    selected ? 'wcard--selected' : '',
+    menuTarget ? 'wcard--menu' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const meta = (
+    <span className="wcard__meta">
+      <Chip tone={WORK_STATUS[work.status].tone}>{WORK_STATUS[work.status].label}</Chip>
+      {isMissing(work) ? (
+        <MissingChip />
+      ) : (
+        <span className="wcard__type">{WORK_TYPE[work.type].label}</span>
+      )}
+      {work.storage_mode === 'external' && (
+        <span className="wcard__ext" title={source?.label ?? undefined}>
+          <Icon name="folder" size={11} />
+        </span>
+      )}
+      <span className="wcard__when">{formatWhen(work.updated_at)}</span>
+    </span>
+  );
+  const tooltip = [work.title, source?.file ?? source?.label ?? sourceLabel(work)].join('\n');
+  if (renaming) {
+    return (
+      <div
+        className={`${className} wcard--renaming`}
+        onContextMenu={(e) => {
+          e.preventDefault();
+        }}
+      >
+        <CardCover work={work} />
+        <span className="wcard__body">
+          <RenameField
+            value={work.title}
+            label={t('workActions.renameField', { title: work.title })}
+            className="rename--card"
+            onCommit={onRename}
+            onCancel={onRenameCancel}
+          />
+          {meta}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className={className}
+      data-work-id={work.id}
+      title={tooltip}
+      onClick={(e) => {
+        onClick(e, false);
+      }}
+      onContextMenu={onMenu}
+    >
+      <CardCover work={work} />
+      <span className="wcard__body">
+        <span
+          className="wcard__title"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick(e, true);
+          }}
+          onDoubleClick={onTitleDoubleClick}
+        >
+          {work.title}
+        </span>
+        {meta}
+      </span>
+      {selected && <span className="visually-hidden">{t('workActions.isSelected')}</span>}
+      {selected && (
+        <span className="wcard__check" aria-hidden="true">
+          <Icon name="check" size={12} />
+        </span>
+      )}
+    </button>
   );
 }
 

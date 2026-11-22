@@ -26,7 +26,7 @@ import {
 import { thumbnailUrl } from '../shared/bridge.js';
 import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
-import type { EditorTabHandle } from './EditorPage.js';
+import { sessionHandle, type EditorTabHandle } from './tab-handle.js';
 import { imageFiles, InsertSession, type InsertState, type InsertWhere } from './editor-insert.js';
 import { useChangeEvents } from './events.js';
 import { SAVE_STATUS, WORK_STATUS } from './format.js';
@@ -106,18 +106,11 @@ export function ImagePostEditor(props: ImagePostEditorProps) {
     initialDraft.current = null;
     if (back !== null) s.edit(back);
     setSession(s);
-    onHandle?.({
-      flush: async () => {
-        await s.save();
-        return !s.hasUnsavedChanges() && s.snapshot.status !== 'conflict';
-      },
-      discard: () => {
+    onHandle?.(
+      sessionHandle(s, () => {
         discarded = true;
-        const draft = s.hasUnsavedChanges() ? s.snapshot.draft : null;
-        s.dispose();
-        return draft;
-      },
-    });
+      }),
+    );
     return () => {
       onHandle?.(null);
       if (!discarded) s.close();
