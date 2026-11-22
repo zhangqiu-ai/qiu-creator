@@ -49,11 +49,11 @@ export async function fetchModelList(req: ModelListRequest): Promise<string[]> {
     });
   }
   if (res.status === 402 || res.status === 429) {
-    // Quota or billing, told apart from plain rate limiting by the error body
-    // (OpenAI `insufficient_quota`, Gemini `RESOURCE_EXHAUSTED`…). Only a
-    // match is kept; the body itself goes nowhere.
-    const quota = res.status === 402 || (await bodyMentionsQuota(res));
-    throw unreachable(quota ? 'quota' : 'rate_limited', undefined, res.status);
+    // Quota (billing or credit used up) or a plain rate limit, from the error
+    // body (`classifyTooManyRequests`). Only the verdict is kept; the body
+    // itself goes nowhere.
+    const reason = res.status === 402 ? 'quota' : classifyTooManyRequests(await bodyText(res));
+    throw unreachable(reason, undefined, res.status);
   }
   if (res.status >= 500) {
     await discard(res);
@@ -120,15 +120,97 @@ export function fetchRelayModels(
   });
 }
 
-async function bodyMentionsQuota(res: Response): Promise<boolean> {
+async function bodyText(res: Response): Promise<string> {
   try {
-    const text = await readLimited(res, 64 * 1024);
-    return /insufficient_quota|resource_exhausted|quota|billing|credit|balance|余额|餘額|额度|額度/i.test(
-      text,
-    );
+    return await readLimited(res, 64 * 1024);
   } catch {
-    return false;
+    return '';
   }
+}
+
+/** OpenAI-style error codes that mean the account has no credit or quota left. */
+const QUOTA_CODES = new Set([
+  'insufficient_quota',
+  'billing_hard_limit_reached',
+  'billing_not_active',
+  'insufficient_balance',
+  'insufficient_user_quota',
+]);
+const RATE_CODES = new Set(['rate_limit_exceeded', 'rate_limit_error', 'requests', 'tokens']);
+
+/** Plain-text signs of used-up credit or balance (New API relays, Chinese messages). */
+const QUOTA_TEXT =
+  /insufficient[_ ]quota|insufficient[_ ](balance|funds|credits?)|credit balance is too low|credits? (are |is )?(depleted|exhausted)|prepayment credits|billing hard limit|余额不足|餘額不足|额度不足|額度不足|额度已用尽|額度已用盡/i;
+
+/**
+ * A 429 is `quota` only when the provider says plainly that billing or credit
+ * is used up; anything else, including anything unclear, is `rate_limited`
+ * (「暫時受限，稍後重試」), the safer thing to tell the user (QC-057).
+ *
+ * - Gemini (`RESOURCE_EXHAUSTED`): only the structured details count, never
+ *   generic message text, because Gemini says "check your plan and billing
+ *   details" for per-minute limits too; only explicit used-up-credit wording counts. `QuotaFailure` violations on request
+ *   or token limits per minute, hour or day are rate limits; an `ErrorInfo`
+ *   reason or a violation about billing, credit or prepayment is quota.
+ * - OpenAI-compatible (GPT, New API): `error.code`/`error.type` first
+ *   (`insufficient_quota` → quota, `rate_limit_exceeded` → rate limited),
+ *   then explicit used-up-credit wording.
+ */
+export function classifyTooManyRequests(text: string): 'quota' | 'rate_limited' {
+  let body: unknown;
+  try {
+    body = JSON.parse(text) as unknown;
+  } catch {
+    return QUOTA_TEXT.test(text) ? 'quota' : 'rate_limited';
+  }
+  const error = field(body, 'error');
+  if (field(error, 'status') === 'RESOURCE_EXHAUSTED') {
+    if (geminiKind(field(error, 'details')) === 'quota') return 'quota';
+    // Only unambiguous wording ("prepayment credits are depleted"); the usual
+    // "check your plan and billing details" of a rate limit does not match.
+    const message = field(error, 'message');
+    return typeof message === 'string' && QUOTA_TEXT.test(message) ? 'quota' : 'rate_limited';
+  }
+  for (const key of ['code', 'type']) {
+    const value = field(error, key);
+    if (typeof value !== 'string') continue;
+    if (QUOTA_CODES.has(value.toLowerCase())) return 'quota';
+    if (RATE_CODES.has(value.toLowerCase())) return 'rate_limited';
+  }
+  const message = field(error, 'message');
+  return typeof message === 'string' && QUOTA_TEXT.test(message) ? 'quota' : 'rate_limited';
+}
+
+const GEMINI_BILLING = /billing|credit|prepa(y|id)|payment|balance/i;
+
+function geminiKind(details: unknown): 'quota' | 'rate_limited' {
+  if (!Array.isArray(details)) return 'rate_limited';
+  for (const detail of details as unknown[]) {
+    const type = field(detail, '@type');
+    if (typeof type !== 'string') continue;
+    if (type.endsWith('google.rpc.ErrorInfo')) {
+      const reason = field(detail, 'reason');
+      if (typeof reason === 'string' && GEMINI_BILLING.test(reason)) return 'quota';
+    }
+    if (type.endsWith('google.rpc.QuotaFailure')) {
+      const violations = field(detail, 'violations');
+      if (!Array.isArray(violations)) continue;
+      for (const v of violations as unknown[]) {
+        const id = [field(v, 'quotaId'), field(v, 'quotaMetric'), field(v, 'subject')]
+          .filter((x): x is string => typeof x === 'string')
+          .join(' ');
+        if (GEMINI_BILLING.test(id)) return 'quota';
+      }
+    }
+  }
+  // Per-minute/day request and token limits, and anything unrecognised.
+  return 'rate_limited';
+}
+
+function field(value: unknown, key: string): unknown {
+  return value !== null && typeof value === 'object'
+    ? (value as Record<string, unknown>)[key]
+    : undefined;
 }
 
 /** The shorter of the adapter's timeout and a per-call limit (QC-057 test: 10 s). */
