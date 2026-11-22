@@ -19,6 +19,13 @@ export type MenuEntry =
       danger?: boolean;
       /** Shows a check mark (the current status in 改狀態). */
       checked?: boolean;
+      /**
+       * A checkbox of a set where several may be on (項目 membership, QC-062);
+       * 'mixed' when only some of the chosen works have it.
+       */
+      checkbox?: boolean | 'mixed';
+      /** A colour swatch before the label (項目 colours). */
+      swatch?: string;
       hint?: string;
     }
   | { kind: 'sub'; id: string; label: string; items: readonly MenuEntry[]; disabled?: boolean }
@@ -311,7 +318,13 @@ function Row({
   return (
     <button
       type="button"
-      role={entry.kind === 'item' && entry.checked !== undefined ? 'menuitemradio' : 'menuitem'}
+      role={
+        entry.kind === 'item' && entry.checkbox !== undefined
+          ? 'menuitemcheckbox'
+          : entry.kind === 'item' && entry.checked !== undefined
+            ? 'menuitemradio'
+            : 'menuitem'
+      }
       className={[
         'pop__item',
         'ctx-menu__item',
@@ -324,7 +337,11 @@ function Row({
       aria-haspopup={isSub ? 'menu' : undefined}
       aria-expanded={isSub ? expanded : undefined}
       aria-checked={
-        entry.kind === 'item' && entry.checked !== undefined ? entry.checked : undefined
+        entry.kind === 'item' && entry.checkbox !== undefined
+          ? entry.checkbox
+          : entry.kind === 'item' && entry.checked !== undefined
+            ? entry.checked
+            : undefined
       }
       data-sub={isSub ? entry.id : undefined}
       data-disabled={disabled || undefined}
@@ -347,8 +364,19 @@ function Row({
       }}
     >
       <span className="ctx-menu__check" aria-hidden="true">
-        {entry.kind === 'item' && entry.checked === true && <Icon name="check" size={14} />}
+        {entry.kind === 'item' && entry.checkbox !== undefined ? (
+          <span className={`ctx-menu__box ctx-menu__box--${String(entry.checkbox)}`} />
+        ) : (
+          entry.kind === 'item' && entry.checked === true && <Icon name="check" size={14} />
+        )}
       </span>
+      {entry.kind === 'item' && entry.swatch !== undefined && (
+        <span
+          className="ctx-menu__swatch"
+          style={{ background: entry.swatch }}
+          aria-hidden="true"
+        />
+      )}
       <span className="ctx-menu__label">{entry.label}</span>
       {entry.kind === 'item' && entry.hint !== undefined && (
         <span className="pop__item-hint">{entry.hint}</span>

@@ -244,6 +244,9 @@ function registerIpc(): void {
   };
 
   handle(IPC.getConnection, () => readConnection(config, process.env));
+  handle(IPC.motionMode, () =>
+    backgroundRun || process.env['CREATORHUB_MOTION'] === 'off' ? 'off' : 'auto',
+  );
   handle(IPC.request, (req) => {
     if (!isProxyRequest(req)) throw new Error('invalid request');
     return performProxyRequest(config.baseUrl, req);

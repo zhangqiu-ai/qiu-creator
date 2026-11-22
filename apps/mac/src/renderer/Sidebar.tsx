@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import { Icon, type IconName } from './Icon.js';
 import {
   clampWidth,
@@ -109,6 +116,10 @@ export interface SidebarProps {
   /** `127.0.0.1:7420` */
   address: string;
   onRecheck: () => void;
+  /** 未分類 and the 項目 section, under 作品庫 (QC-062). */
+  projects?: (rail: boolean) => ReactNode;
+  /** 作品庫 shows one project or 未分類, so its own row is not the current one. */
+  libraryScoped?: boolean;
 }
 
 /**
@@ -123,6 +134,8 @@ export function Sidebar({
   service,
   address,
   onRecheck,
+  projects,
+  libraryScoped = false,
 }: SidebarProps) {
   const [prefs, setPrefs] = useState(() => loadPrefs(storage()));
   const narrow = useNarrowWindow();
@@ -167,7 +180,9 @@ export function Sidebar({
       key={it.page}
       type="button"
       className="sb__nav"
-      aria-current={current === it.page ? 'page' : undefined}
+      aria-current={
+        current === it.page && !(it.page === 'library' && libraryScoped) ? 'page' : undefined
+      }
       aria-label={it.label}
       data-tip={
         it.page === 'imports' && importsCount > 0
@@ -270,7 +285,16 @@ export function Sidebar({
             <div className="sb__grp-h" aria-hidden="true">
               {t(g.title)}
             </div>
-            {g.items.map(item)}
+            {g.items.map((it) =>
+              it.page === 'library' && projects !== undefined ? (
+                <div key={it.page} className="sb__library">
+                  {item(it)}
+                  {projects(rail)}
+                </div>
+              ) : (
+                item(it)
+              ),
+            )}
           </div>
         ))}
       </div>

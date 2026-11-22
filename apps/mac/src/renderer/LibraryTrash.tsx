@@ -1,5 +1,5 @@
 import type { CreatorHubClient } from '@qiu-creator/api-client';
-import { WORK_TRASH_RETENTION_DAYS, type WorkListItem } from '@qiu-creator/contracts';
+import { WORK_TRASH_RETENTION_DAYS, type Project, type WorkListItem } from '@qiu-creator/contracts';
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { anchorOf, ContextMenu, type MenuAnchor, type MenuEntry } from './ContextMenu.js';
 import { useRefreshOn } from './events.js';
@@ -34,8 +34,11 @@ export function TrashView({
   query,
   onBack,
   onCount,
+  projects = [],
 }: {
   client: CreatorHubClient;
+  /** To say which projects a deleted work was in (QC-062); 還原 puts it back in them. */
+  projects?: readonly Project[];
   /** The library's search, applied here too. */
   query: string;
   onBack: () => void;
@@ -364,6 +367,7 @@ export function TrashView({
                         </span>
                         <span className="wcard__type">{WORK_TYPE[w.type].label}</span>
                       </span>
+                      <TrashFrom projectIds={w.project_ids} projects={projects} />
                       {w.removal === 'unindexed' || w.removal === 'original_trashed' ? (
                         <span className="wcard__meta wcard__meta--muted">
                           <Icon name="folder" size={11} />
@@ -416,5 +420,24 @@ export function TrashView({
         />
       )}
     </>
+  );
+}
+
+/** 原本在：… — the projects a deleted work was in (skipping ones since deleted). */
+function TrashFrom({
+  projectIds,
+  projects,
+}: {
+  projectIds: readonly string[] | undefined;
+  projects: readonly Project[];
+}) {
+  const names = (projectIds ?? [])
+    .map((id) => projects.find((p) => p.id === id)?.name)
+    .filter((n): n is string => n !== undefined);
+  if (names.length === 0) return null;
+  return (
+    <span className="wcard__meta wcard__meta--muted wcard__from">
+      {t('projects.trashFrom', { names: names.join('、') })}
+    </span>
   );
 }

@@ -30,6 +30,7 @@ const bridge: CreatorHubBridge = {
   getConnection: () => ipcRenderer.invoke(IPC.getConnection) as Promise<ConnectionInfo>,
   request: (req: ProxyRequest) => ipcRenderer.invoke(IPC.request, req) as Promise<ProxyResponse>,
   appInfo: () => ipcRenderer.invoke(IPC.appInfo) as Promise<AppInfo>,
+  motionMode: () => ipcRenderer.invoke(IPC.motionMode) as Promise<'off' | 'auto'>,
 
   onEvent: (listener) =>
     listen(IPC.event, (p) => {

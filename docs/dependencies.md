@@ -150,8 +150,25 @@
 | micromark-extension-gfm / mdast-util-gfm | ^3.0.0 / ^3.1.0 | MIT | markdown-editor-web、mac-server | GFM（表格、腳註、刪除線、待辦）解析 | — |
 | micromark-extension-frontmatter / mdast-util-frontmatter | ^2.0.0 / ^2.0.1 | MIT | markdown-editor-web、mac-server | YAML frontmatter 解析 | — |
 | yaml | ^2.9.1 | ISC | domain（mac-server 經由它） | 讀寫貼圖與視頻作品的 front matter（QC-045/046）。`parseDocument` 保留註解、未知鍵與鍵的順序，App 寫回使用者手寫的檔案時不會丟資料。沒有其他依賴，純 JS，esbuild 直接打包 | js-yaml（MIT，讀寫會丟註解與格式）；gray-matter（依賴 js-yaml，同樣問題）；自寫子集解析器（使用者手寫的 YAML 形式太多，不可靠） |
+| @dnd-kit/core / @dnd-kit/sortable / @dnd-kit/utilities | ^6.3.1 / ^10.0.0 / ^3.2.2 | MIT | mac | 作品庫的拖放（QC-062）：把作品拖到側欄的項目（加入），以及拖曳項目列排序（見下） | 原生 HTML5 drag and drop；react-dnd；@atlaskit/pragmatic-drag-and-drop |
 
 QC-010：mac-server 用同一組 mdast 套件與版本，從 Markdown 找出圖片與影音引用（`src/media/markdown-refs.ts`），讓伺服器與編輯器對「什麼算圖片」的判斷一致。沒有新增任何套件。
+
+### 拖放：dnd-kit（QC-062，QC-065 沿用）
+
+- 使用者決定全 App 的動效與拖放用 `motion` 和 dnd-kit（QC-065）。QC-062 第一次需要拖放，就直接用 dnd-kit，之後不必重做。
+- 版本：`@dnd-kit/core` 6.3.1、`@dnd-kit/sortable` 10.0.0、`@dnd-kit/utilities` 3.2.2，都是 MIT。peer 只要求 `react`／`react-dom` ≥ 16.8，React 19 可以用。沒有 install script，也不連網。
+- 用法：
+  - App 層放一個 `DndContext`（`renderer/projects-dnd.tsx`），同時包住側欄和頁面，作品卡片才能拖到側欄的項目上。
+  - 指標移動超過 4 px（`DRAG_ACTIVATION_PX`，DESIGN.md「動效」）才開始拖，所以單擊開啟、雙擊改名照舊。
+  - 拖作品時用指標下方的列判斷落點；排序項目時用最近的列。
+  - 拖曳時跟著指標的是 `DragOverlay`，顯示「N 個作品」或項目列。
+- 為什麼不用原生 HTML5 drag and drop：拖曳圖和放置判斷不好控制，也沒有排序時的位移動畫；QC-065 需要和 `motion` 搭配做出一致的動效。
+- 替代方案：
+  - react-dnd：以 HTML5 backend 為主，維護較慢。
+  - @atlaskit/pragmatic-drag-and-drop：底層是原生 drag and drop，排序動畫要自己做。
+- 沒有用 `KeyboardSensor`：在 e2e 裡實測時序不穩（空白鍵拿起後有時立刻結束，方向鍵也不一定移動）。項目列的鍵盤排序改在 `SidebarProjects.tsx` 自己處理，按鍵與播報都照規格。
+- App 裡其他既有的原生拖放（分頁列、貼圖排序、插入素材）這次沒有改，留給 QC-065 逐區處理。
 
 ### 介面多語言：自建 `@qiu-creator/i18n`，不用 i18next（QC-042）
 

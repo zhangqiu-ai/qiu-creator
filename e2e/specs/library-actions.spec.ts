@@ -125,6 +125,7 @@ test('作品庫：卡片縮小、原地改名、右鍵選單、改狀態復原�
       '在新分頁開啟',
       '重新命名',
       '改狀態',
+      '項目',
       '刪除…⌘⌫',
     ]);
     await expect(menu.getByRole('menuitem', { name: '開啟', exact: true })).toBeFocused();
@@ -186,6 +187,7 @@ test('作品庫：卡片縮小、原地改名、右鍵選單、改狀態復原�
     const many = page.getByRole('menu', { name: `已選 ${String(span)} 個作品的操作` });
     await expect(many.getByRole('menuitem')).toHaveText([
       '改狀態',
+      '項目',
       '加標籤…',
       '移除標籤…',
       '刪除…⌘⌫',

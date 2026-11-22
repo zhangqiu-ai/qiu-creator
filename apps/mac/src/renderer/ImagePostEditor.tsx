@@ -52,6 +52,7 @@ import { ASSET_DRAG_TYPE, AssetDrawer } from './InsertUI.js';
 import { externalSource, useMounts } from './mounts.js';
 import type { TabPanel, TabStatusPatch, TabView } from './tabs.js';
 import { TagEditor } from './TagEditor.js';
+import { ProjectTags } from './ProjectTags.js';
 import { WorkSession, type Draft, type DraftCover, type SaveError } from './work-session.js';
 
 const STATUS_ORDER: readonly WorkStatus[] = ['drafting', 'in_review', 'ready', 'published'];
@@ -571,6 +572,12 @@ function PostEditor({
             onChange={(tags) => {
               session.edit({ tags });
             }}
+          />
+          <ProjectTags
+            client={client}
+            workId={work.id}
+            title={draft.title}
+            initial={work.project_ids}
           />
         </div>
 

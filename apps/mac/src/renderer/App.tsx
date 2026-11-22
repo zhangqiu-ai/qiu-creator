@@ -14,6 +14,10 @@ import { PreviewPage } from './PreviewPage.js';
 import { AiWorkbenchPage } from './AiWorkbenchPage.js';
 import { SettingsPage } from './SettingsPage.js';
 import { Sidebar, type NavPage } from './Sidebar.js';
+import { SidebarProjects, type LibraryScope } from './SidebarProjects.js';
+import { ProjectsStore } from './projects-store.js';
+import { ProjectsContext } from './ProjectTags.js';
+import { ProjectsDnd } from './projects-dnd.js';
 import { serviceSummary } from './sidebar-prefs.js';
 import { t, useLocale } from './i18n.js';
 import { TabsModel } from './tabs.js';
@@ -24,7 +28,13 @@ type Connection = { state: 'connecting' } | ConnectResult;
 type Route =
   | { page: 'library' }
   | { page: 'editor' }
-  | { page: 'assets'; focusAssetId: string | null; startAt?: number }
+  | {
+      page: 'assets';
+      focusAssetId: string | null;
+      startAt?: number;
+      /** 用到的素材 of a project (QC-062): the assets its works use. */
+      projectId?: string;
+    }
   | { page: 'ai' }
   | { page: 'imports' }
   | { page: 'preview'; workId: string | null; from: WorkDetail | null }
@@ -209,6 +219,21 @@ export function App() {
     setDataEpoch((n) => n + 1);
   }, []);
   const backups = useBackupSession(client, onDataReplaced);
+  const projects = useProjects(client, dataEpoch);
+  const projectsState = useSyncExternalStore(
+    projects?.subscribe ?? NO_PROJECTS,
+    projects?.getSnapshot ?? EMPTY_PROJECTS,
+  );
+  const [scope, setScope] = useState<LibraryScope>({ kind: 'all' });
+  // A project that went away (deleted, archived elsewhere): back to 全部作品.
+  const scopedProject =
+    scope.kind === 'project'
+      ? (projectsState.projects?.find((p) => p.id === scope.id) ?? null)
+      : null;
+  useEffect(() => {
+    if (scope.kind === 'project' && projectsState.projects !== null && scopedProject === null)
+      setScope({ kind: 'all' });
+  }, [scope, projectsState.projects, scopedProject]);
   const restoring =
     backups.state !== null &&
     (backups.state.restore.phase === 'sending' ||
@@ -283,148 +308,191 @@ export function App() {
   );
 
   const go = (page: NavPage) => {
+    if (page === 'library') setScope({ kind: 'all' });
     if (page === 'assets') setRoute({ page, focusAssetId: null });
     else if (page === 'preview') setRoute({ page, workId: lastWorkId, from: null });
     else setRoute({ page });
   };
   const current: NavPage = route.page === 'editor' ? 'library' : route.page;
+  const openScope = (next: LibraryScope) => {
+    setScope(next);
+    setRoute({ page: 'library' });
+  };
 
   return (
-    <div className="shell">
-      <Sidebar
-        current={current}
-        onNavigate={go}
-        importsCount={activeTasks}
-        service={service}
-        address={address}
-        onRecheck={() => {
-          if (client === null) tryConnect();
-          else checkHealth();
-        }}
-      />
-
-      {'state' in connection ? (
-        <main className="page page--center" aria-busy="true" />
-      ) : !connection.ok ? (
-        <main className="page page--center">
-          <ServiceProblem
-            reason={connection.reason}
-            address={connection.baseUrl.replace(/^https?:\/\//, '')}
-            onRetry={tryConnect}
+    <ProjectsContext.Provider value={projects}>
+      <ProjectsDnd store={projects}>
+        <div className="shell">
+          <Sidebar
+            current={current}
+            onNavigate={go}
+            importsCount={activeTasks}
+            service={service}
+            address={address}
+            onRecheck={() => {
+              if (client === null) tryConnect();
+              else checkHealth();
+            }}
+            libraryScoped={scope.kind !== 'all'}
+            projects={
+              projects === null || client === null
+                ? undefined
+                : (rail) => (
+                    <SidebarProjects
+                      store={projects}
+                      s={projectsState}
+                      client={client}
+                      rail={rail}
+                      scope={scope}
+                      active={current === 'library' && route.page === 'library'}
+                      onOpen={openScope}
+                    />
+                  )
+            }
           />
-        </main>
-      ) : route.page === 'library' ? (
-        <LibraryPage
-          key={`library:${String(dataEpoch)}`}
-          client={connection.client}
-          userHome={userHome}
-          onOpen={openWork}
-          onCreated={openTab}
-          handles={editorHandles}
-          onOpenInBackground={(work) => {
-            tabs.openInBackground({ id: work.id, kind: work.type, title: work.title });
-          }}
-          onRenamed={(id, title) => {
-            if (tabs.find(id) !== null) tabs.update(id, { title });
-          }}
-          onTrashed={(ids) => {
-            // Saved before deleting, so nothing unsaved is lost; 復原 does not reopen them.
-            for (const id of ids) if (tabs.find(id) !== null) tabs.close(id);
-          }}
-        />
-      ) : route.page === 'editor' ? null : route.page === 'assets' ? (
-        <AssetsPage
-          key={`${route.focusAssetId ?? 'assets'}:${String(route.startAt ?? '')}:${String(dataEpoch)}`}
-          client={connection.client}
-          home={home}
-          userHome={userHome}
-          focusAssetId={route.focusAssetId}
-          startAt={route.startAt ?? null}
-          onOpenWork={openWork}
-          onOpenImports={() => {
-            go('imports');
-          }}
-          onOpenSettings={() => {
-            go('settings');
-          }}
-        />
-      ) : route.page === 'preview' ? (
-        <PreviewPage
-          key={`preview:${String(dataEpoch)}`}
-          client={connection.client}
-          workId={route.workId}
-          onPickWork={(id) => {
-            setRoute({ page: 'preview', workId: id, from: null });
-          }}
-          onBack={
-            route.workId === null
-              ? null
-              : () => {
-                  if (route.workId !== null) openWork(route.workId);
-                }
-          }
-        />
-      ) : route.page === 'ai' ? (
-        <AiWorkbenchPage
-          key={`ai:${String(dataEpoch)}`}
-          client={connection.client}
-          onOpenSettings={() => {
-            setRoute({ page: 'settings', section: 'ai' });
-          }}
-          onOpenAssets={() => {
-            go('assets');
-          }}
-          onOpenAsset={(id, at) => {
-            setRoute({ page: 'assets', focusAssetId: id, startAt: at });
-          }}
-        />
-      ) : route.page === 'imports' ? (
-        <ImportsPage
-          key={`imports:${String(dataEpoch)}`}
-          client={connection.client}
-          onOpenAsset={(id) => {
-            setRoute({ page: 'assets', focusAssetId: id });
-          }}
-        />
-      ) : (
-        <SettingsPage
-          key={route.section ?? 'settings'}
-          client={connection.client}
-          home={home}
-          userHome={userHome}
-          baseUrl={connection.baseUrl}
-          focusSection={route.section}
-          backups={backups.session}
-          dataEpoch={dataEpoch}
-          health={health}
-          eventStatus={events}
-          service={service}
-          checkHealth={checkHealth}
-        />
-      )}
-      {client !== null && (
-        <EditorTabs
-          model={tabs}
-          handles={editorHandles}
-          client={client}
-          userHome={userHome}
-          visible={route.page === 'editor'}
-          preloaded={preloaded}
-          focusToken={focusToken}
-          onFocusEditor={focusEditor}
-          onBack={() => {
-            setRoute({ page: 'library' });
-          }}
-          onPreview={(work) => {
-            setRoute({ page: 'preview', workId: work.id, from: work });
-          }}
-          onOpenSettings={() => {
-            setRoute({ page: 'settings', section: 'ai' });
-          }}
-        />
-      )}
-      <ToastHost />
-    </div>
+
+          {'state' in connection ? (
+            <main className="page page--center" aria-busy="true" />
+          ) : !connection.ok ? (
+            <main className="page page--center">
+              <ServiceProblem
+                reason={connection.reason}
+                address={connection.baseUrl.replace(/^https?:\/\//, '')}
+                onRetry={tryConnect}
+              />
+            </main>
+          ) : route.page === 'library' ? (
+            <LibraryPage
+              key={`library:${String(dataEpoch)}`}
+              client={connection.client}
+              scope={scope}
+              projects={projects}
+              projectsState={projectsState}
+              onScope={openScope}
+              onOpenProjectAssets={(id) => {
+                setRoute({ page: 'assets', focusAssetId: null, projectId: id });
+              }}
+              userHome={userHome}
+              onOpen={openWork}
+              onCreated={openTab}
+              handles={editorHandles}
+              onOpenInBackground={(work) => {
+                tabs.openInBackground({ id: work.id, kind: work.type, title: work.title });
+              }}
+              onRenamed={(id, title) => {
+                if (tabs.find(id) !== null) tabs.update(id, { title });
+              }}
+              onTrashed={(ids) => {
+                // Saved before deleting, so nothing unsaved is lost; 復原 does not reopen them.
+                for (const id of ids) if (tabs.find(id) !== null) tabs.close(id);
+              }}
+            />
+          ) : route.page === 'editor' ? null : route.page === 'assets' ? (
+            <AssetsPage
+              key={`${route.focusAssetId ?? 'assets'}:${String(route.startAt ?? '')}:${route.projectId ?? ''}:${String(dataEpoch)}`}
+              client={connection.client}
+              project={
+                route.projectId === undefined
+                  ? null
+                  : (projectsState.projects?.find((p) => p.id === route.projectId) ?? null)
+              }
+              onClearProject={() => {
+                setRoute({ page: 'assets', focusAssetId: null });
+              }}
+              onBackToProject={(id) => {
+                openScope({ kind: 'project', id });
+              }}
+              home={home}
+              userHome={userHome}
+              focusAssetId={route.focusAssetId}
+              startAt={route.startAt ?? null}
+              onOpenWork={openWork}
+              onOpenImports={() => {
+                go('imports');
+              }}
+              onOpenSettings={() => {
+                go('settings');
+              }}
+            />
+          ) : route.page === 'preview' ? (
+            <PreviewPage
+              key={`preview:${String(dataEpoch)}`}
+              client={connection.client}
+              workId={route.workId}
+              onPickWork={(id) => {
+                setRoute({ page: 'preview', workId: id, from: null });
+              }}
+              onBack={
+                route.workId === null
+                  ? null
+                  : () => {
+                      if (route.workId !== null) openWork(route.workId);
+                    }
+              }
+            />
+          ) : route.page === 'ai' ? (
+            <AiWorkbenchPage
+              key={`ai:${String(dataEpoch)}`}
+              client={connection.client}
+              onOpenSettings={() => {
+                setRoute({ page: 'settings', section: 'ai' });
+              }}
+              onOpenAssets={() => {
+                go('assets');
+              }}
+              onOpenAsset={(id, at) => {
+                setRoute({ page: 'assets', focusAssetId: id, startAt: at });
+              }}
+            />
+          ) : route.page === 'imports' ? (
+            <ImportsPage
+              key={`imports:${String(dataEpoch)}`}
+              client={connection.client}
+              onOpenAsset={(id) => {
+                setRoute({ page: 'assets', focusAssetId: id });
+              }}
+            />
+          ) : (
+            <SettingsPage
+              key={route.section ?? 'settings'}
+              client={connection.client}
+              home={home}
+              userHome={userHome}
+              baseUrl={connection.baseUrl}
+              focusSection={route.section}
+              backups={backups.session}
+              dataEpoch={dataEpoch}
+              health={health}
+              eventStatus={events}
+              service={service}
+              checkHealth={checkHealth}
+            />
+          )}
+          {client !== null && (
+            <EditorTabs
+              model={tabs}
+              handles={editorHandles}
+              client={client}
+              userHome={userHome}
+              visible={route.page === 'editor'}
+              preloaded={preloaded}
+              focusToken={focusToken}
+              onFocusEditor={focusEditor}
+              onBack={() => {
+                setRoute({ page: 'library' });
+              }}
+              onPreview={(work) => {
+                setRoute({ page: 'preview', workId: work.id, from: work });
+              }}
+              onOpenSettings={() => {
+                setRoute({ page: 'settings', section: 'ai' });
+              }}
+            />
+          )}
+          <ToastHost />
+        </div>
+      </ProjectsDnd>
+    </ProjectsContext.Provider>
   );
 }
 
@@ -455,4 +523,32 @@ function ServiceProblem({
       </button>
     </div>
   );
+}
+
+const NO_PROJECTS = (): (() => void) => () => undefined;
+const EMPTY: ReturnType<ProjectsStore['getSnapshot']> = {
+  projects: null,
+  allCount: null,
+  unassignedCount: null,
+  failed: false,
+};
+const EMPTY_PROJECTS = () => EMPTY;
+
+/** One project list per connection, loaded at once and kept fresh by SSE (QC-062). */
+function useProjects(client: CreatorHubClient | null, dataEpoch: number): ProjectsStore | null {
+  const [store, setStore] = useState<ProjectsStore | null>(null);
+  useEffect(() => {
+    setStore(client === null ? null : new ProjectsStore(client));
+  }, [client]);
+  useEffect(() => {
+    void store?.load();
+  }, [store, dataEpoch]);
+  useRefreshOn(
+    ['project', 'work'],
+    () => {
+      void store?.load();
+    },
+    300,
+  );
+  return store;
 }

@@ -164,6 +164,41 @@ export const motion = {
   spinner: { durationMs: 800, easing: 'linear' },
 } as const;
 
+/**
+ * Motion tokens from DESIGN.md「動效」(QC-065): durations, curves, springs and
+ * distances. Plain data, no animation library; `apps/mac` turns them into
+ * motion and dnd-kit parameters, CSS reads the `--qc-dur-*` / `--qc-ease-*`
+ * variables. Pages never write their own durations or curves.
+ */
+export const duration = {
+  instant: 80,
+  fast: 120,
+  base: 180,
+  moderate: 240,
+  slow: 320,
+  progress: 400,
+} as const;
+export type DurationToken = keyof typeof duration;
+
+export const easing = {
+  out: 'cubic-bezier(0.22, 1, 0.36, 1)',
+  in: 'cubic-bezier(0.4, 0, 1, 1)',
+  inOut: 'cubic-bezier(0.45, 0, 0.25, 1)',
+  linear: 'linear',
+} as const;
+export type EasingToken = keyof typeof easing;
+
+/** Springs by visual duration (seconds), so 60 Hz and 120 Hz feel the same; bounce ≤ 0.15. */
+export const spring = {
+  snappy: { visualDuration: 0.2, bounce: 0 },
+  settle: { visualDuration: 0.28, bounce: 0.12 },
+} as const;
+
+export const motionDistance = { nudge: 4, rise: 8, panel: 24 } as const;
+export const motionScale = { menu: 0.96, dialog: 0.97, lift: 1.02, dropInto: 0.6 } as const;
+/** Pointer travel before a drag starts, so clicks stay clicks. */
+export const DRAG_ACTIVATION_PX = 4;
+
 /** `ink2` -> `--qc-ink2`, `accentSoft` -> `--qc-accent-soft` */
 export function cssVarName(token: ColorToken | ShadowToken): string {
   return `--qc-${token.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;
@@ -197,6 +232,10 @@ export function buildCssVariables(): string {
     ),
     `  --qc-motion-hover: ${motion.hover.durationMs}ms ${motion.hover.easing};`,
     `  --qc-motion-progress: ${motion.progress.durationMs}ms ${motion.progress.easing};`,
+    ...Object.entries(duration).map(([k, v]) => `  --qc-dur-${k}: ${String(v)}ms;`),
+    ...Object.entries(easing).map(
+      ([k, v]) => `  --qc-ease-${k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}: ${v};`,
+    ),
   ].join('\n');
   return [
     `:root {\n${constants}\n${declarations('light')}\n}`,

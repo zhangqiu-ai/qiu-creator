@@ -57,8 +57,13 @@ test('側欄：分組、調寬上下限、收起圖示列、記住狀態與服�
     const groups = await nav.getByRole('group').all();
     const names = await Promise.all(groups.map((g) => g.getAttribute('aria-label')));
     expect(names).toEqual(['創作', '素材', 'AI']);
+    // 作品庫, then 未分類 and the 項目 section (QC-062: no projects yet, so 新建項目), then 平台預覽.
     await expect(nav.getByRole('group', { name: '創作' }).getByRole('button')).toHaveText([
       '作品庫',
+      /^未分類\d*$/,
+      '項目',
+      '',
+      '新建項目',
       '平台預覽',
     ]);
     await expect(nav.getByRole('group', { name: '素材' }).getByRole('button')).toHaveText([
