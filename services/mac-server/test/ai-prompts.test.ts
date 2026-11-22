@@ -99,7 +99,10 @@ describe('AI preferences (QC-075)', () => {
   it('lists the models of ready providers for the toolbar', async () => {
     const { s } = await start();
     expect(await s.client.ai.models()).toEqual({
-      items: [{ provider: 'openai', model: 'gpt-5.5', kind: 'chat', default: true }],
+      items: [
+        // QC-082: the official providers list their configured text model.
+        { provider: 'openai', model: 'gpt-5.5', kind: 'chat', default: true, source: 'configured' },
+      ],
       errors: [],
     });
     expect((await s.client.ai.models('image')).items).toEqual([]);

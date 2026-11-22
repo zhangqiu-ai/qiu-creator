@@ -4,6 +4,7 @@ import {
   AiTaskKindSchema,
   PatchAiPreferencesRequestSchema,
   type AiOutputLanguage,
+  type AiModelKind,
   type AiModelsResponse,
   type AiPreferences,
   type AiTaskKind,
@@ -504,6 +505,7 @@ export class AiService {
   async switchableModels(kind: 'chat' | 'image'): Promise<AiModelsResponse> {
     const items: AiModelsResponse['items'] = [];
     const errors: AiModelsResponse['errors'] = [];
+    const fits = (k: AiModelKind): boolean => (kind === 'image' ? k === 'image' : k !== 'image');
     for (const status of this.listProviders()) {
       if (!status.key_configured || status.consent === null) continue;
       if (status.provider !== 'new-api') {
@@ -513,30 +515,74 @@ export class AiService {
             model: status.text_model,
             kind: 'chat',
             default: true,
+            source: 'configured',
           });
         }
         continue;
       }
-      try {
-        const list = await this.listModels('new-api');
-        for (const m of list.models) {
-          const fits = kind === 'image' ? m.kind === 'image' : m.kind !== 'image';
-          if (!fits) continue;
+      const push = (ids: readonly string[], source: 'list' | 'cache' | 'configured'): void => {
+        for (const id of ids) {
+          const k = classifyModelKind(id);
+          if (!fits(k) || items.some((i) => i.provider === 'new-api' && i.model === id)) continue;
           items.push({
             provider: 'new-api',
-            model: m.id,
-            kind: m.kind,
-            default: kind === 'chat' && m.id === status.text_model,
+            model: id,
+            kind: k,
+            default: kind === 'chat' && id === status.text_model,
+            source,
           });
         }
+      };
+      try {
+        const list = await this.listModels('new-api');
+        push(
+          list.models.map((m) => m.id),
+          'list',
+        );
       } catch (err) {
-        errors.push({
-          provider: 'new-api',
-          code: err instanceof ServiceError ? err.code : 'internal_error',
-        });
+        // QC-082: never leave New API out of the menu because its list failed.
+        const code = err instanceof ServiceError ? err.code : 'internal_error';
+        const details: unknown = err instanceof ServiceError ? err.details : undefined;
+        const reasonRaw: unknown =
+          typeof details === 'object' && details !== null ? Reflect.get(details, 'reason') : null;
+        const reason = typeof reasonRaw === 'string' ? reasonRaw : null;
+        const cached = this.modelCache;
+        if (cached !== undefined && cached.credentialId === status.notice.credential_id) {
+          push(cached.ids, 'cache');
+          errors.push({
+            provider: 'new-api',
+            code,
+            reason,
+            fallback: 'cache',
+            cached_at: cached.fetchedAt.toISOString(),
+          });
+        } else {
+          const before = items.length;
+          push(this.configuredNewApiModels(kind, status.text_model), 'configured');
+          errors.push({
+            provider: 'new-api',
+            code,
+            reason,
+            fallback: items.length > before ? 'configured' : 'none',
+            cached_at: null,
+          });
+        }
       }
     }
     return { items, errors };
+  }
+
+  /**
+   * New API models the app already stores (QC-082): the configured text model
+   * (chat), and the New API models last used for any task. Kinds are told
+   * apart the same way as for the relay's list.
+   */
+  private configuredNewApiModels(kind: 'chat' | 'image', textModel: string): string[] {
+    const ids: string[] = kind === 'chat' ? [textModel] : [];
+    for (const choice of Object.values(this.preferences().last_models)) {
+      if (choice?.provider === 'new-api' && !ids.includes(choice.model)) ids.push(choice.model);
+    }
+    return ids;
   }
 
   /** The `output_language` preference (QC-075). */
