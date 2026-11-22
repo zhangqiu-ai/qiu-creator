@@ -303,10 +303,18 @@ test('貼圖：檔案遺失後重新指定、作品庫類型篩選與縮圖、�
     const card = page.getByRole('region', { name: '作品', exact: true }).getByRole('button', {
       name: /週末咖啡館/,
     });
-    await expect(card.locator('img.wcard__media')).toHaveAttribute(
-      'src',
-      /^qc-asset:\/\/thumbnail\//,
-    );
+    // QC-061: the card shows the service's signed card image, and it really decodes.
+    const media = card.locator('img.wcard__media');
+    await expect(media).toHaveAttribute('src', /\/media\/v1\/works\/[^/]+\/thumbnail\?/);
+    await expect
+      .poll(() =>
+        media.evaluate(
+          (el) =>
+            (el as unknown as { complete: boolean; naturalWidth: number }).complete &&
+            (el as unknown as { naturalWidth: number }).naturalWidth > 0,
+        ),
+      )
+      .toBe(true);
     await expect(card).toContainText('10 張');
     await types.getByRole('button', { name: /視頻/ }).click();
     await expect(page.getByText('還沒有視頻')).toBeVisible();
