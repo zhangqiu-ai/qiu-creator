@@ -1,5 +1,11 @@
 # Done
 
+## QC-053: 已刪除作品在其他地方的殘留
+
+**Priority:** P3 | **Assignee:** qc-backend | **Tags:** M3, backend | **Done:** 2026-11-21
+
+- references 只列現存作品，最近刪除中的另列 `in_trash`，不觸發 asset_in_use；`GET /assets/:id/works` 不列已刪除作品。CLI 加 works delete／restore／batch／list --trash（write 權限，無永久刪除，必須帶 revision）。URL 匯入指定已刪除作品回 409 work_in_trash。全倉 962／0／962、e2e 20／20。證據 `docs/evidence/qc053-trash-followups.md`。前端提示開為 QC-058。
+
 ## QC-052: 作品庫：原地改名、右鍵選單、多選批量、卡片縮小
 
 **Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend | **Done:** 2026-11-21

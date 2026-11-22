@@ -1,10 +1,10 @@
 # Backlog
 
-## QC-053: 已刪除作品在其他地方的殘留
+## QC-058: 刪除素材前提示「也被最近刪除中的作品使用」
 
-**Priority:** P3 | **Assignee:** qc-backend | **Tags:** M3, backend
+**Priority:** P3 | **Assignee:** qc-frontend | **Tags:** M3, frontend
 
-QC-051 回報的範圍外問題：素材的 asset_in_use／references 仍列出已刪除作品；agent-sdk CLI 沒有刪除與批量指令；已刪除作品仍可被 URL 匯入當 link_work_id。
+QC-053 後，素材刪除／永久刪除的回應帶 `references.in_trash`。素材永久刪除時，最近刪除中作品對它的連結也會移除，作品之後還原就缺這個素材。刪除與永久刪除確認框要列出「也被 N 個在最近刪除中的作品使用」。
 
 ## QC-050: 視頻作品小修：用語與封面建議
 
