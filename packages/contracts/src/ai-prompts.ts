@@ -99,10 +99,32 @@ export const AiModelsResponseSchema = z.object({
       model: z.string(),
       kind: z.enum(['chat', 'image', 'unknown']),
       default: z.boolean(),
+      /**
+       * Where the entry comes from (QC-082): `list` the relay's list just
+       * read; `cache` the last list read, when reading it again failed;
+       * `configured` the models the app already stores (New API's text
+       * model and the New API models last used), when there is no list.
+       */
+      source: z.enum(['list', 'cache', 'configured']).default('list'),
     }),
   ),
-  /** Providers whose list could not be read (e.g. the relay is down); their items are missing. */
-  errors: z.array(z.object({ provider: ProviderSchema, code: z.string() })),
+  /**
+   * Providers whose list could not be read (e.g. the relay is down). Their
+   * entries then come from `fallback` (show 「清單讀取失敗，使用已存模型」).
+   */
+  errors: z.array(
+    z.object({
+      provider: ProviderSchema,
+      /** The error code, e.g. `ai_gateway_unreachable`, `ai_key_invalid`. */
+      code: z.string(),
+      /** `details.reason` when there is one, e.g. `timeout`, `dns`, `quota`. */
+      reason: z.string().nullable().default(null),
+      /** What was listed instead; `none` when there was nothing to fall back on. */
+      fallback: z.enum(['cache', 'configured', 'none']).default('none'),
+      /** When the cached list was read (`fallback: cache`). */
+      cached_at: z.string().nullable().default(null),
+    }),
+  ),
 });
 export type AiModelsResponse = z.infer<typeof AiModelsResponseSchema>;
 

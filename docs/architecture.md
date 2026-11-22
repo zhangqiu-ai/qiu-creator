@@ -1228,7 +1228,7 @@ New API 的 `POST {base_url}/images/generations`（OpenAI 相容）。只在使�
 | 方法 | 路徑 | 說明 |
 | --- | --- | --- |
 | GET／PATCH | `/api/v1/ai/preferences` | `output_language`（`follow` 跟隨原文，為預設；或 `zh-Hans`、`zh-Hant`、`en`）與 `last_models`（各任務上次用的 provider 和 model；PATCH 只合併傳來的項目） |
-| GET | `/api/v1/ai/models?kind=chat\|image` | 工具列可切換的模型：只列已就緒的供應商（存了金鑰、確認過告知）。New API 用 QC-054 的中轉站清單，其他供應商列設定的文字模型；讀不到清單的列在 `errors` |
+| GET | `/api/v1/ai/models?kind=chat\|image` | 工具列可切換的模型：只列已就緒的供應商（存了金鑰、確認過告知）。New API 用 QC-054 的中轉站清單，其他供應商列設定的文字模型。每項帶 `source`（`list`、`cache` 或 `configured`）。New API 清單讀取失敗時仍會列出它（QC-082）：有快取就用快取（即使已過期），沒有就列 New API 的文字模型與各任務上次用過的 New API 模型；`errors[]` 寫明 `code`、`reason`、`fallback`（`cache`、`configured` 或 `none`）與 `cached_at`，前端據此顯示「清單讀取失敗，使用已存模型」 |
 | GET／POST | `/api/v1/ai/prompts` | 清單：內建指令排前面，自訂指令依 sort_order；新增的放在最後 |
 | PATCH／DELETE | `/api/v1/ai/prompts/:id` | 修改要帶 `base_revision` 或 `If-Match`（沒帶回 428，過期回 409）；內建指令回 403 |
 | PUT | `/api/v1/ai/prompts/order` | 重排；每個自訂指令都要列到，而且只能列一次 |
