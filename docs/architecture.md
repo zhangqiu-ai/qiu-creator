@@ -1180,3 +1180,44 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 - **回退**：`SEARCH_FOLD_ROLLBACK_SQL` 只刪掉 migration 紀錄，索引無法還原成未 fold 的文字。舊版仍能找到小寫、半形、簡體的文字；其餘作品在重新儲存後恢復。
 - **規則變更時**：以後 fold 規則改變（例如更新字表），要再加一個 migration 重新 fold，或從原稿重建索引。
 
+## AI 圖片與封面生成（QC-070）
+
+New API 的 `POST {base_url}/images/generations`（OpenAI 相容）。只在使用者按下時送出，沿用 New API 的首次使用告知（consent）。
+
+| 方法 | 路徑 | 說明 |
+| --- | --- | --- |
+| POST | `/api/v1/works/:id/ai/images/estimate` | 預估：`max_cost_usd` = 張數 × 價格覆寫的 `per_image_usd`；沒有單價時為 null（「無法預估」） |
+| POST | `/api/v1/works/:id/ai/images` | 排入生成作業（202），`purpose` 為 `image`（依 `prompt`）或 `cover`（依標題與內文）；有 in_progress 去重與 `Idempotency-Key` |
+| POST | `/api/v1/works/:id/ai/images/:jobId/keep` | 保留一張候選：`insert`（插入 `![alt](assets/…)` 段落）、`cover`（front matter `cover:`）或 `library`（只進素材庫） |
+| DELETE | `/api/v1/works/:id/ai/images/:jobId/candidates/:index` | 捨棄候選，刪掉暫存檔 |
+| GET | `/api/v1/works/:id/ai/images/:jobId/candidates/:index` | 以 Bearer 讀候選圖 |
+| GET | `/media/v1/image-candidates/:jobId/:index` | 簽名候選圖，網址在作業結果的 `candidates[].url` |
+
+- **範圍**：只接受文章。外部作品回 409 `attach_external_unsupported`，原因同 QC-039：不往使用者的資料夾複製檔案。
+- **作業**：
+  - `ai_jobs` 的 action 是 `image_generation`，task 記錄 `purpose`、`aspect_ratio`、`n`、`size`。
+  - 不回報 `progress`（沿用 QC-023 的 phase 列舉，不擴充），以 `status`（queued／running）判斷進行中。
+  - 可以取消，會中止對中轉站的請求。
+  - 不自動重試（`max_attempts = 1`），因為失敗的生成也可能已經計費；使用者可以手動 retry。
+  - 逾時 180 秒。
+- **尺寸**：依比例挑最接近的通用尺寸送出（`1024x1024`、`1024x1536`、`1536x1024`），回來後再置中裁成精確比例。
+- **回應**：
+  - `b64_json` 或 `url` 都接受；每張圖最大 20 MiB，整個 JSON 回應也有上限。
+  - `url` 用 `safeDownload` 下載，限圖片類型、最多 3 次重定向、有逾時，可隨作業取消。
+  - 中轉站本身的 origin 視為使用者信任的來源，可以在區網；其他位址與往外的重定向一律做公網檢查。
+  - 下載時不帶金鑰。
+- **驗證**：每張圖都用 sharp 解碼，再重新編碼：有透明的存 PNG，否則存 JPEG（品質 90）。解不開的回 `invalid_output`。
+- **候選暫存區**：`cache/ai-images/<job-id>/`。
+  - 作業的 `result.json` 只存尺寸與類型；簽名網址在每次讀取作業時重簽。
+  - 保留或捨棄後刪檔，超過 24 小時由每小時一次的清理移除。
+  - 檔案不在了，`expired` 就是 true。
+- **保留**：
+  1. 先核對 `base_revision`，不符就回 409，什麼都不寫、不複製。
+  2. 收進素材庫（`origin: manual`）。
+  3. 用 `WorkMediaAttacher` 複製到作品的 `assets/`。
+  4. 以 `acceptAi` 寫成 `ai_accepted` 版本，可以從歷史還原。
+- **費用**：
+  - `AiModelPrice` 新增選填 `per_image_usd`，在設定的價格覆寫裡填。
+  - 實際費用：有單價時是單價 × 張數；中轉站回報 token 用量、而且有 token 單價時，用 token 算；兩者都沒有就是 null。
+- **金鑰**：只放在送往中轉站的 Authorization 標頭；拒絕重定向；錯誤只保留短錯誤碼，不留回應內容。
+

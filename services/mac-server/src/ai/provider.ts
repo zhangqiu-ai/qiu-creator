@@ -18,6 +18,11 @@ export interface AiTextResult {
   model: string;
   /** `max_tokens`: the output was cut off at `maxOutputTokens`. */
   finish: 'stop' | 'max_tokens';
+  /**
+   * Cost worked out by the task itself (QC-070: images × `per_image_usd`);
+   * when absent, the cost comes from `usage` and the token price.
+   */
+  costUsd?: number | null;
 }
 
 /** A file handed to a provider for later prompts (Gemini video, QC-023). */

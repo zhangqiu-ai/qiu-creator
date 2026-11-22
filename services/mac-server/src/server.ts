@@ -62,6 +62,9 @@ import { registerAiRoutes } from './routes/ai.js';
 import { registerAiTextRoutes } from './routes/ai-text.js';
 import { TextAiService } from './ai/text-tasks.js';
 import { VideoAiService, type VideoOptions } from './ai/video-tasks.js';
+import { ImageAiService, type ImageTaskOptions } from './ai/image-tasks.js';
+import { NewApiImageClient } from './ai/providers/new-api-images.js';
+import { registerAiImageRoutes } from './routes/ai-images.js';
 import { GeminiVideoClient } from './ai/providers/gemini-video.js';
 import { registerAiVideoRoutes } from './routes/ai-video.js';
 import { AiService, type AiRunnerOptions } from './ai/ai-service.js';
@@ -149,6 +152,8 @@ export interface BuildServerOptions {
     start?: boolean;
     /** Gemini video upload chunk size and processing poll (QC-023). */
     video?: VideoOptions;
+    /** AI image candidates: TTL, sweep and download seams (QC-070). */
+    images?: ImageTaskOptions & { timeoutMs?: number };
   };
   /** Lifetime of signed media URLs (default 1 hour); `now` is injectable for tests. */
   signedUrls?: { ttlMs?: number; now?: () => number };
@@ -196,6 +201,8 @@ export interface CreatorHubServer {
   signer: MediaUrlSigner;
   variants: VariantService;
   ai: AiService;
+  /** AI image and cover generation (QC-070). */
+  images: ImageAiService;
   backups: BackupService;
   sleep: SleepGuard;
 }
@@ -275,6 +282,18 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     feed,
     aiOptions,
   );
+  const images = new ImageAiService(
+    ai,
+    works,
+    assets,
+    attacher,
+    layout,
+    new NewApiImageClient({
+      baseUrl: aiOptions.baseUrls?.['new-api'],
+      timeoutMs: aiOptions.images?.timeoutMs,
+    }),
+    aiOptions.images,
+  );
 
   const app = Fastify({
     logger:
@@ -302,6 +321,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     assetLibrary.stop();
     workTrash.stop();
     projects.stop();
+    images.stop();
     await backups.stop();
     await ai.stop();
     await mounts.stop();
@@ -617,7 +637,13 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerMountRoutes(app, mounts);
   registerMediaRoutes(app, media, assets, signer, tokens, attacher, works);
   registerVariantRoutes(app, variants);
-  registerAiRoutes(app, ai, idempotency);
+  registerAiRoutes(app, ai, idempotency, (job, principalId) =>
+    images.decorate(job, (pathname) => {
+      const expiresAt = signer.expiry();
+      return { url: signer.sign(pathname, principalId, expiresAt).url, expiresAt };
+    }),
+  );
+  registerAiImageRoutes(app, images, ai, idempotency, signer, tokens);
   registerAiTextRoutes(app, new TextAiService(ai, works, variants), ai, idempotency);
   registerAiVideoRoutes(
     app,
@@ -631,6 +657,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   assetLibrary.start();
   workTrash.start();
   projects.start();
+  images.start();
   sleep.start();
   if (options.jobs?.start !== false) jobs.start();
   if (aiOptions.start !== false) ai.start();
@@ -652,6 +679,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     signer,
     variants,
     ai,
+    images,
     backups,
     sleep,
   };

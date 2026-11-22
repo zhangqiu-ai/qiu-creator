@@ -136,6 +136,8 @@ export type AiTaskExecutor = (ctx: {
   };
   input: AiTextInput;
   apiKey: string;
+  /** New API: the stored Base URL (QC-070); undefined for the other providers. */
+  baseUrl: string | undefined;
   signal: AbortSignal;
   reportProgress: (progress: AiJobProgress) => void;
   saveRemoteState: (state: unknown) => void;
@@ -754,7 +756,13 @@ export class AiService {
    */
   submit(
     request: CreateAiJobRequest,
-    options: { task?: AiTask; cacheKey?: string; estimate?: AiCostEstimate } = {},
+    options: {
+      task?: AiTask;
+      cacheKey?: string;
+      estimate?: AiCostEstimate;
+      /** 1 = never retried automatically (QC-070: a generation may be billed even when it fails). */
+      maxAttempts?: number;
+    } = {},
   ): { job: AiJobRecord; budget: AiBudgetStatus } {
     const req = CreateAiJobRequestSchema.parse(request);
     const credentialId = this.assertReady(req.provider);
@@ -783,7 +791,7 @@ export class AiService {
           `INSERT INTO ai_jobs (id, work_id, model, action, source_revision, status, created_at,
              updated_at, provider, input, attempts, max_attempts, run_after, estimate, task, cache_key,
              credential_id)
-           VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, 0, 3, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -795,6 +803,7 @@ export class AiService {
           now,
           req.provider,
           JSON.stringify(req.input),
+          options.maxAttempts ?? 3,
           now,
           JSON.stringify(estimate),
           options.task === undefined ? null : JSON.stringify(options.task),
@@ -817,10 +826,10 @@ export class AiService {
    */
   submitOnce(
     request: CreateAiJobRequest,
-    options: { task?: AiTask } = {},
+    options: { task?: AiTask; estimate?: AiCostEstimate; maxAttempts?: number } = {},
   ): { job: AiJobRecord; budget: AiBudgetStatus; in_progress: boolean } {
     const req = CreateAiJobRequestSchema.parse(request);
-    const estimate = this.estimate(req);
+    const estimate = options.estimate ?? this.estimate(req);
     const cacheKey = sha256Hex(
       canonicalJson([
         'in_flight',
@@ -1063,6 +1072,7 @@ export class AiService {
               },
               input,
               apiKey,
+              baseUrl,
               signal: controller.signal,
               reportProgress: (progress) => {
                 this.setProgress(row.id, provider, progress);
@@ -1095,14 +1105,14 @@ export class AiService {
         try {
           json = JSON.parse(result.text);
         } catch {
-          this.recordUsage(row, provider, result.model, result.usage);
+          this.recordUsage(row, provider, result.model, result.usage, result.costUsd);
           throw providerError(
             'invalid_output',
             result.finish === 'max_tokens' ? 'output was cut off at max_output_tokens' : undefined,
           );
         }
       }
-      this.recordUsage(row, provider, result.model, result.usage);
+      this.recordUsage(row, provider, result.model, result.usage, result.costUsd);
       const finalize = task === null ? undefined : this.finalizers.get(task.type);
       const shaped =
         task === null || finalize === undefined
@@ -1166,17 +1176,24 @@ export class AiService {
     provider: AiProvider,
     servedModel: string,
     usage: { input_tokens: number; output_tokens: number },
+    costOverride?: number | null,
   ): void {
     // Keep the gateway's configured alias for estimates and subsequent retries.
     const model = provider === 'new-api' ? job.model : servedModel;
     const price = this.price(model, provider);
+    const cost =
+      costOverride !== undefined
+        ? costOverride
+        : price === null
+          ? null
+          : costUsd(price, usage.input_tokens, usage.output_tokens);
     this.db
       .prepare(
         'UPDATE ai_jobs SET usage = ?, cost_estimate = ?, usage_month = ?, model = ?, updated_at = ? WHERE id = ?',
       )
       .run(
         JSON.stringify(usage),
-        price === null ? null : costUsd(price, usage.input_tokens, usage.output_tokens),
+        cost,
         localMonth(this.now()),
         model,
         this.now().toISOString(),

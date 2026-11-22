@@ -1,4 +1,14 @@
+import { z } from 'zod';
 import {
+  AiImageEstimateResponseSchema,
+  AiImageKeepResponseSchema,
+  AiImageRequestSchema,
+  AiImageResultSchema,
+  type AiImageEstimateResponse,
+  type AiImageKeepRequest,
+  type AiImageKeepResponse,
+  type AiImageRequest,
+  type AiImageResult,
   AiEstimateResponseSchema,
   AiJobRecordSchema,
   AiProviderListResponseSchema,
@@ -127,6 +137,29 @@ export interface CreatorHubAiApi {
     assetId: string,
     input?: VideoUnderstandingRequest,
   ): Promise<VideoUnderstandingResponse>;
+
+  // ---- New API image and cover generation (QC-070) ----
+  images: {
+    /** Cost before sending: `max_cost_usd` is null when the model has no per-image price. */
+    estimate(workId: string, input: AiImageRequest): Promise<AiImageEstimateResponse>;
+    /** Queue a generation; read candidates with `imageResultOf(await ai.job(id))`. */
+    create(
+      workId: string,
+      input: AiImageRequest,
+      options?: IdempotencyOptions,
+    ): Promise<WorkAiJobResponse>;
+    /** Keep a candidate (insert, cover or library only); 409 if the work changed since. */
+    keep(workId: string, jobId: string, input: AiImageKeepRequest): Promise<AiImageKeepResponse>;
+    /** Discard a candidate; its temporary file is deleted. */
+    discard(workId: string, jobId: string, index: number): Promise<void>;
+  };
+}
+
+/** Typed result of a succeeded image job (candidates with signed URLs), or null. */
+export function imageResultOf(job: AiJobRecord): AiImageResult | null {
+  if (job.status !== 'succeeded' || job.task?.type !== 'image_generation') return null;
+  const parsed = AiImageResultSchema.safeParse(job.result?.json);
+  return parsed.success ? parsed.data : null;
 }
 
 /** Typed result of a succeeded video-understanding job, or null. */
@@ -235,6 +268,41 @@ export function createAiApi(ctx: Ctx): CreatorHubAiApi {
         `/api/v1/works/${encodeURIComponent(workId)}/ai/jobs/${encodeURIComponent(jobId)}/accept`,
         input,
       ),
+    images: {
+      estimate: (workId, input) =>
+        call(
+          ctx,
+          AiImageEstimateResponseSchema,
+          'POST',
+          `/api/v1/works/${encodeURIComponent(workId)}/ai/images/estimate`,
+          AiImageRequestSchema.parse(input),
+        ),
+      create: (workId, input, options) =>
+        call(
+          ctx,
+          WorkAiJobResponseSchema,
+          'POST',
+          `/api/v1/works/${encodeURIComponent(workId)}/ai/images`,
+          AiImageRequestSchema.parse(input),
+          idempotencyHeaders(options),
+        ),
+      keep: (workId, jobId, input) =>
+        call(
+          ctx,
+          AiImageKeepResponseSchema,
+          'POST',
+          `/api/v1/works/${encodeURIComponent(workId)}/ai/images/${encodeURIComponent(jobId)}/keep`,
+          input,
+        ),
+      discard: async (workId, jobId, index) => {
+        await call(
+          ctx,
+          z.null(),
+          'DELETE',
+          `/api/v1/works/${encodeURIComponent(workId)}/ai/images/${encodeURIComponent(jobId)}/candidates/${String(index)}`,
+        );
+      },
+    },
     estimateVideo: (assetId, input = {}) =>
       call(
         ctx,

@@ -36,7 +36,7 @@ const errorResponses = {
 };
 
 const WorkFileParamsSchema = z.object({ id: IdSchema, '*': z.string().min(1).max(4096) });
-const SignedQuerySchema = z.object({
+export const SignedQuerySchema = z.object({
   exp: z.string().max(16).optional(),
   p: z.string().max(64).optional(),
   sig: z.string().max(128).optional(),
@@ -47,7 +47,7 @@ const AssetVariantParamsSchema = z.object({
 });
 
 /** Headers for media opened through a signed URL: no caching past expiry, no sniffing, no referrer. */
-function signedHeaders(reply: FastifyReply, secondsLeft: number): void {
+export function signedHeaders(reply: FastifyReply, secondsLeft: number): void {
   reply
     .header('cache-control', `private, max-age=${String(Math.min(secondsLeft, 300))}`)
     .header('x-content-type-options', 'nosniff')
