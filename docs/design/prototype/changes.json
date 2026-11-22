@@ -1653,6 +1653,267 @@
       "approvalDecisions": [
         "openQuestions 十項全部採用原型的建議：拖曳只做加入；未分類不是拖放目標；第一版只有名稱與顏色；封存項目卡片不顯示色點、編輯頁淡色標「已封存」；刪除項目為軟刪除加可復原提示；最近刪除維持全域並顯示原項目；歸屬只存資料庫不寫 front matter；用到的素材沿用 media refs；不做巢狀；名稱上限 60 字。"
       ]
+    },
+    {
+      "id": "PT-20261122-001",
+      "title": "作品庫與項目頁精簡、側欄重新分組、搜尋關鍵字高亮",
+      "date": "2026-11-22",
+      "status": "pending",
+      "model": "claude-opus-5-5",
+      "session": "qc-prototype",
+      "requestedBy": "使用者 via 開發總監",
+      "userRequest": "項目界面是不是有冗餘設計了，這麼多文字和選項，看的人眼花繚亂。側邊欄的分類組合和順序也不是很合理，看起來讓人無從下手。搜索要實時關鍵字高亮，這是基本設計。（2026-11-22，見 .tasks QC-069、QC-068）",
+      "tasks": ["QC-069", "QC-068"],
+      "approvedBy": null,
+      "approvedAt": null,
+      "approvalNote": "總監代為核准（QC-069 卡片）",
+      "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "baseCanvasVersion": "41 (version id 1795275033-35aa) + the unpublished PT-20261121-002 and PT-20261121-003 canvas.json",
+      "canvasVersion": "NOT_PUBLISHED: the canvas server still refused connections on 2026-11-22. Files are in the shared notes folder pt-20261122-001-boards/; its canvas.json is the latest and includes PT-002 and PT-003.",
+      "sharedStylesheets": [
+        "/_blob/ce383cde01b175413fc4b99a21feb132 (qc-v2.css)",
+        "/_blob/a801184fe6d1b75f3cf8e2f73e8e3dc4 (qc-v3.css)",
+        "qc-v5.css + qc-v6.css inlined in each board"
+      ],
+      "boards": [
+        {
+          "file": "LibIA.dc.html",
+          "title": "v6 · 項目頁：精簡頁首",
+          "tweaks": {
+            "dark": "boolean",
+            "lang": ["繁中", "简中", "English"],
+            "state": [
+              "項目頁",
+              "全部作品",
+              "篩選開啟",
+              "篩選生效",
+              "搜尋標題",
+              "搜尋只命中摘要",
+              "搜尋簡繁",
+              "搜尋無結果",
+              "列表檢視",
+              "最近刪除"
+            ]
+          },
+          "states": [
+            "作品庫與項目頁共用一個頁首（一行）：標題（項目帶色塊）＋淡字「N 個作品 · M 個素材」（素材可點，跳到素材庫篩選）＋項目「⋯」；右側搜尋、篩選、格狀／列表、新建",
+            "概覽列（各狀態數、最近更新）移除；狀態數字只在篩選選單裡",
+            "類型與狀態合成一個「篩選」按鈕：彈出兩組單選（類型、狀態），每項有數量，0 的停用變淡；生效時按鈕變強調色並顯示個數，頁首下方出現可移除的標籤＋清除篩選",
+            "篩選數量是分面計數：類型的數字套用目前狀態、狀態的數字套用目前類型，都只算搜尋結果",
+            "搜尋或篩選時頁首淡字改成「N 個結果 · 共 M 個」，素材連結暫時隱藏；側欄數字一律是總數",
+            "搜尋即時高亮標題、文字卡預覽；只命中內文時卡片標題下多一行「內文 …片段…」；列表檢視同規則",
+            "比對：NFKC、不分大小寫、繁簡互通（原型用小對照表示範「剪辑」命中「剪輯」）；組字中不更新",
+            "搜尋無結果：保留輸入與篩選，提供「清除搜尋」與（在項目頁時）「在全部作品中搜尋」",
+            "最近刪除移出作品庫篩選列，改到側欄底欄（與設定同區）",
+            "側欄：全部作品、未分類（不加標題）→ 項目（＋）→ 素材（素材庫、匯入任務）→ 工具（AI 工作台、平台預覽）→ 底欄：最近刪除、設定"
+          ]
+        },
+        {
+          "file": "LibAllIA.dc.html",
+          "title": "v6 · 全部作品",
+          "wraps": "LibIA.dc.html",
+          "props": {
+            "state": "全部作品"
+          }
+        },
+        {
+          "file": "LibFilterOpen.dc.html",
+          "title": "v6 · 篩選（類型＋狀態合一）",
+          "wraps": "LibIA.dc.html",
+          "props": {
+            "state": "篩選開啟"
+          }
+        },
+        {
+          "file": "LibFiltered.dc.html",
+          "title": "v6 · 篩選生效",
+          "wraps": "LibIA.dc.html",
+          "props": {
+            "state": "篩選生效"
+          }
+        },
+        {
+          "file": "LibListIA.dc.html",
+          "title": "v6 · 列表檢視",
+          "wraps": "LibIA.dc.html",
+          "props": {
+            "state": "列表檢視"
+          }
+        },
+        {
+          "file": "LibTrashIA.dc.html",
+          "title": "v6 · 最近刪除（側欄底部）",
+          "wraps": "LibIA.dc.html",
+          "props": {
+            "state": "最近刪除"
+          }
+        },
+        {
+          "file": "LibSearchTitle.dc.html",
+          "title": "v6 · 搜尋：命中標題",
+          "wraps": "LibIA.dc.html",
+          "props": {
+            "state": "搜尋標題"
+          }
+        },
+        {
+          "file": "LibSearchBody.dc.html",
+          "title": "v6 · 搜尋：只命中內文",
+          "wraps": "LibIA.dc.html",
+          "props": {
+            "state": "搜尋只命中摘要"
+          }
+        },
+        {
+          "file": "LibSearchEmpty.dc.html",
+          "title": "v6 · 搜尋無結果",
+          "wraps": "LibIA.dc.html",
+          "props": {
+            "state": "搜尋無結果"
+          }
+        },
+        {
+          "file": "HighlightSpec.dc.html",
+          "title": "v6 · 高亮規格（淺／深）",
+          "tweaks": {
+            "dark": "boolean",
+            "lang": ["繁中", "简中", "English"]
+          },
+          "states": [
+            "淺色與深色並排：命中標題、只命中內文（有封面）、只命中內文（文字卡）",
+            "列表：簡繁互通、全半形與大小寫、素材名稱",
+            "六條規則：樣式、對比、只命中內文、比對、輸入法、數字"
+          ]
+        },
+        {
+          "file": "SidebarIA.dc.html",
+          "title": "v6 · 側欄：目前 vs 提案",
+          "tweaks": {
+            "dark": "boolean",
+            "lang": ["繁中", "简中", "English"]
+          },
+          "states": [
+            "目前與提案並排",
+            "六條理由",
+            "Apple Notes、Bear、Things、Notion 的側欄結構（一般使用觀察）"
+          ]
+        },
+        {
+          "file": "LibIADark.dc.html",
+          "title": "v6 · 項目頁（深色）",
+          "wraps": "LibIA.dc.html",
+          "props": {
+            "dark": true
+          }
+        },
+        {
+          "file": "LibSearchDark.dc.html",
+          "title": "v6 · 搜尋（深色）",
+          "wraps": "LibIA.dc.html",
+          "props": {
+            "dark": true,
+            "state": "搜尋只命中摘要"
+          }
+        },
+        {
+          "file": "SidebarIADark.dc.html",
+          "title": "v6 · 側欄（深色）",
+          "wraps": "SidebarIA.dc.html",
+          "props": {
+            "dark": true
+          }
+        }
+      ],
+      "decisions": [
+        "頁首只留一行：使用者說「文字和選項太多」，所以把同一組數字只放一處（篩選選單），概覽縮成標題旁一句淡字。",
+        "類型與狀態合成一個「篩選」彈出層，不用一列分段加一列膠囊：兩列控制項正是眼花的來源；篩選生效時才出現標籤，平常零成本。",
+        "數量 0 的選項停用變淡而不是隱藏：隱藏會讓選項位置跳動，也看不出「這個狀態目前沒有作品」。",
+        "數字一致：搜尋或篩選時頁首、篩選選單都只算目前結果，並寫出總數；側欄是導覽，永遠顯示總數。",
+        "最近刪除放側欄底欄：它是低頻的恢復入口，和設定一樣固定在底部，作品庫頁不再放它的膠囊。",
+        "側欄依「範圍 → 集合 → 素材 → 工具」排序，拿掉只裝一兩項的「創作」「AI」標題；未分類與全部作品同組，不混在項目裡；平台預覽移到工具。",
+        "高亮用暖黃底（不用強調墨藍），避免和選取混淆；不加粗，命中前後不跳版。"
+      ],
+      "backendNeeds": {
+        "api": [
+          "Search results need, per work, which field matched (title / body / tags) and a short body excerpt around the first hit, or the client needs the body text in list items to cut the excerpt itself. Recommend the server returns match: {field, excerpt, offsets} so long bodies are not shipped to the list.",
+          "Faceted counts for the current scope + query: GET /api/v1/works/facets?project_id=&q=&type=&status= → {types:{…}, statuses:{…}, total, scope_total}; or compute client-side when the page holds every result (QC-067 pagination makes server-side the safer choice).",
+          "Traditional/Simplified matching on the server side too (same mapping table as the client) so paginated search agrees with highlighting."
+        ],
+        "storage": ["No change. Sidebar order and the 已封存 collapse are client preferences."]
+      },
+      "references": [
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/layout-before-helper-copy/case.md",
+          "kind": "concept",
+          "borrowed": "Delete taglines and secondary labels first; if the page stops making sense, fix the layout instead of adding copy.",
+          "adaptation": "Removed the overview row and the duplicate status chips; kept one light line next to the title."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/ian-interactive-table-demo/case.md",
+          "kind": "concept",
+          "borrowed": "Keep filters in one place at the top next to search and the primary action.",
+          "adaptation": "One Filter button beside search; active filters appear as removable chips only when set."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-020-choice-controls/case.md",
+          "kind": "concept",
+          "borrowed": "Use a select-style control when options are many or will grow; segmented only for 2–5 short options.",
+          "adaptation": "Type (4) + status (5) together are too many for segments, so they move into one popover of two radio groups."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-022-empty-states/case.md",
+          "kind": "concept",
+          "borrowed": "Search with no results keeps the input and filters and offers at most two actions.",
+          "adaptation": "「清除搜尋」 plus 「在全部作品中搜尋」 when inside a project."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/lencx-sidebar-learned-width-snap/case.md",
+          "kind": "concept",
+          "borrowed": "The sidebar is a stable navigation surface the user returns to.",
+          "adaptation": "Fixed footer for 最近刪除 and 設定 so they never move when projects grow."
+        }
+      ],
+      "referenceGaps": "No library cards for the Things, Notion, Bear or Apple Notes sidebars, and none for search highlighting; those parts rely on general observation (marked on the board) and DESIGN.md.",
+      "verified": [
+        "Static check on all 14 boards; Node harness ran every handler for all tweak combinations with no handler errors; every template hole resolves in each state.",
+        "Spot-checked output: counts agree while searching (header “N 個結果 · 共 M 個” equals the filter menu totals), 0-count options are disabled, body-only hits get a snippet, 「剪辑」 matches 「剪輯」.",
+        "Highlight contrast by formula: light #1C1B19 on #FBE7A1 and dark #F4EBD0 on #5C4A14 are both above 4.5:1."
+      ],
+      "notVerified": [
+        "NOT_VERIFIED: canvas upload (server refused), so no canvas version.",
+        "NOT_VERIFIED: rendering in the canvas and the three-language fit by screenshot.",
+        "The prototype highlights with span.hl; the product must use <mark>."
+      ],
+      "openQuestions": [
+        {
+          "q": "平台預覽要留在側欄（工具）還是只從作品編輯頁進入？",
+          "recommendation": "留在工具，編輯頁的「預覽」也直接打開它；之後看使用頻率再決定拿掉。"
+        },
+        {
+          "q": "數量 0 的篩選選項：停用變淡或隱藏？",
+          "recommendation": "停用變淡，位置不跳。"
+        },
+        {
+          "q": "概覽淡字要不要保留「M 個素材」？",
+          "recommendation": "保留，它是「用到的素材」入口；搜尋或篩選時隱藏。"
+        },
+        {
+          "q": "類型與狀態能否多選？",
+          "recommendation": "先單選，與現況一致；多選之後再議。"
+        },
+        {
+          "q": "繁簡互通要用完整對照表嗎？",
+          "recommendation": "用 opencc-js（MIT）t2s 只在比對時轉換，前後端同一張表；記入 dependencies.md。"
+        },
+        {
+          "q": "命中標籤要怎麼顯示？",
+          "recommendation": "卡片不顯示標籤；只命中標籤時片段行寫「標籤 #…」（原型未畫）。"
+        },
+        {
+          "q": "側欄項目很多時？",
+          "recommendation": "項目區自己捲動，底欄固定；超過 12 個時「項目」標題旁出現搜尋（之後再做）。"
+        }
+      ]
     }
   ]
 }
