@@ -1,5 +1,17 @@
 # Done
 
+## QC-072: 拿掉切到視覺模式的「HTML 可能被改寫」確認，改成視覺模式保留原文
+
+**Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M3, frontend | **Done:** 2026-11-22
+
+- 進視覺前把 HTML、腳註、參照式連結、特殊表格、`$$` 數學、`:::` 指令換成佔位節點，視覺模式唯讀顯示原文（`<img>` 顯示成圖片含寬高），可刪除；存回時換回原文，未動部分逐位元組相同。切換不再詢問。測試 raw.test 11 類×3、e2e raw-syntax（背景模式）。總監合併後複核 typecheck、lint、markdown-editor-web 61／61。
+
+## QC-071: 「已儲存」不要一直顯示
+
+**Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M3, frontend | **Done:** 2026-11-22
+
+- SaveChip 平常不顯示；未儲存淡色、儲存中超過 150ms 才顯示、已儲存約 2 秒後淡出；失敗／衝突／離線持續醒目可點。固定寬度槽位，版本號與字數不移動。測試 save-chip.test（5）、e2e save-chip（2）。
+
 ## QC-069: 項目頁與側欄的資訊架構簡化
 
 **Priority:** P1 | **Assignee:** qc-prototype → qc-frontend | **Tags:** M3, prototype, frontend | **Done:** 2026-11-22
