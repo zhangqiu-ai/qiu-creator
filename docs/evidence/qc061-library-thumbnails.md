@@ -55,6 +55,11 @@ QC-064 已合併。rebase 到 `3880bab` 後，先在 dev build 重跑（2026-11-
 - 這次 e2e 用的是臨時的 `CREATORHUB_HOME` 和 `CREATORHUB_E2E_PROFILE`，在背景模式執行，沒有啟動 /Applications 裡的安裝版。
 - 安裝版原本的三個問題，在打包版裡都已經解決：視頻卡顯示 App 截的幀；貼圖卡在素材 `asset_id` 是 null 時仍顯示第一張圖；文章卡顯示正文圖片或文字預覽。
 
+**完整 e2e**（dev build，2026-11-21 23:17，負載約 2.9）：27/27 passed。
+
+- 第一次跑時，`image-post.spec.ts:207` 失敗。原因是它還在檢查舊的 `qc-asset://thumbnail/` 網址，而 QC-061 已經把卡片改成服務簽好的 `card_image.url`。
+- 修法：斷言改成檢查簽好的 `/media/v1/works/<id>/thumbnail` 網址，並確認圖片真的解碼顯示。這只改了測試，沒有放寬標準：舊的斷言只看網址前綴，新的還要求圖片載入成功。
+
 | 畫面（打包版） | 檔案 |
 | --- | --- |
 | 視頻幀、空白文章（圖示）、文字預覽、文章圖片、貼圖 | ![](qc061-packaged-zh-Hant-1-grid.png) |
