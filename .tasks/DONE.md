@@ -1,5 +1,11 @@
 # Done
 
+## QC-082: 中轉站讀不到模型清單時，模型選單仍要能選 New API 已設定的模型
+
+**Priority:** P1 | **Assignee:** qc-backend ＋ qc-frontend | **Tags:** M3, backend, frontend | **Done:** 2026-11-22
+
+- 後端 b0eb192：清單失敗時先用快取、否則用已存模型，回 `fallback` 與原因。前端 862d7e0：選單照常可選並以警示底色提示「清單讀取失敗，使用已存模型」＋原因（快取時附時間）；順修右側面板模型選單溢出。e2e 一般 58／0、動效 59／0。
+
 ## QC-081: new-api.spec、settings-v4.spec 偶發失敗（發版前要清掉）
 
 **Priority:** P1 | **Assignee:** qc-test | **Tags:** M3 | **Done:** 2026-11-22

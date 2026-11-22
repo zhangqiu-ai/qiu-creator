@@ -1,9 +1,3 @@
-## QC-082: 中轉站讀不到模型清單時，模型選單仍要能選 New API 已設定的模型
-
-**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend
-
-QC-075 前端回報：New API 中轉站的模型清單讀取失敗時，`/ai/models` 不列出 New API，模型選單就選不到它，使用者被卡住。改為：清單失敗時仍列出已設定的 New API 文字／圖片模型（標示「清單讀取失敗，使用已存模型」），並帶錯誤原因供前端顯示；有快取就用快取。補測試。併入 QC-074–079 同一版。
-
 ## QC-033: Mac 生產可用實機驗收
 
 **Priority:** P1 | **Assignee:** qc-test | **Tags:** M3
