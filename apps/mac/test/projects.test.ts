@@ -9,12 +9,8 @@ import { performProxyRequest } from '../src/main/proxy.js';
 import { bridgeFetch } from '../src/renderer/api.js';
 import { filterProjects } from '../src/renderer/ProjectTags.js';
 import { addToProject, type Notice } from '../src/renderer/project-actions.js';
-import {
-  dropAction,
-  dropAnimationFor,
-  dropIntoKeyframes,
-  sortTransition,
-} from '../src/renderer/projects-dnd.js';
+import { dropAnimationFor, dropIntoKeyframes, sortTransition } from '../src/renderer/dnd-motion.js';
+import { dropAction } from '../src/renderer/projects-dnd.js';
 import {
   cardDots,
   membership,

@@ -14,7 +14,8 @@ import { anchorOf } from './ContextMenu.js';
 import { t } from './i18n.js';
 import { Icon } from './Icon.js';
 import { renameProject, useNotice } from './project-actions.js';
-import { sortTransition, type DragData } from './projects-dnd.js';
+import { sortTransition } from './dnd-motion.js';
+import type { DragData } from './projects-dnd.js';
 import { useMotionMode } from './motion-mode.js';
 import { useProjectMenu } from './project-menu.js';
 import {

@@ -190,3 +190,23 @@ export function Animated({
     />
   );
 }
+
+/**
+ * Everything right of the sidebar (DESIGN.md 動效 · 側欄收合): when the sidebar
+ * collapses or expands, the content takes its final width at once and slides
+ * from where it was (`layout="position"`, `moderate` / `inOut`), so nothing is
+ * re-laid out frame by frame. Dragging the sidebar's edge does not animate.
+ */
+export function ShellMain({ rail, children }: { rail: boolean; children: ReactNode }) {
+  const mode = useMotionMode();
+  return (
+    <motion.div
+      className="shell__main"
+      layout={moves(mode) ? 'position' : false}
+      layoutDependency={rail}
+      transition={tween('moderate', 'inOut')}
+    >
+      {children}
+    </motion.div>
+  );
+}

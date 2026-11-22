@@ -32,7 +32,6 @@ export const tabs = defineMessages({
     retrySave: '重試儲存',
     discardClose: '不儲存並關閉',
     stillUnsaved: '還是沒有儲存成功，修改仍保留在分頁裡',
-    dropHere: '移到這裡',
   },
   'zh-Hans': {
     barLabel: '已打开的作品',
@@ -64,7 +63,6 @@ export const tabs = defineMessages({
     retrySave: '重试保存',
     discardClose: '不保存并关闭',
     stillUnsaved: '还是没有保存成功，修改仍保留在标签页里',
-    dropHere: '移到这里',
   },
   en: {
     barLabel: 'Open works',
@@ -100,6 +98,5 @@ export const tabs = defineMessages({
     retrySave: 'Retry save',
     discardClose: 'Close without saving',
     stillUnsaved: 'Still couldn’t save. Your changes stay in the tab.',
-    dropHere: 'Move here',
   },
 });

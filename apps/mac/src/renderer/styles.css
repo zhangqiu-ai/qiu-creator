@@ -234,6 +234,16 @@ kbd {
   display: flex;
   height: 100%;
 }
+/* Right of the sidebar: the page or the editor tabs (QC-065: slides when the sidebar collapses). */
+.shell__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+/* The page title takes focus after a page switch; only a keyboard user needs to see it. */
+.page h1[tabindex='-1']:focus:not(:focus-visible) {
+  outline: none;
+}
 /* Sidebar v2 (PT-20261119-001, QC-041) */
 .sb {
   position: relative;
@@ -4661,7 +4671,23 @@ kbd {
   text-decoration: line-through;
 }
 .tab--dragging {
-  opacity: 0.5;
+  /* The tab left behind while its copy is dragged (DESIGN.md 動效 · 拖放：拿起). */
+  opacity: 0.4;
+}
+/* Each tab's slot: it slides when a tab opens or closes (QC-065). */
+.tab-slot {
+  flex: none;
+  display: flex;
+}
+.drag-ghost.drag-ghost--tab {
+  gap: 6px;
+  width: 184px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 6px;
+  background: var(--qc-surface);
+  color: var(--qc-ink);
+  font-weight: 500;
 }
 .tab__conflict {
   display: inline-flex;
@@ -4725,16 +4751,6 @@ kbd {
 }
 .tab--flash {
   animation: tab-flash 0.9s ease-out;
-}
-.tabbar__insert {
-  position: absolute;
-  top: 4px;
-  bottom: 4px;
-  width: 2px;
-  margin-left: -1px;
-  border-radius: 1px;
-  background: var(--qc-accent);
-  pointer-events: none;
 }
 .tabbar__all {
   position: relative;
@@ -6806,6 +6822,29 @@ kbd {
   from {
     opacity: 0;
   }
+}
+/*
+ * 頁面切換 (DESIGN.md 動效): the old page goes at once, the new one fades in
+ * (`fast`); no sliding, since side navigation swaps pages side by side. The
+ * sidebar's labels fade back in when it expands. Both are plain fades, so they
+ * stay under Reduce Motion and in the lite set.
+ */
+.shell__main > .page,
+.shell__main > .tabs-area:not([hidden]),
+.sb:not(.sb--rail) .sb__label {
+  animation: qc-fade-in var(--qc-dur-fast) var(--qc-ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell__main > .page,
+  .shell__main > .tabs-area:not([hidden]),
+  .sb:not(.sb--rail) .sb__label {
+    animation: qc-fade-in var(--qc-dur-fast) var(--qc-ease-out) !important;
+  }
+}
+:root[data-motion='lite'] .shell__main > .page,
+:root[data-motion='lite'] .shell__main > .tabs-area:not([hidden]),
+:root[data-motion='lite'] .sb:not(.sb--rail) .sb__label {
+  animation: qc-fade-in var(--qc-dur-fast) var(--qc-ease-out) !important;
 }
 /* Test mode (DESIGN.md 動效 · 測試模式): e2e runs with nothing animating. */
 :root[data-motion='off'] *,

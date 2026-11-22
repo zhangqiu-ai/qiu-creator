@@ -7,11 +7,26 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
-  type DragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  type PointerEventHandler,
 } from 'react';
+import {
+  closestCenter,
+  DndContext,
+  DragOverlay,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+  type Modifier,
+} from '@dnd-kit/core';
+import { horizontalListSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { motion } from 'motion/react';
 import type { TabCommand } from '../shared/bridge.js';
+import { dropAnimationFor, sortTransition, useDragSensors, type Landing } from './dnd-motion.js';
+import { springOf, tween } from './motion.js';
+import { moves, useMotionMode } from './motion-mode.js';
 import { anchorOf, ContextMenu, type MenuAnchor } from './ContextMenu.js';
 import { Dialog } from './Dialog.js';
 import { RenameField } from './RenameField.js';
@@ -27,8 +42,8 @@ import { useToast } from './toasts.js';
 import type { Draft } from './work-session.js';
 import type { Tab, TabsModel, TabStatusPatch, TabView } from './tabs.js';
 
-/** dataTransfer type for dragging a tab (never confused with assets or files). */
-const TAB_DRAG_TYPE = 'application/x-qc-tab';
+/** Tabs only slide sideways while dragged. */
+const alongTheBar: Modifier = ({ transform }) => ({ ...transform, y: 0 });
 
 type Notice =
   | { kind: 'closed'; title: string }
@@ -614,19 +629,31 @@ function TabBar({
       ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }, [activeId]);
 
-  const [drag, setDrag] = useState<{ id: string; index: number; x: number } | null>(null);
-  const dropIndex = (e: DragEvent<HTMLDivElement>): { index: number; x: number } => {
-    const el = strip.current;
-    const items = [...(el?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [])];
-    const left = el?.getBoundingClientRect().left ?? 0;
-    const scroll = el?.scrollLeft ?? 0;
-    for (const [i, item] of items.entries()) {
-      const r = item.getBoundingClientRect();
-      if (e.clientX < r.left + r.width / 2) return { index: i, x: r.left - left + scroll };
-    }
-    const last = items.at(-1)?.getBoundingClientRect();
-    return { index: items.length, x: last === undefined ? 0 : last.right - left + scroll };
+  // Drag to reorder (QC-065, DESIGN.md 動效 · 編輯分頁): dnd-kit sortable along the bar;
+  // the other tabs move aside (`base`), the dropped tab settles, Esc puts it back.
+  const mode = useMotionMode();
+  const sensors = useDragSensors();
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [landing, setLanding] = useState<Landing>('cancel');
+  const dragTab = dragId === null ? null : (tabs.find((tab) => tab.id === dragId) ?? null);
+  const onDragStart = (e: DragStartEvent) => {
+    setDragId(String(e.active.id));
+    setLanding('cancel');
   };
+  const onDragOver = (e: DragOverEvent) => {
+    setLanding(e.over === null || e.over.id === e.active.id ? 'cancel' : 'sort');
+  };
+  const onDragEnd = (e: DragEndEvent) => {
+    setDragId(null);
+    if (e.over === null) return;
+    const from = tabs.findIndex((tab) => tab.id === e.active.id);
+    const to = tabs.findIndex((tab) => tab.id === e.over?.id);
+    if (from < 0 || to < 0 || from === to) return;
+    // TabsModel.move puts the tab before the one at the index it is given.
+    model.move(String(e.active.id), to > from ? to + 1 : to);
+  };
+  // Tabs there when the bar first showed appear as they are; later ones fade in.
+  const [firstIds] = useState(() => new Set(tabs.map((tab) => tab.id)));
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     if (e.nativeEvent.isComposing || e.metaKey || e.altKey || e.ctrlKey) return;
@@ -663,67 +690,75 @@ function TabBar({
         aria-label={t('tabs.barLabel')}
         onScroll={measure}
         onKeyDown={onKeyDown}
-        onDragOver={(e) => {
-          if (drag === null || !e.dataTransfer.types.includes(TAB_DRAG_TYPE)) return;
-          e.preventDefault();
-          e.dataTransfer.dropEffect = 'move';
-          const at = dropIndex(e);
-          setDrag({ ...drag, ...at });
-        }}
-        onDragLeave={(e) => {
-          if (drag === null || e.currentTarget.contains(e.relatedTarget as Node | null)) return;
-          setDrag({ ...drag, index: -1 });
-        }}
-        onDrop={(e) => {
-          if (drag === null || !e.dataTransfer.types.includes(TAB_DRAG_TYPE)) return;
-          e.preventDefault();
-          model.move(drag.id, dropIndex(e).index);
-          setDrag(null);
-        }}
       >
-        {tabs.map((tab, i) => (
-          <TabItem
-            key={tab.id}
-            tab={tab}
-            index={i}
-            count={tabs.length}
-            active={tab.id === activeId}
-            flash={tab.id === flashId ? flashSeq : null}
-            dragging={drag?.id === tab.id}
-            renaming={renaming === tab.id}
-            menuOpen={menu?.id === tab.id}
-            onActivate={onActivate}
-            onClose={onClose}
-            onStartRename={() => {
-              setRenaming(tab.id);
-            }}
-            onRename={(title) => {
-              setRenaming(null);
-              if (title !== null) onRename(tab.id, title);
-              document.getElementById(`tab-${tab.id}`)?.focus();
-            }}
-            onMenu={(e) => {
-              e.preventDefault();
-              setMenu({ id: tab.id, anchor: anchorOf(e) });
-            }}
-            onDragStart={(e) => {
-              e.dataTransfer.setData(TAB_DRAG_TYPE, tab.id);
-              e.dataTransfer.effectAllowed = 'move';
-              setDrag({ id: tab.id, index: -1, x: 0 });
-            }}
-            onDragEnd={() => {
-              setDrag(null);
-            }}
-          />
-        ))}
-        {drag !== null && drag.index >= 0 && (
-          <span
-            className="tabbar__insert"
-            style={{ left: drag.x }}
-            aria-hidden="true"
-            title={t('tabs.dropHere')}
-          />
-        )}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[alongTheBar]}
+          onDragStart={onDragStart}
+          onDragOver={onDragOver}
+          onDragEnd={onDragEnd}
+          onDragCancel={() => {
+            setDragId(null);
+            setLanding('cancel');
+          }}
+          accessibility={{ restoreFocus: false }}
+        >
+          <SortableContext
+            items={tabs.map((tab) => tab.id)}
+            strategy={horizontalListSortingStrategy}
+          >
+            {tabs.map((tab, i) => (
+              // Opening or closing a tab: the others slide into place (`snappy`); a new tab fades in.
+              // Only the count drives this, so a drag's new order is not animated twice.
+              <motion.div
+                key={tab.id}
+                role="presentation"
+                className="tab-slot"
+                layout={moves(mode) ? 'position' : false}
+                layoutDependency={tabs.length}
+                transition={springOf('snappy')}
+                initial={firstIds.has(tab.id) || !moves(mode) ? false : { opacity: 0 }}
+                animate={{ opacity: 1, transition: tween('fast') }}
+              >
+                <TabItem
+                  key={tab.id}
+                  tab={tab}
+                  index={i}
+                  count={tabs.length}
+                  active={tab.id === activeId}
+                  flash={tab.id === flashId ? flashSeq : null}
+                  dragging={dragId === tab.id}
+                  sortTransitionMode={mode}
+                  renaming={renaming === tab.id}
+                  menuOpen={menu?.id === tab.id}
+                  onActivate={onActivate}
+                  onClose={onClose}
+                  onStartRename={() => {
+                    setRenaming(tab.id);
+                  }}
+                  onRename={(title) => {
+                    setRenaming(null);
+                    if (title !== null) onRename(tab.id, title);
+                    document.getElementById(`tab-${tab.id}`)?.focus();
+                  }}
+                  onMenu={(e) => {
+                    e.preventDefault();
+                    setMenu({ id: tab.id, anchor: anchorOf(e) });
+                  }}
+                />
+              </motion.div>
+            ))}
+          </SortableContext>
+          <DragOverlay dropAnimation={dropAnimationFor(landing, mode)} modifiers={[alongTheBar]}>
+            {dragTab === null ? null : (
+              <div className="drag-ghost drag-ghost--tab">
+                <Icon name={WORK_TYPE[dragTab.kind].icon} size={14} />
+                {tabTitle(dragTab)}
+              </div>
+            )}
+          </DragOverlay>
+        </DndContext>
       </div>
       {menu !== null && menuTab !== null && (
         <ContextMenu
@@ -790,8 +825,7 @@ function TabItem({
   onStartRename,
   onRename,
   onMenu,
-  onDragStart,
-  onDragEnd,
+  sortTransitionMode,
 }: {
   tab: Tab;
   index: number;
@@ -809,10 +843,23 @@ function TabItem({
   /** The new title, or null when the rename was cancelled. */
   onRename: (title: string | null) => void;
   onMenu: (e: ReactMouseEvent<HTMLDivElement>) => void;
-  onDragStart: (e: DragEvent<HTMLDivElement>) => void;
-  onDragEnd: () => void;
+  /** How the other tabs move aside while one is dragged. */
+  sortTransitionMode: ReturnType<typeof useMotionMode>;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const sortable = useSortable({
+    id: tab.id,
+    disabled: renaming,
+    transition: sortTransition(sortTransitionMode),
+  });
+  const { setNodeRef } = sortable;
+  const setRefs = useCallback(
+    (node: HTMLDivElement | null) => {
+      ref.current = node;
+      setNodeRef(node);
+    },
+    [setNodeRef],
+  );
   useEffect(() => {
     const el = ref.current;
     if (flash === null || el === null) return;
@@ -828,8 +875,13 @@ function TabItem({
   const icon = WORK_TYPE[tab.kind].icon;
   return (
     <div
-      ref={ref}
+      ref={setRefs}
       id={`tab-${tab.id}`}
+      style={{
+        transform: CSS.Translate.toString(sortable.transform),
+        transition: sortable.transition,
+      }}
+      onPointerDown={sortable.listeners?.['onPointerDown'] as PointerEventHandler<HTMLDivElement>}
       className={[
         'tab',
         active ? 'tab--active' : '',
@@ -848,15 +900,12 @@ function TabItem({
       aria-description={states.join(', ') || undefined}
       tabIndex={active ? 0 : -1}
       title={renaming ? undefined : tooltip}
-      draggable={!renaming}
       onContextMenu={onMenu}
       onDoubleClick={(e) => {
         if (tab.missing || e.target instanceof HTMLButtonElement) return;
         e.preventDefault();
         onStartRename();
       }}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
       onMouseDown={(e) => {
         // Middle click closes, as in browsers.
         if (e.button === 1) {

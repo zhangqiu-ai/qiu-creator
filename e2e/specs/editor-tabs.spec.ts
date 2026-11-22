@@ -222,7 +222,18 @@ test('開多個作品、切換保留狀態、重複開啟、快捷鍵與選單',
   });
 
   await test.step('拖曳排序', async () => {
-    await tab(page, '丙篇筆記').dragTo(tab(page, '甲篇長文'), { targetPosition: { x: 4, y: 10 } });
+    // dnd-kit (QC-065) starts on pointer moves past 4 px, then the other tabs move aside.
+    const from = await tab(page, '丙篇筆記').boundingBox();
+    const to = await tab(page, '甲篇長文').boundingBox();
+    if (from === null || to === null) throw new Error('tabs not visible');
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(from.x + from.width / 2 - 10, from.y + from.height / 2, { steps: 3 });
+    await page.mouse.move(to.x + 8, to.y + to.height / 2, { steps: 12 });
+    await page.mouse.up();
+    // dnd-kit swallows clicks for 50 ms after a drop (its guard against the drag's own
+    // click); a person cannot click that fast, the next step's click can.
+    await page.evaluate('new Promise((done) => setTimeout(done, 60))');
     await expect.poll(() => order(page)).toEqual(['丙篇筆記', '甲篇長文', '乙篇草稿']);
     // ⌘1 follows the new order.
     await page.keyboard.press('Meta+1');
