@@ -45,6 +45,7 @@ export type IconName =
   | 'info'
   | 'chevronDown'
   | 'chevronUp'
+  | 'chevronRight'
   | 'tag'
   | 'trash';
 
@@ -57,6 +58,7 @@ const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   info: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z', 'M12 11v5', 'M12 8h.01'],
   chevronDown: ['m6 9 6 6 6-6'],
   chevronUp: ['m6 15 6-6 6 6'],
+  chevronRight: ['m9 6 6 6-6 6'],
   tag: ['M3 12V4h8l9 9-8 8Z', 'M7.5 8h.01'],
   trash: ['M4 7h16', 'M9 7V4h6v3', 'M6 7l1 13h10l1-13', 'M10 11v6', 'M14 11v6'],
   search: ['M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Z', 'm20 20-4.8-4.8'],

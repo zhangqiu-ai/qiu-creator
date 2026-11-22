@@ -62,7 +62,9 @@ export type RevealTarget =
   /** `<CREATORHUB_HOME>/backups` (QC-031). */
   | { kind: 'backups' }
   | { kind: 'asset'; id: string }
-  | { kind: 'mount'; id: string };
+  | { kind: 'mount'; id: string }
+  /** An external work's file (QC-052); managed works have none to show. */
+  | { kind: 'work'; id: string };
 
 /** 外觀: follow macOS, or pin light or dark (QC-038). */
 export type ThemeSource = 'system' | 'light' | 'dark';

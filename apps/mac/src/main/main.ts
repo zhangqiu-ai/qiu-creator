@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { AssetRecordSchema, MountSchema } from '@qiu-creator/contracts';
+import { AssetRecordSchema, MountSchema, WorkSchema } from '@qiu-creator/contracts';
 import {
   app,
   BrowserWindow,
@@ -128,7 +128,10 @@ function isRevealTarget(value: unknown): value is RevealTarget {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
   if (v['kind'] === 'home' || v['kind'] === 'backups') return true;
-  return (v['kind'] === 'asset' || v['kind'] === 'mount') && typeof v['id'] === 'string';
+  return (
+    (v['kind'] === 'asset' || v['kind'] === 'mount' || v['kind'] === 'work') &&
+    typeof v['id'] === 'string'
+  );
 }
 
 /** Only our own renderer may use the bridge. */
@@ -179,6 +182,23 @@ async function reveal(target: RevealTarget): Promise<boolean> {
       root = mount.data.root_path;
     }
     const full = resolveInsideHome(root, asset.data.path);
+    if (full === null) return false;
+    shell.showItemInFolder(full);
+    return true;
+  }
+  if (target.kind === 'work') {
+    // Only an external work has a file of its own to show (QC-052): its mount root plus its path.
+    const work = WorkSchema.safeParse(
+      await serviceGet(`/api/v1/works/${encodeURIComponent(target.id)}`),
+    );
+    if (!work.success) return false;
+    const { mount_id: mountId, external_path: rel } = work.data;
+    if (work.data.storage_mode !== 'external' || mountId == null || rel == null) return false;
+    const mount = MountSchema.safeParse(
+      await serviceGet(`/api/v1/mounts/${encodeURIComponent(mountId)}`),
+    );
+    if (!mount.success || !path.isAbsolute(mount.data.root_path)) return false;
+    const full = resolveInsideHome(mount.data.root_path, rel);
     if (full === null) return false;
     shell.showItemInFolder(full);
     return true;

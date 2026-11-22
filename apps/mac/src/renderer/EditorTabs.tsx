@@ -9,10 +9,15 @@ import {
   useSyncExternalStore,
   type DragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
 } from 'react';
 import type { TabCommand } from '../shared/bridge.js';
+import { anchorOf, ContextMenu, type MenuAnchor } from './ContextMenu.js';
 import { Dialog } from './Dialog.js';
-import { EditorPage, type EditorTabHandle } from './EditorPage.js';
+import { RenameField } from './RenameField.js';
+import { EditorPage } from './EditorPage.js';
+import type { EditorTabHandle } from './tab-handle.js';
+import { changeWork, type EditorHandles } from './work-actions.js';
 import { ImagePostEditor } from './ImagePostEditor.js';
 import { VideoWorkEditor } from './VideoWorkEditor.js';
 import { WORK_TYPE } from './format.js';
@@ -29,7 +34,8 @@ type Notice =
   | { kind: 'closed'; title: string }
   | { kind: 'already'; title: string }
   | { kind: 'restored'; count: number }
-  | { kind: 'closedOthers'; count: number };
+  | { kind: 'closedOthers'; count: number }
+  | { kind: 'renameFailed'; message: string };
 
 const NOTICE_MS = 8000;
 
@@ -57,6 +63,8 @@ function shortcutFor(index: number, count: number): string | null {
 
 export interface EditorTabsProps {
   model: TabsModel;
+  /** Shared with 作品庫 (QC-052); this component registers each mounted editor here. */
+  handles: EditorHandles;
   client: CreatorHubClient;
   userHome: string | null;
   /** The editor area is the page in front (not 作品庫, 設定, …). */
@@ -82,7 +90,7 @@ export interface EditorTabsProps {
 export function EditorTabs(props: EditorTabsProps) {
   const { model, visible, onFocusEditor } = props;
   const state = useSyncExternalStore(model.subscribe, model.getSnapshot);
-  const handles = useRef(new Map<string, EditorTabHandle>());
+  const handles = useRef(props.handles);
   /** Drafts handed back by 重新開啟, consumed by the editor that mounts next for that work. */
   const reopenDrafts = useRef(new Map<string, Draft>());
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -182,6 +190,42 @@ export function EditorTabs(props: EditorTabsProps) {
     };
   }, [run]);
 
+  /**
+   * Double-click or 重新命名 on a tab (QC-052): an open editor renames through
+   * its session; a tab that is not loaded patches the work's latest revision.
+   */
+  const renameTab = useCallback(
+    (id: string, title: string) => {
+      const tab = model.find(id);
+      if (tab === null) return;
+      const before = tab.title;
+      model.update(id, { title });
+      const handle = handles.current.get(id);
+      const run =
+        handle !== undefined
+          ? handle.change({ title })
+          : props.client.works
+              .get(id)
+              .then((work) => changeWork(props.client, work, { title }, handles.current))
+              .then((r) => r.outcome)
+              .catch(() => 'failed' as const);
+      void run.then((outcome) => {
+        if (outcome === 'saved' || outcome === 'pending') return;
+        model.update(id, { title: before });
+        setNotice({
+          kind: 'renameFailed',
+          message: t(
+            outcome === 'conflict' ? 'workActions.renameConflict' : 'workActions.renameFailed',
+            {
+              title: before,
+            },
+          ),
+        });
+      });
+    },
+    [model, props.client],
+  );
+
   const loaded = useMemo(
     // A stable order, so reordering tabs never moves a mounted editor in the DOM.
     () => state.tabs.filter((tab) => tab.loaded).sort((a, b) => (a.id < b.id ? -1 : 1)),
@@ -206,8 +250,11 @@ export function EditorTabs(props: EditorTabsProps) {
                 ? t('tabs.alreadyOpen', { title: notice.title })
                 : notice.kind === 'restored'
                   ? t('tabs.restored', { count: notice.count })
-                  : t('tabs.closedOthers', { count: notice.count }),
-          tone: notice.kind === 'already' ? 'neutral' : 'ok',
+                  : notice.kind === 'renameFailed'
+                    ? notice.message
+                    : t('tabs.closedOthers', { count: notice.count }),
+          tone:
+            notice.kind === 'already' ? 'neutral' : notice.kind === 'renameFailed' ? 'bad' : 'ok',
           actions:
             notice.kind === 'closed' && state.closed !== null
               ? [
@@ -258,6 +305,7 @@ export function EditorTabs(props: EditorTabsProps) {
           if (n > 0) setNotice({ kind: 'closedOthers', count: n });
           onFocusEditor();
         }}
+        onRename={renameTab}
       />
       {loaded.map((tab) => (
         <TabPane
@@ -521,6 +569,7 @@ function TabBar({
   onActivate,
   onClose,
   onCloseOthers,
+  onRename,
 }: {
   model: TabsModel;
   tabs: readonly Tab[];
@@ -530,8 +579,12 @@ function TabBar({
   onActivate: (id: string, focusEditor: boolean) => void;
   onClose: (id: string) => void;
   onCloseOthers: (id: string) => void;
+  onRename: (id: string, title: string) => void;
 }) {
   const strip = useRef<HTMLDivElement>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ id: string; anchor: MenuAnchor } | null>(null);
+  const menuTab = menu === null ? null : (tabs.find((tab) => tab.id === menu.id) ?? null);
   const [fade, setFade] = useState({ left: false, right: false });
   const measure = useCallback(() => {
     const el = strip.current;
@@ -635,8 +688,22 @@ function TabBar({
             active={tab.id === activeId}
             flash={tab.id === flashId ? flashSeq : null}
             dragging={drag?.id === tab.id}
+            renaming={renaming === tab.id}
+            menuOpen={menu?.id === tab.id}
             onActivate={onActivate}
             onClose={onClose}
+            onStartRename={() => {
+              setRenaming(tab.id);
+            }}
+            onRename={(title) => {
+              setRenaming(null);
+              if (title !== null) onRename(tab.id, title);
+              document.getElementById(`tab-${tab.id}`)?.focus();
+            }}
+            onMenu={(e) => {
+              e.preventDefault();
+              setMenu({ id: tab.id, anchor: anchorOf(e) });
+            }}
             onDragStart={(e) => {
               e.dataTransfer.setData(TAB_DRAG_TYPE, tab.id);
               e.dataTransfer.effectAllowed = 'move';
@@ -656,6 +723,45 @@ function TabBar({
           />
         )}
       </div>
+      {menu !== null && menuTab !== null && (
+        <ContextMenu
+          anchor={menu.anchor}
+          label={t('workActions.tabMenu', { title: tabTitle(menuTab) })}
+          items={[
+            {
+              kind: 'item',
+              id: 'rename',
+              label: t('workActions.rename'),
+              disabled: menuTab.missing,
+              onSelect: () => {
+                setRenaming(menuTab.id);
+              },
+            },
+            { kind: 'sep', id: 'sep' },
+            {
+              kind: 'item',
+              id: 'close',
+              label: t('workActions.closeTab'),
+              hint: '⌘W',
+              onSelect: () => {
+                onClose(menuTab.id);
+              },
+            },
+            {
+              kind: 'item',
+              id: 'close-others',
+              label: t('tabs.closeOthers'),
+              disabled: tabs.length < 2,
+              onSelect: () => {
+                onCloseOthers(menuTab.id);
+              },
+            },
+          ]}
+          onClose={() => {
+            setMenu(null);
+          }}
+        />
+      )}
       <AllTabsMenu
         tabs={tabs}
         activeId={activeId}
@@ -675,8 +781,13 @@ function TabItem({
   active,
   flash,
   dragging,
+  renaming,
+  menuOpen,
   onActivate,
   onClose,
+  onStartRename,
+  onRename,
+  onMenu,
   onDragStart,
   onDragEnd,
 }: {
@@ -687,8 +798,15 @@ function TabItem({
   /** Non-null to flash; a new number flashes again. */
   flash: number | null;
   dragging: boolean;
+  renaming: boolean;
+  /** Its right-click menu is open. */
+  menuOpen: boolean;
   onActivate: (id: string, focusEditor: boolean) => void;
   onClose: (id: string) => void;
+  onStartRename: () => void;
+  /** The new title, or null when the rename was cancelled. */
+  onRename: (title: string | null) => void;
+  onMenu: (e: ReactMouseEvent<HTMLDivElement>) => void;
   onDragStart: (e: DragEvent<HTMLDivElement>) => void;
   onDragEnd: () => void;
 }) {
@@ -717,6 +835,8 @@ function TabItem({
         tab.unsaved ? 'tab--unsaved' : '',
         tab.missing ? 'tab--missing' : '',
         dragging ? 'tab--dragging' : '',
+        renaming ? 'tab--renaming' : '',
+        menuOpen ? 'tab--menu' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -725,8 +845,14 @@ function TabItem({
       aria-controls={tab.loaded ? `tab-pane-${tab.id}` : undefined}
       aria-description={states.join(', ') || undefined}
       tabIndex={active ? 0 : -1}
-      title={tooltip}
-      draggable
+      title={renaming ? undefined : tooltip}
+      draggable={!renaming}
+      onContextMenu={onMenu}
+      onDoubleClick={(e) => {
+        if (tab.missing || e.target instanceof HTMLButtonElement) return;
+        e.preventDefault();
+        onStartRename();
+      }}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onMouseDown={(e) => {
@@ -741,7 +867,19 @@ function TabItem({
       }}
     >
       <Icon name={icon} size={14} />
-      <span className="tab__title">{title}</span>
+      {renaming ? (
+        <RenameField
+          value={tab.title}
+          label={t('workActions.renameField', { title })}
+          className="rename--tab"
+          onCommit={onRename}
+          onCancel={() => {
+            onRename(null);
+          }}
+        />
+      ) : (
+        <span className="tab__title">{title}</span>
+      )}
       {tab.conflict && (
         <span className="tab__conflict" aria-hidden="true">
           <Icon name="alert" size={12} />

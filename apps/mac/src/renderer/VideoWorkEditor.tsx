@@ -27,7 +27,7 @@ import { ConfirmDialog, ReuseDialog } from './AiWorkbenchPage.js';
 import { PHASE_LABEL, uploadPercent, VideoSession, type VideoState } from './ai-video.js';
 import { Chip } from './Chip.js';
 import { Dialog } from './Dialog.js';
-import type { EditorTabHandle } from './EditorPage.js';
+import { sessionHandle, type EditorTabHandle } from './tab-handle.js';
 import { InsertSession, type InsertState } from './editor-insert.js';
 import { useChangeEvents } from './events.js';
 import { formatDuration, SAVE_STATUS, WORK_STATUS } from './format.js';
@@ -117,18 +117,11 @@ export function VideoWorkEditor(props: VideoWorkEditorProps) {
     initialDraft.current = null;
     if (back !== null) s.edit(back);
     setSession(s);
-    onHandle?.({
-      flush: async () => {
-        await s.save();
-        return !s.hasUnsavedChanges() && s.snapshot.status !== 'conflict';
-      },
-      discard: () => {
+    onHandle?.(
+      sessionHandle(s, () => {
         discarded = true;
-        const draft = s.hasUnsavedChanges() ? s.snapshot.draft : null;
-        s.dispose();
-        return draft;
-      },
-    });
+      }),
+    );
     return () => {
       onHandle?.(null);
       if (!discarded) s.close();

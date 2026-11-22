@@ -1,3 +1,4 @@
+import { sessionHandle, type EditorTabHandle } from './tab-handle.js';
 import type { CreatorHubClient } from '@qiu-creator/api-client';
 import type { AssetRecord, Revision, WorkDetail, WorkStatus } from '@qiu-creator/contracts';
 import {
@@ -182,12 +183,7 @@ export interface EditorPageProps {
 }
 
 /** What the tab bar may do with an open editor (QC-047). */
-export interface EditorTabHandle {
-  /** Save now; true when nothing unsaved is left. */
-  flush: () => Promise<boolean>;
-  /** Stop saving and hand back the unsaved draft (不儲存並關閉), or null when there is none. */
-  discard: () => Draft | null;
-}
+export type { EditorTabHandle } from './tab-handle.js';
 
 /**
  * 編輯頁 from the approved prototype plus PT-20261117-001: live
@@ -207,18 +203,11 @@ export function EditorPage(props: EditorPageProps) {
     initialDraft.current = null;
     if (back !== null) s.edit(back);
     setSession(s);
-    onHandle?.({
-      flush: async () => {
-        await s.save();
-        return !s.hasUnsavedChanges() && s.snapshot.status !== 'conflict';
-      },
-      discard: () => {
+    onHandle?.(
+      sessionHandle(s, () => {
         discarded = true;
-        const draft = s.hasUnsavedChanges() ? s.snapshot.draft : null;
-        s.dispose();
-        return draft;
-      },
-    });
+      }),
+    );
     return () => {
       onHandle?.(null);
       // Flush pending edits when leaving; a conflict stays unsaved (the dialog blocks leaving).

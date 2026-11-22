@@ -143,6 +143,32 @@ export class TabsModel {
     return 'opened';
   }
 
+  /**
+   * 在新分頁開啟 (QC-052): add the tab behind the one in front, without
+   * leaving the page; it loads when first shown. Already open: nothing changes.
+   */
+  openInBackground(work: { id: string; kind: TabKind; title: string }): 'opened' | 'exists' {
+    if (this.find(work.id) !== null) return 'exists';
+    if (this.state.activeId === null) {
+      this.open(work);
+      return 'opened';
+    }
+    const tab: Tab = {
+      id: work.id,
+      kind: work.kind,
+      title: work.title,
+      loaded: false,
+      view: DEFAULT_VIEW,
+      unsaved: false,
+      conflict: false,
+      aiCandidate: false,
+      aiBusy: false,
+      missing: false,
+    };
+    this.set({ tabs: [...this.state.tabs, tab] });
+    return 'opened';
+  }
+
   activate(id: string): void {
     if (this.find(id) === null) return;
     this.recency = [...this.recency.filter((r) => r !== id), id];
