@@ -42,6 +42,7 @@ import { dropAnimationFor, sortTransition, useDragSensors, type Landing } from '
 import { springOf } from './motion.js';
 import { useMotionMode, type MotionMode } from './motion-mode.js';
 import { Chip } from './Chip.js';
+import { SaveChip } from './SaveChip.js';
 import { Dialog } from './Dialog.js';
 import { sessionHandle, type EditorTabHandle } from './tab-handle.js';
 import { imageFiles, InsertSession, type InsertState, type InsertWhere } from './editor-insert.js';
@@ -548,10 +549,7 @@ function PostEditor({
             </span>
           )}
           <span className="save-status" role="status" aria-live="polite">
-            <Chip tone={save.tone}>
-              {state.status === 'saving' && <span className="pulse" aria-hidden="true" />}
-              {save.label}
-            </Chip>
+            <SaveChip tone={save.tone} label={save.label} saving={state.status === 'saving'} />
           </span>
           {rev !== undefined && <Chip>r{rev}</Chip>}
           <div className="editor__actions">

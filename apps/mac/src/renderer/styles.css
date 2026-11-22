@@ -6996,6 +6996,45 @@ kbd {
   transform-origin: left center;
   transition: transform var(--qc-dur-progress) var(--qc-ease-out);
 }
+/* 項目列 (QC-065 area 6): a new row comes in like a list item; a changed count fades in. */
+.sb-proj__list .sb-proj__row {
+  animation: qc-item-in var(--qc-dur-base) var(--qc-ease-out);
+}
+@keyframes qc-item-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+.sb__count--update {
+  animation: qc-fade-in var(--qc-dur-fast) var(--qc-ease-out);
+}
+/*
+ * AI 任務完成 (DESIGN.md 動效 · AI 任務進度): the progress card fades out
+ * (useExitFade) and the result comes in like a new list item (base).
+ */
+.aiw__done,
+.aiw__failed,
+.ai__cand,
+.ai__pl,
+.ai__failed {
+  animation: qc-item-in var(--qc-dur-base) var(--qc-ease-out);
+}
+/* 儲存狀態 (SaveChip): colour changes in fast; the label cross-fades. */
+.save-chip {
+  /* Fits 未儲存／儲存中／已儲存 (and their translations) so the chip keeps its size. */
+  min-width: 64px;
+  justify-content: center;
+  transition:
+    background-color var(--qc-dur-fast) var(--qc-ease-out),
+    color var(--qc-dur-fast) var(--qc-ease-out);
+}
+.save-chip__in {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
 /* Test mode (DESIGN.md 動效 · 測試模式): e2e runs with nothing animating. */
 :root[data-motion='off'] *,
 :root[data-motion='off'] *::before,

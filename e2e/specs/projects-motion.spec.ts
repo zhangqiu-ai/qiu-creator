@@ -10,7 +10,8 @@ import { startScreencast } from '../fixtures/screencast.js';
  * - e2e runs with motion off (`<html data-motion="off">`);
  * - project pages in dark, English and 简体 (screenshots with QC065_SHOTS=<dir>);
  * - with QC_E2E_MOTION=on (and QC_E2E_VIDEO=<dir>) the drags run at normal speed for
- *   the motion recording, and a Reduce Motion frame is captured mid-drag.
+ *   the motion recording (area 6: the copy flies into the row, the count fades in,
+ *   rows come in and fade away), and a Reduce Motion frame is captured mid-drag.
  */
 
 async function shot(page: Page, name: string): Promise<void> {
@@ -77,6 +78,14 @@ test('收起的側欄：項目很多時可以捲動，名稱浮在旁邊', async
   const tip = await nav(page).locator('.sb__railtip').boundingBox();
   expect(tip?.x ?? 0).toBeGreaterThan(56);
   await shot(page, 'rail-scrolled');
+
+  // Test mode: a deleted project's row goes at once, with no fading copy left behind.
+  await page.keyboard.press('Control+Meta+s');
+  await page.locator('[data-tip="項目 30"]').click({ button: 'right' });
+  await page.getByRole('menuitem', { name: '刪除項目…' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: '刪除項目' }).click();
+  await expect(rows(page)).toHaveCount(29);
+  await expect(page.locator('[aria-hidden="true"][inert]')).toHaveCount(0);
 });
 
 test('項目頁：深色、English、简体', async ({ desktop }) => {
@@ -139,9 +148,9 @@ test('動效錄影：拖進項目、排序、取消（正常速度）與減少�
   await expect(card(page, '京都散步路線')).toBeVisible();
   const videoDir = process.env['QC_E2E_VIDEO'] ?? '';
   const stop =
-    videoDir === '' ? null : await startScreencast(page, videoDir, 'qc065-projects-motion');
+    videoDir === '' ? null : await startScreencast(page, videoDir, 'qc065-area6-projects');
 
-  // Drop into a project: lift, highlight the row, shrink and fade into it.
+  // Drop into a project: lift, highlight the row, fly into it shrinking; the count fades in.
   await drag(page, card(page, '京都散步路線'), row(page, '旅行'), 30);
   await expect(row(page, '旅行')).toContainText('1');
   // Reorder: rows make room, the insertion line shows, the row settles.
@@ -150,6 +159,15 @@ test('動效錄影：拖進項目、排序、取消（正常速度）與減少�
   // Cancel: let go over nothing, the copy flies back and nothing changes.
   await drag(page, card(page, '秋天的咖啡店'), page.locator('.page__header'), 25);
   await expect(row(page, '春季選題')).toContainText('0');
+  // A new project's row comes in; a deleted one fades away and the others close up.
+  await nav(page).getByRole('button', { name: '新建項目', exact: true }).first().click();
+  await page.keyboard.type('冬季');
+  await page.keyboard.press('Enter');
+  await expect(row(page, '冬季')).toBeVisible();
+  await row(page, '冬季').click({ button: 'right' });
+  await page.getByRole('menuitem', { name: '刪除項目…' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: '刪除項目' }).click();
+  await expect(row(page, '冬季')).toHaveCount(0);
 
   // A hover repaints the window, so the recording's last frame shows the settled state.
   await card(page, '京都散步路線').hover();

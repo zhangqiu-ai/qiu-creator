@@ -27,6 +27,7 @@ import { formatUsd } from './ai-settings.js';
 import { ConfirmDialog, ReuseDialog } from './AiWorkbenchPage.js';
 import { PHASE_LABEL, uploadPercent, VideoSession, type VideoState } from './ai-video.js';
 import { Chip } from './Chip.js';
+import { SaveChip } from './SaveChip.js';
 import { Dialog } from './Dialog.js';
 import { sessionHandle, type EditorTabHandle } from './tab-handle.js';
 import { InsertSession, type InsertState } from './editor-insert.js';
@@ -590,10 +591,7 @@ function VideoEditor({
             {t('format.typeVideo')}
           </span>
           <span className="save-status" role="status" aria-live="polite">
-            <Chip tone={save.tone}>
-              {state.status === 'saving' && <span className="pulse" aria-hidden="true" />}
-              {save.label}
-            </Chip>
+            <SaveChip tone={save.tone} label={save.label} saving={state.status === 'saving'} />
           </span>
           {rev !== undefined && <Chip>r{rev}</Chip>}
           <div className="editor__actions">

@@ -26,14 +26,19 @@ export function useDragSensors() {
 /** How the floating copy leaves when the pointer is released (DESIGN.md 動效 · 拖放). */
 export type Landing = 'into' | 'sort' | 'cancel';
 
-/** Into a project row: the copy shrinks to 0.6 and fades where it was let go. */
-export function dropIntoKeyframes(at: Transform): Keyframe[] {
+/**
+ * Into a project row (DESIGN.md 動效 · 拖放：放下): the copy flies toward the
+ * row's centre (`toward`, from where it was let go) while it shrinks to 0.6
+ * and fades, so it shows where the works went.
+ */
+export function dropIntoKeyframes(at: Transform, toward = { x: 0, y: 0 }): Keyframe[] {
   return [
     { opacity: 1, transform: CSS.Transform.toString(at) },
     {
       opacity: 0,
       transform: CSS.Transform.toString({
-        ...at,
+        x: at.x + toward.x,
+        y: at.y + toward.y,
         scaleX: motionScale.dropInto,
         scaleY: motionScale.dropInto,
       }),
@@ -41,20 +46,47 @@ export function dropIntoKeyframes(at: Transform): Keyframe[] {
   ];
 }
 
+/** A box on screen (dnd-kit's ClientRect has these too). */
+interface Rect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/** How far the copy's centre is from the target's centre. */
+export function towardCentre(copy: Rect, target: Rect): { x: number; y: number } {
+  return {
+    x: target.left + target.width / 2 - (copy.left + copy.width / 2),
+    y: target.top + target.height / 2 - (copy.top + copy.height / 2),
+  };
+}
+
 /** dnd-kit's options form of a drop animation (it also takes a function). */
 type DropAnimationOptions = Exclude<DropAnimation, (...args: never[]) => unknown>;
 
-export function dropAnimationFor(landing: Landing, mode: MotionMode): DropAnimationOptions | null {
+export function dropAnimationFor(
+  landing: Landing,
+  mode: MotionMode,
+  /** Where an 'into' drop lands (the target row), when known. */
+  target: () => Rect | null = () => null,
+): DropAnimationOptions | null {
   // Reduced motion and test mode: straight to the end state.
   if (mode !== 'full') return null;
   const sideEffects = defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.4' } } });
   if (landing === 'into') {
-    // Shrink and fade where it was let go.
+    // Fly into the target row, shrinking and fading.
     return {
       duration: duration.base,
       easing: easing.out,
       sideEffects,
-      keyframes: ({ transform }) => dropIntoKeyframes(transform.initial),
+      keyframes: ({ transform, dragOverlay }) => {
+        const to = target();
+        return dropIntoKeyframes(
+          transform.initial,
+          to === null ? undefined : towardCentre(dragOverlay.rect, to),
+        );
+      },
     };
   }
   // A row settles into its new place; a cancelled drag flies back where it came from.

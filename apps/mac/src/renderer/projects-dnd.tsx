@@ -15,6 +15,7 @@ import { arrayMove } from '@dnd-kit/sortable';
 import { getEventCoordinates, type Transform } from '@dnd-kit/utilities';
 import type { Project } from '@qiu-creator/contracts';
 import {
+  useRef,
   useState,
   type ButtonHTMLAttributes,
   type PointerEventHandler,
@@ -145,7 +146,12 @@ export function ProjectsDnd({
     setActive(isDragData(data) ? data : null);
     setLanding('cancel');
   };
+  /** The row a works drop is over, so the copy can fly into it. */
+  const overRect = useRef<{ left: number; top: number; width: number; height: number } | null>(
+    null,
+  );
   const onOver = (e: DragOverEvent) => {
+    overRect.current = e.over?.rect ?? null;
     const action = dropAction(
       e.active.data.current,
       e.over?.data.current,
@@ -183,7 +189,7 @@ export function ProjectsDnd({
     >
       {children}
       <DragOverlay
-        dropAnimation={dropAnimationFor(landing, mode)}
+        dropAnimation={dropAnimationFor(landing, mode, () => overRect.current)}
         modifiers={active?.type === 'works' ? [besidePointer] : []}
       >
         {active?.type === 'works' ? (
