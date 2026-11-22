@@ -1,5 +1,11 @@
 # Done
 
+## QC-068: 搜尋即時高亮關鍵字；側欄收合／展開加過渡動畫
+
+**Priority:** P1 | **Assignee:** qc-backend ＋ qc-frontend | **Tags:** M3, frontend, backend | **Done:** 2026-11-22
+
+- 共用比對規則 `@qiu-creator/domain/search`（NFKC、大小寫、opencc-js 繁轉簡逐字）；migration 0018 只重建 FTS 索引；1–2 字搜內文；`match_excerpt`。前端作品庫卡片／列表／摘要／項目頁／最近刪除／素材名稱即時高亮（組字中不標），只命中內文時顯示命中段；側欄收合改 transform＋opacity（sidebar-morph.ts，逐幀驗證寬度不變）。同根因修正：取消追蹤誤提交的 test-results/.last-run.json。e2e 39 passed／8 skipped。圖片／視頻封面底部命中條 NOT_VERIFIED。與 QC-069 同一版發。
+
 ## QC-067: 作品庫超過 200 件時舊作品看不到（缺分頁）
 
 **Priority:** P1 | **Assignee:** qc-frontend ＋ qc-backend | **Tags:** M3, frontend | **Done:** 2026-11-22
