@@ -1,4 +1,5 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
+import { notifyAiStatusChanged } from './ai-status.js';
 import { codeText, t } from './i18n.js';
 import { isRestoring, restoringText } from './restoring.js';
 import {
@@ -124,6 +125,8 @@ export class AiSettingsStore {
   private replace(status: AiProviderStatus): void {
     const list = (this.state.providers ?? []).filter((p) => p.provider !== status.provider);
     this.set({ providers: sortProviders([...list, status]) });
+    // Open video panels read the status again (QC-055).
+    notifyAiStatusChanged();
   }
 
   private async run(target: AiProvider | 'budget', action: () => Promise<void>): Promise<boolean> {

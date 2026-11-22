@@ -321,3 +321,44 @@ test('視頻：長視頻預設低解析度、超過 2 GB 無法分析、分析�
     }
   });
 });
+
+test('視頻：金鑰在開著的頁面之後才設定，AI 面板跟著更新（QC-055）', async ({ desktop }) => {
+  const { page, backend } = desktop;
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const clip = (
+    await backend.client.assets.upload({ data: readFileSync(CLIP), filename: 'arashiyama.webm' })
+  ).asset;
+  backend.db
+    .prepare('UPDATE assets SET duration = 8, width = 360, height = 640 WHERE id = ?')
+    .run(clip.id);
+
+  await test.step('沒有金鑰：面板要求前往設定', async () => {
+    await newVideoWork(page);
+    await pickClip(page, 'arashiyama.webm');
+    await expect(side(page).getByText('未設定 Gemini 金鑰')).toBeVisible();
+    await expect(side(page).getByRole('button', { name: '分析視頻' })).toHaveCount(0);
+  });
+
+  await test.step('離開再回到這個分頁：金鑰與同意在別處完成後，面板讀到新狀態', async () => {
+    await page
+      .getByRole('navigation', { name: '主導航' })
+      .getByRole('button', { name: '作品庫', exact: true })
+      .click();
+    await backend.client.ai.setKey('gemini', GEMINI_KEY);
+    const gemini = (await backend.client.ai.providers()).items.find((p) => p.provider === 'gemini');
+    if (gemini === undefined) throw new Error('no gemini provider');
+    await backend.client.ai.consent('gemini', gemini.notice.version);
+    await page.getByRole('button', { name: /^未命名 創作中 視頻/ }).click();
+    await expect(side(page).getByRole('button', { name: '分析視頻' })).toBeVisible();
+    await expect(side(page).getByText('未設定 Gemini 金鑰')).toHaveCount(0);
+  });
+
+  await test.step('視窗回到前景：金鑰被移除後，面板也會更新', async () => {
+    await backend.client.ai.deleteKey('gemini');
+    await page.evaluate("window.dispatchEvent(new Event('focus'))");
+    await expect(side(page).getByText('未設定 Gemini 金鑰')).toBeVisible();
+    await backend.client.ai.setKey('gemini', GEMINI_KEY);
+    await page.evaluate("window.dispatchEvent(new Event('focus'))");
+    await expect(side(page).getByRole('button', { name: '分析視頻' })).toBeVisible();
+  });
+});

@@ -1,4 +1,5 @@
 import type { CreatorHubClient } from '@qiu-creator/api-client';
+import { watchAiStatus } from './ai-status.js';
 import {
   AI_PROVIDER_NAMES,
   GEMINI_VIDEO_LIMITS,
@@ -57,7 +58,9 @@ export function AiWorkbenchPage(props: AiWorkbenchPageProps) {
     const v = new VideoSession(client);
     setVideo(v);
     void v.loadProvider();
+    const unwatch = watchAiStatus(() => void v.refresh());
     return () => {
+      unwatch();
       v.dispose();
     };
   }, [client]);

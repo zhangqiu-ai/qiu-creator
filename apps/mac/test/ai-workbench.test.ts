@@ -16,6 +16,7 @@ import {
   modelOptions,
   redactKey,
 } from '../src/renderer/ai-settings.js';
+import { watchAiStatus } from '../src/renderer/ai-status.js';
 import { AiActivity, runLabel, uploadPercent, VideoSession } from '../src/renderer/ai-video.js';
 
 /**
@@ -204,6 +205,56 @@ describe('VideoSession', () => {
     const v = session();
     await v.loadProvider();
     expect(v.snapshot.noKey).toBe(true);
+  });
+
+  it('QC-055: reads the status again when the key arrives after the panel opened', async () => {
+    const v = session();
+    await v.loadProvider();
+    await v.select(asset);
+    expect(v.snapshot.noKey).toBe(true);
+
+    // The key is saved elsewhere (設定 or another tab). Nothing is read until told to.
+    await client.ai.setKey('gemini', FAKE_KEY);
+    expect(v.snapshot.noKey).toBe(true);
+
+    await v.refresh();
+    expect(v.snapshot.noKey).toBe(false);
+    expect(v.snapshot.estimate).toMatchObject({ duration_seconds: 30 });
+    expect(v.snapshot.phase).toBe('ready');
+
+    // Deleting the key puts the notice back.
+    await client.ai.deleteKey('gemini');
+    await v.refresh();
+    expect(v.snapshot.noKey).toBe(true);
+  });
+
+  it('QC-055: follows a model change in 設定 unless one was picked in the panel', async () => {
+    await client.ai.setKey('gemini', FAKE_KEY);
+    const v = session();
+    await v.loadProvider();
+    await v.select(asset);
+    const first = v.snapshot.model;
+    await client.ai.patchProvider('gemini', { video_model: 'gemini-3.8-pro' });
+    await v.refresh();
+    expect(first).toBe('gemini-3.8-flash');
+    expect(v.snapshot.model).toBe('gemini-3.8-pro');
+    expect(v.snapshot.estimate?.model).toBe('gemini-3.8-pro');
+
+    await v.setModel('gemini-3.8-flash');
+    await client.ai.patchProvider('gemini', { video_model: 'gemini-3.8-pro' });
+    await v.refresh();
+    expect(v.snapshot.model).toBe('gemini-3.8-flash');
+  });
+
+  it('QC-055: the settings store tells open panels when a key is saved', async () => {
+    const v = session();
+    const unwatch = watchAiStatus(() => void v.refresh());
+    disposers.push(unwatch);
+    await v.loadProvider();
+    await v.select(asset);
+    expect(v.snapshot.noKey).toBe(true);
+    await new AiSettingsStore(client).saveKey('gemini', FAKE_KEY);
+    await until(() => !v.snapshot.noKey, 'refreshed panel');
   });
 
   it('estimates, confirms the notice on first use, uploads and shows a result to verify', async () => {
