@@ -3,6 +3,8 @@ import type { Platform } from '@qiu-creator/contracts';
 import {
   blockAtSource,
   checkDerivedLimits,
+  countedText,
+  derivedLength,
   codePointToIndex,
   deriveVariantBody,
   deriveWorkVariantBody,
@@ -133,5 +135,36 @@ describe('checkDerivedLimits', () => {
     });
     expect(ws).toHaveLength(1);
     expect(ws[0]?.cut_at).toBeUndefined();
+  });
+});
+
+describe('what the 公眾號 limit counts (QC-084 pre-release)', () => {
+  const md = '# 標題\n\n第一段**重點**。\n\n![](assets/p0.png)\n\n## 小標\n\n第二段。\n';
+
+  it('counts the visible text, not Markdown syntax such as image links', () => {
+    const d = deriveVariantBody(md, 'wechat_mp', { title: '標題' });
+    expect(d.text).toContain('![](assets/p0.png)');
+    expect(countedText(d)).toBe('第一段重點。\n\n小標\n\n第二段。');
+    expect(derivedLength(d)).toBe(16);
+    // Caption platforms count their plain text as is.
+    const plain = deriveVariantBody(md, 'xiaohongshu', { title: '標題' });
+    expect(countedText(plain)).toBe(plain.text);
+  });
+
+  it('checks the limit on the same text and cuts in the right block', () => {
+    const long = `# T\n\n![](assets/p0.png)\n\n${'字'.repeat(20_005)}\n`;
+    const d = deriveVariantBody(long, 'wechat_mp', { title: 'T' });
+    const [w] = checkDerivedLimits('wechat_mp', {
+      title: 'T',
+      body: d,
+      image_asset_ids: [],
+      tags: [],
+    });
+    expect(w).toMatchObject({ code: 'body_too_long', actual: 20_005, cut_at: 20_000 });
+    expect(w?.source_offset).toBe(long.indexOf('字') + 20_000);
+    const short = deriveVariantBody('# T\n\n![](a.png)\n\n短。\n', 'wechat_mp', { title: 'T' });
+    expect(
+      checkDerivedLimits('wechat_mp', { title: 'T', body: short, image_asset_ids: [], tags: [] }),
+    ).toEqual([]);
   });
 });

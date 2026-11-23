@@ -61,3 +61,22 @@
 - 真機觸控板的兩指滑動與捏合：e2e 用 wheel（deltaX 與 ctrl+wheel）模擬。
 - Electron 選單的 ⌘0／⌘＋ 與預覽縮放的互動：e2e 的鍵盤事件不經過原生選單，作法沿用 Lightbox（renderer 的 keydown 加 preventDefault）。
 - 選封面面板的「上傳…」沒有做（原型有）：目前從作品圖片選或用 AI 生成。
+
+## 發版前修正（2026-11-23，對應 `docs/evidence/qc084-prerelease.md`）
+
+1. **公眾號摘要與字數含 Markdown 原文（P3）**
+   - 修法：在 `packages/platform-preview` 新增 `countedText`／`countedSourceOffset`。
+     - 公眾號以文章看得到的文字（各區塊文字，以空行相接）計算；不算圖片語法、`#`、`**`。
+     - 另外三個平台不變。
+   - 同一根因、一起修好：
+     - `checkDerivedLimits` 與 `derivedLength` 改用同一份文字，所以服務端警告、`cut_at`／`source_offset`、平台分頁的橘點、手機上的摘要與字數，算法都一致。
+     - 原本服務端的公眾號上限也把 Markdown 語法算進去。
+   - 測試：`platform-preview/test/derive.test.ts`（2 個）、`apps/mac/test/preview-stage.test.ts`（1 個）。
+2. **editor-tabs.spec 偶發失敗**：根因是測試時序。測試先等游標還原回 11，才呼叫 `setSelectionRange(20)`。沒有加重試、沒有延長逾時、也沒有放寬斷言。單獨連跑 30 次（`--repeat-each=30`，負載 2–4），30 passed，0 failed。
+3. **100% 縮放遮擋**
+   - 判斷是問題：手機頂端（狀態列、導覽、圖片列）是放大後最想看的區域，卻被畫面分頁蓋住。「復原」在適應高度時也壓在狀態列上。
+   - 修法：
+     - 手機比舞台高時，頂端停在畫面分頁下方，不再置中（`restingPan`）。空白鍵拖曳仍可平移到底部。
+     - 「復原」移到左下角，和縮放列同一排。
+   - 仍保留的部分：底部 76px 是縮放列、圓點、「復原」的固定區域。放大時，手機下緣會延伸到這一區底下，拖曳平移就能看到，跟工具列下的捲動內容一樣。
+   - e2e 新增兩項斷言：100% 時手機頂端在畫面分頁之下；「復原」不和手機重疊。截圖：`qc084/qc084-6-zoom-100.png`。

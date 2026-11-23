@@ -7,6 +7,7 @@ import {
   DEFAULT_PREFS,
   loadPreviewPrefs,
   pinchZoom,
+  restingPan,
   savePreviewPrefs,
   scaleFor,
   stepZoom,
@@ -60,12 +61,24 @@ describe('zoom', () => {
   it('keeps part of a zoomed phone inside the stage when panning', () => {
     expect(clampPan({ x: 999, y: -999 }, { w: 585, h: 1266 }, { w: 520, h: 800 })).toEqual({
       x: 72.5,
-      y: -273,
+      y: -309,
     });
     expect(clampPan({ x: 50, y: 50 }, { w: 300, h: 600 }, { w: 520, h: 800 })).toEqual({
       x: 0,
       y: 0,
     });
+  });
+});
+
+describe('a phone taller than the stage', () => {
+  it('rests with its top just under the screen tabs, and can be panned back there', () => {
+    const stage = { w: 520, h: 780 };
+    // 100%: 844 tall in 780 − 48 − 76 = 656 of room → 94 down from centred, top at 48.
+    const rest = restingPan({ w: 390, h: 844 }, stage);
+    expect(rest).toEqual({ x: 0, y: 94 });
+    expect(clampPan(rest, { w: 390, h: 844 }, stage)).toEqual(rest);
+    // A phone that fits stays centred.
+    expect(restingPan({ w: 303, h: 656 }, stage)).toEqual({ x: 0, y: 0 });
   });
 });
 
@@ -134,5 +147,16 @@ describe('live body', () => {
     expect(body.phone).toMatchObject({ length: 1200, limit: 1000, cutAt: 1000 });
     expect(cutSourceOffset(body)).toBe(long.indexOf('字') + 1000);
     expect(cutSourceOffset(liveBody('# T\n\nshort\n', 'xiaohongshu', { title: 'T' }))).toBeNull();
+  });
+
+  it('公眾號 summary and count use the visible text, not image syntax (QC-084 pre-release)', () => {
+    const { phone } = liveBody(md, 'wechat_mp', { title: '標題' }, (src) => `media://${src}`);
+    expect(phone.text).not.toContain('![');
+    expect(phone.text).toBe('第一段文字。\n\n小標\n\n第二段。');
+    expect(phone.length).toBe(16);
+    // The body screen still shows the image, and blocks point into the counted text.
+    expect(phone.blocks.find((b) => b.kind === 'image')).toBeDefined();
+    const second = phone.blocks.find((b) => b.text === '第二段。');
+    expect(second?.at).toBe(phone.text.indexOf('第二段'));
   });
 });

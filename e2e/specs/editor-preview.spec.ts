@@ -204,6 +204,12 @@ test('預覽 v2：三個畫面、原位編輯、跟隨原稿、AI 標題、縮�
     await expect
       .poll(async () => (await c.variants.get(work.id, 'xiaohongshu')).title)
       .toBe('書房變剪輯室：先處理光');
+    // 復原 sits beside the zoom pill, never over the phone.
+    expect(
+      await page.evaluate<boolean>(
+        "(() => { const q = (s) => document.querySelector('.tab-pane:not([hidden]) ' + s); const a = q('.pv-undo').getBoundingClientRect(); const b = q('.pv-phone').getBoundingClientRect(); return a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom; })()",
+      ),
+    ).toBe(true);
     await split(page).getByRole('button', { name: '復原' }).click();
     await expect(title).toHaveValue(TITLE);
     await expect
@@ -256,6 +262,14 @@ test('預覽 v2：三個畫面、原位編輯、跟隨原稿、AI 標題、縮�
     await zoom.getByRole('button', { name: /適應高度/ }).click();
     await split(page).getByRole('menuitemradio', { name: '100%' }).click();
     await expect(zoom).toContainText('100%');
+    // Taller than the stage: the phone's top rests below the screen tabs, not under them.
+    await expect
+      .poll(() =>
+        page.evaluate<number>(
+          "(() => { const q = (s) => document.querySelector('.tab-pane:not([hidden]) ' + s); return Math.round(q('.pv-phone').getBoundingClientRect().top - q('.pv-stage__screens').getBoundingClientRect().bottom); })()",
+        ),
+      )
+      .toBeGreaterThanOrEqual(0);
     await shot(page, '6-zoom-100');
     // Pointer over the stage: ⌘0 goes back to fit height.
     const box = await stage(page).boundingBox();

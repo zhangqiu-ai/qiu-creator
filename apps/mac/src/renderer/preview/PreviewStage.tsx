@@ -14,6 +14,7 @@ import {
 import { SCREENS, type PhoneActions, type PhoneModel, type Screen } from './phone-model.js';
 import {
   clampPan,
+  restingPan,
   FIT_HEIGHT,
   PHONE_H,
   PHONE_W,
@@ -113,8 +114,8 @@ export function PreviewStage({
   const phoneH = PHONE_H * scale;
   const shownPan = clampPan(pan, { w: phoneW, h: phoneH }, size);
   // Latest values for the native listeners below.
-  const live = useRef({ scale, screen, onScreen, onZoom });
-  live.current = { scale, screen, onScreen, onZoom };
+  const live = useRef({ scale, size, screen, onScreen, onZoom });
+  live.current = { scale, size, screen, onScreen, onZoom };
 
   // Screen switch: a horizontal slide (base), or a jump without full motion.
   useEffect(() => {
@@ -199,10 +200,15 @@ export function PreviewStage({
     };
   }, []);
 
-  // A new zoom choice from the pill or keys recentres the phone.
+  // A new zoom choice from the pill or keys puts the phone back at rest: centred when it fits,
+  // else with its top just under the screen tabs (nothing floats over the top of the phone).
+  const measured = size.w > 0;
   useEffect(() => {
-    if (!pinching.current) setPan({ x: 0, y: 0 });
-  }, [zoom]);
+    if (!measured || pinching.current) return;
+    // Only a new choice (or the first measurement) moves it; resizing keeps the pan.
+    const { scale: s, size: at } = live.current;
+    setPan(restingPan({ w: PHONE_W * s, h: PHONE_H * s }, at));
+  }, [zoom, measured]);
 
   // Follow: bring the current block of the body screen into view.
   useEffect(() => {
@@ -218,7 +224,6 @@ export function PreviewStage({
   }, [followTick, screen, scale, follow, animated]);
 
   // The first layout after the stage is measured jumps into place: nothing springs in from scale 1.
-  const measured = size.w > 0;
   const settled = useRef(false);
   useEffect(() => {
     if (measured) settled.current = true;
