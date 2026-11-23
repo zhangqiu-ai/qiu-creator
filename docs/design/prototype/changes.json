@@ -2856,6 +2856,178 @@
         "decisions 與 openQuestions 全部採用原型建議。標題候選「點選即套用＋可復原」視為使用者明確確認，符合 AI 不直接覆蓋原則（只作用於平台版本，舊值可復原且留歷史）。",
         "「在預覽裡設為作品封面」另議，不在本次範圍。"
       ]
+    },
+    {
+      "id": "PT-20261123-001",
+      "title": "編輯頁平台預覽重做：正文即時跟隨原稿、去掉表單與重新生成、單一捲動、手機縮放",
+      "date": "2026-11-23",
+      "status": "pending_user",
+      "model": "claude-opus-5-5",
+      "session": "qc-prototype",
+      "requestedBy": "使用者 via 開發總監",
+      "userRequest": "1. 左邊內容編輯區要即時反映到右側預覽。2. 預覽中的正文輸入框多餘，正文已由左邊編輯區即時反映。3. 預覽區的版面與設計極其混亂和難看，要重新優化。4. 預覽區的捲動設計很差；手機畫面要支援縮放。5. 「重新從原稿生成」按鈕多餘，因為是即時的。（2026-11-23，QC-084，附截圖）",
+      "tasks": ["QC-084"],
+      "approvedBy": null,
+      "approvedAt": null,
+      "approvalNote": "由使用者本人核准，總監不代核准（QC-084 指示）。",
+      "supersedes": [
+        "PT-20261122-004 的預覽分欄版面：表單＋手機兩欄、正文輸入框、「重新從原稿生成」、版本狀態列"
+      ],
+      "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "canvasVersion": "NOT_PUBLISHED: this session’s Artifact tool refuses the canvas after repeated network failures. The prototype is a standalone HTML page in the shared notes folder: /Users/feature/Library/Application Support/Claude/side-session-notes/local_2cc861c6-129e-4a37-abb5-5c6b43cd2ede/pt-20261123-001/preview.html (views: ?view=page|platforms|zoom, &p=xhs|wx|dy|ch, &dark=1, &pop=title|cover|body, &zoom=w|100|75, &collapsed=1, &narrow=1).",
+      "screenshots": {
+        "dir": "docs/evidence/qc084-prototype/",
+        "files": {
+          "platforms.png": "四個平台各一個主畫面（小紅書、公眾號文章、公眾號推送卡片、抖音、視頻號），淺色；小紅書與視頻號捲到 1000 字截斷線",
+          "platforms-dark.png": "同上，深色",
+          "zoom-scroll.png": "縮放與捲動：適應高度、適應寬度（舞台平移）、100%（平移到中段）、縮放選單、窄視窗 400px",
+          "page-xhs.png": "整頁：左邊原稿游標所在段落，在手機裡高亮並自動捲到（跟隨）",
+          "page-title-popover.png": "點標題 → 標題浮層：自訂／跟隨原稿、AI 標題候選（各平台字數）",
+          "page-body-over-limit.png": "正文超出 1000 字：手機裡的截斷線＋正文浮層",
+          "page-collapsed.png": "收合預覽：右側 44px 平台列，橘點＝有超出上限",
+          "page-wx-dark.png": "深色整頁，公眾號文章"
+        },
+        "rendered": "headless Chromium (Playwright 1.65.1 with the cached chromium_headless_shell-1243), script shoot.mjs in the notes folder; no window shown"
+      },
+      "boards": [
+        {
+          "file": "preview.html (standalone, notes folder)",
+          "title": "v10 · 編輯頁平台預覽",
+          "states": [
+            "預覽分欄預設 520 寬（可拖 400–720），和 AI 面板互斥；只有三塊：頂部平台切換、中間舞台（手機）、底部欄位列",
+            "頂部：小紅書／公眾號／抖音／視頻號，有超出上限的平台帶橘點；右側「跟隨」（左邊游標移動時手機捲到對應段落並高亮）、收合、關閉（⌘⇧P）",
+            "舞台：手機固定 390×844 邏輯尺寸，預設「適應高度」；右上角「模擬」標；公眾號多一個「文章｜推送卡片」切換",
+            "唯一的捲動區是手機畫面本身：滾輪、觸控板只捲手機裡的內容；分欄和舞台不捲",
+            "縮放：舞台底部置中的縮放列「− 適應高度 74% ＋」，選單有適應高度（⌘0）、適應寬度、50%、75%、100%、150%；⌘＋／⌘−（游標或焦點在預覽時）、觸控板捏合以游標為中心縮放；放大超過舞台時按住空白鍵拖曳平移，滾輪仍捲手機畫面",
+            "正文不再有輸入框：手機裡的正文就是左邊原稿即時轉出來的（小紅書、抖音、視頻號轉純文字，公眾號照 Markdown 排版）；點正文只開說明浮層（跟隨原稿、字數、超出時「在原稿標出第 1000 字」「用 AI 縮寫到 1000 字…」）",
+            "超出正文上限：手機裡在第 1000 字處畫橘色虛線「第 1000 字 · 之後 N 字會被截斷」，後面的文字變淡；平台分頁帶橘點；欄位列「正文 1155/1000」變橘",
+            "平台專屬欄位直接在手機上點：標題、封面與圖片、標籤，滑過時虛線框＋小標籤（例「標題 17 / 20 · 自訂」）；底部欄位列同樣四個入口（標題、封面與圖片、標籤、正文），藍點＝自訂（不跟隨原稿）",
+            "標題浮層：輸入框＋字數、「AI 標題」產生依平台上限的候選（點一個即套用，可復原）、「改回跟隨原稿」、原稿標題參考",
+            "封面與圖片浮層：封面＋圖片順序（拖曳）、「AI 封面」（依平台比例）、上傳封面、改回跟隨原稿",
+            "移除：版本狀態列（r7／已保存／不影響原稿）、正文輸入框、「重新從原稿生成」",
+            "收合：分欄縮成 44px 平台列（字首＋橘點），點任一平台展開到該平台",
+            "窄視窗：分欄 400，欄位列只留圖示與數字，縮放仍在舞台底部"
+          ]
+        }
+      ],
+      "decisions": [
+        "正文永遠跟隨原稿，不再有平台正文：使用者第 1、2、5 點。各平台只在「標題、封面、圖片順序、標籤」保留自己的值，而且預設也跟隨原稿，改了才變「自訂」。所以「重新從原稿生成」不需要了，每個欄位各自有「改回跟隨原稿」。",
+        "拿掉表單，改成在手機上直接點要改的地方：表單和手機並排正是截圖裡混亂、空白與錯位的來源；手機本身就是版面，點標題改標題、點封面改封面，欄位列只是同一組入口的鍵盤與無障礙版本。",
+        "只留一個捲動區（手機畫面）：截圖裡表單、手機、外層三層一起捲。手機固定裝置比例，內容在裡面捲，跟真機一樣；縮放不產生第二個捲動區，放大後平移用空白鍵拖曳（Figma、Sketch 的慣例），滾輪永遠捲手機內容。",
+        "預設「適應高度」：不用捲就看到整支手機與縮放列；要看字的細節再切 100% 或適應寬度。",
+        "超出上限只提示不截斷：在手機裡標出平台會截斷的位置，讓使用者決定改原稿或用 AI 縮寫；不在預覽裡另存一份縮短的正文，避免兩份正文。",
+        "「跟隨」預設開：左邊打字時右邊直接捲到同一段並高亮，回應第 1 點「即時反映」；不想被帶著走可以關掉。",
+        "分欄預設寬度從 720 降到 520：沒有表單後只需要放手機，原稿編輯區多出 200px。"
+      ],
+      "dataModel": {
+        "summary": "Variants keep only per-platform overrides; the body is always derived live from the work.",
+        "fields": {
+          "body": "Not stored for new variants. Derived by a pure function deriveVariantBody(work markdown, platform) in packages/platform-preview (Markdown → plain text for xiaohongshu/douyin/wechat_channels, rendered Markdown for wechat_mp). The Mac app derives it from the unsaved editor draft for the live preview; the server derives it from the saved work for the API, export and publishing.",
+          "title": "title_override nullable; null = follow the work title. Shown with “自訂” when set.",
+          "cover": "cover_override nullable (asset or video frame); null = the work cover cropped to the platform ratio.",
+          "images": "image_order_override nullable (ordered asset ids, may hide images); null = images in source order. Images added to or removed from the source still appear/disappear; an override only orders and hides.",
+          "tags": "tags_override nullable; null = the work tags."
+        },
+        "overLimit": "checkVariantLimits runs on the derived body. body_too_long gains cut_at (code-point index in the derived text) and source_offset (position in the Markdown source) so the preview can draw the cut line and 「在原稿標出第 1000 字」 can select that place in the editor. Never blocks a save and never truncates stored text.",
+        "revisions": "A variant revision is created only when an override changes (title/cover/images/tags or clearing one back to follow). Body edits are ordinary work revisions with the existing base_revision / 409 handling. Override PATCHes keep base_revision or If-Match; a 409 shows inside the field popover (「另一處改了這個平台的標題」 with keep mine / use theirs). Variant history lists override changes only.",
+        "migration": "Reversible migration. Existing variants: title/cover/images/tags become overrides when they differ from what the source gives, else null. If a variant’s saved body differs from the derived body (the user edited it), keep it as legacy body_override and show a one-line notice in the body popover: 「這個平台的正文是之前另外改過的版本」 with 「改回跟隨原稿」 (the old text stays in history). The `inherit` flag (QC-045/046) folds into “all fields follow”. Nothing is deleted."
+      },
+      "backendNeeds": {
+        "api": [
+          "GET /api/v1/works/:id/variants/:platform returns the resolved view: title, title_source (work|override), body (derived), body_source (work|legacy_override), cover, cover_source, images, images_source, tags, tags_source, warnings (with cut_at, source_offset), revision.",
+          "PATCH /api/v1/works/:id/variants/:platform accepts title / cover / images / tags as a value or null (null = back to following the work); base_revision or If-Match; 409 on a stale base. body is rejected for new variants (legacy body_override can only be cleared).",
+          "POST …/variants/:platform/draft and POST …/variants (generate) become unnecessary for the UI; keep them for older clients (generate = create empty override rows) and mark them deprecated in the API docs.",
+          "Change events: variant.changed only for override changes; previews re-derive on work.changed.",
+          "packages/platform-preview: deriveVariantBody(markdown, platform) → {text, blocks, map} shared by server and Mac (and later iPhone/iPad), plus limit checks on the result."
+        ],
+        "storage": [
+          "platform_variants: add title_override, cover_override, image_order_override (JSON), tags_override (JSON), body_override (legacy only); stop writing body for new rows. Reversible migration as above."
+        ]
+      },
+      "designMdChange": "After approval, DESIGN.md「平台模擬預覽」 changes from 「每個平台有獨立的版本（標題、正文、封面、標籤），各自編輯」 to: the body always follows the source; each platform keeps only its own title, cover, image order and tags, each following the source until changed. Not edited yet because this PT is pending.",
+      "references": [
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/codex-project-chat-artifact-workspace/case.md",
+          "kind": "product",
+          "borrowed": "Keep the result preview beside the work and keep editing in one place.",
+          "adaptation": "Editing stays in the source on the left; the right is a preview you can click into for the few per-platform fields, not a second editor."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/ultramock-screenshot-scene-editor/case.md",
+          "kind": "concept",
+          "borrowed": "The device preview is the visual centre; controls carry readable names and current values.",
+          "adaptation": "The phone fills the stage; the zoom pill shows the mode and the percentage (「適應高度 74%」), and each field chip shows its count."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/spatial-canvas-focus-overview/case.md",
+          "kind": "concept",
+          "borrowed": "Switch between focus and overview with an explicit way back.",
+          "adaptation": "Fit height is the overview; 100% / fit width are the focus levels; ⌘0 always returns to fit."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/wechat-format-preview-before-publish/case.md",
+          "kind": "concept",
+          "borrowed": "A preview should match the publishing side’s width and fonts.",
+          "adaptation": "The phone is fixed at 390×844 logical points and the 公眾號 view renders the Markdown, with a separate 推送卡片 view."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/gzh-design-theme-components-mobile-reading/case.md",
+          "kind": "concept",
+          "borrowed": "Verify with a representative long article (long title, several images) on a narrow screen.",
+          "adaptation": "The sample article runs past the 1000-character limit with four images and a 17-character title, so truncation and image counts are visible."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/swiftui-today-layout-comparison/case.md",
+          "kind": "concept",
+          "borrowed": "Compare layouts with identical data and device size.",
+          "adaptation": "The four-platform screenshot uses the same article and zoom for every platform."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/layout-before-helper-copy/case.md",
+          "kind": "concept",
+          "borrowed": "Remove labels first; fix the layout if the page stops making sense.",
+          "adaptation": "Dropped the 「小紅書版本 r7 · 已保存 · 不影響原稿」 line and the form; the phone and four field chips carry the meaning."
+        }
+      ],
+      "motion": "Follows DESIGN.md 動效: split opens with translateX 24px + fade (moderate/out); platform switch crossfades the phone content (fast), no slide; zoom steps animate scale with the snappy spring, pinch follows the fingers 1:1; popovers grow from the clicked region (base/out), exit fade (fast/in); live text updates are not animated (no flicker while typing); new or removed images fade (fast); follow-scroll uses a smooth scroll capped at moderate. Reduced motion: zoom jumps, follow-scroll jumps, popovers fade only.",
+      "verified": [
+        "Rendered with headless Chromium at 1440×900 and gallery widths; eight screenshots checked by eye in light and dark (fixed: zoom pill overlapping the phone, status bar over scrolled text, dark editor text colour, cut line scroll position)."
+      ],
+      "notVerified": [
+        "NOT_VERIFIED: canvas upload (this session cannot reach the canvas).",
+        "NOT_VERIFIED: three-language fit (the prototype is in 繁體中文 only); pinch and space-drag are described, not implemented in the static prototype; the prototype is not interactive beyond the URL states.",
+        "Phone layouts are simulations, not the platforms’ real UI; no official logos used."
+      ],
+      "openQuestions": [
+        {
+          "q": "正文改成永遠跟隨原稿，可以嗎？（等於取消「各平台各自改正文」）",
+          "recommendation": "可以；需要平台專屬的開頭或結尾時，之後可加「前綴／後綴」兩個小欄位，而不是整份正文。"
+        },
+        {
+          "q": "舊資料裡改過的平台正文怎麼處理？",
+          "recommendation": "保留成「之前另外改過的版本」並提示，可一鍵改回跟隨原稿；不自動丟棄。"
+        },
+        {
+          "q": "⌘＋／⌘− 是否只在游標或焦點在預覽時縮放手機？",
+          "recommendation": "是；其他地方維持 App 自己的縮放行為。"
+        },
+        {
+          "q": "預設縮放？",
+          "recommendation": "適應高度；記住每個使用者最後一次的選擇。"
+        },
+        {
+          "q": "「跟隨」預設開或關？",
+          "recommendation": "開。"
+        },
+        {
+          "q": "分欄預設寬度？",
+          "recommendation": "520（可拖 400–720，記住）。"
+        },
+        {
+          "q": "超出正文上限時要不要提供「用 AI 縮寫到 1000 字」？",
+          "recommendation": "要，但結果作為左邊原稿的候選＋diff，保留才寫入（原稿規則不變）。"
+        }
+      ]
     }
   ]
 }
