@@ -149,12 +149,14 @@
 | @mdxeditor/editor | ^4.5.0 | MIT | markdown-editor-web | 視覺 Markdown 編輯（見上） | Milkdown、TipTap |
 | lexical / @lexical/react / @lexical/utils | ^0.48.0 | MIT | markdown-editor-web | QC-072：唯讀「原樣保留」節點（HTML、腳註、參照連結、數學）的 DecoratorNode 與選取、刪除。與 MDXEditor 4.5.0 內建的 Lexical 同版，不另裝一份（pnpm 解析為同一個） | 不用（只能用 MDXEditor 內建的節點則無法顯示原樣文字） |
 | @fontsource-variable/inter | ^5.3.0 | OFL-1.1（字型）／MIT（打包腳本） | mac | DESIGN.md 指定的 Inter 可變字型（wght 軸，正體與斜體），由 Vite 打進 App，不從網路載入（見「字型」一節） | 直接放 rsms/inter 官方 woff2；系統字體（不符視覺基線） |
-| mdast-util-from-markdown | ^2.1.0 | MIT | markdown-editor-web、mac-server | 解析 Markdown，找出要原樣保留的語法（QC-072）、比對結構 | remark（較重） |
-| micromark-extension-gfm / mdast-util-gfm | ^3.0.0 / ^3.1.0 | MIT | markdown-editor-web、mac-server | GFM（表格、腳註、刪除線、待辦）解析 | — |
-| micromark-extension-frontmatter / mdast-util-frontmatter | ^2.0.0 / ^2.0.1 | MIT | markdown-editor-web、mac-server | YAML frontmatter 解析 | — |
+| mdast-util-from-markdown | ^2.1.0 | MIT | markdown-editor-web、mac-server、platform-preview | 解析 Markdown，找出要原樣保留的語法（QC-072）、比對結構 | remark（較重） |
+| micromark-extension-gfm / mdast-util-gfm | ^3.0.0 / ^3.1.0 | MIT | markdown-editor-web、mac-server、platform-preview | GFM（表格、腳註、刪除線、待辦）解析 | — |
+| micromark-extension-frontmatter / mdast-util-frontmatter | ^2.0.0 / ^2.0.1 | MIT | markdown-editor-web、mac-server、platform-preview | YAML frontmatter 解析 | — |
 | yaml | ^2.9.1 | ISC | domain（mac-server 經由它） | 讀寫貼圖與視頻作品的 front matter（QC-045/046）。`parseDocument` 保留註解、未知鍵與鍵的順序，App 寫回使用者手寫的檔案時不會丟資料。沒有其他依賴，純 JS，esbuild 直接打包 | js-yaml（MIT，讀寫會丟註解與格式）；gray-matter（依賴 js-yaml，同樣問題）；自寫子集解析器（使用者手寫的 YAML 形式太多，不可靠） |
 | motion | ^14.14.0 | MIT | mac（只在 renderer） | 動效（QC-065）：`MotionConfig`、`AnimatePresence`、motion 元件與 layout 動畫，全部經由 `renderer/motion.tsx` 封裝（見下） | 純 CSS transition 與 keyframes；react-spring；GSAP（授權不同） |
 | @dnd-kit/core / @dnd-kit/sortable / @dnd-kit/utilities | ^6.3.1 / ^10.0.0 / ^3.2.2 | MIT | mac | 作品庫的拖放（QC-062）：把作品拖到側欄的項目（加入），以及拖曳項目列排序（見下） | 原生 HTML5 drag and drop；react-dnd；@atlaskit/pragmatic-drag-and-drop |
+
+QC-084：platform-preview 也用同一組 mdast 套件與版本，實作 `deriveVariantBody`（伺服器與 Mac App 共用的平台正文推導）。這組套件本來就打包在 renderer（markdown-editor-web），沒有新增任何套件；platform-preview 根入口不含 DOM 或 Electron。
 
 QC-010：mac-server 用同一組 mdast 套件與版本，從 Markdown 找出圖片與影音引用（`src/media/markdown-refs.ts`），讓伺服器與編輯器對「什麼算圖片」的判斷一致。沒有新增任何套件。
 

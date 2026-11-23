@@ -1,20 +1,20 @@
 import {
   ErrorResponseSchema,
   GenerateVariantsRequestSchema,
-  GenerateVariantsResponseSchema,
-  PatchVariantRequestSchema,
-  PlatformVariantRecordSchema,
+  GenerateVariantViewsResponseSchema,
+  PatchVariantOverridesRequestSchema,
   RedraftVariantRequestSchema,
-  VariantListResponseSchema,
+  VariantOverrideRevisionListResponseSchema,
+  VariantOverrideRevisionSchema,
   VariantParamsSchema,
-  VariantRevisionListResponseSchema,
   VariantRevisionParamsSchema,
-  VariantRevisionSchema,
+  VariantViewListResponseSchema,
+  VariantViewSchema,
   WorkIdParamsSchema,
+  type Platform,
 } from '@qiu-creator/contracts';
 import { resolveBaseRevision } from '@qiu-creator/domain';
 import { z } from 'zod';
-import { requirePrincipal } from '../auth/token-service.js';
 import type { App } from '../http/app-type.js';
 import type { VariantService } from '../variants/variant-service.js';
 
@@ -29,60 +29,62 @@ const writeErrors = { ...errorResponses, 409: ErrorResponseSchema, 428: ErrorRes
 /** Variant revisions are integers; the ETag is the number in quotes (`"3"`). */
 const etag = (revision: number): string => `"${String(revision)}"`;
 
+const DEPRECATED =
+  'Deprecated (QC-084): variants are overrides and the body follows the work, so nothing needs generating. Kept for older clients.';
+
 export function registerVariantRoutes(app: App, variants: VariantService): void {
   /** Effective base from body and If-Match, compared as strings against the current revision. */
   const base = (
     workId: string,
-    platform: Parameters<VariantService['get']>[1],
+    platform: Platform,
     bodyBase: number | undefined,
     ifMatch: string | undefined,
-  ): string | null => {
-    const current = variants.get(workId, platform).revision;
-    return resolveBaseRevision(
+  ): string | null =>
+    resolveBaseRevision(
       bodyBase === undefined ? undefined : String(bodyBase),
       ifMatch,
-      String(current),
+      String(variants.currentRevision(workId, platform)),
     );
-  };
 
   app.get(
     '/api/v1/works/:id/variants',
     {
       schema: {
         description:
-          'Platform variants of a work (小紅書, 公眾號, 抖音, 視頻號), each with its own revision and over-limit `warnings` (reference limits; never blocking).',
+          'All four platforms of a work (小紅書, 公眾號, 抖音, 視頻號) as they would publish: overrides applied to the work, the body derived from the work, each field with its `*_source`, over-limit `warnings` (reference limits; never blocking) and the revision.',
         params: WorkIdParamsSchema,
-        response: { 200: VariantListResponseSchema, ...errorResponses },
+        response: { 200: VariantViewListResponseSchema, ...errorResponses },
       },
     },
-    (req) => ({ items: variants.list(req.params.id) }),
+    async (req) => ({ items: await variants.list(req.params.id) }),
   );
 
   app.post(
     '/api/v1/works/:id/variants',
     {
       schema: {
-        description:
-          "Generate drafts from the work's current original by fixed rules (no AI) for the given platforms (default: all four). Platforms that already have a variant are left untouched and listed in `skipped`.",
+        description: `${DEPRECATED} Gives the given platforms (default: all four) a row with no overrides; platforms that have one are listed in \`skipped\`.`,
+        deprecated: true,
         params: WorkIdParamsSchema,
         body: GenerateVariantsRequestSchema,
-        response: { 200: GenerateVariantsResponseSchema, ...errorResponses },
+        response: { 200: GenerateVariantViewsResponseSchema, ...errorResponses },
       },
     },
-    (req) =>
-      variants.generate(req.params.id, req.body.platforms, requirePrincipal(req.principal).id),
+    (req) => variants.generate(req.params.id, req.body.platforms),
   );
 
   app.get(
     '/api/v1/works/:id/variants/:platform',
     {
       schema: {
+        description:
+          'One platform resolved (QC-084): title, cover, images and tags with `*_source` (`work` or `override`), the body derived from the saved work (`body_source` `legacy_override` for a body edited before QC-084), `warnings` (`body_too_long` with `cut_at` and `source_offset`) and `revision` (0 before the first override; also the ETag).',
         params: VariantParamsSchema,
-        response: { 200: PlatformVariantRecordSchema, ...errorResponses },
+        response: { 200: VariantViewSchema, ...errorResponses },
       },
     },
-    (req, reply) => {
-      const v = variants.get(req.params.id, req.params.platform);
+    async (req, reply) => {
+      const v = await variants.get(req.params.id, req.params.platform);
       reply.header('etag', etag(v.revision));
       return v;
     },
@@ -93,16 +95,16 @@ export function registerVariantRoutes(app: App, variants: VariantService): void 
     {
       schema: {
         description:
-          'Edit one platform variant. Requires `base_revision` (integer) or `If-Match: "<revision>"`; a stale base returns 409 with `details.current_revision` and nothing is written. Other platforms are never touched. Over-limit content is saved and reported in `warnings`.',
+          'Change overrides of one platform: `title`, `cover`, `images` (shown ids in order), `tags`, each a value or null to follow the work again. Requires `base_revision` or `If-Match: "<revision>"` (0 before the first override); a stale base returns 409 with `details.current_revision` and nothing is written. `body` only takes null (drops a legacy body override); a string returns 400 `body_not_editable`. A patch that changes nothing keeps the revision. Other platforms are never touched.',
         params: VariantParamsSchema,
-        body: PatchVariantRequestSchema,
-        response: { 200: PlatformVariantRecordSchema, ...writeErrors },
+        body: PatchVariantOverridesRequestSchema,
+        response: { 200: VariantViewSchema, ...writeErrors },
       },
     },
-    (req, reply) => {
+    async (req, reply) => {
       const { id, platform } = req.params;
       const { base_revision: bodyBase, ...change } = req.body;
-      const v = variants.patch(
+      const v = await variants.patch(
         id,
         platform,
         base(id, platform, bodyBase, req.headers['if-match']),
@@ -117,28 +119,19 @@ export function registerVariantRoutes(app: App, variants: VariantService): void 
     '/api/v1/works/:id/variants/:platform/draft',
     {
       schema: {
-        description:
-          'Regenerate one platform variant from the current original by fixed rules (no AI). Creates it (201) when missing; otherwise requires `base_revision` or `If-Match` and appends a `draft` revision (200), keeping the history.',
+        description: `${DEPRECATED} Follow the work again in every field. Creates a row (201) when there is none; otherwise requires \`base_revision\` or \`If-Match\` (200).`,
+        deprecated: true,
         params: VariantParamsSchema,
         body: RedraftVariantRequestSchema,
-        response: {
-          200: PlatformVariantRecordSchema,
-          201: PlatformVariantRecordSchema,
-          ...writeErrors,
-        },
+        response: { 200: VariantViewSchema, 201: VariantViewSchema, ...writeErrors },
       },
     },
     async (req, reply) => {
       const { id, platform } = req.params;
-      const exists = variants.list(id).some((v) => v.platform === platform);
-      const effective = exists
-        ? base(id, platform, req.body.base_revision, req.headers['if-match'])
-        : null;
       const result = await variants.redraft(
         id,
         platform,
-        effective,
-        requirePrincipal(req.principal).id,
+        base(id, platform, req.body.base_revision, req.headers['if-match']),
       );
       reply.code(result.created ? 201 : 200).header('etag', etag(result.variant.revision));
       return result.variant;
@@ -150,14 +143,14 @@ export function registerVariantRoutes(app: App, variants: VariantService): void 
     {
       schema: {
         description:
-          'Delete one platform variant (the original is untouched). Requires `If-Match: "<revision>"`. The variant becomes a tombstone that takes the next revision and keeps the history, so revisions never repeat: recreating it continues from there and pre-delete revisions get 409.',
+          'Drop every override of one platform (the work is untouched). Requires `If-Match: "<revision>"`. The row becomes a tombstone that takes the next revision and keeps the history, so revisions never repeat and pre-delete revisions get 409.',
         params: VariantParamsSchema,
         response: { 204: z.null(), ...writeErrors },
       },
     },
-    (req, reply) => {
+    async (req, reply) => {
       const { id, platform } = req.params;
-      variants.delete(id, platform, base(id, platform, undefined, req.headers['if-match']));
+      await variants.delete(id, platform, base(id, platform, undefined, req.headers['if-match']));
       reply.code(204);
       return null;
     },
@@ -167,9 +160,10 @@ export function registerVariantRoutes(app: App, variants: VariantService): void 
     '/api/v1/works/:id/variants/:platform/revisions',
     {
       schema: {
-        description: 'History of one platform variant, newest first, with full content.',
+        description:
+          'Override history of one platform, newest first. Revisions from before QC-084 carry their full content in `legacy`.',
         params: VariantParamsSchema,
-        response: { 200: VariantRevisionListResponseSchema, ...errorResponses },
+        response: { 200: VariantOverrideRevisionListResponseSchema, ...errorResponses },
       },
     },
     (req) => ({ items: variants.revisions(req.params.id, req.params.platform) }),
@@ -180,7 +174,7 @@ export function registerVariantRoutes(app: App, variants: VariantService): void 
     {
       schema: {
         params: VariantRevisionParamsSchema,
-        response: { 200: VariantRevisionSchema, ...errorResponses },
+        response: { 200: VariantOverrideRevisionSchema, ...errorResponses },
       },
     },
     (req) => variants.revision(req.params.id, req.params.platform, req.params.revision),

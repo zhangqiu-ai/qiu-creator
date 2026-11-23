@@ -17,9 +17,19 @@ import type { Db } from '../db/database.js';
 import { notFound, ServiceError } from '../errors.js';
 import type { ChangeFeed } from '../events/change-feed.js';
 import type { Layout } from '../layout.js';
-import { toRecord, type AssetRow, type AssetService } from './asset-service.js';
+import {
+  toRecord,
+  variantCoverSql,
+  variantImageSql,
+  type AssetRow,
+  type AssetService,
+} from './asset-service.js';
 import { defaultSystemTrash, type SystemTrash } from './system-trash.js';
 import { findSameContent } from '../media/attach.js';
+
+/** Each binds the asset id twice (see variantCoverSql). */
+const VARIANT_COVER_SQL = variantCoverSql('?');
+const VARIANT_IMAGE_SQL = variantImageSql('?');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -137,20 +147,22 @@ export class AssetLibrary {
       },
     }));
     const variants = this.db
-      .prepare<[string, string], AssetReferences['variants'][number] & { trashed: number }>(
+      .prepare<
+        [string, string, string, string],
+        AssetReferences['variants'][number] & { trashed: number }
+      >(
         `SELECT pv.work_id, w.title, pv.platform, 'cover' AS usage,
            w.deleted_at IS NOT NULL AS trashed
          FROM platform_variants pv JOIN works w ON w.id = pv.work_id
-         WHERE pv.deleted_at IS NULL AND pv.cover_asset_id = ?
+         WHERE pv.deleted_at IS NULL AND ${VARIANT_COVER_SQL}
          UNION ALL
          SELECT pv.work_id, w.title, pv.platform, 'image' AS usage,
            w.deleted_at IS NOT NULL AS trashed
          FROM platform_variants pv JOIN works w ON w.id = pv.work_id
-         WHERE pv.deleted_at IS NULL
-           AND EXISTS (SELECT 1 FROM json_each(pv.image_asset_ids) j WHERE j.value = ?)
+         WHERE pv.deleted_at IS NULL AND ${VARIANT_IMAGE_SQL}
          ORDER BY 1, 3, 4`,
       )
-      .all(id, id)
+      .all(id, id, id, id)
       .map(({ trashed, ...ref }) => ({ trashed: trashed === 1, ref }));
     return {
       works: works.filter((w) => !w.trashed).map((w) => w.ref),
@@ -427,8 +439,9 @@ export class AssetLibrary {
     const managed = row.mount_id === null;
     const referrers = managed ? (this.options.markdownReferrers?.(toRecord(row)) ?? []) : [];
     this.db.transaction(() => {
-      // Work links cascade and variant covers become NULL through the foreign
-      // keys; variant image lists drop the id here. Variant history keeps it.
+      // Work links cascade and old variant covers become NULL through the
+      // foreign keys; variant image lists and overrides (QC-084) drop the id
+      // here. Variant history keeps it.
       this.db
         .prepare(
           `UPDATE platform_variants
@@ -437,6 +450,24 @@ export class AssetLibrary {
            WHERE EXISTS (SELECT 1 FROM json_each(image_asset_ids) j WHERE j.value = ?)`,
         )
         .run(row.id, row.id);
+      this.db
+        .prepare(
+          `UPDATE platform_variants SET cover_override = NULL
+           WHERE json_extract(cover_override, '$.asset_id') = ?`,
+        )
+        .run(row.id);
+      this.db
+        .prepare(
+          `UPDATE platform_variants SET image_order_override = json_object(
+             'order', (SELECT json_group_array(j.value) FROM json_each(image_order_override, '$.order') j WHERE j.value <> @id),
+             'hidden', (SELECT json_group_array(j.value) FROM json_each(image_order_override, '$.hidden') j WHERE j.value <> @id),
+             'extra', (SELECT json_group_array(j.value) FROM json_each(image_order_override, '$.extra') j WHERE j.value <> @id))
+           WHERE image_order_override IS NOT NULL
+             AND EXISTS (SELECT 1 FROM json_each(image_order_override, '$.order') j WHERE j.value = @id
+                         UNION ALL
+                         SELECT 1 FROM json_each(image_order_override, '$.hidden') j WHERE j.value = @id)`,
+        )
+        .run({ id: row.id });
       this.notifyWorks(row.id, 'deleted');
       this.db.prepare('DELETE FROM assets WHERE id = ?').run(row.id);
       this.feed?.record('asset', row.id, 'asset.deleted', { removal, reason });

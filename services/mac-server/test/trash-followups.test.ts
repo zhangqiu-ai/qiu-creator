@@ -39,11 +39,9 @@ async function apiError(p: Promise<unknown>): Promise<ApiError> {
 async function trashedUser(s: TestServer, asset: AssetRecord, title: string) {
   const work = await s.client.works.create({ title });
   await s.client.workAssets.link(work.id, { asset_id: asset.id, role: 'cover' });
-  await s.client.variants.generate(work.id, { platforms: ['xiaohongshu'] });
-  const v = await s.client.variants.get(work.id, 'xiaohongshu');
   await s.client.variants.patch(work.id, 'xiaohongshu', {
-    base_revision: v.revision,
-    cover_asset_id: asset.id,
+    base_revision: 0,
+    cover: { asset_id: asset.id },
   });
   const current = await s.client.works.get(work.id);
   await s.client.works.trash(work.id, { base_revision: current.current_revision_id });
@@ -104,7 +102,10 @@ describe('asset references and works in 最近刪除 (QC-053)', () => {
     const w = await s.client.works.get(gone.id);
     await s.client.works.restoreFromTrash(gone.id, { base_revision: w.current_revision_id });
     expect((await s.client.workAssets.list(gone.id)).items.map((i) => i.asset.id)).toEqual([a.id]);
-    expect((await s.client.variants.get(gone.id, 'xiaohongshu')).cover_asset_id).toBe(a.id);
+    expect(await s.client.variants.get(gone.id, 'xiaohongshu')).toMatchObject({
+      cover: { asset_id: a.id },
+      cover_source: 'override',
+    });
     expect((await s.client.assets.references(a.id)).works.map((r) => r.work_id)).toEqual([gone.id]);
   });
 
@@ -118,7 +119,11 @@ describe('asset references and works in 最近刪除 (QC-053)', () => {
     const w = await s.client.works.get(gone.id);
     await s.client.works.restoreFromTrash(gone.id, { base_revision: w.current_revision_id });
     expect((await s.client.workAssets.list(gone.id)).items).toEqual([]);
-    expect((await s.client.variants.get(gone.id, 'xiaohongshu')).cover_asset_id).toBeNull();
+    // The cover override is dropped with the asset; the work has no cover left.
+    expect(await s.client.variants.get(gone.id, 'xiaohongshu')).toMatchObject({
+      cover: null,
+      cover_source: 'work',
+    });
   });
 });
 

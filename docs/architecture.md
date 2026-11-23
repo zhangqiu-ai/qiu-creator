@@ -183,6 +183,8 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 `0011_change_log_system_entity`：`change_log.entity` 允許 `system`（備份事件，QC-030）。SQLite 無法修改 CHECK，所以重建資料表，保留 `seq` 與 AUTOINCREMENT 的最高值，SSE 的 id 不會倒退。
 
+`0020_variant_overrides`（QC-084）：`platform_variants` 與 `platform_variant_revisions` 新增覆寫值欄位（只加欄位），舊列在第一次存取時轉換；回滾用 `VARIANT_OVERRIDES_ROLLBACK_SQL`。詳見「覆寫值與推導正文（QC-084）」。`0018`、`0019` 見各自章節。
+
 `0017_projects`（QC-062）：
 - 新增 `projects`：`id`、`name`、`color`（0–7）、`sort_order`、`revision`、`archived_at`、`deleted_at`、`created_at`、`updated_at`，並建立未刪除項目的排序索引。
 - 新增 `work_projects`：`work_id`、`project_id`、`added_at`，主鍵是兩者的組合。作品或項目真正刪除時，這裡的對應會一起刪掉。
@@ -258,13 +260,13 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | POST | `/api/v1/works/:id/assets` | 關聯素材（`cover`／`body`／`video`，可指定位置；重複關聯即移動） |
 | DELETE | `/api/v1/works/:id/assets/:assetId?role=` | 移除關聯，順序自動補齊 |
 | PUT | `/api/v1/works/:id/assets/order` | 重排某個用途的全部素材 |
-| GET | `/api/v1/works/:id/variants` | 作品的平台版本（依小紅書、公眾號、抖音、視頻號排序），每份帶 `warnings` |
-| POST | `/api/v1/works/:id/variants` | 從原文以規則產生草稿（不呼叫 AI）；已有版本的平台略過並列在 `skipped` |
-| GET | `/api/v1/works/:id/variants/:platform` | 單一平台版本，回 `ETag: "<revision>"` |
-| PATCH | `/api/v1/works/:id/variants/:platform` | 修改標題、正文、封面、圖片順序、標籤；也接受 `images`、`cover`（含視頻幀）、`inherit`（QC-045/046）；需要 `base_revision` 或 `If-Match` |
-| POST | `/api/v1/works/:id/variants/:platform/draft` | 從目前原文重新產生草稿；不存在時建立（201），存在時需要 base，追加 `draft` 版本 |
-| DELETE | `/api/v1/works/:id/variants/:platform` | 刪除該平台版本（留墓碑、保留歷史，版本號不回頭）；需要 `If-Match` |
-| GET | `/api/v1/works/:id/variants/:platform/revisions[/:revision]` | 平台版本歷史（含完整內容） |
+| GET | `/api/v1/works/:id/variants` | 四個平台的解析結果（`VariantView`，依小紅書、公眾號、抖音、視頻號排序），沒有覆寫的平台也列出（QC-084） |
+| POST | `/api/v1/works/:id/variants` | **已棄用（QC-084）**：為沒有資料列的平台建立「全部跟隨」的列；已有的列在 `skipped` |
+| GET | `/api/v1/works/:id/variants/:platform` | 單一平台解析結果：各欄位與 `*_source`、推導出的正文、`warnings`、`revision`（還沒有覆寫時為 0），回 `ETag: "<revision>"` |
+| PATCH | `/api/v1/works/:id/variants/:platform` | 設定或清除覆寫值：`title`、`cover`、`images`、`tags`，null 代表改回跟隨原稿；`body` 只接受 null（清除舊資料的正文覆寫），字串回 400 `body_not_editable`；需要 `base_revision` 或 `If-Match`（第一次為 0），過期回 409 |
+| POST | `/api/v1/works/:id/variants/:platform/draft` | **已棄用（QC-084）**：全部改回跟隨原稿；沒有資料列時建立（201），有時需要 base |
+| DELETE | `/api/v1/works/:id/variants/:platform` | 清除該平台全部覆寫（留墓碑、保留歷史，版本號不回頭）；需要 `If-Match` |
+| GET | `/api/v1/works/:id/variants/:platform/revisions[/:revision]` | 覆寫值的歷史；QC-084 之前的版本在 `legacy` 帶完整內容 |
 | GET | `/api/v1/events` | SSE 變更事件 |
 | GET | `/api/v1/backups` | 備份列表（新的在前）、保留份數、資料夾、每日排程；只限主權杖 |
 | POST | `/api/v1/backups` | 立即手動備份（201），含完整性檢查結果；只限主權杖 |
@@ -537,6 +539,8 @@ tags:
 
 ## 平台版本（QC-009）
 
+> **QC-084 起改為「只存覆寫值」**，見本節最後的「覆寫值與推導正文（QC-084）」。以下描述 QC-009／019／045／046 的設計，其中存放、版本、墓碑仍然適用；規則草稿、`inherit` 與正文欄位已被取代。
+
 每個作品在小紅書、公眾號、抖音、視頻號各最多一份平台版本（`UNIQUE (work_id, platform)`），欄位為標題、正文、封面素材、圖片順序、標籤。實作在 `src/variants/`，上限設定在 contracts 的 `PLATFORM_LIMITS`。
 
 **存放方式：SQLite，加只追加的歷史表。** 不存成檔案，理由：
@@ -575,6 +579,78 @@ tags:
 **驗證：** 封面與圖片必須是存在的圖片素材，否則回 400 並列出 `invalid_asset_ids`；圖片不可重複；標籤去空白、去重。
 
 **事件：** `work.variant_created`（含墓碑復活）、`work.variant_updated`、`work.variant_deleted`，`entity_id` 是作品 id，`data` 帶 `platform`、`revision`、`source`（`draft`／`edit`）；刪除事件的 `revision` 是墓碑的版本號。
+
+### 覆寫值與推導正文（QC-084）
+
+決策見 [決策記錄](decisions.md) 2026-11-23（原型 PT-20261123-001 v2）。各平台不再有自己的正文：正文永遠由原稿推導；平台只存四個覆寫值，未覆寫時跟隨原稿。
+
+**推導函式（`@qiu-creator/platform-preview` 的 `deriveVariantBody`）：** 純 TypeScript，不綁 Electron 或 DOM。伺服器用它推導已儲存的作品；Mac App 用同一個函式推導編輯器裡**尚未儲存**的草稿做即時預覽；第二期 iPhone／iPad 也能直接使用。
+
+- 規則與舊的規則草稿逐字相同，有對照測試（`packages/platform-preview/test/derive.test.ts`，以凍結的舊實作為參照）：
+  - 小紅書、抖音、視頻號輸出純文字。
+  - 公眾號輸出 Markdown，去掉 front matter 與開頭的 `# 標題`。
+  - 貼圖與視頻作品用簡介（description）原文。入口是 `deriveWorkVariantBody(work, platform)`。
+- 回傳 `{format, text, blocks, map}`：
+  - `blocks`：每塊帶類型、顯示文字、在 `text` 與原稿中的範圍。
+  - `map`：推導文字與原稿的對應段。
+  - 位移一律用 UTF-16（JS 字串索引，CodeMirror 的單位）。
+- 對應查詢函式：
+  - `sourceOffsetAt`（推導 → 原稿）
+  - `textOffsetAt`（原稿 → 推導，「跟隨」用）
+  - `blockAtSource`
+- 上限檢查 `checkDerivedLimits` 跑在推導結果上。`body_too_long` 加兩個欄位：
+  - `cut_at`：推導文字中的碼點位置，等於上限值。
+  - `source_offset`：原稿中的 UTF-16 位置；舊資料的正文覆寫沒有原稿位置，為 null。
+- 永不截斷、永不阻擋儲存。
+
+**資料表（`0020_variant_overrides`）：**
+
+- `platform_variants` 新增欄位：
+  - `title_override`
+  - `cover_override`（JSON：`{asset_id}` 或 `{time_seconds}`）
+  - `image_order_override`（JSON：`{order, hidden, extra}`）
+  - `tags_override`（JSON 陣列）
+  - `body_override`（只給舊資料用）
+  - `overrides_ready`
+- `platform_variant_revisions` 新增同樣的覆寫欄位，加上 `overrides_format`。
+- 新資料不再寫 `title`、`body` 等舊欄位：新列的舊欄位為空值；舊列的舊欄位保持原值，回滾時要用。
+
+**解析：** 每個欄位都是「覆寫值，否則作品的值」，並回傳 `*_source`（`work`／`override`；正文為 `work`／`legacy_override`）。
+
+- 作品提供的值：
+  - 標題、標籤：照作品。
+  - 封面：作品的 `cover` 圖片，沒有就用第一張圖；貼圖與視頻作品用 front matter 的封面或幀。
+  - 圖片：Markdown 中已登記的圖片依文中順序，再接上其他 `body` 圖片；貼圖與視頻作品用 front matter 的圖片。
+- 圖片覆寫只排序與隱藏：
+  - 顯示順序：`order` 中仍屬於作品（或屬於舊資料的 `extra`）的圖片在前，之後是作品新加入、且不在 `hidden` 中的圖片。
+  - 從作品移除、或在回收站中的圖片不顯示。
+  - PATCH 的 `images` 是要顯示的 id 清單；不屬於作品的 id 回 400 `invalid_asset_ids`。
+- 每個平台都能讀，不論有沒有資料列：沒有列時 `exists: false`、`revision: 0`。
+
+**寫入與版本：**
+
+- 只有覆寫值改變時，才寫下一個 revision、一筆歷史（`overrides_format = 1`）和事件 `work.variant_changed`（`data.platform`、`revision`、`fields`）。沒有改變的 PATCH 不升版本、不發事件。
+- 第一次覆寫以 base 0 建立資料列。同時以 0 建立時，唯一索引保證只有一筆成功，其他回 409。
+- 原稿變化不會產生平台事件：預覽在 `work.updated` 時重新推導。
+- DELETE 清除全部覆寫，留下墓碑並佔用下一個版本號；之後以墓碑的版本號為 base 覆寫，資料列會復活（QC-019 的規則不變）。
+
+**遷移舊資料（可逆）：** 新欄位要對照作品檔案才能判斷，所以 SQL 只加欄位；資料列在第一次被讀寫時由 `VariantService.backfill` 轉換。轉換不升版本、不發事件、不改舊欄位。
+
+- 欄位「跟隨」或「覆寫」的判斷：
+  - 值和現在從作品推導出的結果相同 → 跟隨（null）。
+  - 值和最近一次規則草稿（歷史中最後一個 `draft`）相同，代表使用者沒改過，只是原稿後來變了 → 也跟隨。
+  - 其餘 → 轉成覆寫值。正文轉成 `body_override`，畫面提示「這個平台的正文是之前另外改過的版本」，可一鍵改回跟隨原稿（PATCH `body: null`）；舊文字留在歷史。
+- `inherit = 1` 的列：標題、正文、標籤全部跟隨；封面與圖片仍照上面的規則判斷，保留使用者選過的封面。
+- 什麼都不刪。
+
+**回滾：** `VARIANT_OVERRIDES_ROLLBACK_SQL` 先把已設定的覆寫值寫回舊欄位（標題、標籤、正文、封面、圖片順序），再刪除新欄位。
+
+- 遷移後若沒有新寫入，資料表與遷移前完全相同；fixture 往返測試在 `test/variant-overrides-migration.test.ts`。
+- 已改回跟隨的欄位保留舊值。
+
+**素材引用與永久刪除：** 已轉換的列以覆寫值計算引用（封面覆寫、`order`），尚未轉換的列仍用舊欄位。永久刪除素材時，清掉指向它的封面覆寫，並從 `order`、`hidden`、`extra` 移除它；不產生新版本。
+
+**已棄用（保留給舊用戶端）：** `POST …/variants`（建立沒有覆寫的資料列）、`POST …/variants/:platform/draft`（全部改回跟隨）。下方 QC-045／046 的 `inherit`，以及「寫入平台版本前先 `redraft`」的說明都已被取代：直接以 base 0 PATCH 即可。
 
 ## AI 基礎（QC-021）
 
@@ -1089,7 +1165,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 
 ## 變更事件（SSE）
 
-`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `ai_job.queued`／`running`／`progress`／`succeeded`／`failed`／`cancelled`（AI 任務）、`work.variant_created`／`work.variant_updated`／`work.variant_deleted`（平台版本）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`（素材進出回收站時 `data.change` 為 `trashed`／`restored`／`deleted`）、`asset.created`、`asset.updated`（編輯時 `data.fields`、`data.revision`）、`asset.trashed`（`data.removal`）、`asset.restored`、`asset.deleted`（`data.removal`、`data.reason`：`manual`／`empty`／`expired`）（QC-037）、`work.trashed`（`data.removal`）、`work.restored`、`work.deleted`（`data.removal`、`data.reason`）（QC-051）、`work.projects_changed` 與實體 `project` 的 `project.created`／`updated`／`deleted`／`restored`／`reordered`（QC-062）、`job.queued`、`job.running`、`job.succeeded`、`job.failed`，以及實體 `system`（`entity_id` 為 `database`）的 `backup.created`／`backup.failed`／`backup.restore_started`／`backup.restored`（QC-030）。
+`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `ai_job.queued`／`running`／`progress`／`succeeded`／`failed`／`cancelled`（AI 任務）、`work.variant_created`／`work.variant_updated`／`work.variant_deleted`／`work.variant_changed`（平台版本；QC-084 起覆寫值改變時發 `variant_changed`，帶 `data.fields`）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`（素材進出回收站時 `data.change` 為 `trashed`／`restored`／`deleted`）、`asset.created`、`asset.updated`（編輯時 `data.fields`、`data.revision`）、`asset.trashed`（`data.removal`）、`asset.restored`、`asset.deleted`（`data.removal`、`data.reason`：`manual`／`empty`／`expired`）（QC-037）、`work.trashed`（`data.removal`）、`work.restored`、`work.deleted`（`data.removal`、`data.reason`）（QC-051）、`work.projects_changed` 與實體 `project` 的 `project.created`／`updated`／`deleted`／`restored`／`reordered`（QC-062）、`job.queued`、`job.running`、`job.succeeded`、`job.failed`，以及實體 `system`（`entity_id` 為 `database`）的 `backup.created`／`backup.failed`／`backup.restore_started`／`backup.restored`（QC-030）。
 
 - 和其他 `/api` 路由一樣要 Bearer 權杖。瀏覽器的 `EventSource` 不能帶 header，所以 api-client 用 fetch 讀串流（`client.events.subscribe`）；權杖不接受放在 URL。
 - 事件先寫進 `change_log` 再推送：在寫入方的交易提交後才發出，交易回滾的變更不會被推送。

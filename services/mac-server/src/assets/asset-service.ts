@@ -173,9 +173,25 @@ export const REFERENCED_SQL = `(
   EXISTS (SELECT 1 FROM work_assets wa WHERE wa.asset_id = assets.id)
   OR EXISTS (SELECT 1 FROM platform_variants pv
              WHERE pv.deleted_at IS NULL
-               AND (pv.cover_asset_id = assets.id
-                    OR EXISTS (SELECT 1 FROM json_each(pv.image_asset_ids) j WHERE j.value = assets.id)))
+               AND (${variantCoverSql('assets.id')} OR ${variantImageSql('assets.id')}))
 )`;
+
+/**
+ * A variant uses an asset as cover (QC-084): its cover override once the row
+ * has overrides, else (not yet migrated, see VariantService) its old cover.
+ */
+export function variantCoverSql(asset: string): string {
+  return `(CASE WHEN pv.overrides_ready = 1
+     THEN json_extract(pv.cover_override, '$.asset_id') = ${asset}
+     ELSE pv.cover_asset_id = ${asset} END)`;
+}
+
+/** A variant shows an asset among its images: the override order, or the old list before migration. */
+export function variantImageSql(asset: string): string {
+  return `(CASE WHEN pv.overrides_ready = 1
+     THEN EXISTS (SELECT 1 FROM json_each(pv.image_order_override, '$.order') j WHERE j.value = ${asset})
+     ELSE EXISTS (SELECT 1 FROM json_each(pv.image_asset_ids) j WHERE j.value = ${asset}) END)`;
+}
 
 /** Make an uploaded name safe for Finder while keeping it recognizable; the extension comes from the content. */
 export function storedFileName(originalName: string, ext: string): string {

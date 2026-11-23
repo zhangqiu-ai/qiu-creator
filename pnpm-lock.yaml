@@ -453,6 +453,9 @@ importers:
       '@qiu-creator/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@qiu-creator/platform-preview':
+        specifier: workspace:*
+        version: link:../../packages/platform-preview
       '@tus/file-store':
         specifier: ^2.1.2
         version: 2.1.2(@opentelemetry/api@1.10.0)(supports-color@7.2.0)

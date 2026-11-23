@@ -37,6 +37,7 @@ export const errors = defineMessages({
     asset_file_missing: '素材的檔案找不到了',
     trash_failed: '無法移到垃圾桶，沒有任何變更',
     attach_external_unsupported: '外部掛載的作品不能插入素材庫的圖片',
+    body_not_editable: '平台正文跟隨原稿，請直接修改原稿',
     front_matter_invalid: '作品檔案開頭的 front matter 格式有誤，請先在檔案裡修正',
     work_in_trash: '這個作品在回收站，請先恢復再編輯',
     ai_key_invalid: 'AI 服務拒絕了這組 API 金鑰，請檢查金鑰是否正確或有權限',
@@ -76,6 +77,7 @@ export const errors = defineMessages({
     asset_file_missing: '素材的文件找不到了',
     trash_failed: '无法移到废纸篓，没有任何更改',
     attach_external_unsupported: '外部挂载的作品不能插入素材库中的图片',
+    body_not_editable: '平台正文跟随原稿，请直接修改原稿',
     front_matter_invalid: '作品文件开头的 front matter 格式有误，请先在文件里修正',
     work_in_trash: '这个作品在回收站中，请先恢复再编辑',
     ai_key_invalid: 'AI 服务拒绝了这个 API 密钥，请检查密钥是否正确或有权限',
@@ -115,6 +117,7 @@ export const errors = defineMessages({
     asset_file_missing: 'The asset’s file can’t be found',
     trash_failed: 'Couldn’t move it to the Trash. Nothing was changed.',
     attach_external_unsupported: 'Works in linked folders can’t take images from the asset library',
+    body_not_editable: 'The platform text follows the original. Edit the original instead.',
     front_matter_invalid:
       'The front matter at the top of this work’s file isn’t valid. Fix it in the file first.',
     work_in_trash: 'This work is in Trash. Restore it before editing.',

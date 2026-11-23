@@ -188,12 +188,10 @@ describe('delete and 最近刪除 for managed assets (QC-037)', () => {
     for (const id of [body.id, cover.id, other.id]) {
       await s.client.workAssets.link(work.id, { asset_id: id, role: 'body' });
     }
-    await s.client.variants.generate(work.id, { platforms: ['xiaohongshu'] });
-    const v = await s.client.variants.get(work.id, 'xiaohongshu');
     await s.client.variants.patch(work.id, 'xiaohongshu', {
-      base_revision: v.revision,
-      cover_asset_id: cover.id,
-      image_asset_ids: [cover.id, body.id],
+      base_revision: 0,
+      cover: { asset_id: cover.id },
+      images: [cover.id, body.id],
     });
 
     expect(await s.client.assets.references(cover.id)).toEqual({
@@ -238,8 +236,12 @@ describe('delete and 最近刪除 for managed assets (QC-037)', () => {
       (await apiError(s.client.workAssets.link(work.id, { asset_id: cover.id, role: 'cover' })))
         .body?.error.code,
     ).toBe('asset_in_trash');
-    // The variant itself is unchanged; references are kept.
-    expect(await s.client.variants.get(work.id, 'xiaohongshu')).toEqual(before);
+    // The variant's overrides are unchanged and keep their references; while
+    // the asset is in 回收站 the platform does not show it among its images.
+    expect(await s.client.variants.get(work.id, 'xiaohongshu')).toEqual({
+      ...before,
+      images: before.images.filter((id) => id !== cover.id),
+    });
 
     await s.client.assets.restore(cover.id);
     const after = (await s.client.workAssets.list(work.id)).items.map((i) => [i.role, i.asset.id]);
@@ -250,6 +252,7 @@ describe('delete and 最近刪除 for managed assets (QC-037)', () => {
       ['cover', cover.id],
     ]);
     expect((await s.client.assets.references(cover.id)).variants).toHaveLength(2);
+    expect(await s.client.variants.get(work.id, 'xiaohongshu')).toEqual(before);
     const changes = events(s, 'work.assets_changed')
       .map((e) => JSON.parse(e.data) as { change: string; asset_id?: string })
       .filter((d) => d.asset_id === cover.id)
@@ -286,12 +289,10 @@ describe('permanent deletion (QC-037)', () => {
     });
     const lib = await upload(s, 'lib.png', 9);
     await s.client.workAssets.link(work.id, { asset_id: lib.id, role: 'cover' });
-    await s.client.variants.generate(work.id, { platforms: ['douyin'] });
-    const v = await s.client.variants.get(work.id, 'douyin');
-    await s.client.variants.patch(work.id, 'douyin', {
-      base_revision: v.revision,
-      cover_asset_id: lib.id,
-      image_asset_ids: [lib.id, inline],
+    const v = await s.client.variants.patch(work.id, 'douyin', {
+      base_revision: 0,
+      cover: { asset_id: lib.id },
+      images: [inline],
     });
     const thumb = path.join(s.home, 'cache/thumbnails', `${lib.id}.webp`);
     fs.mkdirSync(path.dirname(thumb), { recursive: true });
@@ -312,15 +313,20 @@ describe('permanent deletion (QC-037)', () => {
     expect(fs.existsSync(thumb)).toBe(false);
     expect((await apiError(s.client.assets.get(lib.id))).status).toBe(404);
     const variant = await s.client.variants.get(work.id, 'douyin');
-    expect(variant).toMatchObject({ cover_asset_id: null, image_asset_ids: [inline] });
-    expect(variant.revision).toBe(v.revision + 1); // no new revision from the purge
+    // The cover override is dropped with the asset: the cover follows the work again.
+    expect(variant).toMatchObject({
+      cover: { asset_id: inline },
+      cover_source: 'work',
+      images: [inline],
+    });
+    expect(variant.revision).toBe(v.revision); // no new revision from the purge
 
     const purged = await s.client.trash.purge(inline);
     expect(purged.markdown_referrers).toEqual([{ work_id: work.id, title: '圖文' }]);
     expect(fs.existsSync(path.join(s.home, inlineRec.path))).toBe(false);
     // The work folder itself and its source stay.
     expect(fs.existsSync(path.join(s.home, 'library/works', work.id, 'source.md'))).toBe(true);
-    expect((await s.client.variants.get(work.id, 'douyin')).image_asset_ids).toEqual([]);
+    expect((await s.client.variants.get(work.id, 'douyin')).images).toEqual([]);
 
     expect(
       events(s, 'asset.deleted').map((e) => [e.entity_id, JSON.parse(e.data) as unknown]),
