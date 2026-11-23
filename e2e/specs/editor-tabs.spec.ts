@@ -139,6 +139,13 @@ test('開多個作品、切換保留狀態、重複開啟、快捷鍵與選單',
     await expect
       .poll(() => source.evaluate((el) => (el as unknown as { scrollTop: number }).scrollTop))
       .toBe(900);
+    // The caret comes back one frame after the scroll position: wait for it before moving it,
+    // or the restore lands on top of the next step's selection.
+    await expect
+      .poll(() =>
+        source.evaluate((el) => (el as unknown as { selectionStart: number }).selectionStart),
+      )
+      .toBe(11);
 
     // Type and switch in the same task, before selectionchange fires: the caret is still kept
     // (QC-059; the event arrives later than the shortcut when the machine is busy).

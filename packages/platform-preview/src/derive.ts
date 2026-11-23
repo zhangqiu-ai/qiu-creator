@@ -498,7 +498,7 @@ export function checkDerivedLimits(
     platform,
     {
       title: input.title,
-      body: input.body.text,
+      body: countedText(input.body),
       image_asset_ids: input.image_asset_ids,
       tags: input.tags,
     },
@@ -511,12 +511,46 @@ export function checkDerivedLimits(
     return {
       ...w,
       cut_at: cutAt,
-      source_offset: sourceOffsetAt(input.body, codePointToIndex(input.body.text, cutAt)),
+      source_offset: countedSourceOffset(input.body, cutAt),
     };
   });
 }
 
-/** Length of a derived body in the limits' unit (code points). */
+/**
+ * The text a platform's body limit counts: the plain text of caption-style
+ * platforms as is; for 公眾號 the article's visible text (its blocks' text
+ * joined by blank lines), so Markdown syntax such as image links, `#` or `**`
+ * is not counted (QC-084 pre-release fix).
+ */
+export function countedText(derived: DerivedBody): string {
+  return derived.format === 'markdown'
+    ? derived.blocks.map((b) => b.text).join('\n\n')
+    : derived.text;
+}
+
+/**
+ * Source position (UTF-16) of the `codePoint`-th code point of `countedText`.
+ * For 公眾號 it lands in the right block; inside a block with inline Markdown
+ * it may be off by the markup before it (the block's text has none).
+ */
+export function countedSourceOffset(derived: DerivedBody, codePoint: number): number | null {
+  if (derived.format !== 'markdown') {
+    return sourceOffsetAt(derived, codePointToIndex(derived.text, codePoint));
+  }
+  let at = 0;
+  for (const b of derived.blocks) {
+    const n = charCount(b.text);
+    if (codePoint <= at + n) {
+      const index = Math.min(b.text_start + codePointToIndex(b.text, codePoint - at), b.text_end);
+      return sourceOffsetAt(derived, index);
+    }
+    at += n + 2;
+  }
+  const last = derived.blocks.at(-1);
+  return last === undefined ? null : last.source_end;
+}
+
+/** Length of a derived body in the limits' unit (code points of `countedText`). */
 export function derivedLength(derived: DerivedBody): number {
-  return charCount(derived.text);
+  return charCount(countedText(derived));
 }

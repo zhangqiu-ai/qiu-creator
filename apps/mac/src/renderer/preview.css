@@ -425,11 +425,11 @@
 
 /* ---- 復原 after an AI title or cover ---- */
 .pv-undo {
+  /* Bottom left, level with the zoom pill: never over the top of the phone (QC-084 pre-release). */
   position: absolute;
   z-index: 6;
-  top: 44px;
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 12px;
+  left: 12px;
   display: flex;
   align-items: center;
   gap: 2px;

@@ -68,15 +68,29 @@ export function zoomKey(e: {
   return null;
 }
 
+/**
+ * Where a phone taller than the room rests: its top just under the screen
+ * tabs (QC-084 pre-release), not centred with the top hidden behind them.
+ * The offset is from the centred position; space-drag pans from here.
+ */
+export function restingPan(
+  phone: { w: number; h: number },
+  stage: { w: number; h: number },
+): { x: number; y: number } {
+  const room = stage.h - STAGE_PAD.top - STAGE_PAD.bottom;
+  return { x: 0, y: Math.max(0, (phone.h - room) / 2) };
+}
+
 /** Pan offset kept so at least part of the phone stays in the stage. */
 export function clampPan(
   pan: { x: number; y: number },
   phone: { w: number; h: number },
   stage: { w: number; h: number },
 ): { x: number; y: number } {
-  const room = (p: number, s: number) => Math.max(0, (p - s) / 2 + 40);
-  const rx = room(phone.w, stage.w);
-  const ry = room(phone.h, stage.h);
+  const room = (p: number, s: number, margin: number) => Math.max(0, (p - s) / 2 + margin);
+  const rx = room(phone.w, stage.w, 40);
+  // Vertically the resting place (top under the screen tabs) must be reachable.
+  const ry = room(phone.h, stage.h, STAGE_PAD.bottom);
   return {
     x: Math.min(rx, Math.max(-rx, pan.x)),
     y: Math.min(ry, Math.max(-ry, pan.y)),

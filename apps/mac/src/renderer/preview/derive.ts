@@ -1,8 +1,8 @@
 import { charCount, PLATFORM_LIMITS, type Platform } from '@qiu-creator/contracts';
 import {
-  codePointToIndex,
+  countedSourceOffset,
+  countedText,
   deriveVariantBody,
-  sourceOffsetAt,
   type DeriveOptions,
   type DerivedBody,
 } from '@qiu-creator/platform-preview';
@@ -42,13 +42,21 @@ export function liveBody(
 ): LiveBody {
   const derived = deriveVariantBody(source, platform, options);
   const limit = PLATFORM_LIMITS[platform].bodyMaxChars;
-  const blocks: PhoneBlock[] = derived.blocks.map((b) => ({
-    kind: b.kind === 'heading' ? 'heading' : b.kind === 'item' ? 'item' : 'paragraph',
-    text: b.text,
-    at: cp(derived.text, b.text_start),
-    sourceStart: b.source_start,
-    sourceEnd: b.source_end,
-  }));
+  // What the limit counts (公眾號: the article's visible text, no Markdown syntax);
+  // summaries, counts and the cut line all read this.
+  const text = countedText(derived);
+  let counted = 0;
+  const blocks: PhoneBlock[] = derived.blocks.map((b) => {
+    const at = derived.format === 'markdown' ? counted : cp(derived.text, b.text_start);
+    counted += charCount(b.text) + 2;
+    return {
+      kind: b.kind === 'heading' ? 'heading' : b.kind === 'item' ? 'item' : 'paragraph',
+      text: b.text,
+      at,
+      sourceStart: b.source_start,
+      sourceEnd: b.source_end,
+    };
+  });
   if (derived.format === 'markdown' && options.sourceFormat !== 'text') {
     // Images sit between blocks, by their place in the source.
     for (const img of sourceImages(source)) {
@@ -67,11 +75,11 @@ export function liveBody(
       else blocks.splice(i, 0, block);
     }
   }
-  const length = charCount(derived.text);
+  const length = charCount(text);
   return {
     derived,
     phone: {
-      text: derived.text,
+      text,
       blocks,
       length,
       limit,
@@ -84,5 +92,5 @@ export function liveBody(
 export function cutSourceOffset(body: LiveBody): number | null {
   const cut = body.phone.cutAt;
   if (cut === null) return null;
-  return sourceOffsetAt(body.derived, codePointToIndex(body.derived.text, cut));
+  return countedSourceOffset(body.derived, cut);
 }
