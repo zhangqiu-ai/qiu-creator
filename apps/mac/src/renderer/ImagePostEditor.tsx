@@ -1030,6 +1030,12 @@ function PostEditor({
             <PreviewPanel
               client={client}
               work={work}
+              source={{
+                title: draft.title,
+                text: draft.markdown,
+                format: 'text',
+                tags: draft.tags,
+              }}
               open={previewAsk}
               workCoverAssetId={shownCover}
               onClose={() => {

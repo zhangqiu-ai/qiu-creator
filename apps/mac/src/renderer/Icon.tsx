@@ -5,6 +5,9 @@
 export type IconName =
   | 'library'
   | 'plus'
+  | 'minus'
+  | 'follow'
+  | 'chevronLeft'
   | 'search'
   | 'filter'
   | 'grid'
@@ -61,6 +64,8 @@ export type IconName =
 const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   library: ['M4 7.5 12 3l8 4.5-8 4.5Z', 'M4 12.5l8 4.5 8-4.5', 'M4 17l8 4 8-4'],
   plus: ['M12 5v14', 'M5 12h14'],
+  minus: ['M5 12h14'],
+  follow: ['M12 3v4', 'M12 17v4', 'M3 12h4', 'M17 12h4', 'M9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0'],
   more: [
     'M4.8 12a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0',
     'M10.8 12a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0',
@@ -74,6 +79,7 @@ const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   chevronDown: ['m6 9 6 6 6-6'],
   chevronUp: ['m6 15 6-6 6 6'],
   chevronRight: ['m9 6 6 6-6 6'],
+  chevronLeft: ['m15 6-6 6 6 6'],
   tag: ['M3 12V4h8l9 9-8 8Z', 'M7.5 8h.01'],
   pulse: ['M5 12h3l2-6 4 12 2-6h3'],
   trash: ['M4 7h16', 'M9 7V4h6v3', 'M6 7l1 13h10l1-13', 'M10 11v6', 'M14 11v6'],

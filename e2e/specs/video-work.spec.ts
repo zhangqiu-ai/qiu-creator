@@ -38,7 +38,7 @@ const GEMINI_KEY = 'AIzaFakeQc046E2eKey0123456789';
 async function expectSideFits(page: Page, selector = '.vw__side'): Promise<void> {
   const measure = `(() => {
     const side = document.querySelector('.tab-pane:not([hidden]) ${selector}');
-    const phone = side.querySelector('.pp-phone');
+    const phone = side.querySelector('.pv-phone');
     const rect = side.getBoundingClientRect();
     const visibleRight = rect.left + side.clientLeft + side.clientWidth;
     return {
@@ -156,22 +156,26 @@ test('視頻：選視頻、播放與 ←→、截取封面、共用與抖音文�
       'true',
     );
     // Only the two video platforms are offered.
-    await expect(preview(page).getByRole('tab')).toHaveText([/抖音/, /視頻號/]);
+    await expect(preview(page).getByRole('tablist', { name: '平台' }).getByRole('tab')).toHaveText([
+      /抖音/,
+      /視頻號/,
+    ]);
     await preview(page).getByRole('tab', { name: /抖音/ }).click();
-    const title = preview(page).getByRole('textbox', { name: '標題' });
-    const inherit = preview(page).getByRole('checkbox', { name: /沿用共用文案/ });
-    await expect(inherit).toBeChecked();
+    await preview(page)
+      .getByRole('tablist', { name: '畫面' })
+      .getByRole('tab', { name: '發布編輯' })
+      .click();
+    const publish = preview(page).locator('.pv-page:not([inert]) [data-screen="publish"]');
+    const title = publish.getByRole('textbox', { name: '標題' });
+    // QC-084: the platform follows the shared copy until its title is changed here.
     await expect(title).toHaveValue('嵐山竹林：清晨人最少的時段與散步路線');
-    await expect(title).toHaveAttribute('readonly', '');
-    await inherit.uncheck();
-    await expect(title).not.toHaveAttribute('readonly', '');
+    await expect(publish.getByText('跟隨原稿', { exact: true })).toBeVisible();
     await title.fill('清晨嵐山竹林散步');
     await expect
       .poll(async () => (await backend.client.variants.get(work.id, 'douyin')).title)
       .toBe('清晨嵐山竹林散步');
-    expect((await backend.client.variants.get(work.id, 'douyin')).inherit).toBe(false);
-    // The phone simulation sits beside the form, and the original keeps the shared title.
-    await expect(preview(page).locator('.pp-phone')).toBeVisible();
+    expect((await backend.client.variants.get(work.id, 'douyin')).title_source).toBe('override');
+    await expect(preview(page).locator('.pv-phone')).toBeVisible();
     await expectSideFits(page, '.pv-split__body');
     await shot(page, 'zh-Hant-10-preview');
     await expect(editor(page).locator('#vw-title-' + work.id)).toHaveValue(

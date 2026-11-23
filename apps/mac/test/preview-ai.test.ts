@@ -237,8 +237,13 @@ describe('預覽的標題候選 (QC-076)', () => {
     const prompt = provider.prompts[0] ?? '';
     expect(prompt).toContain('抖音');
     expect(prompt).not.toContain('小紅書');
-    // Nothing was written: no platform version exists yet.
-    expect((await client.variants.list(work.id)).items).toEqual([]);
+    // Nothing was written: every platform still follows the work.
+    expect((await client.variants.list(work.id)).items.map((v) => v.exists)).toEqual([
+      false,
+      false,
+      false,
+      false,
+    ]);
     // 捨棄 clears the list without writing either.
     titles.clear();
     expect(titles.snapshot.candidates).toEqual([]);
@@ -317,15 +322,15 @@ describe('預覽的 AI 封面 (QC-076)', () => {
     expect(covers.snapshot.candidates[1]?.fate).toBe('kept');
 
     // The panel then sets it as this platform's cover; the other platforms keep theirs.
-    const created = await client.variants.redraft(work.id, 'wechat_channels');
     const saved = await client.variants.patch(work.id, 'wechat_channels', {
-      base_revision: created.revision,
-      cover_asset_id: kept.assetId,
+      base_revision: 0,
+      cover: { asset_id: kept.assetId },
     });
-    expect(saved.cover_asset_id).toBe(kept.assetId);
-    expect((await client.variants.list(work.id)).items.map((v) => v.platform)).toEqual([
-      'wechat_channels',
-    ]);
+    expect(saved).toMatchObject({ cover: { asset_id: kept.assetId }, cover_source: 'override' });
+    const others = (await client.variants.list(work.id)).items.filter(
+      (v) => v.platform !== 'wechat_channels',
+    );
+    expect(others.map((v) => v.cover_source)).toEqual(['work', 'work', 'work']);
   });
 
   it('捨棄 takes the run off the screen and deletes the candidates', async () => {
