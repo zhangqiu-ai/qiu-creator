@@ -295,10 +295,7 @@
               "file": "Main.dc.html",
               "title": "Mac · 作品庫",
               "tweak": "狀態 = 外部檔案遺失",
-              "states": [
-                "外部作品封面變灰",
-                "「檔案遺失」標籤（網格與列表）"
-              ]
+              "states": ["外部作品封面變灰", "「檔案遺失」標籤（網格與列表）"]
             },
             {
               "file": "MacEditor.dc.html",
@@ -345,9 +342,7 @@
               "file": "MacEditor.dc.html",
               "title": "Mac · 編輯與 AI 改寫",
               "tweak": "狀態 = 外部掛載",
-              "states": [
-                "標頭標籤「外部掛載 · ~/Documents/寫作」（hover 顯示完整檔案路徑）"
-              ]
+              "states": ["標頭標籤「外部掛載 · ~/Documents/寫作」（hover 顯示完整檔案路徑）"]
             }
           ]
         },
@@ -431,9 +426,7 @@
               "file": "MacEditor.dc.html",
               "title": "Mac · 編輯與 AI 改寫",
               "tweak": "供應商 Tweak = Claude／Gemini／GPT",
-              "states": [
-                "標籤「{名稱} · 雲端」，hover 說明依 Claude → Gemini → GPT 取第一個可用"
-              ]
+              "states": ["標籤「{名稱} · 雲端」，hover 說明依 Claude → Gemini → GPT 取第一個可用"]
             }
           ]
         },
@@ -475,9 +468,7 @@
               "file": "MacEditor.dc.html",
               "title": "Mac · 編輯與 AI 改寫",
               "tweak": "標題分頁按寫入平台版本",
-              "states": [
-                "結果訊息「已寫入 4 個版本（新建：小紅書、公眾號、抖音、視頻號）」"
-              ]
+              "states": ["結果訊息「已寫入 4 個版本（新建：小紅書、公眾號、抖音、視頻號）」"]
             }
           ]
         },
@@ -488,9 +479,7 @@
               "file": "MacEditor.dc.html",
               "title": "Mac · 編輯與 AI 改寫",
               "tweak": "採用後按復原",
-              "states": [
-                "回到無候選，提示「原稿已變更，請重新生成」，不再顯示舊候選與復原列"
-              ]
+              "states": ["回到無候選，提示「原稿已變更，請重新生成」，不再顯示舊候選與復原列"]
             }
           ]
         },
@@ -516,9 +505,7 @@
               "file": "MacEditor.dc.html",
               "title": "Mac · 編輯與 AI 改寫",
               "tweak": "狀態 = 無選取",
-              "states": [
-                "標籤「選取：全文 · N 字」，按鈕「改寫全文」；有選取時為「第 N 段」"
-              ]
+              "states": ["標籤「選取：全文 · N 字」，按鈕「改寫全文」；有選取時為「第 N 段」"]
             }
           ]
         }
@@ -540,12 +527,7 @@
       "session": "qc-prototype",
       "requestedBy": "使用者 via 開發總監",
       "userRequest": "UI、UX 設計要符合優秀作品的，而不是隨便寫寫（2026-11-19）",
-      "tasks": [
-        "QC-037",
-        "QC-038",
-        "QC-039",
-        "QC-041"
-      ],
+      "tasks": ["QC-037", "QC-038", "QC-039", "QC-041"],
       "approvedBy": "qiu-creator 開發總監（使用者授權，見 docs/decisions.md 2026-11-19「UI 改進批次」）",
       "approvedAt": "2026-11-19",
       "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
@@ -578,21 +560,8 @@
           "file": "AssetsV2.dc.html",
           "title": "v2 · 素材庫：刪除與編輯",
           "tweaks": {
-            "state": [
-              "正常",
-              "刪除未引用",
-              "刪除已引用",
-              "刪除外部",
-              "多選",
-              "最近刪除"
-            ],
-            "side": [
-              "展開",
-              "收起",
-              "最小寬度",
-              "最大寬度",
-              "服務異常"
-            ]
+            "state": ["正常", "刪除未引用", "刪除已引用", "刪除外部", "多選", "最近刪除"],
+            "side": ["展開", "收起", "最小寬度", "最大寬度", "服務異常"]
           },
           "states": [
             "範圍：全部／未引用／最近刪除",
@@ -632,11 +601,7 @@
           "file": "SettingsV2.dc.html",
           "title": "v2 · 設定",
           "tweaks": {
-            "state": [
-              "正常",
-              "服務停止",
-              "還原確認"
-            ]
+            "state": ["正常", "服務停止", "還原確認"]
           },
           "states": [
             "左側分類：外觀、本機服務、備份與還原、AI 服務、資料夾、關於",
@@ -649,23 +614,17 @@
         {
           "file": "SettingsV2Dark.dc.html",
           "title": "v2 · 設定（深色）",
-          "states": [
-            "dc-import SettingsV2，dark"
-          ]
+          "states": ["dc-import SettingsV2，dark"]
         },
         {
           "file": "AssetsV2Dark.dc.html",
           "title": "v2 · 素材庫（深色）",
-          "states": [
-            "dc-import AssetsV2，dark，多選"
-          ]
+          "states": ["dc-import AssetsV2，dark，多選"]
         },
         {
           "file": "EditorInsertDark.dc.html",
           "title": "v2 · 插入素材（深色）",
-          "states": [
-            "dc-import EditorInsert，dark，從抽屜拖入"
-          ]
+          "states": ["dc-import EditorInsert，dark，從抽屜拖入"]
         }
       ],
       "decisions": [
@@ -769,9 +728,7 @@
       "session": "qc-prototype",
       "requestedBy": "使用者 via 開發總監",
       "userRequest": "目前作品庫只能創建文章，我需要的是公眾號貼圖和視頻創作也要補齊……視頻創作就需要你自己去發散構思了。還有作品編輯界面目前只支持單個編輯，可以改成並行通過頂部標籤的方式來方便多個之間切換。（2026-11-21，見 docs/decisions.md）",
-      "tasks": [
-        "QC-044"
-      ],
+      "tasks": ["QC-044"],
       "approvedBy": "開發總監（使用者授權，docs/decisions.md 2026-11-21「補齊貼圖、視頻創作，作品編輯改成多分頁」）",
       "approvedAt": "2026-11-21",
       "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
@@ -786,18 +743,8 @@
           "file": "NewType.dc.html",
           "title": "v3 · 新建：選類型與作品庫縮圖",
           "tweaks": {
-            "state": [
-              "正常",
-              "新建選單",
-              "篩選貼圖",
-              "篩選視頻",
-              "視頻為空"
-            ],
-            "lang": [
-              "繁中",
-              "简中",
-              "English"
-            ]
+            "state": ["正常", "新建選單", "篩選貼圖", "篩選視頻", "視頻為空"],
+            "lang": ["繁中", "简中", "English"]
           },
           "states": [
             "新建按鈕選單：文章／貼圖／視頻，↑↓ 選擇、1–3 直接選、↩ 建立、esc 關閉，⌘N 開啟",
@@ -820,11 +767,7 @@
               "拖曳排序",
               "封面設置"
             ],
-            "lang": [
-              "繁中",
-              "简中",
-              "English"
-            ]
+            "lang": ["繁中", "简中", "English"]
           },
           "states": [
             "圖片格 3:4，右下編號、封面標記，懸停：設為封面／移除",
@@ -866,14 +809,7 @@
           "file": "EditorTabs.dc.html",
           "title": "v3 · 多分頁編輯",
           "tweaks": {
-            "state": [
-              "正常",
-              "分頁很多",
-              "關閉未存",
-              "重複開啟",
-              "重開恢復",
-              "拖曳排序"
-            ]
+            "state": ["正常", "分頁很多", "關閉未存", "重複開啟", "重開恢復", "拖曳排序"]
           },
           "states": [
             "分頁列在側欄右側、作品標頭上方；AI 面板屬於分頁",
@@ -890,9 +826,7 @@
         {
           "file": "I18nNotes.dc.html",
           "title": "v3 · 三語版面",
-          "states": [
-            "分頁、選類型、描述計數與平台上限在繁中／简中／English 的寬度與換行"
-          ]
+          "states": ["分頁、選類型、描述計數與平台上限在繁中／简中／English 的寬度與換行"]
         },
         {
           "file": "NewTypeDark.dc.html",
@@ -1024,74 +958,49 @@
       "openQuestions": [
         {
           "q": "貼圖與視頻作品怎麼存？",
-          "options": [
-            "Markdown＋front matter（source.md）",
-            "JSON manifest＋另存描述"
-          ],
+          "options": ["Markdown＋front matter（source.md）", "JSON manifest＋另存描述"],
           "recommend": "Markdown＋front matter：Finder 可讀，沿用現有 revision、409 與外部掛載。",
           "resolved": true
         },
         {
           "q": "視頻封面幀從哪裡來？",
-          "options": [
-            "App 從播放器截圖後上傳成素材",
-            "服務端用 ffmpeg 擷取"
-          ],
+          "options": ["App 從播放器截圖後上傳成素材", "服務端用 ffmpeg 擷取"],
           "recommend": "App 截圖：不必把 ffmpeg 打包進服務，也避開授權問題。",
           "resolved": true
         },
         {
           "q": "公眾號貼圖張數上限？",
-          "options": [
-            "暫用 20，只提示",
-            "不設上限"
-          ],
+          "options": ["暫用 20，只提示", "不設上限"],
           "recommend": "暫用 20 只提示，確認後寫進 PLATFORM_LIMITS。",
           "resolved": true
         },
         {
           "q": "視頻平台文案怎麼分？",
-          "options": [
-            "共用文案＋各平台可覆寫",
-            "各平台完全獨立"
-          ],
+          "options": ["共用文案＋各平台可覆寫", "各平台完全獨立"],
           "recommend": "共用＋覆寫：多數時候只寫一次，視頻號標題 16 字再單獨改短。",
           "resolved": true
         },
         {
           "q": "長視頻（超過 1 小時）預設怎麼分析？",
-          "options": [
-            "低解析度分析全片",
-            "只分析前 60 分鐘"
-          ],
+          "options": ["低解析度分析全片", "只分析前 60 分鐘"],
           "recommend": "低解析度全片：較便宜，且不漏掉後段。",
           "resolved": true
         },
         {
           "q": "分頁數量要不要設上限？",
-          "options": [
-            "不設上限，溢出時捲動加全部分頁選單",
-            "上限 10，自動關閉最舊"
-          ],
+          "options": ["不設上限，溢出時捲動加全部分頁選單", "上限 10，自動關閉最舊"],
           "recommend": "不設上限：自動關閉可能關掉還在用的作品。",
           "resolved": true
         },
         {
           "q": "關閉未存分頁的選項？",
-          "options": [
-            "重試儲存／不儲存並關閉／取消",
-            "儲存／不儲存／取消"
-          ],
+          "options": ["重試儲存／不儲存並關閉／取消", "儲存／不儲存／取消"],
           "recommend": "重試儲存：內容本來會自動儲存，未存只會出現在寫入失敗時。",
           "resolved": true
         },
         {
           "q": "重開 App 時恢復分頁的方式？",
-          "options": [
-            "全部恢復，只載入作用中的分頁",
-            "全部恢復並立即載入",
-            "不恢復"
-          ],
+          "options": ["全部恢復，只載入作用中的分頁", "全部恢復並立即載入", "不恢復"],
           "recommend": "全部恢復、延後載入：開得快，分頁也都在。",
           "resolved": true
         },
@@ -1106,10 +1015,7 @@
         },
         {
           "q": "既有的混合類型作品怎麼顯示？",
-          "options": [
-            "保留「混合」標籤，只出現在「全部」",
-            "歸入文章"
-          ],
+          "options": ["保留「混合」標籤，只出現在「全部」", "歸入文章"],
           "recommend": "保留標籤：不改使用者資料，也不新增入口。",
           "resolved": true
         }
@@ -1138,10 +1044,7 @@
       "session": "qc-prototype",
       "requestedBy": "使用者 via 開發總監",
       "userRequest": "不要所有設置都堆在一個頁面中來滾動，左側的設置選項各自一個頁面，並且佈局和排版要重新設計得更合理、美觀和優雅。AI服務的設置頁面裡的佈局和分類也要重新設計，目前非常不合理，理解起來很困難，還有模型測試聯通等等功能也缺少，要再優化！（2026-11-21，見 .tasks QC-057）",
-      "tasks": [
-        "QC-057",
-        "QC-054"
-      ],
+      "tasks": ["QC-057", "QC-054"],
       "approvedBy": "開發總監（使用者 2026-11-21 授權「你代核准」）",
       "approvedAt": "2026-11-21",
       "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
@@ -1159,31 +1062,10 @@
           "tweaks": {
             "dark": "boolean",
             "narrow": "boolean",
-            "lang": [
-              "繁中",
-              "简中",
-              "English"
-            ],
-            "cat": [
-              "外觀",
-              "本機服務",
-              "備份與還原",
-              "AI 服務",
-              "資料夾",
-              "關於"
-            ],
-            "aiTab": [
-              "供應商",
-              "用途",
-              "用量",
-              "隱私"
-            ],
-            "provider": [
-              "Gemini",
-              "Claude",
-              "GPT",
-              "New API"
-            ],
+            "lang": ["繁中", "简中", "English"],
+            "cat": ["外觀", "本機服務", "備份與還原", "AI 服務", "資料夾", "關於"],
+            "aiTab": ["供應商", "用途", "用量", "隱私"],
+            "provider": ["Gemini", "Claude", "GPT", "New API"],
             "state": [
               "正常",
               "空狀態",
@@ -1290,11 +1172,7 @@
           "title": "v4 · AI 連線狀態全覽",
           "tweaks": {
             "dark": "boolean",
-            "lang": [
-              "繁中",
-              "简中",
-              "English"
-            ]
+            "lang": ["繁中", "简中", "English"]
           },
           "states": [
             "供應商列 8 種狀態",
@@ -1306,11 +1184,7 @@
           "title": "v4 · New API 模型下拉狀態",
           "tweaks": {
             "dark": "boolean",
-            "lang": [
-              "繁中",
-              "简中",
-              "English"
-            ]
+            "lang": ["繁中", "简中", "English"]
           },
           "states": [
             "對話模型（預設）",
@@ -1487,9 +1361,7 @@
       "session": "qc-prototype",
       "requestedBy": "使用者 via 開發總監",
       "userRequest": "作品庫目前是全部內容堆積到一個頁面中，我希望能增加項目分類，這樣能根據項目來管理各種內容！（2026-11-21，見 docs/decisions.md「作品庫加「項目」分類（QC-062）」）",
-      "tasks": [
-        "QC-062"
-      ],
+      "tasks": ["QC-062"],
       "approvedBy": "開發總監（使用者 2026-11-21 授權「你代核准」）",
       "approvedAt": "2026-11-21",
       "approvalNote": "使用者授權總監代為核准（docs/decisions.md 2026-11-21 QC-062）",
@@ -1508,11 +1380,7 @@
           "tweaks": {
             "dark": "boolean",
             "narrow": "boolean",
-            "lang": [
-              "繁中",
-              "简中",
-              "English"
-            ],
+            "lang": ["繁中", "简中", "English"],
             "state": [
               "全部作品",
               "項目頁",
@@ -1633,18 +1501,8 @@
           "title": "v5 · 編輯頁：所屬項目",
           "tweaks": {
             "dark": "boolean",
-            "lang": [
-              "繁中",
-              "简中",
-              "English"
-            ],
-            "state": [
-              "正常",
-              "選單開啟",
-              "搜尋新建",
-              "沒有項目",
-              "新作品預設"
-            ]
+            "lang": ["繁中", "简中", "English"],
+            "state": ["正常", "選單開啟", "搜尋新建", "沒有項目", "新作品預設"]
           },
           "states": [
             "編輯頁頭下方一列項目標籤（可 × 移出）＋「項目」按鈕",
@@ -1805,10 +1663,7 @@
       "session": "qc-prototype",
       "requestedBy": "使用者 via 開發總監",
       "userRequest": "項目界面是不是有冗餘設計了，這麼多文字和選項，看的人眼花繚亂。側邊欄的分類組合和順序也不是很合理，看起來讓人無從下手。搜索要實時關鍵字高亮，這是基本設計。（2026-11-22，見 .tasks QC-069、QC-068）",
-      "tasks": [
-        "QC-069",
-        "QC-068"
-      ],
+      "tasks": ["QC-069", "QC-068"],
       "approvedBy": "開發總監（使用者 2026-11-22 授權代核准）",
       "approvedAt": "2026-11-22",
       "approvalNote": "總監代為核准（QC-069 卡片）",
@@ -1826,11 +1681,7 @@
           "title": "v6 · 項目頁：精簡頁首",
           "tweaks": {
             "dark": "boolean",
-            "lang": [
-              "繁中",
-              "简中",
-              "English"
-            ],
+            "lang": ["繁中", "简中", "English"],
             "state": [
               "項目頁",
               "全部作品",
@@ -1926,11 +1777,7 @@
           "title": "v6 · 高亮規格（淺／深）",
           "tweaks": {
             "dark": "boolean",
-            "lang": [
-              "繁中",
-              "简中",
-              "English"
-            ]
+            "lang": ["繁中", "简中", "English"]
           },
           "states": [
             "淺色與深色並排：命中標題、只命中內文（有封面）、只命中內文（文字卡）",
@@ -1943,11 +1790,7 @@
           "title": "v6 · 側欄：目前 vs 提案",
           "tweaks": {
             "dark": "boolean",
-            "lang": [
-              "繁中",
-              "简中",
-              "English"
-            ]
+            "lang": ["繁中", "简中", "English"]
           },
           "states": [
             "目前與提案並排",
@@ -1986,11 +1829,7 @@
           "size": "1600×900",
           "tweaks": {
             "dark": "boolean",
-            "lang": [
-              "繁中",
-              "简中",
-              "English"
-            ]
+            "lang": ["繁中", "简中", "English"]
           },
           "addedFor": "approvalDecisions 追加 1、2（使用者 2026-11-22「作品庫中的作品卡片上應該能看到隸屬於哪個項目」）",
           "states": [
@@ -2016,9 +1855,7 @@
           "Faceted counts for the current scope + query: GET /api/v1/works/facets?project_id=&q=&type=&status= → {types:{…}, statuses:{…}, total, scope_total}; or compute client-side when the page holds every result (QC-067 pagination makes server-side the safer choice).",
           "Traditional/Simplified matching on the server side too (same mapping table as the client) so paginated search agrees with highlighting."
         ],
-        "storage": [
-          "No change. Sidebar order and the 已封存 collapse are client preferences."
-        ]
+        "storage": ["No change. Sidebar order and the 已封存 collapse are client preferences."]
       },
       "references": [
         {
@@ -2100,9 +1937,7 @@
         "追加（使用者 2026-11-22：「作品庫中的作品卡片上應該能看到隸屬於哪個項目」）：取代 QC-062「卡片只放色點」的決定。卡片在類型／時間那一行顯示所屬項目的名稱標籤（色點＋名稱，最多 1 個名稱，其餘「+N」，名稱過長截斷並懸停顯示全部）；在某個項目頁內時，不重複顯示目前這個項目。列表檢視加「項目」欄。",
         "追加：新建項目時預設顏色在 8 色中輪替，避免多個項目同色而無法分辨；既有同色項目不自動改色。"
       ],
-      "boardsAddedAfterApproval": [
-        "ProjLabels.dc.html"
-      ]
+      "boardsAddedAfterApproval": ["ProjLabels.dc.html"]
     },
     {
       "id": "PT-20261122-002",
@@ -2113,9 +1948,7 @@
       "session": "qc-prototype",
       "requestedBy": "使用者 via 開發總監",
       "userRequest": "文章編輯右側需要增加AI圖片生成和封面生成功能，New Api 支持生成圖片的。選中段落自動彈出各種功能圖標，AI擴寫、圖片生成等等，並且圖片要自動插入，文字替換和圖片生成和插入的時候都要有過渡動畫和等待動畫！（2026-11-22；使用者選擇「原位候選，一鍵保留」，見 docs/decisions.md QC-070）",
-      "tasks": [
-        "QC-070"
-      ],
+      "tasks": ["QC-070"],
       "approvedBy": "開發總監（使用者 2026-11-22 授權代核准）",
       "approvedAt": "2026-11-22",
       "approvalNote": "總監代為核准（docs/decisions.md 2026-11-22 QC-070）",
@@ -2134,11 +1967,7 @@
           "tweaks": {
             "dark": "boolean",
             "reduced": "boolean",
-            "lang": [
-              "繁中",
-              "简中",
-              "English"
-            ],
+            "lang": ["繁中", "简中", "English"],
             "state": [
               "選取工具列",
               "更多指令",
@@ -2291,11 +2120,7 @@
           "title": "v7 · 動效分格與錯誤",
           "tweaks": {
             "dark": "boolean",
-            "lang": [
-              "繁中",
-              "简中",
-              "English"
-            ]
+            "lang": ["繁中", "简中", "English"]
           },
           "states": [
             "文字流程六格、圖片流程五格、減少動態效果四格，每格標 token 與曲線",
@@ -2459,9 +2284,7 @@
       "session": "qc-prototype",
       "requestedBy": "使用者 via 開發總監",
       "userRequest": "2. AI生成文字時加一個語言選項，並且設置要持久化，先支持簡體、繁體、和英語。4. 左側再增加\"prompt\"，prompt頁面支持自定義指令，指令也要支持AI建議和編輯。5. AI 編輯、擴寫等要支持快速切換模型，並且AI工具條要支持快速插入 prompt（2026-11-22，見 docs/decisions.md QC-074／QC-075）",
-      "tasks": [
-        "QC-075"
-      ],
+      "tasks": ["QC-075"],
       "approvedBy": "開發總監（使用者 2026-11-22 授權代核准）",
       "approvedAt": "2026-11-22",
       "approvalNote": "總監代為核准（docs/decisions.md 2026-11-22 QC-074、QC-075）",
@@ -2480,11 +2303,7 @@
           "tweaks": {
             "dark": "boolean",
             "reduced": "boolean",
-            "lang": [
-              "繁中",
-              "简中",
-              "English"
-            ],
+            "lang": ["繁中", "简中", "English"],
             "state": [
               "內建指令",
               "自訂指令",
@@ -2561,11 +2380,7 @@
           "tweaks": {
             "dark": "boolean",
             "reduced": "boolean",
-            "lang": [
-              "繁中",
-              "简中",
-              "English"
-            ],
+            "lang": ["繁中", "简中", "English"],
             "state": [
               "工具列",
               "語言選單",
@@ -2775,9 +2590,7 @@
       "session": "qc-prototype",
       "requestedBy": "使用者 via 開發總監",
       "userRequest": "我之前好像搞錯了，在作品編輯區應該只有改寫和圖片，標題和封面應該是在平台預覽才對。平台預覽其實不應該單獨起子頁面，而是在作品編輯頁面快速預覽、切換。（2026-11-22，見 docs/decisions.md QC-076）",
-      "tasks": [
-        "QC-076"
-      ],
+      "tasks": ["QC-076"],
       "consistentWith": "PT-20261122-003",
       "approvedBy": "開發總監（使用者 2026-11-22 授權代核准）",
       "approvedAt": "2026-11-22",
@@ -2802,11 +2615,7 @@
             "dark": "boolean",
             "reduced": "boolean",
             "narrow": "boolean",
-            "lang": [
-              "繁中",
-              "简中",
-              "English"
-            ],
+            "lang": ["繁中", "简中", "English"],
             "state": [
               "小紅書",
               "公眾號",
@@ -2910,11 +2719,7 @@
           "title": "v9 · 入口盤點",
           "tweaks": {
             "dark": "boolean",
-            "lang": [
-              "繁中",
-              "简中",
-              "English"
-            ]
+            "lang": ["繁中", "简中", "English"]
           },
           "states": [
             "側欄、AI 面板、頂部「預覽」的之前／之後",
@@ -3061,9 +2866,7 @@
       "session": "qc-prototype",
       "requestedBy": "使用者 via 開發總監",
       "userRequest": "1. 左邊內容編輯區要即時反映到右側預覽。2. 預覽中的正文輸入框多餘，正文已由左邊編輯區即時反映。3. 預覽區的版面與設計極其混亂和難看，要重新優化。4. 預覽區的捲動設計很差；手機畫面要支援縮放。5. 「重新從原稿生成」按鈕多餘，因為是即時的。（2026-11-23，QC-084，附截圖）",
-      "tasks": [
-        "QC-084"
-      ],
+      "tasks": ["QC-084"],
       "approvedBy": "user",
       "approvedAt": "2026-11-23",
       "approvalNote": "使用者本人核准 v2：「核准，照推薦做」（2026-11-23）。openQuestions 全部採用推薦。",
