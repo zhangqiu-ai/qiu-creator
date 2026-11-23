@@ -3070,6 +3070,156 @@
           "prototype": "/Users/feature/Library/Application Support/Claude/side-session-notes/local_2cc861c6-129e-4a37-abb5-5c6b43cd2ede/pt-20261123-001/preview-v2.html"
         }
       ]
+    },
+    {
+      "id": "PT-20261123-002",
+      "title": "作品編輯頁：全高右側邊欄（預覽、AI、歷史、素材分頁），編輯操作移到左欄",
+      "date": "2026-11-23",
+      "status": "pending_user",
+      "model": "claude-opus-5-5",
+      "session": "qc-prototype",
+      "requestedBy": "使用者 via 開發總監",
+      "userRequest": "預覽區的高度空間不是很夠，可以將編輯區和預覽區統一高度，編輯區的操作往左移動。或者可以像Codex 一樣從右邊拉一起右側邊欄起來呈現預覽區。右側邊欄後續還可以承載其它內容。（2026-11-23，QC-085，附現況截圖與 Codex 參考圖）",
+      "tasks": ["QC-085"],
+      "dependsOn": [
+        "PT-20261123-001 (QC-084 three-screen preview, reused unchanged inside the sidebar)"
+      ],
+      "approvedBy": null,
+      "approvedAt": null,
+      "approvalNote": "由使用者本人核准。",
+      "supersedes": [
+        "PT-20261122-004 的「預覽分欄與 AI 面板互斥」與編輯頁右上角的「視覺／原始碼、插入、預覽、歷史」列"
+      ],
+      "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "canvasVersion": "NOT_PUBLISHED: this session cannot reach the canvas. Standalone prototype: /Users/feature/Library/Application Support/Claude/side-session-notes/local_2cc861c6-129e-4a37-abb5-5c6b43cd2ede/pt-20261123-002/sidebar.html (?view=side &tab=preview|ai &p=xhs|wx|dy|ch &s=0|1|2 &collapsed=1 &drawer=1&w=1024&h=768 &dark=1 &lang=zh-Hant|zh-Hans|en &optB=1).",
+      "screenshots": {
+        "dir": "docs/evidence/qc085-prototype/",
+        "files": {
+          "side-preview.png": "整頁：右側邊欄「預覽」分頁（小紅書發布編輯），邊欄從視窗頂端到底",
+          "side-preview-feed.png": "同上，「刷到時」畫面",
+          "side-ai.png": "整頁：「AI」分頁（改寫／圖片、語言、模型、Prompt）",
+          "side-collapsed.png": "收合：右緣 44px 圖示列（側欄開關、預覽、AI、歷史、素材；預覽帶橘點），滑過顯示名稱",
+          "side-narrow-drawer.png": "窄視窗 1024×768：側欄改為覆蓋在編輯區上的抽屜，不擠壓正文",
+          "side-dark.png": "深色：預覽分頁，抖音刷到時",
+          "side-en.png": "English：分頁、按鈕與預覽控制的英文長度",
+          "option-b.png": "方案 B（對照）：不做側邊欄，只把操作移到左欄；預覽仍在作品分頁列下方，預覽／AI／歷史是左欄頭部的按鈕"
+        },
+        "rendered": "headless Chromium (Playwright 1.65.1, cached chromium_headless_shell-1243); no window shown"
+      },
+      "boards": [
+        {
+          "file": "sidebar.html (standalone, notes folder)",
+          "title": "v11 · 作品編輯頁右側邊欄",
+          "states": [
+            "版面分兩欄：左欄＝作品分頁列＋編輯頭部＋格式工具列＋正文；右欄＝右側邊欄，從視窗頂端延伸到底，和左欄同高",
+            "作品分頁列只在左欄寬度內；右側邊欄頂端是同高的分頁列（預覽、AI、歷史、素材），最右是收合鈕；兩列底線對齊，看起來是同一條標題帶",
+            "左欄頭部第一列：‹ 標題 · r49 · 1,155 字 … 視覺｜原始碼、插入 ▾；第二列：狀態、標籤、項目（原本右上角的「項目」搬到這裡）。原本的「預覽」「歷史」按鈕改成右側邊欄的分頁",
+            "「預覽」分頁：沿用 QC-084 v2 的三畫面預覽（平台切換＋跟隨、發布編輯｜刷到時｜正文），縮放改放在畫面分頁那一列的右側（− 適應 84% ＋），不再浮在舞台上，不會壓住手機；手機下方是位置圓點",
+            "「AI」分頁：原本的 AI 面板（改寫／圖片、語言、模型、Prompt、補充指令、生成），不再和預覽互斥，兩者是同一側欄裡的分頁",
+            "「歷史」「素材」分頁：原本的歷史面板與素材抽屜（⌘⇧I）移進來；之後的新內容也作為分頁加入",
+            "寬度：拖曳左緣調整（400–760），雙擊恢復 520，記住；邊欄的分頁與寬度跟著視窗記，不跟著作品",
+            "收合：右緣留 44px 圖示列（側欄開關、預覽、AI、歷史、素材），滑過顯示名稱，預覽有超出上限時帶橘點；點任一圖示展開到該分頁",
+            "快捷鍵：⌥⌘0 開關側欄（記住上次分頁）；⌘⇧P 直接打開「預覽」分頁（已開在預覽時則收合）；⌘⇧I 素材（沿用）",
+            "窄視窗（編輯欄會小於 560 時）：側欄改成覆蓋在編輯區上的抽屜（右側滑入、左側陰影），正文寬度不變；Esc 或點正文收起",
+            "深色與三語：分頁名稱英文為 Preview、AI、History、Assets，預覽控制為 Publish、In feed、Post，寬度都在 520 內"
+          ]
+        }
+      ],
+      "options": {
+        "A": {
+          "name": "全高右側邊欄（推薦）",
+          "pros": [
+            "預覽多出約 118px 高度（原本作品分頁列以下兩列頭部都讓出來）",
+            "預覽、AI、歷史、素材是同一個容器的分頁，不再互斥，也有地方放之後的新內容",
+            "和 Codex 參考一致，使用者已點名"
+          ],
+          "cons": [
+            "作品分頁列變短，作品開很多時要靠溢位選單（PT-20261121-001 已有）",
+            "多一個收合狀態要設計"
+          ]
+        },
+        "B": {
+          "name": "只把操作移到左欄，不做側邊欄",
+          "pros": ["改動最小"],
+          "cons": [
+            "預覽只多出約 80px（仍在作品分頁列下方）",
+            "預覽／AI／歷史仍是互斥的按鈕，之後的新內容沒有容器"
+          ],
+          "screenshot": "option-b.png"
+        },
+        "recommendation": "A。B 解決了操作位置，但沒解決「右側之後還要放其他內容」，而且高度收益較小。"
+      },
+      "decisions": [
+        "採全高右側邊欄：使用者兩個方向都提了，側邊欄同時滿足「同高」和「之後可承載其他內容」。",
+        "作品分頁列只在左欄，側欄分頁列與它同高對齊：避免兩條橫跨全寬的分頁列互相干擾，也讓側欄真正從頂端開始。",
+        "預覽與 AI 從互斥按鈕改成同一側欄的分頁；歷史與素材抽屜一併收進來。",
+        "縮放移到畫面分頁那一列（使用者截圖裡 75% 縮放列蓋住「發布筆記」）。",
+        "收合時保留 44px 圖示列作為清楚入口，而不是完全消失。",
+        "窄視窗用覆蓋抽屜，不擠壓正文：編輯欄低於 560 時寫作體驗比預覽重要。"
+      ],
+      "references": [
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/codex-project-chat-artifact-workspace/case.md",
+          "kind": "product",
+          "borrowed": "A right-hand work area beside the main pane that can collapse and be resized; keep preview, edit and review distinct.",
+          "adaptation": "The sidebar holds Preview / AI / History / Assets as tabs, full height, resizable and collapsible; editing stays in the left column."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/lencx-sidebar-learned-width-snap/case.md",
+          "kind": "concept",
+          "borrowed": "Resizable side panel that remembers the preferred width, with min/max and keyboard adjustment.",
+          "adaptation": "Drag the left edge between 400 and 760, double-click resets to 520, width remembered per window; arrow keys adjust 16px when the handle has focus."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/splash-icon-rail-hover/case.md",
+          "kind": "concept",
+          "borrowed": "A narrow icon rail with hover labels as a secondary navigation.",
+          "adaptation": "The collapsed sidebar becomes a 44px icon strip with names on hover and accessible labels."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/drag-threshold-collapse/case.md",
+          "kind": "concept",
+          "borrowed": "Collapsing by drag needs a threshold and a button/keyboard alternative.",
+          "adaptation": "Dragging below 400 snaps to collapsed; the collapse button and ⌥⌘0 do the same."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-lumno-tab-switcher/case.md",
+          "kind": "product",
+          "borrowed": "Make the selected tab and the switch target explicit; define closing and shortcut conflicts.",
+          "adaptation": "Sidebar tabs mirror the work-tab style; shortcuts avoid the editor’s ⌘1–9 and ⌘⇧[ ]."
+        }
+      ],
+      "motion": "DESIGN.md 動效: sidebar open/close uses transform (translateX) with the editor column shifting by layout=\"position\", moderate/inOut; tab switch inside the sidebar crossfades fast; the narrow-window drawer slides in moderate/out with a fading shadow; reduced motion: fades only.",
+      "verified": [
+        "Rendered eight screenshots with headless Chromium and checked them by eye (fixed: the 模擬 label position and the stretched status chip)."
+      ],
+      "notVerified": [
+        "NOT_VERIFIED: canvas upload (unreachable from this session).",
+        "NOT_VERIFIED: drag-to-resize, collapse animation and the drawer are shown as states only; 简体中文 not screenshotted (dictionary included).",
+        "Editor content and phone layouts are simulations."
+      ],
+      "openQuestions": [
+        {
+          "q": "採方案 A（全高側邊欄）還是 B（只移操作）？",
+          "recommendation": "A。"
+        },
+        {
+          "q": "側欄開關快捷鍵？",
+          "recommendation": "⌥⌘0 開關（同 Xcode Inspector 慣例），⌘⇧P 直達預覽。"
+        },
+        {
+          "q": "側欄寬度與分頁記在哪？",
+          "recommendation": "跟視窗記，不跟作品；所有作品共用同一個側欄狀態。"
+        },
+        {
+          "q": "窄視窗的門檻？",
+          "recommendation": "編輯欄會小於 560 時改成覆蓋抽屜。"
+        },
+        {
+          "q": "歷史、素材現在就搬進側欄嗎？",
+          "recommendation": "是，和預覽、AI 一起搬，避免兩套右側面板並存。"
+        }
+      ]
     }
   ]
 }
