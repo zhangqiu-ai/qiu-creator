@@ -5,3 +5,4 @@
  */
 export * from './templates.js';
 export * from './model.js';
+export * from './derive.js';

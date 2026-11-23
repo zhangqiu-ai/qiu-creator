@@ -27,6 +27,12 @@ export const ChangeActionSchema = z.enum([
   'work.variant_updated',
   /** A platform variant (and its history) was deleted; `data.platform`. */
   'work.variant_deleted',
+  /**
+   * A platform's overrides changed (QC-084); `data.platform`, `data.revision`,
+   * `data.fields` (changed field names). Not sent for body changes: previews
+   * re-derive on `work.updated`.
+   */
+  'work.variant_changed',
   /** Moved to 回收站 or removed from the library (QC-051); `data.removal`. */
   'work.trashed',
   /** Back from 回收站; revision and history unchanged (QC-051). */
