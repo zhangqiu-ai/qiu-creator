@@ -67,6 +67,11 @@ export const ErrorCodeSchema = z.enum([
    * the file; fix it in the file first (409, QC-045/046).
    */
   'front_matter_invalid',
+  /**
+   * A platform body follows the work (QC-084): edit the work instead. Only
+   * `body: null` (drop a legacy body override) is accepted (400).
+   */
+  'body_not_editable',
   /** The work is in 回收站; restore it before editing (409, QC-051). */
   'work_in_trash',
   /** No card image to serve: `details.reason` none/missing/needs_frame/decode_failed (404, QC-061). */

@@ -929,7 +929,12 @@ function VideoEditor({
               platforms={VIDEO_PLATFORMS}
               open={previewAsk}
               workCoverAssetId={coverAsset}
-              shared={{ title: draft.title, body: draft.markdown, tags: draft.tags }}
+              source={{
+                title: draft.title,
+                text: draft.markdown,
+                format: 'text',
+                tags: draft.tags,
+              }}
               extraTitles={result?.title_suggestions ?? []}
               onClose={() => {
                 setPreviewOpen(false);

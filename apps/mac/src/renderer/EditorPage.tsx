@@ -502,6 +502,19 @@ function SessionEditor({
     void ai.rewrite.generate(input);
   };
 
+  /** 「用 AI 縮寫」 from the preview (QC-084): the whole text, as a candidate with diff. */
+  const shortenAll = (limit: number) => {
+    if (ai === null) return;
+    const range = { start: 0, end: state.draft.markdown.length };
+    if (mode === 'visual') setRewriteTarget({ range, mode: 'custom' });
+    void ai.rewrite.generate({
+      mode: 'custom',
+      instruction: t('previewPanel.shortenInstruction', { limit }),
+      model: currentModel(aiChoices, 'rewrite'),
+      range,
+    });
+  };
+
   const mounts = useMounts(client);
   const source = externalSource(work, mounts, userHome);
 
@@ -1247,6 +1260,18 @@ function SessionEditor({
             <PreviewPanel
               client={client}
               work={work}
+              source={{
+                title: state.draft.title,
+                text: state.draft.markdown,
+                format: 'markdown',
+                tags: state.draft.tags,
+              }}
+              caret={selectionRange?.start ?? null}
+              resolveImage={resolveImage}
+              onEditSource={(start, end) => {
+                editor.current?.restoreSelection({ start, end });
+              }}
+              onShorten={ai === null || readOnly ? undefined : shortenAll}
               onClose={() => {
                 setPreviewOpen(false);
                 editor.current?.focus();

@@ -247,7 +247,7 @@ export class TextAiService {
             language: LANGUAGE_NAMES[language],
           });
     const choice = chooseModel(req.provider, req.model, library);
-    const existing = new Map(this.variants.list(workId).map((v) => [v.platform, v.revision]));
+    const existing = this.variants.liveRevisions(workId);
     const prompt = [
       '請為下列平台各寫候選：',
       ...platforms.map((p) => limitLine(p, fields)),

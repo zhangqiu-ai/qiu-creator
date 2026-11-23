@@ -94,6 +94,18 @@ export const VariantWarningSchema = z.object({
   limit: z.number().int().nonnegative(),
   actual: z.number().int().nonnegative(),
   message: z.string(),
+  /**
+   * `body_too_long` only (QC-084): where the platform would cut, as a
+   * code-point index into the derived body (the limit itself). Absent on
+   * older servers and on other warnings.
+   */
+  cut_at: z.number().int().nonnegative().optional(),
+  /**
+   * `body_too_long` only (QC-084): the same place in the body's source (the
+   * work Markdown, or the description of image and video works), as a UTF-16
+   * offset; null when the body is a legacy override with no source.
+   */
+  source_offset: z.number().int().nonnegative().nullable().optional(),
 });
 export type VariantWarning = z.infer<typeof VariantWarningSchema>;
 
@@ -296,3 +308,150 @@ export const VariantRevisionListResponseSchema = z.object({
   items: z.array(VariantRevisionSchema),
 });
 export type VariantRevisionListResponse = z.infer<typeof VariantRevisionListResponseSchema>;
+
+// ---- Overrides (QC-084) ---------------------------------------------------------
+
+/**
+ * Since QC-084 a platform variant stores only overrides: title, cover, image
+ * order and tags, each null while it follows the work. The body is never
+ * stored for new data; it is derived from the work with `deriveVariantBody`
+ * (`@qiu-creator/platform-preview`). Variants migrated from QC-009/045/046
+ * whose body the user had edited keep it as a legacy `body_override`, which
+ * can only be cleared.
+ */
+export const VariantFieldSourceSchema = z.enum(['work', 'override']);
+export type VariantFieldSource = z.infer<typeof VariantFieldSourceSchema>;
+
+export const VariantBodySourceSchema = z.enum(['work', 'legacy_override']);
+export type VariantBodySource = z.infer<typeof VariantBodySourceSchema>;
+
+export const VARIANT_TITLE_MAX_CHARS = 500;
+
+/** A platform as it would publish: overrides applied to what the work gives. */
+export const VariantViewSchema = z.object({
+  work_id: IdSchema,
+  platform: PlatformSchema,
+  /**
+   * False while the platform has no row yet (everything follows the work).
+   * `revision` is then 0, or the deleted row's last revision.
+   */
+  exists: z.boolean(),
+  /** 0 before the first override; then increases by one per change. Also the ETag (`"3"`). */
+  revision: z.number().int().nonnegative(),
+  title: z.string(),
+  title_source: VariantFieldSourceSchema,
+  /** The derived body (or the legacy override, see `body_source`). Never truncated. */
+  body: z.string(),
+  body_source: VariantBodySourceSchema,
+  /** `markdown` for 公眾號, `plain` for the others. */
+  body_format: z.enum(['markdown', 'plain']),
+  cover: VariantCoverSchema.nullable(),
+  cover_source: VariantFieldSourceSchema,
+  /** Images the platform shows, in order (source images minus hidden ones, override order first). */
+  images: z.array(IdSchema),
+  images_source: VariantFieldSourceSchema,
+  /** Images of the work this platform hides (only with an images override). */
+  hidden_images: z.array(IdSchema),
+  tags: TagsSchema,
+  tags_source: VariantFieldSourceSchema,
+  /** Over-limit warnings on the resolved values; `body_too_long` has `cut_at`/`source_offset`. */
+  warnings: z.array(VariantWarningSchema),
+  /** Last override change; null while `exists` is false. */
+  updated_at: TimestampSchema.nullable(),
+});
+export type VariantView = z.infer<typeof VariantViewSchema>;
+
+/** All four platforms, in platform order, whether or not they have overrides. */
+export const VariantViewListResponseSchema = z.object({ items: z.array(VariantViewSchema) });
+export type VariantViewListResponse = z.infer<typeof VariantViewListResponseSchema>;
+
+/**
+ * Change a platform's overrides (QC-084). Each field takes a value, or null
+ * to follow the work again; absent fields are left as they are. Requires
+ * `base_revision` or `If-Match: "<revision>"` (0 before the first override);
+ * a stale base returns 409. `body` may only be null, which clears a legacy
+ * body override; a string body is rejected (400 `body_not_editable`). A
+ * patch that changes nothing writes nothing and keeps the revision.
+ */
+export const PatchVariantOverridesRequestSchema = z
+  .object({
+    base_revision: z.number().int().nonnegative().optional(),
+    title: z.string().max(VARIANT_TITLE_MAX_CHARS).nullable().optional(),
+    /** An image asset or a video frame. */
+    cover: VariantCoverSchema.nullable().optional(),
+    /**
+     * The images to show, in order. Ids must be images of the work (or extra
+     * images a migrated variant already had); work images left out are hidden.
+     * Images later added to the work show after these; removed ones disappear.
+     */
+    images: z
+      .array(IdSchema)
+      .max(VARIANT_IMAGES_MAX)
+      .refine((ids) => new Set(ids).size === ids.length, 'images must not repeat')
+      .nullable()
+      .optional(),
+    tags: TagsSchema.nullable().optional(),
+    /** Only null (clear a legacy body override). Kept a string type so a string gets a clear 400. */
+    body: z.string().max(VARIANT_BODY_MAX_CHARS).nullable().optional(),
+  })
+  .strict()
+  .refine(
+    (v) =>
+      v.title !== undefined ||
+      v.cover !== undefined ||
+      v.images !== undefined ||
+      v.tags !== undefined ||
+      v.body !== undefined,
+    { message: 'at least one of title, cover, images, tags or body is required' },
+  );
+export type PatchVariantOverridesRequest = z.input<typeof PatchVariantOverridesRequestSchema>;
+
+/** Which overrides a variant revision recorded; `migrated` revisions predate QC-084. */
+export const VariantOverridesSchema = z.object({
+  title: z.string().nullable(),
+  cover: VariantCoverSchema.nullable(),
+  /** The stored image order (visible ids in order); null = follow the work. */
+  images: z.array(IdSchema).nullable(),
+  hidden_images: z.array(IdSchema),
+  tags: TagsSchema.nullable(),
+  body: z.string().nullable(),
+});
+export type VariantOverrides = z.infer<typeof VariantOverridesSchema>;
+
+/**
+ * One entry of a variant's override history, newest first. Revisions written
+ * before QC-084 have `overrides: null` and their full content in `legacy`.
+ */
+export const VariantOverrideRevisionSchema = z.object({
+  platform: PlatformSchema,
+  revision: z.number().int().positive(),
+  /** `override` for QC-084 changes; `draft`/`edit` for older revisions. */
+  source: z.enum(['override', 'draft', 'edit']),
+  overrides: VariantOverridesSchema.nullable(),
+  legacy: z
+    .object({
+      title: z.string(),
+      body: z.string(),
+      cover: VariantCoverSchema.nullable(),
+      image_asset_ids: z.array(IdSchema),
+      tags: TagsSchema,
+      inherit: z.boolean(),
+    })
+    .nullable(),
+  created_at: TimestampSchema,
+});
+export type VariantOverrideRevision = z.infer<typeof VariantOverrideRevisionSchema>;
+
+export const VariantOverrideRevisionListResponseSchema = z.object({
+  items: z.array(VariantOverrideRevisionSchema),
+});
+export type VariantOverrideRevisionListResponse = z.infer<
+  typeof VariantOverrideRevisionListResponseSchema
+>;
+
+/** Deprecated `POST …/variants` (QC-084): rows with no overrides for platforms that had none. */
+export const GenerateVariantViewsResponseSchema = z.object({
+  created: z.array(VariantViewSchema),
+  skipped: z.array(PlatformSchema),
+});
+export type GenerateVariantViewsResponse = z.infer<typeof GenerateVariantViewsResponseSchema>;

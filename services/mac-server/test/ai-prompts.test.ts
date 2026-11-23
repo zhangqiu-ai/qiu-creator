@@ -515,7 +515,9 @@ describe('migration 0019 prompts', () => {
   it('rolls back to an older build and re-applies', () => {
     const home = makeTempHome();
     dirs.push(home);
-    const db = openDatabase(path.join(home, 'db.sqlite'));
+    // Later migrations are not part of this rollback.
+    const upTo0019 = migrations.filter((m) => m.id <= '0019');
+    const db = openDatabase(path.join(home, 'db.sqlite'), upTo0019);
     try {
       db.prepare(
         `INSERT INTO prompts (id, name, scene, content, sort_order, created_at, updated_at)
@@ -543,7 +545,7 @@ describe('migration 0019 prompts', () => {
           migrations.filter((m) => m.id < '0019'),
         ),
       ).toEqual([]);
-      expect(runMigrations(db, migrations)).toEqual(['0019']);
+      expect(runMigrations(db, upTo0019)).toEqual(['0019']);
     } finally {
       db.close();
     }

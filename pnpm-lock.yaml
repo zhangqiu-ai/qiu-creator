@@ -395,7 +395,25 @@ importers:
       '@qiu-creator/i18n':
         specifier: workspace:*
         version: link:../i18n
+      mdast-util-from-markdown:
+        specifier: ^2.1.0
+        version: 2.1.0(supports-color@7.2.0)
+      mdast-util-frontmatter:
+        specifier: ^2.0.1
+        version: 2.0.1(supports-color@7.2.0)
+      mdast-util-gfm:
+        specifier: ^3.1.0
+        version: 3.1.0(supports-color@7.2.0)
+      micromark-extension-frontmatter:
+        specifier: ^2.0.0
+        version: 2.0.0
+      micromark-extension-gfm:
+        specifier: ^3.0.0
+        version: 3.0.0
     devDependencies:
+      '@types/mdast':
+        specifier: ^4.0.4
+        version: 4.0.4
       '@types/react':
         specifier: ^19.3.0
         version: 19.3.0
@@ -435,6 +453,9 @@ importers:
       '@qiu-creator/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@qiu-creator/platform-preview':
+        specifier: workspace:*
+        version: link:../../packages/platform-preview
       '@tus/file-store':
         specifier: ^2.1.2
         version: 2.1.2(@opentelemetry/api@1.10.0)(supports-color@7.2.0)

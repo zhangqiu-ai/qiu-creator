@@ -1,3 +1,5 @@
+// Frozen copy of services/mac-server/src/variants/draft.ts before QC-084: the
+// reference deriveVariantBody must reproduce, so migrated drafts compare equal.
 import type { Nodes, Root, RootContent } from 'mdast';
 import { fromMarkdown } from 'mdast-util-from-markdown';
 import { frontmatterFromMarkdown } from 'mdast-util-frontmatter';

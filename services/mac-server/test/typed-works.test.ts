@@ -447,7 +447,7 @@ describe('external typed works (QC-045/046)', () => {
 });
 
 describe('platform variants of typed works (QC-045/046)', () => {
-  it('drafts from the front matter, can inherit the shared copy, and takes a frame cover', async () => {
+  it('follows the front matter and description; overrides are kept apart (QC-084)', async () => {
     const s = await start();
     const w = await s.client.works.create({ title: '雨天', type: 'video', tags: ['城市'] });
     const v = (await s.client.assets.upload({ data: mp4Bytes(), filename: 'walk.mp4' })).asset;
@@ -457,58 +457,63 @@ describe('platform variants of typed works (QC-045/046)', () => {
       cover: { time_seconds: 7 },
       description: '共用的簡介',
     });
-    const { created } = await s.client.variants.generate(w.id, { platforms: ['douyin'] });
-    expect(created[0]).toMatchObject({
+    expect(await s.client.variants.get(w.id, 'douyin')).toMatchObject({
       title: '雨天',
       body: '共用的簡介',
       tags: ['城市'],
       cover: { time_seconds: 7 },
-      cover_asset_id: null,
-      inherit: false,
+      cover_source: 'work',
     });
 
     const own = await s.client.variants.patch(w.id, 'douyin', {
-      base_revision: 1,
+      base_revision: 0,
       title: '抖音專用標題',
+      cover: { time_seconds: 3 },
     });
-    expect(own.title).toBe('抖音專用標題');
-    const inheriting = await s.client.variants.patch(w.id, 'douyin', {
-      base_revision: own.revision,
-      inherit: true,
-    });
-    expect(inheriting).toMatchObject({ inherit: true, title: '雨天', body: '共用的簡介' });
-    // The shared copy changes: an inheriting variant follows without a new revision.
-    await s.client.works.patch(w.id, { base_revision: work.current_revision_id, title: '雨後' });
-    expect(await s.client.variants.get(w.id, 'douyin')).toMatchObject({
-      inherit: true,
+    expect(own).toMatchObject({ title: '抖音專用標題', cover: { time_seconds: 3 } });
+    // The work changes: overridden fields stay, the others follow without a new revision.
+    await s.client.works.patch(w.id, {
+      base_revision: work.current_revision_id,
       title: '雨後',
-      revision: inheriting.revision,
+      description: '新的簡介',
     });
-    // Its own text is kept for when it stops inheriting.
+    expect(await s.client.variants.get(w.id, 'douyin')).toMatchObject({
+      title: '抖音專用標題',
+      body: '新的簡介',
+      revision: own.revision,
+    });
     const back = await s.client.variants.patch(w.id, 'douyin', {
-      base_revision: inheriting.revision,
-      inherit: false,
+      base_revision: own.revision,
+      title: null,
     });
-    expect(back.title).toBe('抖音專用標題');
+    expect(back).toMatchObject({ title: '雨後', title_source: 'work' });
     const revs = await s.client.variants.revisions(w.id, 'douyin');
-    expect(revs.items.map((r) => r.inherit)).toEqual([false, true, false, false]);
+    expect(revs.items.map((r) => r.overrides?.title ?? null)).toEqual([null, '抖音專用標題']);
   });
 
-  it('takes images as the new name of image_asset_ids and cover as an object', async () => {
+  it('orders the images of an image work and takes an image cover', async () => {
     const s = await start();
     const w = await s.client.works.create({ title: '貼圖', type: 'image' });
     const a = await image(s, 'a.png', '#999999');
     const b = await image(s, 'b.png', '#888888');
-    await s.client.variants.generate(w.id, { platforms: ['xiaohongshu'] });
+    const withImages = await s.client.works.get(w.id);
+    const saved = await s.client.works.patch(w.id, {
+      base_revision: withImages.current_revision_id,
+      images: [a.id, b.id],
+    });
+    const own = (saved.media?.images ?? []).map((i) => i.asset_id ?? '');
+    expect(own).toHaveLength(2);
+    const [ownA = '', ownB = ''] = own;
     const v = await s.client.variants.patch(w.id, 'xiaohongshu', {
-      base_revision: 1,
-      images: [b.id, a.id],
+      base_revision: 0,
+      images: [ownB, ownA],
       cover: { asset_id: a.id },
     });
     expect(v).toMatchObject({
-      image_asset_ids: [b.id, a.id],
-      cover_asset_id: a.id,
+      images: [ownB, ownA],
+      images_source: 'override',
       cover: { asset_id: a.id },
+      cover_source: 'override',
     });
     const frame = await apiError(
       s.client.variants.patch(w.id, 'xiaohongshu', {

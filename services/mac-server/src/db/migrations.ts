@@ -555,6 +555,36 @@ export const migrations: readonly Migration[] = [
       );
     `,
   },
+  {
+    id: '0020',
+    name: 'variant_overrides',
+    sql: /* sql */ `
+      -- QC-084: a platform variant keeps only overrides; null follows the work.
+      -- The body is derived from the work (deriveVariantBody); body_override
+      -- holds a body the user had edited before QC-084 and can only be
+      -- cleared. Old columns stay as they were (nothing is deleted).
+      -- overrides_ready = 0 until the row's old values were turned into
+      -- overrides, which the service does on first access because it needs the
+      -- work's files (VariantService.backfill). See VARIANT_OVERRIDES_ROLLBACK_SQL.
+      ALTER TABLE platform_variants ADD COLUMN title_override TEXT;
+      -- {"asset_id": …} or {"time_seconds": …}
+      ALTER TABLE platform_variants ADD COLUMN cover_override TEXT;
+      -- {"order": [ids shown, in order], "hidden": [work images hidden], "extra": [ids not in the work]}
+      ALTER TABLE platform_variants ADD COLUMN image_order_override TEXT;
+      -- JSON array of tags
+      ALTER TABLE platform_variants ADD COLUMN tags_override TEXT;
+      ALTER TABLE platform_variants ADD COLUMN body_override TEXT;
+      ALTER TABLE platform_variants ADD COLUMN overrides_ready INTEGER NOT NULL DEFAULT 0;
+      -- History rows written since QC-084 record overrides (overrides_format = 1);
+      -- older rows keep their full copy in the old columns.
+      ALTER TABLE platform_variant_revisions ADD COLUMN title_override TEXT;
+      ALTER TABLE platform_variant_revisions ADD COLUMN cover_override TEXT;
+      ALTER TABLE platform_variant_revisions ADD COLUMN image_order_override TEXT;
+      ALTER TABLE platform_variant_revisions ADD COLUMN tags_override TEXT;
+      ALTER TABLE platform_variant_revisions ADD COLUMN body_override TEXT;
+      ALTER TABLE platform_variant_revisions ADD COLUMN overrides_format INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 /**
@@ -620,4 +650,42 @@ export const PROMPTS_ROLLBACK_SQL = /* sql */ `
   DROP TABLE prompt_usage;
   DROP TABLE prompts;
   DELETE FROM schema_migrations WHERE id = '0019';
+`;
+
+/**
+ * Undoes `0020_variant_overrides` so an older build can open the database
+ * again (QC-084). Overrides set since then are written back into the old
+ * columns first (title, tags, body, cover, image order); fields that follow
+ * the work keep their old value. Without writes after the migration the
+ * table is exactly as before. History rows are kept.
+ */
+export const VARIANT_OVERRIDES_ROLLBACK_SQL = /* sql */ `
+  UPDATE platform_variants SET
+    title = COALESCE(title_override, title),
+    tags = COALESCE(tags_override, tags),
+    body = COALESCE(body_override, body),
+    cover_asset_id = CASE
+      WHEN cover_override IS NULL THEN cover_asset_id
+      WHEN json_extract(cover_override, '$.asset_id') IN (SELECT id FROM assets)
+        THEN json_extract(cover_override, '$.asset_id')
+      ELSE NULL END,
+    cover_time_seconds = CASE
+      WHEN cover_override IS NULL THEN cover_time_seconds
+      ELSE json_extract(cover_override, '$.time_seconds') END,
+    image_asset_ids = COALESCE(json_extract(image_order_override, '$.order'), image_asset_ids)
+  WHERE title_override IS NOT NULL OR tags_override IS NOT NULL OR body_override IS NOT NULL
+    OR cover_override IS NOT NULL OR image_order_override IS NOT NULL;
+  ALTER TABLE platform_variant_revisions DROP COLUMN overrides_format;
+  ALTER TABLE platform_variant_revisions DROP COLUMN body_override;
+  ALTER TABLE platform_variant_revisions DROP COLUMN tags_override;
+  ALTER TABLE platform_variant_revisions DROP COLUMN image_order_override;
+  ALTER TABLE platform_variant_revisions DROP COLUMN cover_override;
+  ALTER TABLE platform_variant_revisions DROP COLUMN title_override;
+  ALTER TABLE platform_variants DROP COLUMN overrides_ready;
+  ALTER TABLE platform_variants DROP COLUMN body_override;
+  ALTER TABLE platform_variants DROP COLUMN tags_override;
+  ALTER TABLE platform_variants DROP COLUMN image_order_override;
+  ALTER TABLE platform_variants DROP COLUMN cover_override;
+  ALTER TABLE platform_variants DROP COLUMN title_override;
+  DELETE FROM schema_migrations WHERE id = '0020';
 `;

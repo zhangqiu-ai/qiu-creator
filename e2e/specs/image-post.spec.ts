@@ -26,15 +26,15 @@ async function shot(page: Page, name: string): Promise<void> {
  * horizontal scrollbar, and the phone's right edge inside the panel (QC-049, QC-076).
  */
 async function expectPreviewFits(page: Page): Promise<void> {
+  // QC-084: the phone is scaled to fit the stage; the stage never scrolls.
   const measure = `(() => {
-    const side = document.querySelector('.tab-pane:not([hidden]) .pv-split__body');
-    const phone = side.querySelector('.pp-phone');
-    const sideRect = side.getBoundingClientRect();
-    // The visible part of the panel: without the vertical scrollbar.
-    const visibleRight = sideRect.left + side.clientLeft + side.clientWidth;
+    const stage = document.querySelector('.tab-pane:not([hidden]) .pv-stage');
+    const phone = stage.querySelector('.pv-phone');
+    const s = stage.getBoundingClientRect();
+    const p = phone.getBoundingClientRect();
     return {
-      scrollsSideways: side.scrollWidth > side.clientWidth,
-      phoneClipped: phone.getBoundingClientRect().right > visibleRight,
+      scrollsSideways: stage.scrollWidth > stage.clientWidth,
+      phoneClipped: p.right > s.right + 0.5 || p.left < s.left - 0.5,
     };
   })()`;
   await expect
@@ -196,12 +196,15 @@ test('貼圖：新建選類型、加圖、上限提示、鍵盤排序、移除�
         'aria-selected',
         'true',
       );
-      await side.getByRole('button', { name: '從原稿建立' }).click();
-      await expect(side.getByRole('img', { name: /視頻號/ })).toBeVisible();
+      // QC-084: no version to create; the platform follows the post at once.
+      await expect(side.locator('.pv-phone')).toBeVisible();
       await expectPreviewFits(page);
       await shot(page, 'zh-Hant-2-editor');
       await side.getByRole('tab', { name: '小紅書' }).click();
-      await expect(side.getByRole('img', { name: /小紅書/ })).toBeVisible();
+      await expect(side.getByRole('tab', { name: '小紅書' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
       await side.getByRole('button', { name: '關閉預覽' }).click();
       await expect(side).toHaveCount(0);
     });
@@ -289,14 +292,26 @@ test('貼圖：檔案遺失後重新指定、作品庫類型篩選與縮圖、�
     await expect(tiles(page)).toHaveCount(10);
   });
 
-  await test.step('預覽分欄：警告依代碼組成三語文案（QC-048）', async () => {
+  await test.step('預覽分欄：超出張數上限在平台分頁加橘點、張數變橘（QC-048、QC-084）', async () => {
     await editor(page).getByRole('button', { name: '預覽', exact: true }).click();
-    await page.getByRole('tablist', { name: '平台' }).getByRole('tab', { name: '視頻號' }).click();
-    // The version is drafted from the post (images and cover from its front matter).
-    await page.getByRole('button', { name: '從原稿建立' }).click();
-    await expect(page.getByText('圖片 10 張，超過參考上限 9 張')).toBeVisible();
+    const tab = page.getByRole('tablist', { name: '平台' }).getByRole('tab', { name: /視頻號/ });
+    await tab.click();
+    // The platform follows the post (images and cover from its front matter).
+    await expect(tab.getByRole('img', { name: '超出上限' })).toBeVisible();
+    await page
+      .getByRole('tablist', { name: '畫面' })
+      .getByRole('tab', { name: '發布編輯' })
+      .click();
+    await expect(
+      page
+        .locator('.pv-page:not([inert]) [data-screen="publish"]')
+        .getByText(/10 \/ 9/)
+        .first(),
+    ).toBeVisible();
     await page.evaluate("window.creatorhub.setLanguage('en')");
-    await expect(page.getByText('Has 10 images, over the guideline of 9')).toBeVisible();
+    await expect(
+      page.locator('.pv-tab[aria-selected="true"]').getByRole('img', { name: 'Over the limit' }),
+    ).toBeVisible();
     await shot(page, 'en-7-preview-warnings');
     await page.evaluate("window.creatorhub.setLanguage('zh-Hant')");
   });

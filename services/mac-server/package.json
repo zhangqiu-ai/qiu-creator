@@ -24,6 +24,7 @@
     "@napi-rs/keyring": "^2.1.2",
     "@qiu-creator/contracts": "workspace:*",
     "@qiu-creator/domain": "workspace:*",
+    "@qiu-creator/platform-preview": "workspace:*",
     "@tus/file-store": "^2.1.2",
     "@tus/server": "^2.4.7",
     "better-sqlite3": "^13.2.0",

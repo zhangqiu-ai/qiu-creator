@@ -1,29 +1,24 @@
 /*
- * 平台預覽 as a split inside the work editor (QC-076, PT-20261122-004).
- * 720 px wide: the version form and the phone simulation side by side. Below
- * `PREVIEW_NARROW_BELOW` it is 400 px and one column, with a 版本｜手機 switch.
- * The `.pv-*` rules shared with the old page stay in styles.css.
+ * 平台預覽 split (QC-084, PT-20261123-001 v2): platform tabs, the stage with
+ * the simulated phone (only its screen scrolls), screen tabs, dots and the
+ * zoom pill. 520 px by default, 400–720 by dragging the left edge, 400 in
+ * narrow windows, a 44 px rail when collapsed. Phone screens: preview/phone.css.
  */
 
-/* `.panel.pv-split`: the split is wider than the other right panels, whatever order the bundle puts the sheets in. */
+/* `.panel.pv-split`: wider than the other right panels; the width comes from the inline style. */
 .panel.pv-split {
-  flex: 1 1 720px;
-  max-width: 720px;
+  position: relative;
+  flex: none;
+  max-width: none;
   overflow: hidden;
 }
-.panel.pv-split--narrow {
-  flex: 1 1 400px;
-  max-width: 400px;
-}
 .pv-split__head {
-  position: sticky;
-  top: 0;
-  z-index: 1;
   flex: none;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px 6px 12px;
+  gap: 6px;
+  height: 46px;
+  padding: 0 8px 0 10px;
   border-bottom: 1px solid var(--qc-line);
   background: var(--qc-bg);
 }
@@ -31,285 +26,630 @@
   margin-left: 0;
   min-width: 0;
   overflow-x: auto;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--qc-radius-segment);
+  scrollbar-width: none;
 }
 .pv-split__head .pv-tab {
+  position: relative;
   height: 28px;
-  padding: 0 10px;
+  padding: 0 11px;
+  border-radius: var(--qc-radius-segment-item);
   font-size: 12.5px;
+  font-weight: 500;
   white-space: nowrap;
 }
-.pv-split__seg {
+.pv-split__head .pv-tab .pv-tab__warn,
+.pv-split__head .pv-tab .pv-tab__bad {
+  position: absolute;
+  top: 4px;
+  right: 3px;
+}
+.pv-split__head .pv-tab .pv-tab__bad {
+  right: 11px;
+}
+.pv-split__tools {
   margin-left: auto;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
-.pv-split__close {
-  margin-left: auto;
+.pv-follow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--qc-radius-control);
+  background: transparent;
+  color: var(--qc-ink3);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--qc-motion-hover),
+    color var(--qc-motion-hover);
 }
-.pv-split__seg + .pv-split__close {
-  margin-left: 0;
+.pv-follow:hover {
+  background: var(--qc-sunken);
+  color: var(--qc-ink);
 }
-.pv-tab__none {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--qc-ink3);
+.pv-follow[aria-pressed='true'] {
+  background: var(--qc-accent-soft);
+  color: var(--qc-accent);
 }
 .pv-split__body {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
-  flex-wrap: wrap;
-  overflow: auto;
+  flex-direction: column;
+  overflow: hidden;
 }
-.pv-split .pv__form {
-  flex: 1 1 320px;
-  max-width: none;
-  gap: 16px;
-  padding: 16px;
-}
-/*
- * The simulated phone is a fixed 340 px (QC-049): this column asks for it plus
- * its padding, so it never has to scroll sideways or clip the frame.
- */
-.pv-split .pv__preview {
-  flex: 1 1 calc(340px + 2 * 12px);
-  padding: 16px 12px;
-}
-.pv-split--narrow .pv__form,
-.pv-split--narrow .pv__preview {
-  flex: 1 1 100%;
+.pv-legacy {
+  flex: none;
+  margin: 8px 10px 0;
 }
 
-/* ---- The version line ---- */
-.pv-vline {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+/* The left edge drags the width (400–720). */
+.pv-resize {
+  position: absolute;
+  z-index: 6;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 7px;
+  cursor: col-resize;
 }
-.pv-vline__text {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--qc-ink2);
-}
-.pv-vline > .btn {
-  margin-left: auto;
-}
-.pv-undo {
-  display: flex;
-}
-.pv-inherit {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 12.5px;
-}
-.pv-inherit span {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.pv-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-}
-.pv-row .pv-inp {
-  flex: 1;
-  min-width: 0;
-}
-.pv-aibtn {
-  flex: none;
-  white-space: nowrap;
+.pv-resize:hover,
+.pv-resize:focus-visible {
+  outline: none;
+  background: linear-gradient(90deg, transparent 3px, var(--qc-accent) 3px 5px, transparent 5px);
 }
 
-/* ---- AI 標題 candidates ---- */
-.pv-cands {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px;
-  border: 1px solid var(--qc-line);
-  border-radius: var(--qc-radius-card);
-  background: var(--qc-surface);
-}
-.pv-cands__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 6px;
-  padding: 0 4px 4px;
-  font-size: 11.5px;
-}
-/* The meta and the tags keep their words on one line; the row wraps instead. */
-.pv-cands__head > .faint,
-.pv-cands__head > .langtag {
+/* ---- Collapsed: a 44 px rail of platform buttons ---- */
+.panel.pv-rail {
   flex: none;
-  white-space: nowrap;
-}
-.pv-cands__head > .langtag {
-  margin-left: 0;
-}
-.pv-cands__head > .btn {
-  margin-left: auto;
-}
-.pv-cands__group {
-  padding: 6px 4px 2px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--qc-ink3);
-}
-.pv-cand {
-  display: flex;
+  width: 44px;
+  max-width: 44px;
   align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 7px 8px;
+  gap: 6px;
+  padding: 10px 0;
+  overflow: hidden;
+}
+.pv-rail__btn {
+  position: relative;
+  width: 32px;
+  height: 32px;
   border: 0;
   border-radius: var(--qc-radius-control);
-  background: none;
-  color: inherit;
-  font: inherit;
+  background: transparent;
+  color: var(--qc-ink2);
+  font-weight: 600;
+  cursor: pointer;
+}
+.pv-rail__plat:hover {
+  background: var(--qc-sunken);
+}
+.pv-rail__plat .pv-tab__warn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}
+
+/* ---- Stage ---- */
+.pv-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 0 76px;
+  background: var(--qc-sunken);
+  overscroll-behavior: contain;
+}
+.pv-stage--pan {
+  cursor: grab;
+}
+.pv-stage--panning {
+  cursor: grabbing;
+  user-select: none;
+}
+.pv-stage--pan .pv-phone {
+  pointer-events: none;
+}
+.pv-stage > .pv-stage__screens {
+  position: absolute;
+  z-index: 4;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.pv-stage__screens button {
+  height: 26px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.pv-stage__screens button[aria-selected='true'] {
+  background: var(--qc-surface);
+  color: var(--qc-ink);
+  box-shadow: 0 0 0 1px var(--qc-line);
+}
+.pv-stage__sim {
+  position: absolute;
+  z-index: 4;
+  top: 12px;
+  right: 12px;
+  padding: 1px 8px;
+  border: 1px solid var(--qc-line);
+  border-radius: 999px;
+  background: var(--qc-bg);
+  color: var(--qc-ink3);
+  font-size: 11px;
+}
+/* Narrow splits: the screen tabs take the middle, the badge moves below them. */
+.pv-split--narrow .pv-stage__sim {
+  top: auto;
+  bottom: 18px;
+  right: 10px;
+}
+
+.pv-phwrap {
+  position: relative;
+  flex: none;
+}
+.pv-phone {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 390px;
+  height: 844px;
+  border: 11px solid #1c1b19;
+  border-radius: 52px;
+  overflow: hidden;
+  background: #fff;
+  color: #222;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+  transform-origin: 0 0;
+  font-family: -apple-system, 'PingFang TC', 'PingFang SC', 'Helvetica Neue', sans-serif;
+}
+.pv-phone[data-tone='dark'] {
+  background: #000;
+  color: #fff;
+}
+:root[data-theme='dark'] .pv-phone {
+  border-color: #3a3936;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .pv-phone {
+    border-color: #3a3936;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
+  }
+}
+.pv-phone__bar {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  font-size: 14px;
+  font-weight: 600;
+  pointer-events: none;
+}
+.pv-phone[data-tone='dark'] .pv-phone__bar {
+  color: #fff;
+}
+.pv-phone__sig {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.pv-phone__sig i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.pv-phone__sig b {
+  width: 18px;
+  height: 9px;
+  margin-left: 4px;
+  border-radius: 2px;
+  background: currentColor;
+}
+.pv-pager {
+  /* A platform switch remounts the stage: the phone content crossfades in (fast), no slide. */
+  animation: pv-fade var(--qc-dur-fast) var(--qc-ease-out) both;
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  width: calc(368px * 3);
+  height: 100%;
+}
+.pv-page {
+  position: relative;
+  flex: none;
+  width: 368px;
+  height: 100%;
+  background: #fff;
+  color: #222;
+}
+.pv-page[data-tone='dark'] {
+  background: #000;
+  color: #fff;
+}
+.pv-page + .pv-page {
+  box-shadow: -1px 0 0 rgba(0, 0, 0, 0.08);
+}
+
+.pv-dots {
+  position: absolute;
+  z-index: 4;
+  bottom: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+}
+.pv-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--qc-line);
+  transition:
+    width var(--qc-dur-base) var(--qc-ease-out),
+    background-color var(--qc-dur-base) var(--qc-ease-out);
+}
+.pv-dots i.on {
+  width: 16px;
+  background: var(--qc-ink2);
+}
+
+/* ---- Zoom pill ---- */
+.pv-zoom {
+  position: absolute;
+  z-index: 5;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--qc-line);
+  border-radius: 10px;
+  background: var(--qc-surface);
+  box-shadow: var(--qc-shadow-card);
+}
+.pv-zoom > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--qc-ink2);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pv-zoom > button:hover {
+  background: var(--qc-sunken);
+  color: var(--qc-ink);
+}
+.pv-zoom__val {
+  min-width: 92px;
+  font-weight: 600;
+  color: var(--qc-ink) !important;
+  font-variant-numeric: tabular-nums;
+}
+.pv-zoom__pct {
+  font-weight: 500;
+  color: var(--qc-ink3);
+}
+.pv-zmenu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px;
+  border: 1px solid var(--qc-line);
+  border-radius: 10px;
+  background: var(--qc-surface);
+  box-shadow: var(--qc-shadow-dialog);
+  animation: pv-pop var(--qc-dur-base) var(--qc-ease-out) both;
+  transform-origin: bottom center;
+}
+@keyframes pv-pop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+.pv-zmenu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--qc-ink);
   text-align: left;
   cursor: pointer;
 }
-.pv-cand:hover {
-  background: var(--qc-sunken);
+.pv-zmenu button:hover,
+.pv-zmenu button:focus-visible,
+.pv-zmenu button[aria-checked='true'] {
+  background: var(--qc-accent-soft);
+  color: var(--qc-accent);
 }
-.pv-cand__text {
-  flex: 1;
-  min-width: 0;
-  line-height: 1.5;
+.pv-zmenu__sep {
+  margin-top: 5px;
+  box-shadow: 0 -3px 0 -2px var(--qc-line);
+}
+.pv-zmenu kbd {
+  margin-left: auto;
+  padding: 0 5px;
+  border: 1px solid var(--qc-line);
+  border-radius: 4px;
+  color: var(--qc-ink3);
+  font: 11px/16px inherit;
 }
 
-/* ---- The cover and AI 封面 ---- */
-.pv-cov {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 10px;
-}
-.pv-cov__box {
-  position: relative;
-  flex: none;
-  width: 120px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  border: 1px solid var(--qc-line);
-  border-radius: var(--qc-radius-control);
-  background: var(--qc-sunken);
-  font-size: 11.5px;
-}
-.pv-cov__box img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.pv-cov__ratio {
+/* ---- 復原 after an AI title or cover ---- */
+.pv-undo {
   position: absolute;
-  left: 4px;
-  bottom: 4px;
-  padding: 1px 5px;
-  border-radius: var(--qc-radius-small);
-  background: rgb(0 0 0 / 60%);
-  color: #fff;
-  font-size: 10.5px;
-  font-variant-numeric: tabular-nums;
-}
-.pv-cov__acts {
+  z-index: 6;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
-  flex: 1 1 160px;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-/* While AI 封面 is open it takes the full width under the cover (PvCoverGen). */
-.pv-cov__acts:has(.pv-cover-gen) {
-  flex-basis: 100%;
-}
-.pv-cover-gen {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
   border: 1px solid var(--qc-line);
-  border-radius: var(--qc-radius-card);
+  border-radius: 10px;
   background: var(--qc-surface);
+  box-shadow: var(--qc-shadow-card);
 }
-.pv-cover-gen__head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--qc-ink2);
-}
-.pv-cover-gen__head .langtag {
-  margin-left: auto;
-}
-.pv-cover-gen__go,
-.pv-cover-gen__keep {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.pv-cover-gen__go > :not(.btn) {
+
+/* ---- Counts ---- */
+.pv-ct {
+  color: var(--qc-ink3);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.pv-cover-gen__go > .btn:first-of-type {
+.pv-ct--over {
+  color: var(--qc-warn);
+  font-weight: 600;
+}
+
+/* ---- Sheets inside the phone (AI 標題, 選封面, conflicts): fixed phone colours ---- */
+.pv-sheet-bg {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  animation: pv-fade var(--qc-dur-base) var(--qc-ease-out) both;
+}
+@keyframes pv-fade {
+  from {
+    opacity: 0;
+  }
+}
+.pv-sheet {
+  position: absolute;
+  z-index: 9;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 78%;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0 26px;
+  border-radius: 18px 18px 0 0;
+  background: #fff;
+  color: #222;
+  font-size: 14px;
+  animation: pv-up var(--qc-dur-moderate) var(--qc-ease-out) both;
+}
+@keyframes pv-up {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+}
+.pv-sheet__grab {
+  flex: none;
+  width: 38px;
+  height: 5px;
+  margin: 2px auto 10px;
+  border-radius: 3px;
+  background: #ddd;
+}
+.pv-sheet__head {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 0 18px 8px;
+  color: #2f4fcf;
+  font-size: 15px;
+}
+.pv-sheet__head b {
+  color: #222;
+}
+.pv-sheet__head--warn {
+  color: #b26a00;
+}
+.pv-sheet__meta {
   margin-left: auto;
+  color: #999;
+  font-size: 12px;
 }
-.pv-cover-grid {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+.pv-sheet__note {
+  margin: 0 16px 8px;
 }
-.pv-cover-cell {
-  position: relative;
-  overflow: hidden;
-  border: 2px solid transparent;
-  border-radius: var(--qc-radius-control);
-  background: var(--qc-sunken);
+.pv-sheet__list,
+.pv-sheet__body {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.pv-sheet__opt {
   display: flex;
   align-items: center;
-  justify-content: center;
-}
-.pv-cover-cell--on {
-  border-color: var(--qc-accent);
-}
-.pv-cover-cell > button {
+  gap: 8px;
   width: 100%;
-  height: 100%;
-  padding: 0;
+  min-height: 46px;
+  padding: 8px 18px;
   border: 0;
-  background: none;
+  border-top: 1px solid #f3f3f3;
+  background: transparent;
+  color: #222;
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
   cursor: pointer;
 }
-.pv-cover-cell img {
+.pv-sheet__opt:hover,
+.pv-sheet__opt:focus-visible {
+  background: #f2f5fe;
+}
+.pv-sheet__opt .pv-ct {
+  margin-left: auto;
+  color: #aaa;
+}
+.pv-sheet__opt .pv-ct--over {
+  color: #d17a00;
+}
+.pv-sheet__opt--sk {
+  cursor: default;
+  background: linear-gradient(90deg, #f3f3f3, #fafafa 50%, #f3f3f3);
+}
+.pv-sheet__text {
+  min-width: 0;
+}
+.pv-sheet__group,
+.pv-sheet__empty,
+.pv-sheet__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px 6px;
+  color: #888;
+  font-size: 12.5px;
+}
+.pv-sheet__label .pv-ct {
+  margin-left: auto;
+}
+.pv-sheet__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 0;
+  padding: 6px 16px 10px;
+  list-style: none;
+}
+.pv-sheet__cell {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  background: #f0f0f0;
+  cursor: pointer;
+}
+.pv-sheet__cell img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
-
-/* The editors' per-platform count chips are entry points into this split (QC-076). */
-.chip--button {
-  border: 0;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
+.pv-sheet__cell[aria-pressed='true'] {
+  box-shadow: 0 0 0 3px #2f4fcf;
 }
-.chip--button:hover {
-  box-shadow: inset 0 0 0 1px var(--qc-line);
+.pv-sheet__cell--sk {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+.pv-sheet__ai {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pv-sheet__ai > .btn,
+.pv-sheet__ai > .ai__notice,
+.pv-sheet__ai > .banner {
+  margin: 0 16px;
+  align-self: flex-start;
+}
+.pv-sheet__prompt {
+  margin: 0 16px;
+  width: calc(100% - 32px);
+  min-height: 52px;
+  resize: none;
+  font-size: 13px;
+}
+.pv-sheet__foot {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 16px 0;
+}
+.pv-sheet__cmp {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+  margin: 0;
+  padding: 4px 18px 8px;
+  font-size: 14px;
+}
+.pv-sheet__cmp dt {
+  color: #888;
+}
+.pv-sheet__cmp dd {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pv-sheet,
+  .pv-sheet-bg,
+  .pv-zmenu {
+    animation-name: pv-fade;
+  }
 }

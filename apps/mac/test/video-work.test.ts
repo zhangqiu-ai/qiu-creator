@@ -13,7 +13,7 @@ import { pngBytes } from '../../../services/mac-server/test/fixtures.js';
 import { rendererOrigin, APP_ORIGIN } from '../src/main/app-protocol.js';
 import { VideoSession } from '../src/renderer/ai-video.js';
 import { NEW_TYPES } from '../src/renderer/LibraryPage.js';
-import { VariantSession } from '../src/renderer/variant-session.js';
+import { OverrideSession } from '../src/renderer/preview/override-session.js';
 import {
   analyzeBlock,
   frameTimes,
@@ -248,38 +248,32 @@ describe('WorkSession for video works (QC-046)', () => {
   });
 });
 
-describe('platform copy follows the shared copy or its own (QC-046)', () => {
-  it('turning 沿用 off drafts the platform from the work; on again shows the shared copy, keeping its own', async () => {
+describe('platforms follow the shared copy until overridden (QC-046, QC-084)', () => {
+  it('a platform title overrides the shared title; 改回跟隨原稿 follows it again', async () => {
     const { asset, work, session } = await videoWork();
     session.edit({ video: asset.id, title: '共用標題', markdown: '共用簡介' });
     await session.save();
-    const douyin = new VariantSession(client, work.id, 'douyin', null, 5);
+    const douyin = new OverrideSession(
+      client,
+      work.id,
+      await client.variants.get(work.id, 'douyin'),
+      5,
+    );
     disposers.push(() => {
-      douyin.dispose();
+      douyin.close();
     });
-    await douyin.setInherit(false);
-    expect(douyin.snapshot.record?.inherit).toBe(false);
+    expect(douyin.snapshot.view).toMatchObject({ title: '共用標題', title_source: 'work' });
+    expect(douyin.snapshot.view.body).toBe('共用簡介');
     douyin.edit({ title: '抖音自己的標題' });
     await douyin.save();
     expect((await client.variants.get(work.id, 'douyin')).title).toBe('抖音自己的標題');
 
-    await douyin.setInherit(true);
-    const following = await client.variants.get(work.id, 'douyin');
-    expect(following.inherit).toBe(true);
-    expect(following.title).toBe('共用標題');
-    await douyin.setInherit(false);
-    expect((await client.variants.get(work.id, 'douyin')).title).toBe('抖音自己的標題');
-  });
-
-  it('turning 沿用 on for a platform without a version does nothing', async () => {
-    const { work } = await videoWork();
-    const channels = new VariantSession(client, work.id, 'wechat_channels', null, 5);
-    disposers.push(() => {
-      channels.dispose();
+    douyin.edit({ title: null });
+    await douyin.save();
+    expect(await client.variants.get(work.id, 'douyin')).toMatchObject({
+      title: '共用標題',
+      title_source: 'work',
     });
-    await channels.setInherit(true);
-    expect(channels.snapshot.record).toBeNull();
-    expect((await client.variants.list(work.id)).items).toEqual([]);
   });
 });
 

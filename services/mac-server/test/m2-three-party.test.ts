@@ -494,7 +494,7 @@ describe('same platform version, three parties', () => {
     expect(redrafted.revision).toBe(v1.revision + 1);
     expect(redrafted.body).toContain('外部改的正文');
     const revisions = await r.app.variants.revisions(r.workId, PLATFORM);
-    expect(revisions.items.map((x) => x.title)).toEqual(
+    expect(revisions.items.map((x) => x.overrides?.title ?? null)).toEqual(
       expect.arrayContaining(['我改過的小紅書標題']),
     );
   });
@@ -515,7 +515,7 @@ describe('same platform version, three parties', () => {
     expect(err.status).toBe(409);
   });
 
-  it('four platforms edited by different parties keep their own title, body and cover', async () => {
+  it('four platforms edited by different parties keep their own title and cover', async () => {
     const r = await makeRig('managed', '# 原稿\n\n原稿正文');
     const covers: string[] = [];
     for (let i = 0; i < 4; i++) {
@@ -538,16 +538,15 @@ describe('same platform version, three parties', () => {
       await writers[i]?.variants.patch(r.workId, platform, {
         base_revision: current.revision,
         title: `標題 ${platform}`,
-        body: `正文 ${platform}`,
-        image_asset_ids: [covers[i] ?? ''],
-        cover_asset_id: covers[i] ?? null,
+        cover: { asset_id: covers[i] ?? '' },
       });
     }
     for (const [i, platform] of platforms.entries()) {
       const v = await r.app.variants.get(r.workId, platform);
       expect(v.title, platform).toBe(`標題 ${platform}`);
-      expect(v.body, platform).toBe(`正文 ${platform}`);
-      expect(v.cover_asset_id, platform).toBe(covers[i]);
+      // The body always follows the original (QC-084).
+      expect(v.body, platform).toContain('原稿正文');
+      expect(v.cover, platform).toEqual({ asset_id: covers[i] });
       expect(v.revision, platform).toBe(2); // each platform counts its own revisions
     }
     expect((await r.app.works.get(r.workId)).markdown).toBe('# 原稿\n\n原稿正文');
