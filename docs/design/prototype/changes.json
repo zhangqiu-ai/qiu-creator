@@ -2859,7 +2859,7 @@
     },
     {
       "id": "PT-20261123-001",
-      "title": "編輯頁平台預覽重做：正文即時跟隨原稿、去掉表單與重新生成、單一捲動、手機縮放",
+      "title": "編輯頁平台預覽重做 v2：每個平台三個畫面（發布編輯、刷到時、正文），左右切換，在模擬手機上直接編輯",
       "date": "2026-11-23",
       "status": "pending_user",
       "model": "claude-opus-5-5",
@@ -2874,50 +2874,60 @@
         "PT-20261122-004 的預覽分欄版面：表單＋手機兩欄、正文輸入框、「重新從原稿生成」、版本狀態列"
       ],
       "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
-      "canvasVersion": "NOT_PUBLISHED: this session’s Artifact tool refuses the canvas after repeated network failures. The prototype is a standalone HTML page in the shared notes folder: /Users/feature/Library/Application Support/Claude/side-session-notes/local_2cc861c6-129e-4a37-abb5-5c6b43cd2ede/pt-20261123-001/preview.html (views: ?view=page|platforms|zoom, &p=xhs|wx|dy|ch, &dark=1, &pop=title|cover|body, &zoom=w|100|75, &collapsed=1, &narrow=1).",
+      "canvasVersion": "NOT_PUBLISHED: this session cannot reach the canvas. v2 prototype: /Users/feature/Library/Application Support/Claude/side-session-notes/local_2cc861c6-129e-4a37-abb5-5c6b43cd2ede/pt-20261123-001/preview-v2.html (views ?view=page|xhs3|pubfeed|editing|swipe, &p=xhs|wx|dy|ch, &s=0|1|2, &dark=1, &sheet=title|cover, &typing=…, &collapsed=1); v1 kept as preview.html.",
       "screenshots": {
         "dir": "docs/evidence/qc084-prototype/",
         "files": {
-          "platforms.png": "四個平台各一個主畫面（小紅書、公眾號文章、公眾號推送卡片、抖音、視頻號），淺色；小紅書與視頻號捲到 1000 字截斷線",
-          "platforms-dark.png": "同上，深色",
-          "zoom-scroll.png": "縮放與捲動：適應高度、適應寬度（舞台平移）、100%（平移到中段）、縮放選單、窄視窗 400px",
-          "page-xhs.png": "整頁：左邊原稿游標所在段落，在手機裡高亮並自動捲到（跟隨）",
-          "page-title-popover.png": "點標題 → 標題浮層：自訂／跟隨原稿、AI 標題候選（各平台字數）",
-          "page-body-over-limit.png": "正文超出 1000 字：手機裡的截斷線＋正文浮層",
-          "page-collapsed.png": "收合預覽：右側 44px 平台列，橘點＝有超出上限",
-          "page-wx-dark.png": "深色整頁，公眾號文章"
+          "v2-xhs-three.png": "小紅書三個畫面並排：發布編輯、刷到時（發現頁雙欄）、正文（跟隨左邊游標）",
+          "v2-publish-feed.png": "四個平台的「發布編輯」（上排）與「刷到時」（下排），淺色；公眾號的刷到時是訂閱號消息裡的推送卡片",
+          "v2-publish-feed-dark.png": "同上，深色",
+          "v2-editing.png": "原位編輯：打字（字數即時 18/20）、AI 標題候選（手機內底部面板）、選封面（含 AI 封面生成中）、加話題",
+          "v2-swipe.png": "左右切換示意：發布編輯 → 滑動中 → 刷到時 → 滑動中 → 正文",
+          "v2-page-publish.png": "整頁：小紅書發布編輯",
+          "v2-page-body.png": "整頁：小紅書正文，跟隨左邊游標段落",
+          "v2-page-dy-dark.png": "整頁深色：抖音發布"
         },
-        "rendered": "headless Chromium (Playwright 1.65.1 with the cached chromium_headless_shell-1243), script shoot.mjs in the notes folder; no window shown"
+        "v1Files": [
+          "platforms.png",
+          "platforms-dark.png",
+          "zoom-scroll.png",
+          "page-xhs.png",
+          "page-title-popover.png",
+          "page-body-over-limit.png",
+          "page-collapsed.png",
+          "page-wx-dark.png"
+        ],
+        "rendered": "headless Chromium (Playwright 1.65.1, cached chromium_headless_shell-1243), shoot.mjs / shoot2.mjs in the notes folder; no window shown"
       },
       "boards": [
         {
-          "file": "preview.html (standalone, notes folder)",
-          "title": "v10 · 編輯頁平台預覽",
+          "file": "preview-v2.html (standalone, notes folder)",
+          "title": "v10.2 · 編輯頁平台預覽",
           "states": [
-            "預覽分欄預設 520 寬（可拖 400–720），和 AI 面板互斥；只有三塊：頂部平台切換、中間舞台（手機）、底部欄位列",
-            "頂部：小紅書／公眾號／抖音／視頻號，有超出上限的平台帶橘點；右側「跟隨」（左邊游標移動時手機捲到對應段落並高亮）、收合、關閉（⌘⇧P）",
-            "舞台：手機固定 390×844 邏輯尺寸，預設「適應高度」；右上角「模擬」標；公眾號多一個「文章｜推送卡片」切換",
-            "唯一的捲動區是手機畫面本身：滾輪、觸控板只捲手機裡的內容；分欄和舞台不捲",
-            "縮放：舞台底部置中的縮放列「− 適應高度 74% ＋」，選單有適應高度（⌘0）、適應寬度、50%、75%、100%、150%；⌘＋／⌘−（游標或焦點在預覽時）、觸控板捏合以游標為中心縮放；放大超過舞台時按住空白鍵拖曳平移，滾輪仍捲手機畫面",
-            "正文不再有輸入框：手機裡的正文就是左邊原稿即時轉出來的（小紅書、抖音、視頻號轉純文字，公眾號照 Markdown 排版）；點正文只開說明浮層（跟隨原稿、字數、超出時「在原稿標出第 1000 字」「用 AI 縮寫到 1000 字…」）",
-            "超出正文上限：手機裡在第 1000 字處畫橘色虛線「第 1000 字 · 之後 N 字會被截斷」，後面的文字變淡；平台分頁帶橘點；欄位列「正文 1155/1000」變橘",
-            "平台專屬欄位直接在手機上點：標題、封面與圖片、標籤，滑過時虛線框＋小標籤（例「標題 17 / 20 · 自訂」）；底部欄位列同樣四個入口（標題、封面與圖片、標籤、正文），藍點＝自訂（不跟隨原稿）",
-            "標題浮層：輸入框＋字數、「AI 標題」產生依平台上限的候選（點一個即套用，可復原）、「改回跟隨原稿」、原稿標題參考",
-            "封面與圖片浮層：封面＋圖片順序（拖曳）、「AI 封面」（依平台比例）、上傳封面、改回跟隨原稿",
-            "移除：版本狀態列（r7／已保存／不影響原稿）、正文輸入框、「重新從原稿生成」",
-            "收合：分欄縮成 44px 平台列（字首＋橘點），點任一平台展開到該平台",
-            "窄視窗：分欄 400，欄位列只留圖示與數字，縮放仍在舞台底部"
+            "分欄結構沿用 v1：頂部平台切換（橘點＝超出上限）、跟隨、收合、關閉；舞台＋手機；底部縮放列。v1 底部的「標題／封面與圖片／標籤／正文」欄位列移除。",
+            "舞台上方新增畫面切換「發布編輯｜刷到時｜正文」，手機下方圓點表示位置；觸控板兩指左右滑、←／→、或點分頁切換，手機內三個畫面水平排列，切換時水平滑動（base 180ms，減少動態效果時淡入）",
+            "發布編輯（作者上傳時看到的頁面，各平台照真實流程模擬）：小紅書「發布筆記」（圖片列＋封面、標題、正文、話題、地點、可見範圍、存草稿／發布）；公眾號「發表文章」（封面 2.35:1＋1:1 分享裁切、標題、作者、摘要、正文、原創、留言、合集）；抖音「發布」（作品標題＋右側選封面、作品描述、話題、圖片列、位置、可見範圍、評論）；視頻號「發表動態」（圖片九宮格、描述、短標題、話題、位置、設置封面）",
+            "在發布編輯畫面直接編輯：標題直接打字（字數即時、超出變橘）、「自訂／跟隨原稿」標記與「改回跟隨原稿」、AI 標題在標題下方；圖片可拖曳排序，第一張為封面，「AI 封面」「選封面」在圖片列下方；話題可刪（×）與新增（＋ 話題）",
+            "AI 標題與選封面以手機內的底部面板出現（像真機一樣），AI 標題列出依該平台字數上限的候選；選封面可從圖片選、看 AI 封面生成（骨架）、上傳，按「設為封面」才套用",
+            "正文欄位在發布編輯裡是唯讀摘要：「正文跟隨左邊原稿 · 在原稿編輯」＋字數（超出變橘），點它切到「正文」畫面或把游標帶回左邊原稿",
+            "刷到時（觀眾在信息流看到的樣子）：小紅書發現頁雙欄卡片（你的筆記帶藍框與「你的筆記」標籤，旁邊是其他假卡片）；公眾號訂閱號消息裡的推送卡片；抖音推薦全屏；視頻號推薦全屏。這裡唯讀，點標題或封面會切回發布編輯並聚焦該欄位",
+            "正文（點進去之後）：唯讀，頂部提示「正文跟隨左邊原稿 · 在原稿編輯」；跟隨左邊游標段落並高亮；超出上限的截斷線沿用 v1",
+            "沿用 v1：單一捲動（只捲目前那個畫面）、縮放（適應高度、適應寬度、50–150%、⌘0、⌘＋／⌘−、捏合）、跟隨、截斷線、收合 44px、窄視窗 400"
           ]
         }
       ],
       "decisions": [
-        "正文永遠跟隨原稿，不再有平台正文：使用者第 1、2、5 點。各平台只在「標題、封面、圖片順序、標籤」保留自己的值，而且預設也跟隨原稿，改了才變「自訂」。所以「重新從原稿生成」不需要了，每個欄位各自有「改回跟隨原稿」。",
-        "拿掉表單，改成在手機上直接點要改的地方：表單和手機並排正是截圖裡混亂、空白與錯位的來源；手機本身就是版面，點標題改標題、點封面改封面，欄位列只是同一組入口的鍵盤與無障礙版本。",
-        "只留一個捲動區（手機畫面）：截圖裡表單、手機、外層三層一起捲。手機固定裝置比例，內容在裡面捲，跟真機一樣；縮放不產生第二個捲動區，放大後平移用空白鍵拖曳（Figma、Sketch 的慣例），滾輪永遠捲手機內容。",
-        "預設「適應高度」：不用捲就看到整支手機與縮放列；要看字的細節再切 100% 或適應寬度。",
-        "超出上限只提示不截斷：在手機裡標出平台會截斷的位置，讓使用者決定改原稿或用 AI 縮寫；不在預覽裡另存一份縮短的正文，避免兩份正文。",
-        "「跟隨」預設開：左邊打字時右邊直接捲到同一段並高亮，回應第 1 點「即時反映」；不想被帶著走可以關掉。",
-        "分欄預設寬度從 720 降到 520：沒有表單後只需要放手機，原稿編輯區多出 200px。"
+        "v2：每個平台分三個畫面，照它真實的使用流程：發布編輯（作者上傳時）、刷到時（觀眾在信息流）、正文（點進去之後）。使用者說標題、封面、標籤是上傳時和刷內容時看到的，所以它們出現在前兩個畫面，正文在第三個。",
+        "v2：只有「發布編輯」可編輯，其他兩個唯讀但點了會帶你回發布編輯的對應欄位。這和真實 App 一致（在發布頁改，在信息流看），也避免同一欄位在三處都能改。",
+        "v2：AI 標題、AI 封面放在發布編輯畫面對應欄位旁，結果用手機內的底部面板呈現，選了才套用；不再用手機外的浮層，模擬更真實。",
+        "v2：拿掉 v1 底部欄位列；畫面切換用舞台上方的分頁＋手機下方的圓點，加上左右滑動。",
+        "沿用 v1 的其他決定：正文永遠跟隨原稿、單一捲動、預設適應高度、超出上限只提示不截斷、跟隨預設開、分欄 520。",
+        "v1（保留）：正文永遠跟隨原稿，不再有平台正文：使用者第 1、2、5 點。各平台只在「標題、封面、圖片順序、標籤」保留自己的值，而且預設也跟隨原稿，改了才變「自訂」。所以「重新從原稿生成」不需要了，每個欄位各自有「改回跟隨原稿」。",
+        "v1（保留）：只留一個捲動區（手機畫面）：截圖裡表單、手機、外層三層一起捲。手機固定裝置比例，內容在裡面捲，跟真機一樣；縮放不產生第二個捲動區，放大後平移用空白鍵拖曳（Figma、Sketch 的慣例），滾輪永遠捲手機內容。",
+        "v1（保留）：預設「適應高度」：不用捲就看到整支手機與縮放列；要看字的細節再切 100% 或適應寬度。",
+        "v1（保留）：超出上限只提示不截斷：在手機裡標出平台會截斷的位置，讓使用者決定改原稿或用 AI 縮寫；不在預覽裡另存一份縮短的正文，避免兩份正文。",
+        "v1（保留）：「跟隨」預設開：左邊打字時右邊直接捲到同一段並高亮，回應第 1 點「即時反映」；不想被帶著走可以關掉。",
+        "v1（保留）：分欄預設寬度從 720 降到 520：沒有表單後只需要放手機，原稿編輯區多出 200px。"
       ],
       "dataModel": {
         "summary": "Variants keep only per-platform overrides; the body is always derived live from the work.",
@@ -2930,7 +2940,8 @@
         },
         "overLimit": "checkVariantLimits runs on the derived body. body_too_long gains cut_at (code-point index in the derived text) and source_offset (position in the Markdown source) so the preview can draw the cut line and 「在原稿標出第 1000 字」 can select that place in the editor. Never blocks a save and never truncates stored text.",
         "revisions": "A variant revision is created only when an override changes (title/cover/images/tags or clearing one back to follow). Body edits are ordinary work revisions with the existing base_revision / 409 handling. Override PATCHes keep base_revision or If-Match; a 409 shows inside the field popover (「另一處改了這個平台的標題」 with keep mine / use theirs). Variant history lists override changes only.",
-        "migration": "Reversible migration. Existing variants: title/cover/images/tags become overrides when they differ from what the source gives, else null. If a variant’s saved body differs from the derived body (the user edited it), keep it as legacy body_override and show a one-line notice in the body popover: 「這個平台的正文是之前另外改過的版本」 with 「改回跟隨原稿」 (the old text stays in history). The `inherit` flag (QC-045/046) folds into “all fields follow”. Nothing is deleted."
+        "migration": "Reversible migration. Existing variants: title/cover/images/tags become overrides when they differ from what the source gives, else null. If a variant’s saved body differs from the derived body (the user edited it), keep it as legacy body_override and show a one-line notice in the body popover: 「這個平台的正文是之前另外改過的版本」 with 「改回跟隨原稿」 (the old text stays in history). The `inherit` flag (QC-045/046) folds into “all fields follow”. Nothing is deleted.",
+        "note": "Unchanged in v2."
       },
       "backendNeeds": {
         "api": [
@@ -2991,14 +3002,28 @@
       ],
       "motion": "Follows DESIGN.md 動效: split opens with translateX 24px + fade (moderate/out); platform switch crossfades the phone content (fast), no slide; zoom steps animate scale with the snappy spring, pinch follows the fingers 1:1; popovers grow from the clicked region (base/out), exit fade (fast/in); live text updates are not animated (no flicker while typing); new or removed images fade (fast); follow-scroll uses a smooth scroll capped at moderate. Reduced motion: zoom jumps, follow-scroll jumps, popovers fade only.",
       "verified": [
-        "Rendered with headless Chromium at 1440×900 and gallery widths; eight screenshots checked by eye in light and dark (fixed: zoom pill overlapping the phone, status bar over scrolled text, dark editor text colour, cut line scroll position)."
+        "v2 rendered with headless Chromium; all eight v2 screenshots checked by eye. Fixed during checking: pages wider than the phone screen (content cut on the right), the title row crowding the title, and the Douyin title chips breaking mid-word.",
+        "v1: Rendered with headless Chromium at 1440×900 and gallery widths; eight screenshots checked by eye in light and dark (fixed: zoom pill overlapping the phone, status bar over scrolled text, dark editor text colour, cut line scroll position)."
       ],
       "notVerified": [
         "NOT_VERIFIED: canvas upload (this session cannot reach the canvas).",
-        "NOT_VERIFIED: three-language fit (the prototype is in 繁體中文 only); pinch and space-drag are described, not implemented in the static prototype; the prototype is not interactive beyond the URL states.",
-        "Phone layouts are simulations, not the platforms’ real UI; no official logos used."
+        "NOT_VERIFIED: three-language fit (prototype in 繁體中文 only); real drag-to-reorder, swipe gestures and pinch are shown as states, not implemented.",
+        "Platform screens are simulations of layout and flow, not the platforms’ real UI; no official logos; other feed cards are placeholders.",
+        "Our reading of the red boxes in the user’s screenshot is an interpretation (see iterations[0])."
       ],
       "openQuestions": [
+        {
+          "q": "「刷到時」與「正文」裡點標題或封面，要跳回發布編輯，還是在原地就能改？",
+          "recommendation": "跳回發布編輯並聚焦該欄位（和真實 App 一致，只在一處改）。"
+        },
+        {
+          "q": "切換畫面時預設停在哪個畫面？",
+          "recommendation": "記住上次的畫面；第一次打開停在「刷到時」，因為它最能看出封面和標題的效果。"
+        },
+        {
+          "q": "公眾號的「摘要」要不要可編輯？",
+          "recommendation": "先自動取正文前 54 字，唯讀；需要時再加成平台專屬欄位（資料模型可延伸）。"
+        },
         {
           "q": "正文改成永遠跟隨原稿，可以嗎？（等於取消「各平台各自改正文」）",
           "recommendation": "可以；需要平台專屬的開頭或結尾時，之後可加「前綴／後綴」兩個小欄位，而不是整份正文。"
@@ -3026,6 +3051,23 @@
         {
           "q": "超出正文上限時要不要提供「用 AI 縮寫到 1000 字」？",
           "recommendation": "要，但結果作為左邊原稿的候選＋diff，保留才寫入（原稿規則不變）。"
+        }
+      ],
+      "iterations": [
+        {
+          "v": 1,
+          "date": "2026-11-23",
+          "result": "not approved",
+          "userFeedback": "雖然好看了一些但是預覽區的預覽和標題、封面、標籤的佈局不是很合理，要再優化。標題、封面和標籤是在上傳的時候，刷內容的時候看到的，所以要真實模擬上傳編輯和用戶刷內容的時候看到的模樣，模擬區也要真實可編輯，可以標題、封面、標籤可以和正文來回(左右)切換。",
+          "userScreenshot": "/private/tmp/claude-501/-Users-feature-code-qiu-creator/26a40ba9-3506-4020-b1f3-d3c0f5328c60/images/34.png",
+          "ourReadingOfRedBoxes": "The boxes cover the phone’s body text from the title down, several reaching past both edges of the phone. Read as: (1) the phone shows only a wall of body text (title glued to the body, no cover, no feed card, no upload page), which is not what viewers or the author see; (2) the boxes crossing the left and right edges ask for swiping left/right between screens; (3) possibly text too close to the screen edges. All three are addressed in v2; the reading is ours, not confirmed by the user.",
+          "prototype": "/Users/feature/Library/Application Support/Claude/side-session-notes/local_2cc861c6-129e-4a37-abb5-5c6b43cd2ede/pt-20261123-001/preview.html"
+        },
+        {
+          "v": 2,
+          "date": "2026-11-23",
+          "result": "pending_user",
+          "prototype": "/Users/feature/Library/Application Support/Claude/side-session-notes/local_2cc861c6-129e-4a37-abb5-5c6b43cd2ede/pt-20261123-001/preview-v2.html"
         }
       ]
     }
