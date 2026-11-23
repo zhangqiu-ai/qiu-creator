@@ -333,3 +333,13 @@ exit 0。升級前備份 id：**`20261121T154449342Z-manual`**。
 - 偏好檔 `preferences.json`：升級前後 sha256 完全相同（`b962b9e0…ab588`，與上次升級後相同）。
 - 升級後有一個 qiu-creator App 行程（pid 69426），本會話未開關，仍是舊行程；未碰 `~/CreatorHub` 內容（備份與遷移除外）、金鑰與 Keychain，未發 AI 請求。
 - NOT_VERIFIED：新版介面、視窗截圖。
+
+## 升級到 3088f62（2026-11-23，QC-084，遷移 0020）：成功
+
+- 建置：乾淨 worktree，commit `3088f627d1bb85f00e0a08b6f6ca0107db19c7e0`（無 `-dirty`），`codesign --verify --deep --strict` 通過。
+- 升級前（08:22:17）：7420 只有 launchd 服務（pid 11212），7431 無監聽；`/health` 為 f450731；schema 最新 0019。
+- 乾跑後 `upgrade --yes`（08:23:01）exit 0；升級前備份 `20261123T162301573Z-manual`（ok）。
+- 升級後：`/health` commit 3088f62、built_at `2026-11-23T16:22:35.884Z`；launchd running（pid 60042）；schema 最新 `0020|variant_overrides`，其次 0019；`server.prev`（f450731）與 `app.prev` 在；日誌 level-50 為 0 筆、err.log 0 位元組。
+- 偏好檔 `preferences.json`：以升級前一刻（08:22:17）為基準，升級前後 sha256 完全相同（`88912be1…30813b`）。此值與上次升級後的 `b962b9e0…` 不同，是使用者 App 在兩次升級之間自己寫入的（本會話未碰）。
+- 升級後有一個 qiu-creator App 行程（pid 37814），本會話未開關，仍是舊行程；除備份與遷移外未動 `~/CreatorHub` 內容，未碰金鑰與 Keychain，未發 AI 請求。
+- NOT_VERIFIED：新版介面、視窗截圖。
