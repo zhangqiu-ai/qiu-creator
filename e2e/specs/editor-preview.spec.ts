@@ -464,7 +464,14 @@ test('側邊欄：超出正文上限的橘點、另一處改了標題（409）�
       .toBe('我的小紅書標題 2');
   });
 
-  await test.step('窄視窗：編輯欄不到 560 時邊欄是蓋在正文上的抽屜；Esc 或點正文收起', async () => {
+  await test.step('窄視窗：先縮到 400；編輯欄仍不到 560 才是抽屜；去設定再回來不閃、不收；Esc 或點正文收起', async () => {
+    // 1280 wide: the sidebar shrinks (never below 400) so the text keeps 560, and stays docked.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect.poll(async () => Math.round((await rect(page, 'main.editor')).width)).toBe(560);
+    expect(await width(page)).toBeCloseTo(1280 - 232 - 560, -1);
+    await expect(split(page)).toBeVisible();
+    await expect(side(page).locator('.side__rail')).toHaveCount(0);
+    await shot(page, 'side-1280-docked');
     await page.setViewportSize({ width: 1024, height: 768 });
     // Closed at first: the text keeps its room, the rail stays as the way in.
     await expect.poll(() => width(page)).toBeCloseTo(44, -1);
@@ -478,6 +485,26 @@ test('側邊欄：超出正文上限的橘點、另一處改了標題（409）�
     expect(drawer.left).toBeLessThan(before.right);
     await expect(split(page).getByRole('button', { name: '跟隨', exact: true })).toBeVisible();
     await shot(page, 'side-narrow-drawer');
+    // 設定 hides the editor area (it measures 0): coming back, the drawer is still out a few
+    // frames later, not flashed docked and then folded into the rail (QC-085 pre-release).
+    await nav(page).getByRole('button', { name: '設定', exact: true }).click();
+    await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
+    await page
+      .getByRole('region', { name: '作品', exact: true })
+      .getByRole('button', { name: /書房改成剪輯室/ })
+      .click();
+    await expect(split(page)).toBeVisible();
+    const kept = await page.evaluate<boolean>(
+      "new Promise((done) => { let n = 0; const tick = () => { n += 1; if (n < 6) { requestAnimationFrame(tick); return; } const p = document.querySelector('.tab-pane:not([hidden]) .side__panel'); done(p !== null && !p.hidden && document.querySelector('.tab-pane:not([hidden]) section.side').classList.contains('side--drawer')); }; requestAnimationFrame(tick); })",
+    );
+    expect(kept).toBe(true);
+    await expect(split(page)).toBeVisible();
+    await content(page)
+      .getByText('吸音其實不錯')
+      .click({ position: { x: 8, y: 8 } });
+    await expect(split(page)).toBeHidden();
+    await page.keyboard.press('Meta+Shift+p');
+    await expect(split(page)).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(split(page)).toBeHidden();
     await page.keyboard.press('Meta+Shift+p');

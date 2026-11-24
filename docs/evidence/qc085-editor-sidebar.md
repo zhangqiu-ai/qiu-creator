@@ -78,3 +78,26 @@
 - typecheck 0（含 e2e）、lint 0、format 0。
 - 單元測試逐一套件跑，全過，共 1,231：mac 443、mac-server 522、markdown-editor-web 62、domain 45、installer 39、i18n 30、platform-preview 27、contracts 23、api-client 22、agent-sdk 12、design-tokens 6。
 - e2e 一般模式 58 passed／10 skipped，0 failed；`QC_E2E_MOTION=on` 59 passed／9 skipped，0 failed；截圖執行 0 failed。
+
+## 發版前修正（2026-11-23，分支 `qc085-fix`，從 origin/main 9baf141 開）
+
+1. **從設定回來時邊欄閃一下、抽屜被收起（競態，qc-test 查出根因）**：設定頁把分頁區隱藏，`ResizeObserver` 送出 `measure(0)`。`isDrawer(0)` 是 false，結果 drawer 被設成 false；回到作品約 15ms 後 `measure(1048)` 又改回抽屜並收起。修法：`SideStore.measure` 收到 0 時直接忽略，drawer、drawerOpen 與顯示寬度都保留最後一次的版面。`new-api.spec` 在動效模式偶發的「找不到 AI 分頁」就是這個原因。
+2. **抽屜門檻太嚴**：原本編輯欄不到「560＋記住的寬度」就改成抽屜，1280 寬的視窗（編輯區 1048）預設就看不到停靠的邊欄。改成先縮邊欄顯示寬度到最小 400（新增 `shownWidth`，不改記住的寬度，空間恢復就回去），只有編輯區小於 960 才改成抽屜。
+
+測試：
+- 單元測試新增 2 個，修改 1 個：先縮再抽屜、記住的寬度回來、拖得比空間寬時記住但照可用空間畫，以及量到 0 時 drawer、drawerOpen 與寬度都不變且不通知。
+- e2e `editor-preview.spec`：
+  - 1280 寬時編輯欄剛好 560，邊欄約 488、停靠、沒有圖示欄。
+  - 1024 寬時抽屜打開後，去設定再回到作品，6 個畫格後抽屜仍然開著。
+- 截圖：`qc085/qc085-side-1280-docked.png`。
+
+數字（`qc085-fix`，負載 3.6–6.9）：
+- typecheck 0（含 e2e）、lint 0、format 0。
+- 單元測試逐一套件跑，全過，共 1,233：mac 445、mac-server 522、markdown-editor-web 62、domain 45、installer 39、i18n 30、platform-preview 27、contracts 23、api-client 22、agent-sdk 12、design-tokens 6。
+- e2e 一般模式 58 passed／10 skipped，0 failed；`QC_E2E_MOTION=on` 59 passed／9 skipped，0 failed。
+- `new-api.spec` 在動效模式連跑 10 次：10 passed。
+- 截圖執行 0 failed。
+
+過程中的發現：第一輪檢查時，拖過頭收合後再打開，邊欄停在 400。原因是收合時恢復了記住的寬度，卻沒有重算顯示寬度。已修，單元測試也補上這個斷言。
+
+觀察（不在這次範圍）：編輯欄只有 560 時，頭部的「視覺｜原始碼」與「插入」會換到第二行，格式工具列需要左右捲動。這是編輯欄窄時本來就有的行為。
