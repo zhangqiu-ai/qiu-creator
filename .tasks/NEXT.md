@@ -1,11 +1,5 @@
 # Next
 
-## QC-089: Agent 提案、直接修改開關、活動記錄與權杖限定項目（後端）
-
-**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend
-
-依賴 QC-088。新增 `propose` 範圍與提案資料表／API（候選加 diff，採用後才成為新版本）；權杖「允許直接修改正文」開關（只限主權杖設定，預設關，寫入前留快照並標明 Agent）；`change_log` 記錄操作者權杖；權杖限定項目；MCP `work_propose_edit`、`work_update_body`。可回滾 migration。
-
 ## QC-091: MCP 相關介面實作
 
 **Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend

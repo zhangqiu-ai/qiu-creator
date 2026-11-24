@@ -8,8 +8,8 @@ QC-004 的驗收本體，依賴 QC-030–032。實機安裝後：重開機自啟
 
 **Status（2026-11-19）:** U0 備份通過；U2、U3 使用者豁免（未驗證）；U4 New API 真實呼叫通過，Gemini／Claude／GPT 使用者豁免（未驗證）。U1 已通過（2026-11-21 03:14 系統自行重開，服務開機後 119 秒自啟）。剩 U5 日常使用一輪。證據在分支 `test/qc033-acceptance`（未合併）。此卡在開 QC-036 時被誤刪，2026-11-19 補回。
 
-## QC-088: MCP 匯入與寫入工具
+## QC-089: Agent 提案、直接修改開關、活動記錄與權杖限定項目（後端）
 
 **Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend
 
-依賴 QC-087。`work_create`、`asset_upload_file`（本機路徑，經 tus）、`asset_import_url`、`job_get`／`job_wait`、素材連結與排序、`work_update_meta`、`variant_update`、回收站與批量、`works_assign_projects`、`project_create`／`project_update`；409 與冪等鍵完整傳回；行程內 MCP client 情境測試。
+依賴 QC-088。新增 `propose` 範圍與提案資料表／API（候選加 diff，採用後才成為新版本）；權杖「允許直接修改正文」開關（只限主權杖設定，預設關，寫入前留快照並標明 Agent）；`change_log` 記錄操作者權杖；權杖限定項目；MCP `work_propose_edit`、`work_update_body`。可回滾 migration。

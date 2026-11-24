@@ -1,3 +1,9 @@
+## QC-088: MCP 匯入與寫入工具
+
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend | **Done:** 2026-11-24
+
+完成摘要：21 個匯入與寫入 MCP 工具（新建作品、本機檔案經 tus 上傳、網址匯入、任務追蹤、素材連結與排序、中繼資料、平台版本、回收站與批量、項目建立／修改／刪除／恢復與歸屬、版本恢復），409／428 帶重試提示，輸入嚴格驗證；`MCP_PENDING` 清空，項目排序與已棄用的 generate／draft 列入排除。`variant_get` 改用 `VariantView`。全套 1260 passed／0 failed。真實 Agent 連線 NOT_VERIFIED（QC-093）。證據 `docs/evidence/qc088-mcp-write.md`。
+
 ## QC-090: 原型：Agent 提案收件匣、權杖設定、項目描述與規則
 
 **Priority:** P1 | **Assignee:** qc-prototype | **Tags:** M3, prototype | **Done:** 2026-11-24
