@@ -82,7 +82,7 @@ export const WRITE_TOOLS: readonly McpToolDef[] = [
     access: 'import',
     routes: ['POST /api/v1/works'],
     description:
-      'Create a work in the library: an article (Markdown), an image post or a video (type image/video; their text goes in description). Optionally put it in projects (project_ids) and give tags. Retrying with the same idempotency_key returns the work created the first time instead of a duplicate. Returns the work with current_revision_id (the base_revision for later edits).',
+      'Create a work in the library: an article (Markdown), an image post or a video (type image/video; their text goes in description). Put it in projects with project_ids, or set auto_assign=true to also add it to every project whose rules score it ≥ 0.8 (auto_assignment in the result lists them and 0.5–0.8 suggestions, with reasons; check projects_suggest first if unsure). Retrying with the same idempotency_key returns the work created the first time instead of a duplicate. Returns the work with current_revision_id (the base_revision for later edits).',
     inputSchema: { ...CreateWorkRequestSchema.shape, idempotency_key: idempotencyKey },
     run: async (client, { idempotency_key, ...input }) =>
       client.works.create(
@@ -316,13 +316,15 @@ export const WRITE_TOOLS: readonly McpToolDef[] = [
     access: 'write',
     routes: ['PATCH /api/v1/projects/:id'],
     description:
-      "Rename, recolor or archive a project. base_revision is the project's revision you read (project_get); a stale one returns 409.",
+      "Rename, recolor or archive a project, or change its description and rules (keywords, tags, folders, domains; rules replace the old ones). Try rules with project_rules_preview before saving. base_revision is the project's revision you read (project_get); a stale one returns 409.",
     inputSchema: {
       id: id('project'),
       base_revision: z.number().int().positive(),
       name: PatchProjectRequestSchema.shape.name,
       color: PatchProjectRequestSchema.shape.color,
       archived: PatchProjectRequestSchema.shape.archived,
+      description: PatchProjectRequestSchema.shape.description,
+      rules: PatchProjectRequestSchema.shape.rules,
     },
     run: async (client, { id: projectId, ...change }) => {
       const parsed = PatchProjectRequestSchema.safeParse(change);

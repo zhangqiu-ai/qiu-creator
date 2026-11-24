@@ -16,3 +16,4 @@ export * from './projects.js';
 export * from './ai-images.js';
 export * from './ai-prompts.js';
 export * from './proposals.js';
+export * from './project-rules.js';

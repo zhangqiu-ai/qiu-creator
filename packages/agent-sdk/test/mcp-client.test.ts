@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   createCreatorHubMcpServer,
   isReadOnly,
+  PROJECT_RULE_TOOLS,
   PROPOSAL_TOOLS,
   READ_TOOLS,
   TOOLS,
@@ -93,7 +94,9 @@ describe('creatorhub mcp: tools and toolsets', () => {
     const c = await connect();
     const { tools } = await c.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(TOOLS.map((t) => t.name).sort());
-    expect(tools).toHaveLength(READ_TOOLS.length + WRITE_TOOLS.length + PROPOSAL_TOOLS.length);
+    expect(tools).toHaveLength(
+      READ_TOOLS.length + WRITE_TOOLS.length + PROPOSAL_TOOLS.length + PROJECT_RULE_TOOLS.length,
+    );
     for (const def of READ_TOOLS) {
       const t = tools.find((x) => x.name === def.name);
       if (!['server_status', 'platform_rules'].includes(def.name)) {
@@ -101,7 +104,7 @@ describe('creatorhub mcp: tools and toolsets', () => {
       }
       expect(t?.annotations?.readOnlyHint, def.name).toBe(true);
     }
-    for (const def of [...WRITE_TOOLS, ...PROPOSAL_TOOLS]) {
+    for (const def of [...WRITE_TOOLS, ...PROPOSAL_TOOLS, ...PROJECT_RULE_TOOLS]) {
       const t = tools.find((x) => x.name === def.name);
       expect(t?.annotations?.readOnlyHint, def.name).toBe(isReadOnly(def.access));
     }
@@ -119,8 +122,10 @@ describe('creatorhub mcp: tools and toolsets', () => {
       'project_delete',
       'project_get',
       'project_restore',
+      'project_rules_preview',
       'project_update',
       'projects_list',
+      'projects_suggest',
       'server_status',
       'works_assign_projects',
     ]);

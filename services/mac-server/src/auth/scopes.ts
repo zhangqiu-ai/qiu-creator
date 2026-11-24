@@ -38,7 +38,12 @@ const WRITE_ROUTES = new Set([
 ]);
 
 /** Non-GET routes that only read (they sign URLs for files the caller can already read). */
-const READ_ROUTES = new Set(['POST /api/v1/media/signed-urls']);
+const READ_ROUTES = new Set([
+  'POST /api/v1/media/signed-urls',
+  // QC-092: scoring content against project rules writes nothing.
+  'POST /api/v1/projects/suggestions',
+  'POST /api/v1/projects/:id/rules/preview',
+]);
 
 /**
  * QC-089: proposing a change to a work's text. Accepting or discarding a

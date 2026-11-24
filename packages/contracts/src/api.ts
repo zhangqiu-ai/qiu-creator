@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AutoAssignmentSchema } from './project-rules.js';
 import {
   IdSchema,
   RevisionSchema,
@@ -93,6 +94,12 @@ export const ErrorCodeSchema = z.enum([
    * create a work in no allowed project (403). Reads outside are plain 404.
    */
   'project_scope',
+  /**
+   * QC-092: the owner put this work in the project by hand; agents and
+   * automatic rules leave it, and 復原歸入 only undoes agent or rule
+   * assignments (409).
+   */
+  'membership_manual',
   /** No card image to serve: `details.reason` none/missing/needs_frame/decode_failed (404, QC-061). */
   'thumbnail_unavailable',
   /** The uploaded frame is for a video or time the work no longer uses as its card; reload (409, QC-061). */
@@ -168,6 +175,12 @@ export const CreateWorkRequestSchema = z.object({
     .max(100)
     .refine((ids) => new Set(ids).size === ids.length, 'project_ids must not repeat')
     .default([]),
+  /**
+   * QC-092: also put the work in every project whose rules score it ≥ 0.8
+   * (only projects the token may use). The response's `auto_assignment` says
+   * which and why, and lists 0.5–0.8 suggestions it did not act on.
+   */
+  auto_assign: z.boolean().default(false),
 });
 export type CreateWorkRequest = z.input<typeof CreateWorkRequestSchema>;
 
@@ -232,6 +245,8 @@ export const WorkDetailSchema = WorkSchema.extend({
   description: z.string().nullable().optional(),
   /** Image and video works: their files from the front matter; null for articles (QC-045/046). */
   media: WorkMediaSchema.nullable().optional(),
+  /** Only on create with `auto_assign` (QC-092): projects assigned and suggested, with reasons. */
+  auto_assignment: AutoAssignmentSchema.optional(),
 });
 export type WorkDetail = z.infer<typeof WorkDetailSchema>;
 

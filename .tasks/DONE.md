@@ -1,3 +1,9 @@
+## QC-092: 項目自動歸屬
+
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend | **Done:** 2026-11-24
+
+完成摘要：項目加 `description`、`rules`（migration 0022 可回滾）；`@qiu-creator/domain/project-rules` 確定性評分（資料夾 0.9、網域 0.7、標題關鍵字 0.6、標籤 0.6、正文關鍵字 0.35，1−Π(1−w)，大小寫／全半形／繁簡摺疊）；候選與最近 20 篇試算（不儲存）；`auto_assign` ≥0.8；歸屬記錄來源（user／agent／rule），手動不被覆蓋，保留與復原只限主權杖。MCP 新增 `projects_suggest`、`project_rules_preview`。全套 1297 passed／0 failed；e2e 與真實 Agent NOT_VERIFIED（QC-093）。證據 `docs/evidence/qc092-project-auto-assign.md`。
+
 ## QC-089: Agent 提案、直接修改開關、活動記錄與權杖限定項目（後端）
 
 **Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend | **Done:** 2026-11-24

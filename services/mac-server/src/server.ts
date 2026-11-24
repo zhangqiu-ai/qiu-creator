@@ -44,7 +44,8 @@ import { requiredAccess } from './auth/scopes.js';
 import { ActivityService } from './auth/activity-service.js';
 import { runWithActorSlot, setCurrentPrincipal } from './auth/actor-context.js';
 import { registerAgentRules } from './auth/agent-rules.js';
-import { ProjectScope } from './auth/project-scope.js';
+import { currentProjectLimit, ProjectScope } from './auth/project-scope.js';
+import { ProjectRuleService } from './projects/project-rules.js';
 import { requirePrincipal, TokenService, type Principal } from './auth/token-service.js';
 import { ProposalService, type ProposalServiceOptions } from './proposals/proposal-service.js';
 import { registerProposalRoutes } from './routes/proposals.js';
@@ -294,6 +295,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   const composer = new WorkComposer(db, works, attacher, assets);
   const workTrash = new WorkTrash(db, layout, works, composer, feed, options.workTrash);
   const projects = new ProjectService(db, works, feed, options.projects);
+  const projectRules = new ProjectRuleService(db, works);
   const assetLibrary = new AssetLibrary(db, layout, assets, feed, {
     ...options.assetLibrary,
     markdownReferrers: (asset) => media.markdownReferrers(asset),
@@ -493,7 +495,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     {
       schema: {
         description:
-          'Create a managed work. Send an `Idempotency-Key` header (required for agent tokens): repeating a request with the same key returns the original work with `Idempotent-Replayed: true` instead of creating another.',
+          'Create a managed work. Send an `Idempotency-Key` header (required for agent tokens): repeating a request with the same key returns the original work with `Idempotent-Replayed: true` instead of creating another. With `auto_assign: true` (QC-092) the work also goes into every project whose rules score it ≥ 0.8; `auto_assignment` in the response lists them and the 0.5–0.8 suggestions, with reasons.',
         body: CreateWorkRequestSchema,
         response: {
           201: WorkDetailSchema,
@@ -509,7 +511,34 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
         'POST /api/v1/works',
         req.headers[IDEMPOTENCY_KEY_HEADER],
         req.body,
-        () => ({ statusCode: 201, body: works.create(req.body) }),
+        () => {
+          // QC-092: auto_assign scores the new content against project rules
+          // (only the token's projects) and adds every project ≥ 0.8.
+          if (!req.body.auto_assign) return { statusCode: 201, body: works.create(req.body) };
+          const auto = projectRules.autoAssignment({
+            title: req.body.title,
+            markdown: req.body.markdown === '' ? (req.body.description ?? '') : req.body.markdown,
+            tags: req.body.tags,
+            source: req.body.source,
+          });
+          if (
+            currentProjectLimit() !== null &&
+            req.body.project_ids.length === 0 &&
+            auto.assigned.length === 0
+          ) {
+            throw new ServiceError(
+              403,
+              'project_scope',
+              'no project of this token fits the new work well enough; give project_ids',
+              {
+                project_ids: currentProjectLimit(),
+                suggested: auto.suggested.map((m) => m.project_id),
+              },
+            );
+          }
+          const work = works.create(req.body, { autoAssigned: auto.assigned });
+          return { statusCode: 201, body: { ...work, auto_assignment: auto } };
+        },
       );
       const work = WorkDetailSchema.parse(result.body);
       reply.code(result.statusCode).header('etag', revisionEtag(work.current_revision_id));
@@ -677,7 +706,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerAssetRoutes(app, assets, layout, { tusIdleTimeoutMs: options.tusIdleTimeoutMs });
   registerAssetLibraryRoutes(app, assetLibrary);
   registerWorkTrashRoutes(app, workTrash, works, idempotency);
-  registerProjectRoutes(app, projects);
+  registerProjectRoutes(app, projects, projectRules);
   await registerWorkThumbnailRoutes(app, works);
   registerEventRoutes(app, feed, options.heartbeatMs, scope);
   registerSessionRoutes(app, feed, scope);
