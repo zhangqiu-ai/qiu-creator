@@ -36,7 +36,14 @@
 
 三種語言的文案在新的 `packages/i18n/src/catalog/agents.ts`。
 
-**等 QC-092 交付後再做**：項目描述與規則的編輯和試算；作品卡上「由 Agent 歸入」的標示，以及「保留（改為手動）」「復原歸入」。
+7. **項目設定（QC-092 合併後補上）**：項目選單 ›「項目設定…」。
+   - 編輯描述與四份規則：關鍵字、標籤、來源資料夾、來源網域。
+   - 右側用 `previewRules` 即時試算最近 20 個作品，顯示分數、原因（依 `kind` 與 `value` 組三語文字）和結果。
+   - 儲存時帶 `base_revision`，遇到 409 會重新載入。
+8. **作品卡「由 Agent 歸入」**：卡片與列表的項目標籤。
+   - 作品的歸屬是 Agent 或規則加的時，標籤改成藍框加 Agent 圖示。點開彈出框，寫明誰、何時、分數和原因，並有「保留（改為手動）」「復原歸入」兩個按鈕。手動歸入回 409 `membership_manual` 時會提示。
+   - 每個有項目的作品讀一次 `workMemberships`，同時最多 4 個請求，結果快取起來；收到 `work.projects_changed` 時重新讀。
+   - 已修正：彈出框是 portal，但 React 事件仍會沿元件樹冒泡到卡片按鈕，點按鈕會打開作品。彈出框現在會擋下這些事件。
 
 ## 實作
 
@@ -49,6 +56,8 @@
 | 設定頁 | `AgentsSettings.tsx`、`agents-settings.ts`、`agents-settings.css`；`SettingsNav` 新分類 |
 | 匯入任務頁的連結卡 | `ImportsPage.tsx`；刪除 `TokensPanel.tsx`（`sortTokens` 移到 `agents-settings.ts`） |
 | 歷史標示 | `HistoryPanel.tsx` |
+| 項目設定、試算 | `ProjectRulesDialog.tsx`、`project-rules-ui.ts`；`project-menu.tsx` 加選單項；`ProjectsStore.patch` 可帶描述與規則、`previewRules` |
+| 「由 Agent 歸入」標示與浮層 | `agent-assign.tsx`（`MembershipCache`、`WorkProjectLabel`）；`LibraryPage.tsx` 提供 context |
 | 側欄列、路由、從收件匣打開時停在「提案」分頁 | `SidebarProjects.tsx`、`App.tsx`、`EditorTabs.tsx`（`sideAsk`） |
 | 圖示 `agentInbox`、`robot` | `Icon.tsx` |
 
@@ -63,7 +72,8 @@
   - MCP 設定的內容；
   - 活動的分類與文字，以及權杖設定變更的文字。
 - 單元測試的更新：`settings-v2.test.ts` 的設定分類從 6 個改為 7 個（原型新增的分類），`tasks.test.ts` 改從新位置匯入 `sortTokens`。
-- e2e `e2e/specs/agent-proposals.spec.ts`，兩個測試，Agent 都是測試服務上真的權杖：
+- 單元測試另外新增 `apps/mac/test/project-rules-ui.test.ts`，6 個測試，涵蓋規則值的整理與拒絕、原因文字，以及歸屬快取（每個作品只讀一次、限制並行數、事件後重讀）。
+- e2e `e2e/specs/agent-proposals.spec.ts`，三個測試，Agent 都是測試服務上真的權杖：
   - 收件匣：數字徽章、Agent 說明的引號框、部分採用。採用後，版本的 `agent.via` 是 `proposal`，沒勾的那處保持原樣。
   - 重疊：不能採用、三方對照、「不採用重疊的 1 處」、捨棄後移到已處理，原稿不變。
   - 編輯頁：從收件匣打開時停在「提案」分頁，正文標亮一處；就地採用後分頁消失，歷史顯示「採用 Claude Code 的提案」。
@@ -71,6 +81,8 @@
   - 直接修改的確認：焦點在取消、按鈕是紅色、要勾「我了解」才能按。
   - Agent 直接修改後，從活動記錄恢復上一版，作品內容回到原文。
   - 三語與深色截圖。
+  - 項目設定：加入關鍵字、標籤、網域（重複時提示，網域會整理格式）；試算在儲存前就更新，而且不會寫入；儲存後規則與描述寫入服務。
+  - Agent 用 `auto_assign` 建立作品後，卡片出現藍框標示。彈出框顯示分數和原因；打開它不會打開作品。「保留」後歸屬變成 user；「復原歸入」後作品離開項目。
 - e2e 沒有按「複製 MCP 設定」，因為會改寫使用者真實的系統剪貼簿。複製的內容由單元測試涵蓋。
 
 ## 截圖（`docs/evidence/qc091/`，e2e `QC091_SHOTS`，背景模式）
@@ -84,6 +96,8 @@
 | qc091-tokens-direct-confirm.png | 直接修改的確認框 |
 | qc091-tokens-direct-on.png | 已打開直接修改；活動有「恢復上一版」 |
 | qc091-tokens.png、qc091-tokens-zh-Hans.png、qc091-tokens-en.png、qc091-tokens-en-dark.png | 設定頁三語與深色 |
+| qc091-project-rules.png | 項目設定：描述、規則、試算 |
+| qc091-agent-assigned.png | 作品卡「由 Agent 歸入」與說明浮層 |
 
 ## NOT_VERIFIED
 
@@ -91,3 +105,12 @@
 - MCP 設定裡的 CLI 路徑是文件中的範例路徑：打包後的 App 不知道 `creatorhub` CLI 裝在哪裡。要用真正的 Agent 連線驗證，排在 QC-093。
 - 三方對照只能看、不能逐行挑選，是這次的簡化。
 - 收件匣的深色與英文只截了設定頁；收件匣本身的深色沒有截圖。
+
+## 數字（2026-11-24，已合併 origin/main ad957c7，負載 4–8）
+
+- typecheck 0（含 e2e）、root lint 0、format 0。
+- 單元測試逐一套件跑，全過，共 1,317：mac 465、mac-server 544、markdown-editor-web 62、domain 58、agent-sdk 41、installer 39、i18n 30、platform-preview 27、contracts 23、api-client 22、design-tokens 6。
+- e2e 一般模式：61 passed／10 skipped，0 failed。
+- e2e `QC_E2E_MOTION=on`：62 passed／9 skipped，0 failed。
+- 截圖執行：0 failed。
+- 第一輪完整檢查（合併 QC-092 之前）有兩個規格在兩種模式都失敗：`settings-theme`、`sidebar`。原因是它們仍斷言舊的設定分類與側欄項目，沒有原型新增的「Agent 與 MCP」和「Agent 提案」；已更新斷言。另外，`agent-proposals` 第一次跑時抓到兩個產品問題，都已修正：權杖範圍勾選不會立即反映，以及作品卡彈出框的點擊會冒泡到卡片。

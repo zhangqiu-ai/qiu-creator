@@ -4,6 +4,7 @@ import { ContextMenu, type MenuAnchor, type MenuEntry } from './ContextMenu.js';
 import { Dialog } from './Dialog.js';
 import { t } from './i18n.js';
 import type { Notice } from './project-actions.js';
+import { ProjectRulesDialog } from './ProjectRulesDialog.js';
 import {
   COLOR_NAME,
   moveInOrder,
@@ -14,7 +15,7 @@ import {
 } from './projects-store.js';
 
 /**
- * The project menu (QC-062): 重新命名, 顏色 ▸, 上移／下移, 封存, 刪除項目… —
+ * The project menu (QC-062): 重新命名, 顏色 ▸, 上移／下移, 項目設定… (QC-091), 封存, 刪除項目… —
  * the same entries from a sidebar row's right-click and from the ⋯ button
  * in a project's 作品庫 header. Deleting asks first, says how many works
  * become 未分類, and the notice offers 復原.
@@ -43,6 +44,8 @@ export function useProjectMenu({
     count: number;
     unsorted: number;
   } | null>(null);
+  /** 項目設定… (QC-091): description and rules, with a trial. */
+  const [settings, setSettings] = useState<string | null>(null);
 
   const move = (store: ProjectsStore, p: Project, step: -1 | 1) => {
     void store.reorder(moveInOrder(store.order, p.id, step));
@@ -140,6 +143,14 @@ export function useProjectMenu({
       { kind: 'sep', id: 'sep-2' },
       {
         kind: 'item',
+        id: 'settings',
+        label: t('agents.projSettings'),
+        onSelect: () => {
+          setSettings(p.id);
+        },
+      },
+      {
+        kind: 'item',
         id: 'archive',
         label: p.archived ? t('projects.unarchive') : t('projects.archive'),
         onSelect: () => {
@@ -159,6 +170,7 @@ export function useProjectMenu({
   };
 
   const project = menu === null || store === null ? null : store.find(menu.id);
+  const settingsProject = settings === null || store === null ? null : store.find(settings);
   const node = (
     <>
       {menu !== null && project !== null && store !== null && (
@@ -168,6 +180,18 @@ export function useProjectMenu({
           items={items(store, project)}
           onClose={() => {
             setMenu(null);
+          }}
+        />
+      )}
+      {settingsProject !== null && store !== null && (
+        <ProjectRulesDialog
+          store={store}
+          project={settingsProject}
+          onSaved={(message) => {
+            notify({ message });
+          }}
+          onClose={() => {
+            setSettings(null);
           }}
         />
       )}

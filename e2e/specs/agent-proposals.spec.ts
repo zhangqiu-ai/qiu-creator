@@ -332,3 +332,127 @@ test('設定 › Agent 與 MCP：範圍、直接修改的確認、限定項目�
     await page.emulateMedia({ colorScheme: 'light' });
   });
 });
+
+test('項目設定：描述、規則與試算；Agent 歸入的作品卡標示、保留與復原', async ({ desktop }) => {
+  test.setTimeout(120_000);
+  const { page, backend } = desktop;
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const c = backend.client;
+  const kyoto = await c.projects.create({ name: '京都旅行' });
+  await c.works.create({
+    title: '京都散步路線',
+    markdown: '# 京都散步路線\n\n從京都車站出發，先去錦市場。\n',
+    tags: ['京都'],
+  });
+  await c.works.create({
+    title: '一人食：番茄牛腩飯',
+    markdown: '# 一人食\n\n材料：番茄、牛腩。\n',
+  });
+  const agent = backend.tokens.create({ name: 'Claude Code', scopes: ['read', 'import', 'write'] });
+  const ac = agentClient(backend.baseUrl, agent.secret);
+  await page.reload();
+
+  await test.step('項目選單 › 項目設定…：描述、關鍵字、標籤；試算即時更新，儲存才寫入', async () => {
+    await page.locator('[data-project-row]').first().click({ button: 'right' });
+    await page.getByRole('menuitem', { name: '項目設定…' }).click();
+    const dialog = page.getByRole('dialog', { name: '項目設定 · 京都旅行' });
+    await dialog.getByRole('textbox', { name: '描述' }).fill('2026 年秋天京都七日行的所有內容。');
+    const keywords = dialog.getByRole('group', { name: '關鍵字' });
+    await keywords.getByRole('button', { name: '新增關鍵字' }).click();
+    await keywords.getByRole('textbox', { name: '新增關鍵字' }).fill('京都');
+    await page.keyboard.press('Enter');
+    await keywords.getByRole('textbox', { name: '新增關鍵字' }).fill('錦市場');
+    await page.keyboard.press('Enter');
+    await keywords.getByRole('textbox', { name: '新增關鍵字' }).fill('京都');
+    await page.keyboard.press('Enter');
+    await expect(keywords.getByRole('alert')).toHaveText('已經有「京都」了');
+    const tags = dialog.getByRole('group', { name: '標籤' });
+    await tags.getByRole('button', { name: '新增標籤' }).click();
+    await tags.getByRole('textbox', { name: '新增標籤' }).fill('#京都');
+    await page.keyboard.press('Enter');
+    const domains = dialog.getByRole('group', { name: '來源網域' });
+    await domains.getByRole('button', { name: '新增來源網域' }).click();
+    await domains
+      .getByRole('textbox', { name: '新增來源網域' })
+      .fill('https://www.kyoto.travel/en');
+    await page.keyboard.press('Enter');
+    await expect(domains).toContainText('kyoto.travel');
+    // The trial scores the latest works with these (unsaved) rules.
+    const trial = dialog.getByRole('region', { name: '試算：最近 20 個作品' });
+    const row = trial.locator('.pj-trial__row', { hasText: '京都散步路線' });
+    await expect(row).toContainText('會自動歸入');
+    await expect(row).toContainText('標題出現「京都」');
+    await expect(trial.locator('.pj-trial__row', { hasText: '一人食' })).toContainText(
+      '沒有符合的規則',
+    );
+    // Nothing is saved yet.
+    expect((await c.projects.list()).items[0]?.rules?.keywords ?? []).toEqual([]);
+    await shot(page, 'project-rules');
+    await dialog.getByRole('button', { name: '儲存' }).click();
+    await expect(dialog).toHaveCount(0);
+    const saved = (await c.projects.list()).items.find((p) => p.id === kyoto.id);
+    expect(saved?.description).toBe('2026 年秋天京都七日行的所有內容。');
+    expect(saved?.rules).toEqual({
+      keywords: ['京都', '錦市場'],
+      tags: ['京都'],
+      folders: [],
+      domains: ['kyoto.travel'],
+    });
+  });
+
+  await test.step('Agent 依規則自動歸入：作品卡藍框加 Agent 圖示，說明浮層；保留改為手動', async () => {
+    const made = await ac.works.create(
+      {
+        title: '京都錦市場吃什麼',
+        markdown: '# 京都錦市場吃什麼\n\n京都的錦市場有很多小吃。\n',
+        tags: ['京都'],
+        auto_assign: true,
+      },
+      { idempotencyKey: 'qc091-assign-first' },
+    );
+    expect(made.auto_assignment?.assigned.map((m) => m.project_id)).toEqual([kyoto.id]);
+    const card = page.getByRole('region', { name: '作品', exact: true }).locator('.wcard', {
+      hasText: '京都錦市場吃什麼',
+    });
+    const badge = card.getByRole('button', { name: '由 Agent 歸入「京都旅行」，查看說明' });
+    await expect(badge).toBeVisible();
+    await badge.click();
+    const pop = page.getByRole('dialog', { name: '由 Claude Code 歸入「京都旅行」' });
+    await expect(pop).toContainText(/自動歸入（分數 0\.\d\d）/);
+    await expect(pop).toContainText('標題出現「京都」');
+    await shot(page, 'agent-assigned');
+    // Opening the explanation did not open the work.
+    await expect(page.locator('.tab-pane:not([hidden]) .qc-md-editor__content')).toHaveCount(0);
+    await pop.getByRole('button', { name: '保留（改為手動）' }).click();
+    await expect(
+      page.locator('[data-toast]').filter({ hasText: '已把「京都旅行」改為手動歸入' }),
+    ).toBeVisible();
+    await expect(badge).toHaveCount(0);
+    const kept = await c.projects.workMemberships(made.id);
+    expect(kept.items[0]?.added_by.kind).toBe('user');
+  });
+
+  await test.step('復原歸入：作品離開項目', async () => {
+    const made = await ac.works.create(
+      {
+        title: '京都錦市場第二輪',
+        markdown: '# 京都錦市場第二輪\n\n京都錦市場再訪。\n',
+        tags: ['京都'],
+        auto_assign: true,
+      },
+      { idempotencyKey: 'qc091-assign-second' },
+    );
+    const card = page.getByRole('region', { name: '作品', exact: true }).locator('.wcard', {
+      hasText: '京都錦市場第二輪',
+    });
+    await card.getByRole('button', { name: /由 Agent 歸入/ }).click();
+    await page
+      .getByRole('dialog', { name: /由 Claude Code 歸入/ })
+      .getByRole('button', { name: '復原歸入' })
+      .click();
+    await expect(
+      page.locator('[data-toast]').filter({ hasText: '已把「京都錦市場第二輪」移出「京都旅行」' }),
+    ).toBeVisible();
+    await expect.poll(async () => (await c.works.get(made.id)).project_ids ?? []).toEqual([]);
+  });
+});
