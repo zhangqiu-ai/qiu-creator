@@ -74,6 +74,25 @@ export const ErrorCodeSchema = z.enum([
   'body_not_editable',
   /** The work is in 回收站; restore it before editing (409, QC-051). */
   'work_in_trash',
+  /**
+   * QC-089: an agent token may not change a work's text (Markdown,
+   * description, restoring a revision) unless the owner turned on
+   * `allow_direct_body_edit` for it; propose the change instead (403).
+   */
+  'direct_edit_not_allowed',
+  /**
+   * QC-089: a proposal's changes overlap edits made after its base, so it
+   * cannot be accepted as is (409); `details.conflicts` has base, mine and
+   * theirs for each overlapping change.
+   */
+  'proposal_conflict',
+  /** QC-089: the proposal was already accepted or discarded (409). */
+  'proposal_closed',
+  /**
+   * QC-089: a token limited to some projects tried to act outside them, e.g.
+   * create a work in no allowed project (403). Reads outside are plain 404.
+   */
+  'project_scope',
   /** No card image to serve: `details.reason` none/missing/needs_frame/decode_failed (404, QC-061). */
   'thumbnail_unavailable',
   /** The uploaded frame is for a video or time the work no longer uses as its card; reload (409, QC-061). */

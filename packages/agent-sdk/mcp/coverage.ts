@@ -44,6 +44,11 @@ export const MCP_EXCLUDED: Readonly<Record<string, string>> = {
     'deprecated since QC-084 (QC-084 後已棄用): variants are overrides; variant_update writes them',
   'POST /api/v1/works/:id/variants/:platform/draft':
     'deprecated since QC-084 (QC-084 後已棄用): variant_update with reset_all follows the work again',
+  // QC-089: accepting or discarding a proposal is the user's decision.
+  'POST /api/v1/proposals/:id/accept':
+    "owner only: accepting a proposal is the user's decision (使用者確認), never an agent's",
+  'POST /api/v1/proposals/:id/discard':
+    "owner only: discarding a proposal is the user's decision (使用者確認)",
   'POST /api/v1/assets/uploads':
     'single-request upload for the app; asset_upload_file always uses the resumable tus path',
   // External folder mounts are the owner's (docs/mcp-plan.md §4).

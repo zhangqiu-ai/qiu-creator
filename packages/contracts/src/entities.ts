@@ -120,6 +120,22 @@ export const RevisionSchema = z.object({
   source: RevisionSourceSchema,
   /** For `ai_accepted` revisions: the AI job whose candidate was accepted (QC-022). */
   ai_job_id: IdSchema.nullable().optional(),
+  /**
+   * The agent behind this revision (QC-089): a proposal the user accepted
+   * (`via: proposal`, `source` is `edit`) or a direct body edit by a token
+   * allowed to make one (`via: direct`). `restore_to` is the revision just
+   * before, kept as the snapshot to restore. Null or absent otherwise.
+   */
+  agent: z
+    .object({
+      token_id: IdSchema,
+      name: z.string(),
+      via: z.enum(['proposal', 'direct']),
+      proposal_id: IdSchema.nullable(),
+      restore_to: IdSchema.nullable(),
+    })
+    .nullable()
+    .optional(),
 });
 export type Revision = z.infer<typeof RevisionSchema>;
 

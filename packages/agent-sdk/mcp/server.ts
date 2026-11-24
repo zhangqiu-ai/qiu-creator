@@ -70,7 +70,7 @@ export function createCreatorHubMcpServer(options: CreatorHubMcpOptions): McpSer
         'CreatorHub is the user’s content workbench on their Mac (works, assets, projects, platform versions for 小紅書, 公眾號, 抖音, 視頻號).',
         'Call server_status first to see which tools this token may use.',
         'Edits need the base_revision you read; on 409 read again, merge, and retry with details.current_revision. Create and import calls take an idempotency_key: reuse it only to retry the same request.',
-        'Agents never change the text of a work (its Markdown or description): that stays with the user.',
+        'To change the text of a work (its Markdown or description), use work_propose_edit: the user accepts or discards each change. Only tokens the user allowed to edit text directly may use work_update_body.',
         USER_DATA_NOTE,
       ].join(' '),
     },
@@ -94,7 +94,7 @@ export function createCreatorHubMcpServer(options: CreatorHubMcpOptions): McpSer
           if (def.name !== 'server_status') return toResult(value);
           // Add which enabled tools this token may call.
           const status = value as {
-            token: { kind: string; scopes: readonly string[] };
+            token: { kind: string; scopes: readonly string[]; allow_direct_body_edit: boolean };
           };
           return toResult({
             ...status,
@@ -102,7 +102,11 @@ export function createCreatorHubMcpServer(options: CreatorHubMcpOptions): McpSer
             tools: tools.map((t) => ({
               name: t.name,
               access: t.access,
-              allowed: allows(status.token.scopes, status.token.kind === 'owner', t.access),
+              allowed:
+                allows(status.token.scopes, status.token.kind === 'owner', t.access) &&
+                (t.directBodyEdit !== true ||
+                  status.token.kind === 'owner' ||
+                  status.token.allow_direct_body_edit),
             })),
           });
         } catch (err) {

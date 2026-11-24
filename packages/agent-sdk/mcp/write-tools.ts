@@ -138,8 +138,9 @@ export const WRITE_TOOLS: readonly McpToolDef[] = [
     group: 'works',
     access: 'write',
     routes: ['POST /api/v1/works/:id/revisions/:rid/restore'],
+    directBodyEdit: true,
     description:
-      "Make an earlier revision current again (work_revisions lists them). History is never rewritten: this adds a new 'restore' revision. base_revision is the current revision you read.",
+      "Make an earlier revision current again (work_revisions lists them). This changes the text, so it needs the token's allow_direct_body_edit switch (403 direct_edit_not_allowed otherwise). History is never rewritten: this adds a new 'restore' revision. base_revision is the current revision you read.",
     inputSchema: {
       id: id('work'),
       revision_id: id('revision to restore'),

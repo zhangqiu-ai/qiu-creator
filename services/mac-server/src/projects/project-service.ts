@@ -18,6 +18,7 @@ import {
 } from '@qiu-creator/contracts';
 import { checkRevision, resolveBaseRevision } from '@qiu-creator/domain';
 import { PROJECT_ASSETS_SQL } from '../assets/asset-service.js';
+import { currentProjectLimit } from '../auth/project-scope.js';
 import type { Db } from '../db/database.js';
 import { notFound, ServiceError } from '../errors.js';
 import type { ChangeFeed } from '../events/change-feed.js';
@@ -83,7 +84,11 @@ export class ProjectService {
 
   /** Every project that is not deleted, archived ones included, in sidebar order. */
   list(): Project[] {
-    return this.rows('p.deleted_at IS NULL').map(toProject);
+    // QC-089: a token limited to projects lists only those.
+    const limit = currentProjectLimit();
+    return this.rows('p.deleted_at IS NULL')
+      .map(toProject)
+      .filter((p) => limit === null || limit.includes(p.id));
   }
 
   get(id: string): Project {

@@ -38,6 +38,8 @@ import {
   sha256Hex,
   writeWorkSource,
 } from '@qiu-creator/domain';
+import { currentPrincipal } from '../auth/actor-context.js';
+import { currentProjectLimit, WORK_IN_LIMIT_SQL } from '../auth/project-scope.js';
 import type { Db } from '../db/database.js';
 import { notFound, ServiceError } from '../errors.js';
 import type { ChangeFeed } from '../events/change-feed.js';
@@ -122,6 +124,27 @@ interface RevisionRow {
   created_at: string;
   /** Only for `ai_accepted` revisions. */
   ai_job_id?: string | null;
+  /** QC-089: the agent behind it (an accepted proposal, or a direct edit). */
+  agent_token_id?: string | null;
+  agent_name?: string | null;
+  agent_via?: string | null;
+  proposal_id?: string | null;
+}
+
+/** Who an agent-made revision is from (QC-089). */
+export interface RevisionAgent {
+  tokenId: string;
+  name: string;
+  via: 'proposal' | 'direct';
+  proposalId: string | null;
+}
+
+/** The agent making the current request, if any: its writes are direct edits. */
+function requestAgent(): RevisionAgent | null {
+  const p = currentPrincipal();
+  return p?.kind === 'agent'
+    ? { tokenId: p.id, name: p.name, via: 'direct', proposalId: null }
+    : null;
 }
 
 export interface PatchWorkInput {
@@ -432,6 +455,12 @@ export class WorkService {
       q.scope === 'trash' ? 'w.deleted_at IS NOT NULL' : 'w.deleted_at IS NULL',
     ];
     const params: (string | number)[] = [];
+    // QC-089: a token limited to projects only sees works in them.
+    const limit = currentProjectLimit();
+    if (limit !== null) {
+      where.push(WORK_IN_LIMIT_SQL);
+      params.push(JSON.stringify(limit));
+    }
     // QC-062: one project, or works in no live project (archived ones count).
     if (q.project_id !== undefined && q.unassigned === '1') {
       throw new ServiceError(400, 'validation_error', 'send project_id or unassigned, not both');
@@ -649,6 +678,26 @@ export class WorkService {
     });
   }
 
+  /**
+   * Write the text the user accepted from an agent's proposal (QC-089) as a
+   * new `edit` revision naming the agent and the proposal. 409 when the work
+   * changed since `baseRevision`.
+   */
+  applyProposal(
+    id: string,
+    baseRevision: string,
+    markdown: string,
+    agent: RevisionAgent,
+  ): WorkDetail {
+    const row = this.checkedRow(id, baseRevision, 'accept a proposal');
+    return this.commitRevision(row, {
+      markdown,
+      source: 'edit',
+      agent,
+      event: { fields: ['markdown'], proposal_id: agent.proposalId },
+    });
+  }
+
   /** Markdown of one revision (for AI prompts built from a fixed source revision). */
   revisionMarkdown(id: string, revisionId: string): string {
     return this.readSnapshot(this.requireRevision(id, revisionId));
@@ -704,8 +753,11 @@ export class WorkService {
       aiJobId?: string;
       /** Front-matter paths → library asset ids to remember (QC-045/046). */
       mediaIndex?: Record<string, string>;
+      /** QC-089: set for accepted proposals; otherwise the requesting agent, if any. */
+      agent?: RevisionAgent;
     },
   ): WorkDetail {
+    const agent = change.agent ?? requestAgent();
     const id = row.id;
     const sourceAbs = this.writableSource(row);
     const previous = this.readCurrent(row);
@@ -758,12 +810,19 @@ export class WorkService {
           source: change.source,
           created_at: now,
           ai_job_id: change.aiJobId ?? null,
+          agent_token_id: agent?.tokenId ?? null,
+          agent_name: agent?.name ?? null,
+          agent_via: agent?.via ?? null,
+          proposal_id: agent?.proposalId ?? null,
         });
         this.indexFts(id, title, tags, markdown);
         this.feed?.record('work', id, 'work.updated', {
           revision_id: revisionId,
           source: change.source,
           ...change.event,
+          ...(agent === null
+            ? {}
+            : { agent: { token_id: agent.tokenId, name: agent.name, via: agent.via } }),
         });
       })();
     } catch (err) {
@@ -1291,7 +1350,8 @@ export class WorkService {
     this.db
       .prepare(
         `INSERT INTO revisions (revision_id, work_id, parent_revision_id, content_hash, snapshot_path,
-           title, source, created_at, ai_job_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           title, source, created_at, ai_job_id, agent_token_id, agent_name, agent_via, proposal_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         r.revision_id,
@@ -1303,6 +1363,10 @@ export class WorkService {
         r.source,
         r.created_at,
         r.ai_job_id ?? null,
+        r.agent_token_id ?? null,
+        r.agent_name ?? null,
+        r.agent_via ?? null,
+        r.proposal_id ?? null,
       );
   }
 
@@ -1334,6 +1398,16 @@ function toRevision(r: RevisionRow): Revision {
     created_at: r.created_at,
     source: r.source as RevisionSource,
     ai_job_id: r.ai_job_id ?? null,
+    agent:
+      r.agent_token_id === null || r.agent_token_id === undefined
+        ? null
+        : {
+            token_id: r.agent_token_id,
+            name: r.agent_name ?? '',
+            via: r.agent_via === 'proposal' ? 'proposal' : 'direct',
+            proposal_id: r.proposal_id ?? null,
+            restore_to: r.parent_revision_id,
+          },
   };
 }
 

@@ -17,11 +17,11 @@ export type ToolGroup = Toolset | 'core';
  * `any`: every valid token. `read_or_own_import`: `read`, or an `import`
  * token for jobs it created itself.
  */
-export type ToolAccess = 'any' | 'read' | 'read_or_own_import' | 'import' | 'write';
+export type ToolAccess = 'any' | 'read' | 'read_or_own_import' | 'import' | 'write' | 'propose';
 
 /** Tools that only read: everything but `import` and `write`. */
 export const isReadOnly = (access: ToolAccess): boolean =>
-  access !== 'import' && access !== 'write';
+  access !== 'import' && access !== 'write' && access !== 'propose';
 
 /** Appended to every tool that returns the user's content. */
 export const USER_DATA_NOTE =
@@ -37,6 +37,8 @@ export interface McpToolDef {
   inputSchema: z.ZodRawShape;
   /** Removes or hides something (reversibly, e.g. to 回收站); a hint for the agent's UI. */
   destructive?: boolean;
+  /** QC-089: also needs the token's allow_direct_body_edit switch (changes a work's text). */
+  directBodyEdit?: boolean;
   /** Validated arguments in, JSON-serialisable result (or text) out. */
   run(client: CreatorHubClient, args: Record<string, unknown>): Promise<unknown>;
 }
@@ -50,6 +52,7 @@ export function tool<S extends z.ZodRawShape>(def: {
   description: string;
   inputSchema: S;
   destructive?: boolean;
+  directBodyEdit?: boolean;
   run: (client: CreatorHubClient, args: z.output<z.ZodObject<S>>) => Promise<unknown>;
 }): McpToolDef {
   // Strict: an argument the tool does not take (e.g. markdown on work_update_meta)
@@ -87,6 +90,14 @@ export function retryHint(status: number | null, code: string | null, details: u
       return `This token lacks the "${typeof d['required'] === 'string' ? d['required'] : 'needed'}" permission. Do not retry; tell the user, who can grant it to the token in CreatorHub.`;
     case 'idempotency_key_reused':
       return 'This idempotency_key was already used for a different request. Reuse a key only to retry the identical request; use a new key for a new request.';
+    case 'direct_edit_not_allowed':
+      return 'This token may not change the text directly. Use work_propose_edit: the user accepts or discards the proposal. Do not retry.';
+    case 'proposal_conflict':
+      return 'Some chosen changes overlap edits made after the proposal; the user has to merge them (details.conflicts). Do not retry unchanged.';
+    case 'proposal_closed':
+      return 'The proposal was already accepted or discarded; read it again (proposal_get).';
+    case 'project_scope':
+      return `This token is limited to some projects${Array.isArray(d['project_ids']) ? ` (${d['project_ids'].map(String).join(', ')})` : ''}; act only inside them, e.g. give one of them in project_ids.`;
     case 'work_in_trash':
       return 'The work is in 回收站. Restore it with work_restore first if the user wants it back.';
     case 'not_found':

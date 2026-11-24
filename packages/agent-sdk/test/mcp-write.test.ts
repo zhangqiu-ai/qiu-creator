@@ -256,12 +256,21 @@ describe('MCP scenario: edits, conflicts and history', () => {
     expect(noBase.isError).toBe(true);
     expect((await owner.works.get(work.id)).markdown).toBe('原文');
 
-    // Restore the first revision: a new revision, history kept.
-    const restored = await ok<WorkDetail>(c, 'work_restore_revision', {
+    // Restoring changes the text: it needs the direct-edit switch (QC-089).
+    const restoreArgs = {
       id: work.id,
       revision_id: work.current_revision_id,
       base_revision: v2.current_revision_id,
-    });
+    };
+    const noSwitch = await fails(c, 'work_restore_revision', restoreArgs);
+    expect(noSwitch).toMatchObject({ status: 403, code: 'direct_edit_not_allowed' });
+    expect(noSwitch.retry).toContain('work_propose_edit');
+    const token = (await owner.tokens.list()).items.find(
+      (t) => t.name === 'agent read+import+write',
+    );
+    await owner.tokens.update(token?.id ?? '', { allow_direct_body_edit: true });
+    // Restore the first revision: a new revision, history kept.
+    const restored = await ok<WorkDetail>(c, 'work_restore_revision', restoreArgs);
     expect(restored.title).toBe('舊標題');
     expect((await owner.works.revisions(work.id)).items).toHaveLength(3);
   });

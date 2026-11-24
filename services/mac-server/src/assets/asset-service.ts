@@ -18,6 +18,7 @@ import {
 } from '@qiu-creator/contracts';
 import { pinyinKey, searchKey } from '@qiu-creator/domain/search';
 import { sha256Hex, UnsafePathError } from '@qiu-creator/domain';
+import { ProjectScope } from '../auth/project-scope.js';
 import type { Db } from '../db/database.js';
 import { notFound, ServiceError } from '../errors.js';
 import type { ChangeFeed } from '../events/change-feed.js';
@@ -227,6 +228,8 @@ export interface IngestResult {
 
 export class AssetService {
   readonly limits: SizeLimits;
+  /** QC-089: hides works outside an agent token's projects. */
+  private readonly scope: ProjectScope;
   private readonly ffprobe: string | null;
 
   constructor(
@@ -237,6 +240,7 @@ export class AssetService {
     options: AssetServiceOptions = {},
   ) {
     this.limits = options.limits ?? DEFAULT_SIZE_LIMITS;
+    this.scope = new ProjectScope(db);
     this.ffprobe = options.ffprobe ?? null;
     jobs?.register('asset.thumbnail', (job) => this.runThumbnailJob(job));
     jobs?.register('asset.probe', (job) => this.runProbeJob(job));
@@ -411,7 +415,8 @@ export class AssetService {
          WHERE wa.asset_id = ? AND w.deleted_at IS NULL
          ORDER BY w.updated_at DESC, w.id, wa.role`,
       )
-      .all(assetId);
+      .all(assetId)
+      .filter((w) => this.scope.allowsWork(w.work_id));
   }
 
   workAssets(workId: string): WorkAssetItem[] {

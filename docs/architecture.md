@@ -183,6 +183,13 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 `0011_change_log_system_entity`：`change_log.entity` 允許 `system`（備份事件，QC-030）。SQLite 無法修改 CHECK，所以重建資料表，保留 `seq` 與 AUTOINCREMENT 的最高值，SSE 的 id 不會倒退。
 
+`0021_agent_proposals_activity`（QC-089）：只加欄位與資料表。
+
+- `api_tokens` 加 `allow_direct_body_edit`、`project_ids`；`change_log` 加 `actor`。
+- `revisions` 加 `agent_token_id`、`agent_name`、`agent_via`（proposal／direct）、`proposal_id`。版本的 `source` 仍用既有值，不重建有 CHECK 的資料表。
+- 新增 `proposals`、`token_activity`。
+- 回滾用 `AGENT_PROPOSALS_ROLLBACK_SQL`：先移除權杖範圍中的 `propose` 和 `proposal.*` 事件（舊版不認得），再刪表與欄位。詳見「Agent 提案、直接修改、項目限定與活動記錄（QC-089）」。
+
 `0020_variant_overrides`（QC-084）：`platform_variants` 與 `platform_variant_revisions` 新增覆寫值欄位（只加欄位），舊列在第一次存取時轉換；回滾用 `VARIANT_OVERRIDES_ROLLBACK_SQL`。詳見「覆寫值與推導正文（QC-084）」。`0018`、`0019` 見各自章節。
 
 `0017_projects`（QC-062）：
@@ -301,6 +308,11 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | POST | `/api/v1/works/:id/ai/jobs/:jobId/accept` | 採用改寫：送出前端組好的全文，以 `base_revision = source_revision` 寫成 `ai_accepted` 版本；原稿已變回 409 |
 | POST／GET | `/api/v1/tokens` | 建立／列出 Agent 權杖（只限主權杖） |
 | DELETE | `/api/v1/tokens/:id` | 撤銷 Agent 權杖，立即失效 |
+| PATCH | `/api/v1/tokens/:id` | 改名稱、權限範圍、`allow_direct_body_edit`、`project_ids`（只限主權杖；變更寫進該權杖的活動記錄）（QC-089） |
+| GET | `/api/v1/tokens/:id/activity` | 權杖的活動記錄，新到舊，`before` 分頁（只限主權杖）（QC-089） |
+| POST | `/api/v1/works/:id/proposals` | Agent 提出正文修改（`propose`；Agent 須帶 `Idempotency-Key`），拆成有穩定 id 的 hunk，不寫入作品（QC-089） |
+| GET | `/api/v1/proposals`、`/api/v1/proposals/counts`、`/api/v1/proposals/:id` | 提案列表（pending／done／all，可依作品或權杖過濾）、側欄數量、單一提案（含 hunk 的重疊狀態與三方比對輸入）（QC-089） |
+| POST | `/api/v1/proposals/:id/accept`、`…/discard` | 採用全部或部分 hunk（成為新版本）／捨棄（保留 30 天），只限主權杖（QC-089） |
 
 - **鑑權：** `/api/*` 一律要 `Authorization: Bearer <token>`，可以是主權杖（使用者自己、Electron）或 Agent 權杖；無效或已撤銷回 401，權限不足回 403 `forbidden`。詳見下文「Agent 權杖與權限」。
 - **錯誤格式：** `{"error":{"code","message","details?"}}`，`code` 見 contracts 的 `ErrorCodeSchema`。
@@ -1081,10 +1093,66 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
   - `read`：所有 GET（作品、素材、任務、SSE 事件）。
   - `import`：建立作品、上傳（直傳與 tus）、URL 匯入、重跑匯入任務，以及查看**自己建立的**匯入任務（`GET /api/v1/jobs/:id`；別人的任務回 404，不洩漏網址）。
   - `write`：修改作品、作品與素材的關聯與排序；把作品移到回收站、恢復、批量操作（QC-051）；項目的所有修改與作品歸屬（QC-062）。
-  - `GET /api/v1/session` 任何有效權杖都能讀（`any`），讓 Agent 知道自己能用哪些工具（QC-087）。
+  - `propose`（QC-089）：對作品提出正文修改（`POST /api/v1/works/:id/proposals`）。採用與捨棄是使用者的決定，只限主權杖。
+  - `GET /api/v1/session` 任何有效權杖都能讀（`any`），讓 Agent 知道自己能用哪些工具，以及是否允許直接修改正文、限定哪些項目（QC-087、QC-089）。
   - 未列出的 `/api` 路由（包括之後新增的）預設只有主權杖能用，不會在無意間開放給 Agent。
 
-## MCP（QC-087、QC-088）
+## Agent 提案、直接修改、項目限定與活動記錄（QC-089）
+
+規格見已核准原型 PT-20261124-001 的後端需求，以及[決策記錄](decisions.md) 2026-11-24 的兩條。
+
+**誰在操作（`src/auth/actor-context.ts`）：**
+
+- 每個請求在第一個 `onRequest` hook 裡用 AsyncLocalStorage 開一個「操作者」槽，鑑權後填入 principal。服務不必逐層傳參數，就能知道是誰。
+- 用到的地方有三個：
+  - `change_log.actor`：`owner`、Agent 權杖 id；背景任務、計時器、外部編輯為 null。SSE 與 `/changes` 的事件會帶出 `actor`。
+  - Agent 寫入的版本會標明是哪個 Agent。
+  - 項目限定的過濾。
+
+**Agent 不能直接改正文（`src/auth/agent-rules.ts`）：**
+
+- 以下操作需要該權杖的 `allow_direct_body_edit`，否則回 403 `direct_edit_not_allowed`，`details.alternative` 為 `propose`：
+  - `PATCH /works/:id` 帶 `markdown` 或 `description`；
+  - 恢復舊版本（也會改變正文）。
+- 開關預設關，只有主權杖能用 `PATCH /tokens/:id` 打開；每次變更都寫進該權杖的活動記錄。
+- Agent 寫入的版本（含中繼資料修改）帶 `agent: {token_id, name, via: 'direct', proposal_id: null, restore_to}`：
+  - `restore_to` 是寫入前的版本。版本快照本來就不可變，所以這就是「寫入前的快照」，可以一鍵恢復。
+  - `source` 仍是 `edit`：沒有新增 source 值，因為 App 的 `REVISION_SOURCE_LABEL` 是窮舉表。
+- 外部掛載的作品照原稿保護規則寫入（暫存檔、原子替換、核對 revision、檔案不見時 409）。
+
+**提案（`src/proposals/`、`packages/domain/src/proposal-diff.ts`）：**
+
+- **建立：** Agent 送出整份提議的 Markdown 與它依據的 `base_revision`，服務拆成 hunk（`h1`、`h2`…，依文中順序，之後不變）存起來，不寫入作品。與 base 相同回 400；base 不是該作品的版本回 404。
+- **重疊狀態**，依「base → 現在」的行級修改判斷：
+  - `none`：作品仍在 base。
+  - `stale`：作品已改，但不在 hunk 的位置，仍可採用；hunk 會套到目前的正文上，對應位置的行在兩邊相同。
+  - `conflict`：有 hunk 和之後的修改共用行，或插入點貼著修改的邊界。這類 hunk 不能採用；`conflicts` 給每個重疊區域的 base、mine（現在）、theirs（提案）。
+- **採用（只限主權杖）：** `base_revision` 必須是使用者看到的目前版本，否則 409 `revision_conflict`；`hunk_ids` 可以只選一部分。
+  - 選到重疊的 hunk 時回 409 `proposal_conflict`，帶 `details.conflicts`，什麼都不寫入。
+  - 成功時寫成新版本，`agent.via = 'proposal'` 並帶 `proposal_id`。提案狀態變為 `accepted` 或 `partially_accepted`，記下 `accepted_hunk_ids` 與 `result_revision_id`。
+  - 已決定的提案再採用或捨棄，回 409 `proposal_closed`。
+- **捨棄：** 狀態變為 `discarded`，`expires_at` 為 30 天後；每小時清掉過期的提案。
+- **事件：** `proposal.created`、`proposal.updated`，實體是 `work`（`entity_id` 為作品 id，`data.proposal_id`），因此不必重建 `change_log`，項目限定的事件過濾也自然適用。
+- **側欄數量：** `GET /proposals/counts` 回 `{pending, by_work}`。
+
+**權杖限定項目：** `project_ids` 為 null 時不限；有值時：
+
+- 作品列表、搜尋、facets、refs 只含這些項目裡的作品（`WorkService.filterSql`）。
+- `/works/:id/…` 與 `/projects/:id/…` 在範圍外一律回 404 `not_found`，和不存在的作品一樣，不洩漏是否存在。
+- 項目列表只列這些項目；不能新增或重排項目（403 `project_scope`）。
+- 新作品必須放進其中一個項目（403 `project_scope`）。批量和歸入只能動範圍內的作品與項目。
+- 素材的引用與「用到此素材的作品」只列範圍內的作品；素材庫本身維持共用（QC-062 的決定）。
+- 任務只看得到自己建立的；`/changes` 與 SSE 不送範圍外作品或項目的事件；提案只列範圍內作品的。
+
+**活動記錄（`token_activity`）：**
+
+- 記錄的內容：
+  - Agent 權杖每個會改東西的請求，以及每個被拒絕（4xx、5xx）的請求，包含方法、路由樣式、目標、狀態碼、結果（ok、rejected、error）、錯誤碼與訊息、產生的 revision（取自 ETag）。
+  - 主權杖對該權杖的變更（`kind: token_updated`）。
+- 成功的讀取不記錄。每個權杖保留最近 2000 筆。
+- 查詢用 `GET /tokens/:id/activity`，只限主權杖。
+
+## MCP（QC-087、QC-088、QC-089）
 
 設計與任務拆分見 [MCP 規劃](mcp-plan.md)。`creatorhub mcp` 是由 Agent（Claude Code、Codex、Claude Desktop）在本機啟動的 stdio MCP 伺服器，程式在 `packages/agent-sdk/mcp/`。
 
@@ -1129,7 +1197,12 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 | `works_assign_projects` | `POST /api/v1/works/batch/projects` | write |
 | `variant_update` | `PATCH /api/v1/works/:id/variants/:platform`；`reset_all` 時 `DELETE` 同一路由 | write |
 
-- **不改正文：** 沒有任何工具能改作品的 Markdown 或簡介（正文的提案與直接修改是 QC-089）。
+- **正文（QC-089）：**
+  - Agent 用 `work_propose_edit`（`propose`）提出修改，由使用者在 App 採用或捨棄。
+  - `proposals_list`（含數量）與 `proposal_get` 查詢結果。
+  - 只有使用者打開「允許直接修改正文」的權杖，才能用 `work_update_body`（write，`PATCH /works/:id` 的 `markdown` 或 `description`）和 `work_restore_revision`；否則回 403 `direct_edit_not_allowed`，提示改用提案。
+  - `server_status` 的 `allowed` 也把這個開關算進去。
+  - 其他工具都不能改正文。
   - 工具參數一律是 strict schema：多送 `markdown` 這類工具不收的欄位，會回錯誤，不會被默默丟掉。
   - `variant_update` 的 `body` 只能是 null。
 - **冪等鍵：** `work_create`、`asset_import_url`、`works_batch` 必須帶 `idempotency_key`。
@@ -1141,6 +1214,9 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
   - 403：缺哪個權限，不要重試，請使用者授權。
   - 422 冪等鍵重複：同一把鍵只用於重送同一個請求。
   - `work_in_trash`：先用 `work_restore`。
+  - `direct_edit_not_allowed`：改用 `work_propose_edit`。
+  - `proposal_conflict`：由使用者合併。
+  - `project_scope`：列出可用的項目。
   - 5xx 或網路錯誤：用同一把冪等鍵重試。
 - **工具提示（annotations）：**
   - `readOnlyHint` 依權限判斷，import 與 write 為 false。
@@ -1162,6 +1238,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
   - `PUT /projects/order`：側欄排序屬於使用者介面偏好。
   - 平台版本的 generate 與 draft：QC-084 後已棄用。
   - 單次直傳 `POST /assets/uploads`：MCP 一律走 tus。
+  - QC-089：提案的採用與捨棄只限主權杖，因為那是使用者的確認。權杖的更新與活動記錄落在既有的 `/api/v1/tokens` 排除範圍。
 - `MCP_PENDING`：路由先上線、工具隨後補上時使用，須寫明由哪個任務補上。QC-088 起清空，測試也斷言它是空的。
 
 兩個相關測試：
@@ -1300,7 +1377,7 @@ Claude Desktop（`~/Library/Application Support/Claude/claude_desktop_config.jso
 
 ## 變更事件（SSE）
 
-`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `ai_job.queued`／`running`／`progress`／`succeeded`／`failed`／`cancelled`（AI 任務）、`work.variant_created`／`work.variant_updated`／`work.variant_deleted`／`work.variant_changed`（平台版本；QC-084 起覆寫值改變時發 `variant_changed`，帶 `data.fields`）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`（素材進出回收站時 `data.change` 為 `trashed`／`restored`／`deleted`）、`asset.created`、`asset.updated`（編輯時 `data.fields`、`data.revision`）、`asset.trashed`（`data.removal`）、`asset.restored`、`asset.deleted`（`data.removal`、`data.reason`：`manual`／`empty`／`expired`）（QC-037）、`work.trashed`（`data.removal`）、`work.restored`、`work.deleted`（`data.removal`、`data.reason`）（QC-051）、`work.projects_changed` 與實體 `project` 的 `project.created`／`updated`／`deleted`／`restored`／`reordered`（QC-062）、`job.queued`、`job.running`、`job.succeeded`、`job.failed`，以及實體 `system`（`entity_id` 為 `database`）的 `backup.created`／`backup.failed`／`backup.restore_started`／`backup.restored`（QC-030）。
+`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `ai_job.queued`／`running`／`progress`／`succeeded`／`failed`／`cancelled`（AI 任務）、`work.variant_created`／`work.variant_updated`／`work.variant_deleted`／`work.variant_changed`（平台版本；QC-084 起覆寫值改變時發 `variant_changed`，帶 `data.fields`）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`；Agent 寫入時帶 `data.agent`，採用提案時帶 `data.proposal_id`）、實體 `work` 的 `proposal.created`／`proposal.updated`（QC-089）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`（素材進出回收站時 `data.change` 為 `trashed`／`restored`／`deleted`）、`asset.created`、`asset.updated`（編輯時 `data.fields`、`data.revision`）、`asset.trashed`（`data.removal`）、`asset.restored`、`asset.deleted`（`data.removal`、`data.reason`：`manual`／`empty`／`expired`）（QC-037）、`work.trashed`（`data.removal`）、`work.restored`、`work.deleted`（`data.removal`、`data.reason`）（QC-051）、`work.projects_changed` 與實體 `project` 的 `project.created`／`updated`／`deleted`／`restored`／`reordered`（QC-062）、`job.queued`、`job.running`、`job.succeeded`、`job.failed`，以及實體 `system`（`entity_id` 為 `database`）的 `backup.created`／`backup.failed`／`backup.restore_started`／`backup.restored`（QC-030）。每個事件帶 `actor`：`owner`、Agent 權杖 id，或服務自己時為 null（QC-089）。
 
 - 和其他 `/api` 路由一樣要 Bearer 權杖。瀏覽器的 `EventSource` 不能帶 header，所以 api-client 用 fetch 讀串流（`client.events.subscribe`）；權杖不接受放在 URL。
 - 事件先寫進 `change_log` 再推送：在寫入方的交易提交後才發出，交易回滾的變更不會被推送。

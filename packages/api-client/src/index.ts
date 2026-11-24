@@ -77,6 +77,7 @@ import {
 
 import { createMountsApi, type CreatorHubMountsApi } from './mounts.js';
 import { createProjectsApi, type CreatorHubProjectsApi } from './projects.js';
+import { createProposalsApi, type CreatorHubProposalsApi } from './proposals.js';
 export type { CreatorHubProjectsApi } from './projects.js';
 import { createVariantsApi, type CreatorHubVariantsApi } from './variants.js';
 import { createAiApi, type CreatorHubAiApi } from './ai.js';
@@ -91,6 +92,7 @@ export {
   type CreatorHubAiApi,
 } from './ai.js';
 export type { CreatorHubVariantsApi, VariantWriteOptions } from './variants.js';
+export type { CreatorHubProposalsApi } from './proposals.js';
 export type { CreatorHubMountsApi } from './mounts.js';
 
 export {
@@ -260,6 +262,8 @@ export interface CreatorHubClient {
   mounts: CreatorHubMountsApi;
   /** Projects grouping works (QC-062). */
   projects: CreatorHubProjectsApi;
+  /** Agent proposals (QC-089). */
+  proposals: CreatorHubProposalsApi;
   /** Platform variants: 小紅書, 公眾號, 抖音, 視頻號 (QC-009). */
   variants: CreatorHubVariantsApi;
   /** AI providers, Keychain keys, consent, jobs and usage (QC-021). Owner token only. */
@@ -313,6 +317,7 @@ export function createClient(options: CreatorHubClientOptions): CreatorHubClient
     tokens: createTokensApi(ctx),
     mounts: createMountsApi(ctx),
     projects: createProjectsApi(ctx),
+    proposals: createProposalsApi(ctx),
     variants: createVariantsApi(ctx),
     ai: createAiApi(ctx),
     backups: createBackupsApi(ctx),

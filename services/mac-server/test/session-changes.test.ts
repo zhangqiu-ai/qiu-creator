@@ -19,7 +19,9 @@ describe('GET /api/v1/session (QC-087)', () => {
     expect(await s.client.session()).toEqual({
       kind: 'owner',
       name: null,
-      scopes: ['read', 'import', 'write'],
+      scopes: ['read', 'import', 'write', 'propose'],
+      allow_direct_body_edit: false,
+      project_ids: null,
     });
     for (const scopes of [['read'], ['import'], ['write']] as const) {
       const t = s.tokens.create({ name: `agent-${scopes[0]}`, scopes: [...scopes] });
@@ -28,6 +30,8 @@ describe('GET /api/v1/session (QC-087)', () => {
         kind: 'agent',
         name: `agent-${scopes[0]}`,
         scopes: [...scopes],
+        allow_direct_body_edit: false,
+        project_ids: null,
       });
     }
     const res = await fetch(`${s.baseUrl}/api/v1/session`);

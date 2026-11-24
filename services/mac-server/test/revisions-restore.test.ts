@@ -217,8 +217,20 @@ describe('POST /works/:id/revisions/:rid/restore', () => {
       { headers: { authorization: `Bearer ${reader.secret}` } },
     );
     expect(read.status).toBe(200);
+    // QC-089: restoring changes the text, so a write token also needs the
+    // owner's allow_direct_body_edit switch.
     const writer = s.tokens.create({ name: 'writer', scopes: ['write'] });
-    expect((await fetch(url, init(writer.secret))).status).toBe(200);
+    const refused = await fetch(url, init(writer.secret));
+    expect(refused.status).toBe(403);
+    expect(((await refused.json()) as { error: { code: string } }).error.code).toBe(
+      'direct_edit_not_allowed',
+    );
+    const direct = s.tokens.create({
+      name: 'direct',
+      scopes: ['write'],
+      allow_direct_body_edit: true,
+    });
+    expect((await fetch(url, init(direct.secret))).status).toBe(200);
   });
 
   it('restores an external work by writing back to the mounted file', async () => {

@@ -13,6 +13,7 @@ import {
   type UpdateAssetRequest,
 } from '@qiu-creator/contracts';
 import { checkRevision, resolveBaseRevision } from '@qiu-creator/domain';
+import { ProjectScope } from '../auth/project-scope.js';
 import type { Db } from '../db/database.js';
 import { notFound, ServiceError } from '../errors.js';
 import type { ChangeFeed } from '../events/change-feed.js';
@@ -164,12 +165,18 @@ export class AssetLibrary {
       )
       .all(id, id, id, id)
       .map(({ trashed, ...ref }) => ({ trashed: trashed === 1, ref }));
+    // QC-089: a token limited to projects sees only references from its works.
+    const scope = new ProjectScope(this.db);
+    const visible = <T extends { ref: { work_id: string } }>(list: T[]): T[] =>
+      list.filter((x) => scope.allowsWork(x.ref.work_id));
+    const shownWorks = visible(works);
+    const shownVariants = visible(variants);
     return {
-      works: works.filter((w) => !w.trashed).map((w) => w.ref),
-      variants: variants.filter((v) => !v.trashed).map((v) => v.ref),
+      works: shownWorks.filter((w) => !w.trashed).map((w) => w.ref),
+      variants: shownVariants.filter((v) => !v.trashed).map((v) => v.ref),
       in_trash: {
-        works: works.filter((w) => w.trashed).map((w) => w.ref),
-        variants: variants.filter((v) => v.trashed).map((v) => v.ref),
+        works: shownWorks.filter((w) => w.trashed).map((w) => w.ref),
+        variants: shownVariants.filter((v) => v.trashed).map((v) => v.ref),
       },
     };
   }

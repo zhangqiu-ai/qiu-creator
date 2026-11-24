@@ -11,8 +11,12 @@ import {
   ListJobsResponseSchema,
   ListTokensResponseSchema,
   ApiTokenSchema,
+  ListTokenActivityQuerySchema,
+  ListTokenActivityResponseSchema,
   TokenIdParamsSchema,
+  UpdateTokenRequestSchema,
 } from '@qiu-creator/contracts';
+import type { ActivityService } from '../auth/activity-service.js';
 import { requirePrincipal, type TokenService } from '../auth/token-service.js';
 import { notFound } from '../errors.js';
 import type { App } from '../http/app-type.js';
@@ -76,7 +80,14 @@ export function registerImportRoutes(
         response: { 200: ListJobsResponseSchema, ...errorResponses },
       },
     },
-    (req) => imports.list(req.query),
+    (req) => {
+      const principal = requirePrincipal(req.principal);
+      const page = imports.list(req.query);
+      // QC-089: a token limited to projects sees only the jobs it started.
+      if (principal.kind !== 'agent' || principal.projectIds === null) return page;
+      const items = page.items.filter((j) => j.created_by === principal.id);
+      return { ...page, items, total: items.length };
+    },
   );
 
   app.get(
@@ -91,8 +102,11 @@ export function registerImportRoutes(
       const job = imports.get(req.params.id);
       const principal = requirePrincipal(req.principal);
       // Import-only agents may follow their own jobs; others' jobs look absent.
-      if (!principal.scopes.includes('read') && job.created_by !== principal.id)
-        throw notFound('job');
+      // So do tokens limited to projects (QC-089).
+      const ownOnly =
+        !principal.scopes.includes('read') ||
+        (principal.kind === 'agent' && principal.projectIds !== null);
+      if (ownOnly && job.created_by !== principal.id) throw notFound('job');
       return job;
     },
   );
@@ -113,7 +127,11 @@ export function registerImportRoutes(
   );
 }
 
-export function registerTokenRoutes(app: App, tokens: TokenService): void {
+export function registerTokenRoutes(
+  app: App,
+  tokens: TokenService,
+  activity: ActivityService,
+): void {
   app.post(
     '/api/v1/tokens',
     {
@@ -146,5 +164,36 @@ export function registerTokenRoutes(app: App, tokens: TokenService): void {
       },
     },
     (req) => tokens.revoke(req.params.id),
+  );
+
+  app.patch(
+    '/api/v1/tokens/:id',
+    {
+      schema: {
+        description:
+          'Change an agent token (owner token only, QC-089): name, scopes, `allow_direct_body_edit` (let it change works’ text directly; default off) and `project_ids` (limit it to these projects; null for all). Every change is written to the token’s activity.',
+        params: TokenIdParamsSchema,
+        body: UpdateTokenRequestSchema,
+        response: { 200: ApiTokenSchema, ...errorResponses },
+      },
+    },
+    (req) => tokens.update(req.params.id, req.body),
+  );
+
+  app.get(
+    '/api/v1/tokens/:id/activity',
+    {
+      schema: {
+        description:
+          'What an agent token did, newest first (owner token only, QC-089): its changes and every refused request (with the error code), plus the owner’s changes to the token. Page with `before`.',
+        params: TokenIdParamsSchema,
+        querystring: ListTokenActivityQuerySchema,
+        response: { 200: ListTokenActivityResponseSchema, ...errorResponses },
+      },
+    },
+    (req) => {
+      tokens.get(req.params.id);
+      return activity.list(req.params.id, req.query);
+    },
   );
 }
