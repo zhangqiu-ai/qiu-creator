@@ -88,6 +88,8 @@ describe('migration 0020 variant overrides: SQL round trip', () => {
   it('adds override columns, rolls back to the exact old tables, and re-applies', () => {
     const home = makeTempHome();
     dirs.push(home);
+    // Later migrations are not part of this round trip.
+    const upTo0020 = migrations.filter((m) => m.id <= '0020');
     const db = openDatabase(
       path.join(home, 'db.sqlite'),
       migrations.filter((m) => m.id < '0020'),
@@ -106,7 +108,7 @@ describe('migration 0020 variant overrides: SQL round trip', () => {
       ]);
       const original = snapshot(db);
 
-      expect(runMigrations(db, migrations)).toEqual(['0020']);
+      expect(runMigrations(db, upTo0020)).toEqual(['0020']);
       expect(columnNames(db, 'platform_variants')).toEqual([
         ...before0020,
         'title_override',
@@ -125,7 +127,7 @@ describe('migration 0020 variant overrides: SQL round trip', () => {
       db.exec(VARIANT_OVERRIDES_ROLLBACK_SQL);
       expect(columnNames(db, 'platform_variants')).toEqual(before0020);
       expect(snapshot(db)).toEqual(original);
-      expect(runMigrations(db, migrations)).toEqual(['0020']);
+      expect(runMigrations(db, upTo0020)).toEqual(['0020']);
     } finally {
       db.close();
     }

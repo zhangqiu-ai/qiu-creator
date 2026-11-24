@@ -17,6 +17,10 @@ export const SCOPE_LABEL: Readonly<Record<TokenScope, string>> = {
   get write() {
     return t('serviceSettings.scopeWrite');
   },
+  // QC-089: the scope exists in the API; the token settings UI comes in QC-091.
+  get propose() {
+    return t('serviceSettings.scopePropose');
+  },
 };
 
 const SCOPE_HINT: Readonly<Record<TokenScope, string>> = {
@@ -28,6 +32,9 @@ const SCOPE_HINT: Readonly<Record<TokenScope, string>> = {
   },
   get write() {
     return t('serviceSettings.scopeWriteHint');
+  },
+  get propose() {
+    return t('serviceSettings.scopeProposeHint');
   },
 };
 

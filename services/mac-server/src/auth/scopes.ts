@@ -40,6 +40,12 @@ const WRITE_ROUTES = new Set([
 /** Non-GET routes that only read (they sign URLs for files the caller can already read). */
 const READ_ROUTES = new Set(['POST /api/v1/media/signed-urls']);
 
+/**
+ * QC-089: proposing a change to a work's text. Accepting or discarding a
+ * proposal is the user's decision, so those routes are not listed (owner only).
+ */
+const PROPOSE_ROUTES = new Set(['POST /api/v1/works/:id/proposals']);
+
 const IMPORT_ROUTES = new Set([
   'POST /api/v1/works',
   'POST /api/v1/assets/uploads',
@@ -68,6 +74,7 @@ export function requiredAccess(method: string, routeUrl: string | undefined): Re
   if (key === 'GET /api/v1/session' || key === 'HEAD /api/v1/session') return 'any';
   if (key === 'GET /api/v1/jobs/:id' || key === 'HEAD /api/v1/jobs/:id')
     return 'read_or_own_import';
+  if (PROPOSE_ROUTES.has(key)) return 'propose';
   if (IMPORT_ROUTES.has(key)) return 'import';
   if (WRITE_ROUTES.has(key)) return 'write';
   if (READ_ROUTES.has(key)) return 'read';

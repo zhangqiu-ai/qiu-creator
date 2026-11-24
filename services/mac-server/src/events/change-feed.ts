@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import type { ChangeAction, ChangeEntity, ChangeEvent } from '@qiu-creator/contracts';
+import { currentActorId } from '../auth/actor-context.js';
 import type { Db } from '../db/database.js';
 
 interface ChangeRow {
@@ -9,6 +10,7 @@ interface ChangeRow {
   action: string;
   data: string;
   created_at: string;
+  actor: string | null;
 }
 
 function toEvent(row: ChangeRow): ChangeEvent {
@@ -20,6 +22,7 @@ function toEvent(row: ChangeRow): ChangeEvent {
     action: row.action as ChangeAction,
     data: typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : {},
     created_at: row.created_at,
+    actor: row.actor,
   };
 }
 
@@ -50,9 +53,18 @@ export class ChangeFeed {
   ): void {
     this.db
       .prepare(
-        'INSERT INTO change_log (entity, entity_id, action, data, created_at) VALUES (?, ?, ?, ?, ?)',
+        `INSERT INTO change_log (entity, entity_id, action, data, created_at, actor)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .run(entity, entityId, action, JSON.stringify(data), new Date().toISOString());
+      .run(
+        entity,
+        entityId,
+        action,
+        JSON.stringify(data),
+        new Date().toISOString(),
+        // QC-089: who caused it, from the request being handled.
+        currentActorId(),
+      );
     this.scheduleFlush();
   }
 

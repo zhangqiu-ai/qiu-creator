@@ -33,6 +33,16 @@ export const ChangeActionSchema = z.enum([
    * re-derive on `work.updated`.
    */
   'work.variant_changed',
+  /**
+   * An agent proposed a change to the work's text (QC-089); entity `work`,
+   * `data.proposal_id`, `data.token_id`, `data.hunks`.
+   */
+  'proposal.created',
+  /**
+   * A proposal was accepted (fully or partly) or discarded (QC-089); entity
+   * `work`, `data.proposal_id`, `data.status`, `data.revision_id` when accepted.
+   */
+  'proposal.updated',
   /** Moved to 回收站 or removed from the library (QC-051); `data.removal`. */
   'work.trashed',
   /** Back from 回收站; revision and history unchanged (QC-051). */
@@ -104,6 +114,11 @@ export const ChangeEventSchema = z.object({
   /** Small hints (e.g. `revision_id`, `kind`, `status`); clients refetch the entity for details. */
   data: z.record(z.string(), z.unknown()),
   created_at: TimestampSchema,
+  /**
+   * Who caused it (QC-089): `owner`, an agent token id, or null for the
+   * service itself (jobs, timers, external edits). Absent from older servers.
+   */
+  actor: z.string().nullable().optional(),
 });
 export type ChangeEvent = z.infer<typeof ChangeEventSchema>;
 

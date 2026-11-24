@@ -585,6 +585,64 @@ export const migrations: readonly Migration[] = [
       ALTER TABLE platform_variant_revisions ADD COLUMN overrides_format INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    id: '0021',
+    name: 'agent_proposals_activity',
+    sql: /* sql */ `
+      -- QC-089: agent proposals, the direct-edit switch, project limits, who
+      -- did what. Columns and new tables only; see AGENT_PROPOSALS_ROLLBACK_SQL.
+      ALTER TABLE api_tokens ADD COLUMN allow_direct_body_edit INTEGER NOT NULL DEFAULT 0;
+      -- JSON array of project ids; NULL = every project.
+      ALTER TABLE api_tokens ADD COLUMN project_ids TEXT;
+      -- 'owner', an agent token id, or NULL for the service itself.
+      ALTER TABLE change_log ADD COLUMN actor TEXT;
+      -- The agent behind a revision: a proposal the user accepted, or a
+      -- direct body edit ('proposal' | 'direct'); source stays 'edit'.
+      ALTER TABLE revisions ADD COLUMN agent_token_id TEXT;
+      ALTER TABLE revisions ADD COLUMN agent_name TEXT;
+      ALTER TABLE revisions ADD COLUMN agent_via TEXT
+        CHECK (agent_via IS NULL OR agent_via IN ('proposal','direct'));
+      ALTER TABLE revisions ADD COLUMN proposal_id TEXT;
+
+      CREATE TABLE proposals (
+        id                 TEXT PRIMARY KEY,
+        work_id            TEXT NOT NULL REFERENCES works (id) ON DELETE CASCADE,
+        token_id           TEXT NOT NULL,
+        token_name         TEXT NOT NULL,
+        note               TEXT,
+        status             TEXT NOT NULL DEFAULT 'pending'
+          CHECK (status IN ('pending','accepted','partially_accepted','discarded')),
+        base_revision_id   TEXT NOT NULL,
+        -- The proposed Markdown; the base text is the base revision's snapshot.
+        proposed_markdown  TEXT NOT NULL,
+        -- JSON array of hunks with stable ids, made when the proposal was created.
+        hunks              TEXT NOT NULL,
+        accepted_hunk_ids  TEXT NOT NULL DEFAULT '[]',
+        result_revision_id TEXT,
+        created_at         TEXT NOT NULL,
+        decided_at         TEXT
+      );
+      CREATE INDEX proposals_pending ON proposals (work_id) WHERE status = 'pending';
+      CREATE INDEX proposals_created ON proposals (created_at DESC);
+
+      CREATE TABLE token_activity (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        token_id    TEXT NOT NULL,
+        at          TEXT NOT NULL,
+        kind        TEXT NOT NULL CHECK (kind IN ('request','token_updated')),
+        method      TEXT NOT NULL,
+        route       TEXT NOT NULL,
+        target_type TEXT,
+        target_id   TEXT,
+        status      INTEGER NOT NULL,
+        result      TEXT NOT NULL CHECK (result IN ('ok','rejected','error')),
+        code        TEXT,
+        reason      TEXT,
+        revision    TEXT
+      );
+      CREATE INDEX token_activity_token ON token_activity (token_id, id DESC);
+    `,
+  },
 ];
 
 /**
@@ -688,4 +746,29 @@ export const VARIANT_OVERRIDES_ROLLBACK_SQL = /* sql */ `
   ALTER TABLE platform_variants DROP COLUMN cover_override;
   ALTER TABLE platform_variants DROP COLUMN title_override;
   DELETE FROM schema_migrations WHERE id = '0020';
+`;
+
+/**
+ * Undoes `0021_agent_proposals_activity` so an older build can open the
+ * database again (QC-089). Proposals and agent activity are dropped; the
+ * revisions they made stay as ordinary `edit` revisions (only the agent
+ * columns go). Older builds know neither the `propose` scope nor proposal
+ * events, so both are removed; project limits and the direct-edit switch go.
+ */
+export const AGENT_PROPOSALS_ROLLBACK_SQL = /* sql */ `
+  UPDATE api_tokens
+    SET scopes = (SELECT json_group_array(value) FROM json_each(api_tokens.scopes)
+                  WHERE value <> 'propose')
+    WHERE EXISTS (SELECT 1 FROM json_each(api_tokens.scopes) WHERE value = 'propose');
+  DELETE FROM change_log WHERE action IN ('proposal.created', 'proposal.updated');
+  DROP TABLE token_activity;
+  DROP TABLE proposals;
+  ALTER TABLE revisions DROP COLUMN proposal_id;
+  ALTER TABLE revisions DROP COLUMN agent_via;
+  ALTER TABLE revisions DROP COLUMN agent_name;
+  ALTER TABLE revisions DROP COLUMN agent_token_id;
+  ALTER TABLE change_log DROP COLUMN actor;
+  ALTER TABLE api_tokens DROP COLUMN project_ids;
+  ALTER TABLE api_tokens DROP COLUMN allow_direct_body_edit;
+  DELETE FROM schema_migrations WHERE id = '0021';
 `;

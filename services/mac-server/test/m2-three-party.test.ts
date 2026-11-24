@@ -109,7 +109,13 @@ interface Rig {
 
 async function makeRig(kind: 'managed' | 'external', initial: string): Promise<Rig> {
   const s = await start();
-  const created = await s.client.tokens.create({ name: 'agent', scopes: ['read', 'write'] });
+  // QC-089: these scenarios are about an agent that edits text directly, which
+  // needs the owner's allow_direct_body_edit switch on its token.
+  const created = await s.client.tokens.create({
+    name: 'agent',
+    scopes: ['read', 'write'],
+    allow_direct_body_edit: true,
+  });
   const agent = createClient({ baseUrl: s.baseUrl, token: created.secret });
   let workId: string;
   let file: string;

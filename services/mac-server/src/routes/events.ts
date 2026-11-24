@@ -1,8 +1,10 @@
 import type { ServerResponse } from 'node:http';
 import { EVENTS_PATH, type ChangeEvent } from '@qiu-creator/contracts';
 import { z } from 'zod';
+import type { ProjectScope } from '../auth/project-scope.js';
 import type { ChangeFeed } from '../events/change-feed.js';
 import type { App } from '../http/app-type.js';
+import { eventVisibility } from './session.js';
 
 export const HEARTBEAT_MS = 15_000;
 
@@ -22,7 +24,12 @@ function writeEvent(res: ServerResponse, event: ChangeEvent): void {
  * are never accepted in the URL). Reconnecting with `Last-Event-ID` replays
  * missed events from the durable change log.
  */
-export function registerEventRoutes(app: App, feed: ChangeFeed, heartbeatMs = HEARTBEAT_MS): void {
+export function registerEventRoutes(
+  app: App,
+  feed: ChangeFeed,
+  heartbeatMs = HEARTBEAT_MS,
+  scope?: ProjectScope,
+): void {
   const open = new Set<ServerResponse>();
 
   // End streams before Fastify waits for connections to drain on close.
@@ -58,12 +65,14 @@ export function registerEventRoutes(app: App, feed: ChangeFeed, heartbeatMs = HE
       res.write(`retry: 3000\n: connected seq=${since}\n\n`);
       open.add(res);
 
+      // QC-089: a token limited to projects only gets its works' events.
+      const visible = scope === undefined ? () => true : eventVisibility(scope);
       // Subscribe before replaying so nothing committed in between is lost; dedupe by seq.
       let last = since;
       const send = (event: ChangeEvent): void => {
         if (event.seq <= last) return;
         last = event.seq;
-        writeEvent(res, event);
+        if (visible(event)) writeEvent(res, event);
       };
       const unsubscribe = feed.subscribe(send);
       for (let batch = feed.since(since); batch.length > 0; batch = feed.since(last)) {

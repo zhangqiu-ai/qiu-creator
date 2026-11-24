@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   createCreatorHubMcpServer,
   isReadOnly,
+  PROPOSAL_TOOLS,
   READ_TOOLS,
   TOOLS,
   WRITE_TOOLS,
@@ -92,7 +93,7 @@ describe('creatorhub mcp: tools and toolsets', () => {
     const c = await connect();
     const { tools } = await c.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(TOOLS.map((t) => t.name).sort());
-    expect(tools).toHaveLength(READ_TOOLS.length + WRITE_TOOLS.length);
+    expect(tools).toHaveLength(READ_TOOLS.length + WRITE_TOOLS.length + PROPOSAL_TOOLS.length);
     for (const def of READ_TOOLS) {
       const t = tools.find((x) => x.name === def.name);
       if (!['server_status', 'platform_rules'].includes(def.name)) {
@@ -100,7 +101,7 @@ describe('creatorhub mcp: tools and toolsets', () => {
       }
       expect(t?.annotations?.readOnlyHint, def.name).toBe(true);
     }
-    for (const def of WRITE_TOOLS) {
+    for (const def of [...WRITE_TOOLS, ...PROPOSAL_TOOLS]) {
       const t = tools.find((x) => x.name === def.name);
       expect(t?.annotations?.readOnlyHint, def.name).toBe(isReadOnly(def.access));
     }
@@ -138,7 +139,13 @@ describe('creatorhub mcp: tools and toolsets', () => {
       tools: { name: string; allowed: boolean }[];
     }>(c, 'server_status');
     expect(status.server.service).toBe('creatorhub-mac-server');
-    expect(status.token).toEqual({ kind: 'agent', name: 'agent import', scopes: ['import'] });
+    expect(status.token).toEqual({
+      kind: 'agent',
+      name: 'agent import',
+      scopes: ['import'],
+      allow_direct_body_edit: false,
+      project_ids: null,
+    });
     const allowed = status.tools
       .filter((t) => t.allowed)
       .map((t) => t.name)
@@ -341,14 +348,18 @@ describe('creatorhub mcp over stdio', () => {
     const names = (await client.listTools()).tools.map((t) => t.name).sort();
     expect(names).toEqual([
       'changes_since',
+      'proposal_get',
+      'proposals_list',
       'server_status',
       'work_create',
       'work_diff',
       'work_get',
+      'work_propose_edit',
       'work_restore',
       'work_restore_revision',
       'work_revisions',
       'work_trash',
+      'work_update_body',
       'work_update_meta',
       'works_batch',
       'works_search',

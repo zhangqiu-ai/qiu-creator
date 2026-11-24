@@ -5,8 +5,12 @@ import {
   IDEMPOTENCY_KEY_HEADER,
   ImportJobRecordSchema,
   ListJobsResponseSchema,
+  ListTokenActivityResponseSchema,
   ListTokensResponseSchema,
   type ApiToken,
+  type ListTokenActivityQuery,
+  type ListTokenActivityResponse,
+  type UpdateTokenRequest,
   type CreateTokenRequest,
   type CreateTokenResponse,
   type ImportJobRecord,
@@ -48,6 +52,10 @@ export interface CreatorHubTokensApi {
   create(input: CreateTokenRequest): Promise<CreateTokenResponse>;
   list(): Promise<ListTokensResponse>;
   revoke(id: string): Promise<ApiToken>;
+  /** Scopes, direct-edit switch, project limit or name (QC-089, owner only). */
+  update(id: string, input: UpdateTokenRequest): Promise<ApiToken>;
+  /** What the token did, newest first (QC-089, owner only); page with `before`. */
+  activity(id: string, query?: ListTokenActivityQuery): Promise<ListTokenActivityResponse>;
 }
 
 export interface Ctx {
@@ -149,5 +157,19 @@ export function createTokensApi(ctx: Ctx): CreatorHubTokensApi {
     create: (input) => call(ctx, CreateTokenResponseSchema, 'POST', '/api/v1/tokens', input),
     list: () => call(ctx, ListTokensResponseSchema, 'GET', '/api/v1/tokens'),
     revoke: (id) => call(ctx, ApiTokenSchema, 'DELETE', `/api/v1/tokens/${encodeURIComponent(id)}`),
+    update: (id, input) =>
+      call(ctx, ApiTokenSchema, 'PATCH', `/api/v1/tokens/${encodeURIComponent(id)}`, input),
+    activity: (id, q = {}) => {
+      const params = new URLSearchParams();
+      if (q.limit !== undefined) params.set('limit', String(q.limit));
+      if (q.before !== undefined) params.set('before', String(q.before));
+      const qs = params.toString();
+      return call(
+        ctx,
+        ListTokenActivityResponseSchema,
+        'GET',
+        `/api/v1/tokens/${encodeURIComponent(id)}/activity${qs === '' ? '' : `?${qs}`}`,
+      );
+    },
   };
 }

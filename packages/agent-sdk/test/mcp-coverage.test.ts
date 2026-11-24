@@ -102,7 +102,9 @@ describe('MCP tool permissions match the server (scopes.ts)', () => {
 
   it('only read tools are marked read-only to the agent', () => {
     for (const t of TOOLS) {
-      expect(isReadOnly(t.access), t.name).toBe(t.access !== 'import' && t.access !== 'write');
+      expect(isReadOnly(t.access), t.name).toBe(
+        t.access !== 'import' && t.access !== 'write' && t.access !== 'propose',
+      );
     }
     expect(TOOLS.filter((t) => t.destructive === true).map((t) => t.name)).toEqual([
       'work_trash',

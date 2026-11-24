@@ -41,7 +41,13 @@ import { openDatabase, type Db } from './db/database.js';
 import { ServiceError } from './errors.js';
 import { ChangeFeed } from './events/change-feed.js';
 import { requiredAccess } from './auth/scopes.js';
+import { ActivityService } from './auth/activity-service.js';
+import { runWithActorSlot, setCurrentPrincipal } from './auth/actor-context.js';
+import { registerAgentRules } from './auth/agent-rules.js';
+import { ProjectScope } from './auth/project-scope.js';
 import { requirePrincipal, TokenService, type Principal } from './auth/token-service.js';
+import { ProposalService, type ProposalServiceOptions } from './proposals/proposal-service.js';
+import { registerProposalRoutes } from './routes/proposals.js';
 import { IdempotencyService } from './idempotency/idempotency-service.js';
 import { errorBody } from './http/app-type.js';
 import { JobQueue, type JobQueueOptions } from './jobs/job-queue.js';
@@ -108,6 +114,8 @@ declare module 'fastify' {
   interface FastifyRequest {
     /** Set by the auth hook for every authenticated `/api` request. */
     principal: Principal | null;
+    /** QC-089: a refused agent request's error, for the token's activity. */
+    activityError: { code: string | null; message: string | null } | null;
   }
 }
 
@@ -184,6 +192,8 @@ export interface BuildServerOptions {
   workTrash?: WorkTrashOptions;
   /** Projects (QC-062): clock and purge interval for deleted projects. */
   projects?: ProjectServiceOptions;
+  /** Agent proposals (QC-089): clock and purge interval for discarded ones. */
+  proposals?: ProposalServiceOptions;
 }
 
 /** One registered route: method and URL pattern as Fastify matches it (`/api/v1/works/:id`). */
@@ -214,6 +224,10 @@ export interface CreatorHubServer {
   media: WorkMediaService;
   signer: MediaUrlSigner;
   variants: VariantService;
+  /** Agent proposals (QC-089). */
+  proposals: ProposalService;
+  /** What agent tokens did (QC-089). */
+  activity: ActivityService;
   ai: AiService;
   /** AI image and cover generation (QC-070). */
   images: ImageAiService;
@@ -273,6 +287,9 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   );
   const media = new WorkMediaService(works, assets, layout, signer, assets.limits);
   const variants = new VariantService(db, works, assets, media, feed);
+  const scope = new ProjectScope(db);
+  const activity = new ActivityService(db);
+  const proposals = new ProposalService(db, works, scope, feed, options.proposals);
   const attacher = new WorkMediaAttacher(layout, works, assets);
   const composer = new WorkComposer(db, works, attacher, assets);
   const workTrash = new WorkTrash(db, layout, works, composer, feed, options.workTrash);
@@ -331,6 +348,11 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   }).withTypeProvider<ZodTypeProvider>();
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
+  // QC-089: give every request its own actor slot first, so services can
+  // tell who is acting (change_log.actor, agent revisions, project limits).
+  app.addHook('onRequest', (_req, _reply, done) => {
+    runWithActorSlot(done);
+  });
   const routes: RegisteredRoute[] = [];
   app.addHook('onRoute', (route) => {
     const methods = Array.isArray(route.method) ? route.method : [route.method];
@@ -339,6 +361,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   app.addHook('onClose', async () => {
     unsubscribeSleep();
     sleep.stop();
+    proposals.stop();
     assetLibrary.stop();
     workTrash.stop();
     projects.stop();
@@ -401,6 +424,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
       return;
     }
     req.principal = principal;
+    setCurrentPrincipal(principal);
     // After a restore is accepted, nothing may be written to the old database.
     if (backups.isRestoring && req.method !== 'GET' && req.method !== 'HEAD') {
       await reply
@@ -424,6 +448,8 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
       );
     }
   });
+
+  registerAgentRules(app, { scope, activity });
 
   // QC-051: a work in 最近刪除 can be read and restored, not changed. PATCH
   // checks this itself; this covers its sub-resources (variants, media, AI, …).
@@ -653,10 +679,11 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerWorkTrashRoutes(app, workTrash, works, idempotency);
   registerProjectRoutes(app, projects);
   await registerWorkThumbnailRoutes(app, works);
-  registerEventRoutes(app, feed, options.heartbeatMs);
-  registerSessionRoutes(app, feed);
+  registerEventRoutes(app, feed, options.heartbeatMs, scope);
+  registerSessionRoutes(app, feed, scope);
   registerImportRoutes(app, imports, idempotency);
-  registerTokenRoutes(app, tokens);
+  registerTokenRoutes(app, tokens, activity);
+  registerProposalRoutes(app, proposals, idempotency);
   registerMountRoutes(app, mounts);
   registerMediaRoutes(app, media, assets, signer, tokens, attacher, works);
   registerVariantRoutes(app, variants);
@@ -703,6 +730,8 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     media,
     signer,
     variants,
+    proposals,
+    activity,
     ai,
     images,
     backups,
