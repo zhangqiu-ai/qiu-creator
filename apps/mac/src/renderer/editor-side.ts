@@ -20,7 +20,11 @@ export const SIDE_STEP = 16;
 export const SIDE_RAIL = 44;
 /** Dragging the edge this far below the minimum snaps the sidebar shut. */
 export const SIDE_SNAP_BELOW = SIDE_MIN - 80;
-/** An editor column narrower than this turns the sidebar into a drawer over the text. */
+/**
+ * The editor column never goes below this beside the sidebar: the sidebar
+ * first shrinks towards SIDE_MIN, and only when even that leaves the column
+ * narrower does it become a drawer over the text.
+ */
 export const EDITOR_MIN = 560;
 
 export const SIDE_KEY = 'qc.editorSide.v1';
@@ -63,9 +67,23 @@ export function saveSidePrefs(storage: PrefStorage | null, prefs: SidePrefs): vo
   }
 }
 
-/** Too narrow for text and sidebar side by side: the sidebar becomes a drawer. */
-export function isDrawer(areaWidth: number, sideWidth: number): boolean {
-  return areaWidth > 0 && areaWidth - sideWidth < EDITOR_MIN;
+/**
+ * Too narrow for the text and even a 400 px sidebar side by side (an editor
+ * area under 960): the sidebar becomes a drawer. 0 means not measured (or
+ * hidden) and never counts as narrow.
+ */
+export function isDrawer(areaWidth: number): boolean {
+  return areaWidth > 0 && areaWidth - SIDE_MIN < EDITOR_MIN;
+}
+
+/**
+ * The width the docked sidebar is drawn at: the remembered width, shrunk
+ * (never below 400) so the editor column keeps 560. The remembered width is
+ * not changed, so it comes back when there is room again.
+ */
+export function shownWidth(areaWidth: number, width: number): number {
+  if (areaWidth <= 0) return width;
+  return Math.max(SIDE_MIN, Math.min(width, areaWidth - EDITOR_MIN));
 }
 
 /** The tab shown for an editor that offers only some tabs (貼圖 has no AI). */
@@ -77,6 +95,8 @@ export interface SideState {
   prefs: SidePrefs;
   /** The window is narrow: the sidebar is a drawer over the text. */
   drawer: boolean;
+  /** The docked width on screen: `prefs.width`, shrunk to leave the editor 560 (QC-085). */
+  shown: number;
   /** The drawer is out (narrow windows only; never remembered, so a work opens on its text). */
   drawerOpen: boolean;
   /** Works whose preview goes over a platform limit (the orange dot on 預覽). */
@@ -89,9 +109,11 @@ export class SideStore {
   private areaWidth = 0;
 
   constructor(private readonly storage: PrefStorage | null) {
+    const prefs = loadSidePrefs(storage);
     this.state = {
-      prefs: loadSidePrefs(storage),
+      prefs,
       drawer: false,
+      shown: prefs.width,
       drawerOpen: false,
       over: new Set(),
     };
@@ -155,19 +177,27 @@ export class SideStore {
   resize(raw: number, from?: number): void {
     if (raw < SIDE_SNAP_BELOW) {
       if (from !== undefined && from !== this.state.prefs.width) this.setPrefs({ width: from });
+      this.set({ shown: shownWidth(this.areaWidth, this.state.prefs.width) });
       this.collapse();
       return;
     }
     const width = clampSide(raw);
     if (width !== this.state.prefs.width) this.setPrefs({ width });
-    this.measure(this.areaWidth);
+    this.set({ shown: shownWidth(this.areaWidth, width) });
   }
 
-  /** The editor area's width changed: dock or float the sidebar. */
+  /**
+   * The editor area's width changed: shrink, dock or float the sidebar. A
+   * hidden editor area (設定, 作品庫) measures 0; that keeps the last layout, so
+   * coming back neither flashes a docked sidebar nor closes an open drawer.
+   */
   measure(areaWidth: number): void {
+    if (areaWidth <= 0) return;
     this.areaWidth = areaWidth;
-    const drawer = isDrawer(areaWidth, this.state.prefs.width);
-    if (drawer !== this.state.drawer) this.set({ drawer, drawerOpen: false });
+    const drawer = isDrawer(areaWidth);
+    const shown = shownWidth(areaWidth, this.state.prefs.width);
+    if (drawer !== this.state.drawer) this.set({ drawer, drawerOpen: false, shown });
+    else if (shown !== this.state.shown) this.set({ shown });
   }
 
   setOver(workId: string, over: boolean): void {

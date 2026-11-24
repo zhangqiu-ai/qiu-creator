@@ -5,6 +5,7 @@ import {
   isDrawer,
   loadSidePrefs,
   shownTab,
+  shownWidth,
   SIDE_KEY,
   SideStore,
 } from '../src/renderer/editor-side.js';
@@ -71,12 +72,33 @@ describe('editor sidebar behaviour', () => {
     s.resize(400, 600);
     s.resize(260, 600);
     expect(s.getSnapshot().prefs).toMatchObject({ open: false, width: 600 });
+    expect(s.getSnapshot().shown).toBe(600);
   });
 
-  it('becomes a drawer when the editor column would be under 560, closed at first', () => {
-    expect(isDrawer(1080, 520)).toBe(false);
-    expect(isDrawer(1079, 520)).toBe(true);
-    expect(isDrawer(0, 520)).toBe(false);
+  it('shrinks to 400 before it becomes a drawer; the remembered width comes back', () => {
+    // 1280 window: editor area 1048 → the sidebar draws at 488 and the text keeps 560.
+    expect(shownWidth(1048, 520)).toBe(488);
+    expect(shownWidth(1400, 520)).toBe(520);
+    expect(shownWidth(900, 520)).toBe(400);
+    expect(shownWidth(0, 640)).toBe(640);
+    expect(isDrawer(960)).toBe(false);
+    expect(isDrawer(959)).toBe(true);
+    expect(isDrawer(0)).toBe(false);
+    const s = new SideStore(null);
+    s.measure(1048);
+    expect(s.getSnapshot()).toMatchObject({ drawer: false, shown: 488, prefs: { width: 520 } });
+    expect(s.expanded).toBe(true);
+    s.measure(1600);
+    expect(s.getSnapshot()).toMatchObject({ drawer: false, shown: 520 });
+    // Dragging wider than the room remembers the width but draws what fits.
+    s.measure(1100);
+    s.resize(700);
+    expect(s.getSnapshot()).toMatchObject({ shown: 540, prefs: { width: 700 } });
+    s.measure(1400);
+    expect(s.getSnapshot().shown).toBe(700);
+  });
+
+  it('becomes a drawer when the editor area is under 960, closed at first', () => {
     const s = new SideStore(null);
     s.measure(900);
     expect(s.getSnapshot()).toMatchObject({ drawer: true, drawerOpen: false });
@@ -89,6 +111,27 @@ describe('editor sidebar behaviour', () => {
     s.measure(1400);
     expect(s.getSnapshot().drawer).toBe(false);
     expect(s.expanded).toBe(true);
+  });
+
+  it('keeps the last layout when the editor area is hidden and measures 0', () => {
+    const s = new SideStore(null);
+    s.measure(900);
+    s.toggleTab('preview');
+    let calls = 0;
+    s.subscribe(() => {
+      calls++;
+    });
+    // 設定 hides the editor area: nothing changes, so coming back neither flashes nor closes.
+    s.measure(0);
+    expect(s.getSnapshot()).toMatchObject({ drawer: true, drawerOpen: true });
+    s.measure(900);
+    expect(s.getSnapshot()).toMatchObject({ drawer: true, drawerOpen: true });
+    expect(calls).toBe(0);
+    // Docked as well: a 0 does not change the drawn width.
+    const d = new SideStore(null);
+    d.measure(1048);
+    d.measure(0);
+    expect(d.getSnapshot()).toMatchObject({ drawer: false, shown: 488 });
   });
 
   it('shows the first offered tab when the window’s tab is not offered (貼圖 has no AI)', () => {

@@ -136,7 +136,7 @@ export function EditorSide({ workId, panels, active, inert = false }: EditorSide
       className={cls}
       aria-label={t('editorSide.label')}
       inert={inert}
-      style={docked && expanded ? { width: state.prefs.width } : undefined}
+      style={docked && expanded ? { width: state.shown } : undefined}
     >
       {(!expanded || state.drawer) && (
         <div className="side__rail" role="toolbar" aria-label={t('editorSide.tabs')}>
@@ -174,7 +174,7 @@ export function EditorSide({ workId, panels, active, inert = false }: EditorSide
       <div className="side__panel" hidden={!expanded}>
         {docked && (
           <ResizeHandle
-            width={state.prefs.width}
+            width={state.shown}
             onWidth={(w, from) => {
               store.resize(w, from);
             }}
