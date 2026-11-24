@@ -1,5 +1,11 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
-import { PROJECT_NAME_MAX_CHARS, type Project, type ProjectSummary } from '@qiu-creator/contracts';
+import {
+  PROJECT_NAME_MAX_CHARS,
+  type Project,
+  type ProjectRules,
+  type ProjectSummary,
+  type RulesPreviewResponse,
+} from '@qiu-creator/contracts';
 import type { MessageKey } from '@qiu-creator/i18n';
 
 /**
@@ -168,7 +174,14 @@ export class ProjectsStore {
   /** Rename, recolour, archive; a project changed elsewhere is reloaded and the change refused. */
   async patch(
     project: Project,
-    change: { name?: string; color?: number; archived?: boolean },
+    change: {
+      name?: string;
+      color?: number;
+      archived?: boolean;
+      /** QC-092: what the project is about, and the rules that put works in it. */
+      description?: string;
+      rules?: ProjectRules;
+    },
   ): Promise<Project | null> {
     try {
       const next = await this.client.projects.patch(project.id, {
@@ -182,6 +195,11 @@ export class ProjectsStore {
       if (err instanceof ApiError && err.status === 409) return null;
       throw err;
     }
+  }
+
+  /** Try rules on the latest works without saving them (QC-092). */
+  previewRules(id: string, rules: ProjectRules): Promise<RulesPreviewResponse> {
+    return this.client.projects.previewRules(id, { rules });
   }
 
   async reorder(ids: string[]): Promise<void> {

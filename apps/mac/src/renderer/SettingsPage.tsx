@@ -12,6 +12,7 @@ import {
   writeLastCategory,
   type SettingsCategory,
 } from './SettingsNav.js';
+import { AgentsSettings } from './AgentsSettings.js';
 import { BackupSection } from './BackupSection.js';
 import { versionLabel, formatStamp, type BackupSession } from './backups.js';
 import { Dialog } from './Dialog.js';
@@ -133,18 +134,16 @@ export function SettingsPage({
   /** Changes when a restore replaced the database: refetch everything shown here. */
   dataEpoch?: number;
   /** Scroll to and focus a section, e.g. from 「前往設定」. */
-  focusSection?: 'ai';
+  focusSection?: 'ai' | 'agents';
 }) {
   const aiHeading = useRef<HTMLHeadingElement>(null);
   // One page per category (QC-057); 設定 reopens on the one shown last.
-  const [cat, setCat] = useState<SettingsCategory>(() =>
-    focusSection === 'ai' ? 'ai' : readLastCategory(),
-  );
-  const focusOnShow = useRef(focusSection === 'ai');
+  const [cat, setCat] = useState<SettingsCategory>(() => focusSection ?? readLastCategory());
+  const focusOnShow = useRef(focusSection !== undefined);
   useEffect(() => {
-    if (focusSection !== 'ai') return;
+    if (focusSection === undefined) return;
     focusOnShow.current = true;
-    setCat('ai');
+    setCat(focusSection);
   }, [focusSection]);
   const goTo = useCallback((next: SettingsCategory) => {
     focusOnShow.current = true;
@@ -270,7 +269,10 @@ export function SettingsPage({
           onPick={goTo}
         />
         <div className="set-body">
-          <div key={cat} className={cat === 'ai' ? 'set-page set-page--wide' : 'set-page'}>
+          <div
+            key={cat}
+            className={cat === 'ai' || cat === 'agents' ? 'set-page set-page--wide' : 'set-page'}
+          >
             {cat === 'appearance' && <AppearanceSection />}
 
             {cat === 'service' && (
@@ -539,6 +541,8 @@ export function SettingsPage({
                 </section>
               </section>
             )}
+
+            {cat === 'agents' && <AgentsSettings client={client} />}
 
             {cat === 'about' && (
               <section className="set-sec" aria-labelledby="set-about">

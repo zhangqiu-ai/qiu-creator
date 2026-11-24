@@ -3,7 +3,8 @@ import type { ServiceTone } from './sidebar-prefs.js';
 import type { MessageKey } from '@qiu-creator/i18n';
 import { t } from './i18n.js';
 
-export type SettingsCategory = 'appearance' | 'service' | 'backup' | 'ai' | 'folders' | 'about';
+export type SettingsCategory =
+  'appearance' | 'service' | 'backup' | 'ai' | 'agents' | 'folders' | 'about';
 
 const cat = (key: SettingsCategory, label: MessageKey, icon: IconName) => ({
   key,
@@ -18,6 +19,7 @@ export const CATEGORIES: readonly { key: SettingsCategory; label: string; icon: 
   cat('service', 'settings.catService', 'server'),
   cat('backup', 'settings.catBackup', 'history'),
   cat('ai', 'settings.catAi', 'spark'),
+  cat('agents', 'agents.catAgents', 'robot'),
   cat('folders', 'settings.catFolders', 'folder'),
   cat('about', 'settings.catAbout', 'info'),
 ];
@@ -28,6 +30,7 @@ export const CATEGORY_HEADING: Readonly<Record<SettingsCategory, string>> = {
   service: 'set-service',
   backup: 'set-backup',
   ai: 'set-ai',
+  agents: 'set-agents',
   folders: 'set-folders',
   about: 'set-about',
 };

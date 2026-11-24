@@ -221,3 +221,22 @@
   /* The pane fades as a tab; the panels' own slide-in is for when they stood alone. */
   animation: none !important;
 }
+
+/* A count on a tab (QC-091: pending proposals on 提案). */
+.side__badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--qc-accent);
+  color: var(--qc-on-accent);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+}
+.side__badge--rail {
+  position: absolute;
+  top: 1px;
+  right: 0;
+}

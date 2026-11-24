@@ -63,16 +63,17 @@ describe('外觀 preference (QC-038)', () => {
 });
 
 describe('設定 categories', () => {
-  it('lists the six categories of the approved board', () => {
+  it('lists the categories of the approved boards (Agent 與 MCP: QC-091, PT-20261124-001)', () => {
     expect(CATEGORIES.map((c) => c.label)).toEqual([
       '外觀',
       '本機服務',
       '備份與還原',
       'AI 服務',
+      'Agent 與 MCP',
       '資料夾',
       '關於',
     ]);
-    expect(Object.keys(CATEGORY_HEADING)).toHaveLength(6);
+    expect(Object.keys(CATEGORY_HEADING)).toHaveLength(7);
   });
 
   it('reopens on the category shown last, and on 外觀 when nothing (valid) is stored (QC-057)', () => {

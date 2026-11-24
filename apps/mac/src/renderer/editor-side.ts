@@ -7,8 +7,11 @@ import type { PrefStorage } from './sidebar-prefs.js';
  * window, shared by every work tab; framework-free for tests.
  */
 
-/** The sidebar's tabs, in bar order. New content gets a new entry here. */
-export const SIDE_TABS = ['preview', 'ai', 'history', 'assets'] as const;
+/**
+ * The sidebar's tabs, in bar order. New content gets a new entry here.
+ * 提案 (QC-091) is offered only while the work has pending agent proposals.
+ */
+export const SIDE_TABS = ['preview', 'ai', 'proposals', 'history', 'assets'] as const;
 export type SideTab = (typeof SIDE_TABS)[number];
 
 export const SIDE_DEFAULT = 520;

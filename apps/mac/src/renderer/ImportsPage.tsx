@@ -17,7 +17,6 @@ import {
   type TaskFilter,
   type TaskRow,
 } from './tasks.js';
-import { TokensPanel } from './TokensPanel.js';
 
 const FILTERS: readonly TaskFilter[] = ['all', 'run', 'fail', 'done'];
 
@@ -49,9 +48,12 @@ const METHOD_ICON: Readonly<Record<TaskRow['method'], IconName>> = {
 export function ImportsPage({
   client,
   onOpenAsset,
+  onOpenAgentSettings,
 }: {
   client: CreatorHubClient;
   onOpenAsset: (assetId: string) => void;
+  /** Agent tokens moved to 設定 › Agent 與 MCP (QC-091); this page keeps a link. */
+  onOpenAgentSettings: () => void;
 }) {
   const [jobs, setJobs] = useState<ImportJobRecord[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -221,7 +223,20 @@ export function ImportsPage({
         </section>
 
         <div className="imports__side">
-          <TokensPanel client={client} />
+          <section className="card side-card" aria-labelledby="tokens-moved">
+            <div className="side-card__head">
+              <h2 id="tokens-moved" className="side-card__title">
+                {t('serviceSettings.tokensTitle')}
+              </h2>
+            </div>
+            <p className="side-card__empty muted">{t('agents.importsMoved')}</p>
+            <div className="side-card__row">
+              <button type="button" className="btn btn--small" onClick={onOpenAgentSettings}>
+                <Icon name="robot" size={14} />
+                {t('agents.importsOpen')}
+              </button>
+            </div>
+          </section>
         </div>
       </div>
 

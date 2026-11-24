@@ -1,6 +1,6 @@
 import type { CreatorHubClient } from '@qiu-creator/api-client';
 import type { HealthResponse, WorkDetail } from '@qiu-creator/contracts';
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { connect, type ConnectResult } from './api.js';
 import { AssetsPage } from './AssetsPage.js';
 import { BackupSession, type BackupState } from './backups.js';
@@ -11,6 +11,10 @@ import { Icon } from './Icon.js';
 import { ImportsPage } from './ImportsPage.js';
 import { LibraryPage } from './LibraryPage.js';
 import { PromptsPage } from './PromptsPage.js';
+import { ProposalsPage } from './ProposalsPage.js';
+import { ProposalCountsContext } from './ProposalsSideTab.js';
+import { countsStore, isProposalEvent } from './proposals.js';
+import type { SideTab } from './editor-side.js';
 import { AiLibrary, AiLibraryContext } from './ai-library.js';
 import { AiWorkbenchPage } from './AiWorkbenchPage.js';
 import { SettingsPage } from './SettingsPage.js';
@@ -41,7 +45,8 @@ type Route =
   | { page: 'ai' }
   | { page: 'prompts' }
   | { page: 'imports' }
-  | { page: 'settings'; section?: 'ai' };
+  | { page: 'proposals' }
+  | { page: 'settings'; section?: 'ai' | 'agents' };
 
 /** `/health` for the sidebar's service dot: on connect, every 30 s, and on 重新檢查. */
 function useServiceHealth(client: CreatorHubClient | null) {
@@ -228,6 +233,27 @@ export function App() {
     projects?.subscribe ?? NO_PROJECTS,
     projects?.getSnapshot ?? EMPTY_PROJECTS,
   );
+  // Agent proposals (QC-091): the pending counts behind the sidebar badge and the editor tab.
+  const proposalCounts = useMemo(() => (client === null ? null : countsStore(client)), [client]);
+  const proposalState = useSyncExternalStore(
+    proposalCounts?.subscribe ?? NO_PROJECTS,
+    () => proposalCounts?.getSnapshot().pending ?? 0,
+  );
+  useEffect(() => {
+    void proposalCounts?.refresh();
+  }, [proposalCounts, dataEpoch]);
+  useChangeEvents((event) => {
+    if (
+      event.entity === 'work' &&
+      (isProposalEvent(event.action) ||
+        event.action === 'work.deleted' ||
+        event.action === 'work.trashed')
+    ) {
+      void proposalCounts?.refresh();
+    }
+  });
+  /** Bring a sidebar tab of the editor forward (opening a work from the inbox shows 提案). */
+  const [sideAsk, setSideAsk] = useState<{ tab: SideTab; n: number } | undefined>(undefined);
   // Segments and the AI tabs: the chosen highlight glides to its new place (QC-065).
   useEffect(() => installSegmentGlide(), []);
   const [scope, setScope] = useState<LibraryScope>({ kind: 'all' });
@@ -316,7 +342,8 @@ export function App() {
     if (page === 'assets') setRoute({ page, focusAssetId: null });
     else setRoute({ page });
   };
-  const current: NavPage = route.page === 'editor' ? 'library' : route.page;
+  const current: NavPage =
+    route.page === 'editor' || route.page === 'proposals' ? 'library' : route.page;
   const openScope = (next: LibraryScope) => {
     setScope(next);
     setRoute({ page: 'library' });
@@ -324,193 +351,216 @@ export function App() {
 
   return (
     <AppMotion>
-      <AiLibraryContext.Provider value={aiLibrary}>
-        <ProjectsContext.Provider value={projects}>
-          <ProjectsDnd store={projects}>
-            <div className="shell">
-              <Sidebar
-                current={current}
-                onNavigate={(page) => {
-                  go(page);
-                  focusPageTitle();
-                }}
-                importsCount={activeTasks}
-                service={service}
-                address={address}
-                onRecheck={() => {
-                  if (client === null) tryConnect();
-                  else checkHealth();
-                }}
-                projects={
-                  projects === null || client === null
-                    ? undefined
-                    : (rail) => (
-                        <SidebarProjects
-                          store={projects}
-                          s={projectsState}
-                          rail={rail}
-                          scope={scope}
-                          active={current === 'library' && route.page === 'library'}
-                          onOpen={(next) => {
-                            openScope(next);
-                            focusPageTitle();
-                          }}
-                        />
-                      )
-                }
-                foot={
-                  projects === null || client === null
-                    ? undefined
-                    : () => (
-                        <SidebarTrash
-                          count={projectsState.trashCount}
-                          current={route.page === 'library' && scope.kind === 'trash'}
-                          onOpen={() => {
-                            openScope({ kind: 'trash' });
-                            focusPageTitle();
-                          }}
-                        />
-                      )
-                }
-              />
+      <ProposalCountsContext.Provider value={proposalCounts}>
+        <AiLibraryContext.Provider value={aiLibrary}>
+          <ProjectsContext.Provider value={projects}>
+            <ProjectsDnd store={projects}>
+              <div className="shell">
+                <Sidebar
+                  current={current}
+                  onNavigate={(page) => {
+                    go(page);
+                    focusPageTitle();
+                  }}
+                  importsCount={activeTasks}
+                  service={service}
+                  address={address}
+                  onRecheck={() => {
+                    if (client === null) tryConnect();
+                    else checkHealth();
+                  }}
+                  projects={
+                    projects === null || client === null
+                      ? undefined
+                      : (rail) => (
+                          <SidebarProjects
+                            store={projects}
+                            s={projectsState}
+                            rail={rail}
+                            scope={scope}
+                            active={current === 'library' && route.page === 'library'}
+                            onOpen={(next) => {
+                              openScope(next);
+                              focusPageTitle();
+                            }}
+                            proposals={{
+                              count: proposalState,
+                              current: route.page === 'proposals',
+                              onOpen: () => {
+                                setRoute({ page: 'proposals' });
+                                focusPageTitle();
+                              },
+                            }}
+                          />
+                        )
+                  }
+                  foot={
+                    projects === null || client === null
+                      ? undefined
+                      : () => (
+                          <SidebarTrash
+                            count={projectsState.trashCount}
+                            current={route.page === 'library' && scope.kind === 'trash'}
+                            onOpen={() => {
+                              openScope({ kind: 'trash' });
+                              focusPageTitle();
+                            }}
+                          />
+                        )
+                  }
+                />
 
-              <ShellMain>
-                {'state' in connection ? (
-                  <main className="page page--center" aria-busy="true" />
-                ) : !connection.ok ? (
-                  <main className="page page--center">
-                    <ServiceProblem
-                      reason={connection.reason}
-                      address={connection.baseUrl.replace(/^https?:\/\//, '')}
-                      onRetry={tryConnect}
+                <ShellMain>
+                  {'state' in connection ? (
+                    <main className="page page--center" aria-busy="true" />
+                  ) : !connection.ok ? (
+                    <main className="page page--center">
+                      <ServiceProblem
+                        reason={connection.reason}
+                        address={connection.baseUrl.replace(/^https?:\/\//, '')}
+                        onRetry={tryConnect}
+                      />
+                    </main>
+                  ) : route.page === 'library' ? (
+                    <LibraryPage
+                      key={`library:${String(dataEpoch)}`}
+                      client={connection.client}
+                      scope={scope}
+                      projects={projects}
+                      projectsState={projectsState}
+                      onScope={openScope}
+                      onOpenProjectAssets={(id) => {
+                        setRoute({ page: 'assets', focusAssetId: null, projectId: id });
+                      }}
+                      userHome={userHome}
+                      onOpen={openWork}
+                      onCreated={openTab}
+                      handles={editorHandles}
+                      onOpenInBackground={(work) => {
+                        tabs.openInBackground({ id: work.id, kind: work.type, title: work.title });
+                      }}
+                      onRenamed={(id, title) => {
+                        if (tabs.find(id) !== null) tabs.update(id, { title });
+                      }}
+                      onTrashed={(ids) => {
+                        // Saved before deleting, so nothing unsaved is lost; 復原 does not reopen them.
+                        for (const id of ids) if (tabs.find(id) !== null) tabs.close(id);
+                      }}
                     />
-                  </main>
-                ) : route.page === 'library' ? (
-                  <LibraryPage
-                    key={`library:${String(dataEpoch)}`}
-                    client={connection.client}
-                    scope={scope}
-                    projects={projects}
-                    projectsState={projectsState}
-                    onScope={openScope}
-                    onOpenProjectAssets={(id) => {
-                      setRoute({ page: 'assets', focusAssetId: null, projectId: id });
-                    }}
-                    userHome={userHome}
-                    onOpen={openWork}
-                    onCreated={openTab}
-                    handles={editorHandles}
-                    onOpenInBackground={(work) => {
-                      tabs.openInBackground({ id: work.id, kind: work.type, title: work.title });
-                    }}
-                    onRenamed={(id, title) => {
-                      if (tabs.find(id) !== null) tabs.update(id, { title });
-                    }}
-                    onTrashed={(ids) => {
-                      // Saved before deleting, so nothing unsaved is lost; 復原 does not reopen them.
-                      for (const id of ids) if (tabs.find(id) !== null) tabs.close(id);
-                    }}
-                  />
-                ) : route.page === 'editor' ? null : route.page === 'assets' ? (
-                  <AssetsPage
-                    key={`${route.focusAssetId ?? 'assets'}:${String(route.startAt ?? '')}:${route.projectId ?? ''}:${String(dataEpoch)}`}
-                    client={connection.client}
-                    project={
-                      route.projectId === undefined
-                        ? null
-                        : (projectsState.projects?.find((p) => p.id === route.projectId) ?? null)
-                    }
-                    onClearProject={() => {
-                      setRoute({ page: 'assets', focusAssetId: null });
-                    }}
-                    onBackToProject={(id) => {
-                      openScope({ kind: 'project', id });
-                    }}
-                    home={home}
-                    userHome={userHome}
-                    focusAssetId={route.focusAssetId}
-                    startAt={route.startAt ?? null}
-                    onOpenWork={openWork}
-                    onOpenImports={() => {
-                      go('imports');
-                    }}
-                    onOpenSettings={() => {
-                      go('settings');
-                    }}
-                  />
-                ) : route.page === 'prompts' ? (
-                  <PromptsPage
-                    key={`prompts:${String(dataEpoch)}`}
-                    client={connection.client}
-                    onOpenAiServices={() => {
-                      setRoute({ page: 'settings', section: 'ai' });
-                    }}
-                  />
-                ) : route.page === 'ai' ? (
-                  <AiWorkbenchPage
-                    key={`ai:${String(dataEpoch)}`}
-                    client={connection.client}
-                    onOpenSettings={() => {
-                      setRoute({ page: 'settings', section: 'ai' });
-                    }}
-                    onOpenAssets={() => {
-                      go('assets');
-                    }}
-                    onOpenAsset={(id, at) => {
-                      setRoute({ page: 'assets', focusAssetId: id, startAt: at });
-                    }}
-                  />
-                ) : route.page === 'imports' ? (
-                  <ImportsPage
-                    key={`imports:${String(dataEpoch)}`}
-                    client={connection.client}
-                    onOpenAsset={(id) => {
-                      setRoute({ page: 'assets', focusAssetId: id });
-                    }}
-                  />
-                ) : (
-                  <SettingsPage
-                    key={route.section ?? 'settings'}
-                    client={connection.client}
-                    home={home}
-                    userHome={userHome}
-                    baseUrl={connection.baseUrl}
-                    focusSection={route.section}
-                    backups={backups.session}
-                    dataEpoch={dataEpoch}
-                    health={health}
-                    eventStatus={events}
-                    service={service}
-                    checkHealth={checkHealth}
-                  />
-                )}
-                {client !== null && (
-                  <EditorTabs
-                    model={tabs}
-                    handles={editorHandles}
-                    client={client}
-                    userHome={userHome}
-                    visible={route.page === 'editor'}
-                    preloaded={preloaded}
-                    focusToken={focusToken}
-                    onFocusEditor={focusEditor}
-                    onBack={() => {
-                      setRoute({ page: 'library' });
-                    }}
-                    onOpenSettings={() => {
-                      setRoute({ page: 'settings', section: 'ai' });
-                    }}
-                    onOpenPrompts={() => {
-                      setRoute({ page: 'prompts' });
-                    }}
-                  />
-                )}
-              </ShellMain>
-              <ToastHost />
-            </div>
-          </ProjectsDnd>
-        </ProjectsContext.Provider>
-      </AiLibraryContext.Provider>
+                  ) : route.page === 'editor' ? null : route.page === 'assets' ? (
+                    <AssetsPage
+                      key={`${route.focusAssetId ?? 'assets'}:${String(route.startAt ?? '')}:${route.projectId ?? ''}:${String(dataEpoch)}`}
+                      client={connection.client}
+                      project={
+                        route.projectId === undefined
+                          ? null
+                          : (projectsState.projects?.find((p) => p.id === route.projectId) ?? null)
+                      }
+                      onClearProject={() => {
+                        setRoute({ page: 'assets', focusAssetId: null });
+                      }}
+                      onBackToProject={(id) => {
+                        openScope({ kind: 'project', id });
+                      }}
+                      home={home}
+                      userHome={userHome}
+                      focusAssetId={route.focusAssetId}
+                      startAt={route.startAt ?? null}
+                      onOpenWork={openWork}
+                      onOpenImports={() => {
+                        go('imports');
+                      }}
+                      onOpenSettings={() => {
+                        go('settings');
+                      }}
+                    />
+                  ) : route.page === 'proposals' ? (
+                    <ProposalsPage
+                      key={`proposals:${String(dataEpoch)}`}
+                      client={connection.client}
+                      onOpenWork={(id) => {
+                        setSideAsk((a) => ({ tab: 'proposals', n: (a?.n ?? 0) + 1 }));
+                        openWork(id);
+                      }}
+                    />
+                  ) : route.page === 'prompts' ? (
+                    <PromptsPage
+                      key={`prompts:${String(dataEpoch)}`}
+                      client={connection.client}
+                      onOpenAiServices={() => {
+                        setRoute({ page: 'settings', section: 'ai' });
+                      }}
+                    />
+                  ) : route.page === 'ai' ? (
+                    <AiWorkbenchPage
+                      key={`ai:${String(dataEpoch)}`}
+                      client={connection.client}
+                      onOpenSettings={() => {
+                        setRoute({ page: 'settings', section: 'ai' });
+                      }}
+                      onOpenAssets={() => {
+                        go('assets');
+                      }}
+                      onOpenAsset={(id, at) => {
+                        setRoute({ page: 'assets', focusAssetId: id, startAt: at });
+                      }}
+                    />
+                  ) : route.page === 'imports' ? (
+                    <ImportsPage
+                      key={`imports:${String(dataEpoch)}`}
+                      client={connection.client}
+                      onOpenAsset={(id) => {
+                        setRoute({ page: 'assets', focusAssetId: id });
+                      }}
+                      onOpenAgentSettings={() => {
+                        setRoute({ page: 'settings', section: 'agents' });
+                      }}
+                    />
+                  ) : (
+                    <SettingsPage
+                      key={route.section ?? 'settings'}
+                      client={connection.client}
+                      home={home}
+                      userHome={userHome}
+                      baseUrl={connection.baseUrl}
+                      focusSection={route.section}
+                      backups={backups.session}
+                      dataEpoch={dataEpoch}
+                      health={health}
+                      eventStatus={events}
+                      service={service}
+                      checkHealth={checkHealth}
+                    />
+                  )}
+                  {client !== null && (
+                    <EditorTabs
+                      model={tabs}
+                      handles={editorHandles}
+                      client={client}
+                      userHome={userHome}
+                      visible={route.page === 'editor'}
+                      preloaded={preloaded}
+                      focusToken={focusToken}
+                      onFocusEditor={focusEditor}
+                      onBack={() => {
+                        setRoute({ page: 'library' });
+                      }}
+                      onOpenSettings={() => {
+                        setRoute({ page: 'settings', section: 'ai' });
+                      }}
+                      onOpenPrompts={() => {
+                        setRoute({ page: 'prompts' });
+                      }}
+                      sideAsk={sideAsk}
+                    />
+                  )}
+                </ShellMain>
+                <ToastHost />
+              </div>
+            </ProjectsDnd>
+          </ProjectsContext.Provider>
+        </AiLibraryContext.Provider>
+      </ProposalCountsContext.Provider>
     </AppMotion>
   );
 }

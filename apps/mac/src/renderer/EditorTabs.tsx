@@ -31,7 +31,7 @@ import { anchorOf, ContextMenu, type MenuAnchor } from './ContextMenu.js';
 import { Dialog } from './Dialog.js';
 import { RenameField } from './RenameField.js';
 import { EditorPage } from './EditorPage.js';
-import { SideStore } from './editor-side.js';
+import { SideStore, type SideTab } from './editor-side.js';
 import { SideContext } from './EditorSide.js';
 import type { EditorTabHandle } from './tab-handle.js';
 import { changeWork, type EditorHandles } from './work-actions.js';
@@ -95,6 +95,8 @@ export interface EditorTabsProps {
   onOpenSettings: () => void;
   /** 管理 Prompt from the toolbar's prompt picker (QC-075). */
   onOpenPrompts: () => void;
+  /** Bring a sidebar tab forward (QC-091: a work opened from the Agent 提案 inbox shows 提案); `n` makes each ask new. */
+  sideAsk?: { tab: SideTab; n: number };
 }
 
 /**
@@ -125,6 +127,10 @@ export function EditorTabs(props: EditorTabsProps) {
     }
     return new SideStore(storage);
   });
+  const sideAsk = props.sideAsk;
+  useEffect(() => {
+    if (sideAsk !== undefined) side.show(sideAsk.tab);
+  }, [sideAsk, side]);
   const area = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = area.current;

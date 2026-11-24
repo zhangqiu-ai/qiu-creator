@@ -1,0 +1,451 @@
+/* ---- Agent 提案（QC-091，PT-20261124-001）：收件匣、提案詳情、三方對照、編輯頁「提案」分頁 ---- */
+
+/* Agent avatars: two letters on one of eight steady colours (same palette as projects). */
+.pr-avatar {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.pr-avatar--0 {
+  background: #5b6b7f;
+}
+.pr-avatar--1 {
+  background: #3e63c9;
+}
+.pr-avatar--2 {
+  background: #2c8a80;
+}
+.pr-avatar--3 {
+  background: #4c8a3f;
+}
+.pr-avatar--4 {
+  background: #b8862b;
+}
+.pr-avatar--5 {
+  background: #c4622d;
+}
+.pr-avatar--6 {
+  background: #b83e3e;
+}
+.pr-avatar--7 {
+  background: #8a4fa0;
+}
+
+.pr-stats {
+  font-variant-numeric: tabular-nums;
+}
+.pr-stats__add {
+  color: var(--qc-ok);
+  margin-right: 4px;
+}
+.pr-stats__del {
+  color: var(--qc-bad);
+}
+
+/* ---- Inbox page ---- */
+.pr-page {
+  overflow: hidden;
+}
+.pr-page__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--qc-line);
+}
+.pr-page__tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pr-page__n {
+  margin-left: 6px;
+  font-weight: 600;
+}
+.pr-page__body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+}
+.pr-list {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--qc-line);
+}
+.pr-list__items {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pr-list__foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 12px 16px;
+  border-top: 1px solid var(--qc-line);
+  font-size: 12px;
+}
+.pr-row {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--qc-radius-card);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--qc-dur-fast) var(--qc-ease-out);
+}
+.pr-row:hover {
+  background: var(--qc-sunken);
+}
+.pr-row[aria-current='true'] {
+  border-color: var(--qc-line);
+  background: var(--qc-surface);
+  box-shadow: var(--qc-shadow-card);
+}
+.pr-row__main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pr-row__title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pr-row__note {
+  color: var(--qc-ink2);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pr-row__foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.pr-row__when {
+  margin-left: auto;
+}
+.pr-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 24px;
+  text-align: center;
+  color: var(--qc-ink3);
+}
+.pr-empty__title {
+  color: var(--qc-ink);
+  font-weight: 600;
+}
+.pr-detail {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pr-detail__none {
+  margin: auto;
+}
+
+/* ---- One proposal ---- */
+.pr-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pr-view__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.pr-view--compact .pr-view__scroll {
+  padding: 14px;
+  gap: 12px;
+}
+.pr-view__head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.pr-view__who {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pr-view__title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pr-view__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.pr-view--compact .pr-view__title {
+  font-size: 14px;
+}
+.pr-view__meta {
+  font-size: 12.5px;
+}
+.pr-note {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-radius-card);
+  background: var(--qc-sunken);
+}
+.pr-note__label {
+  font-size: 12px;
+  color: var(--qc-ink3);
+}
+.pr-note__text {
+  margin: 4px 0;
+  color: var(--qc-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.pr-note__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--qc-ink3);
+}
+.pr-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--qc-radius-card);
+}
+.pr-banner--bad {
+  background: var(--qc-bad-soft);
+  color: var(--qc-bad);
+}
+.pr-banner--warn {
+  background: var(--qc-warn-soft);
+  color: var(--qc-warn);
+}
+.pr-banner > svg {
+  flex: none;
+  margin-top: 2px;
+}
+.pr-banner__text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pr-banner__text span {
+  color: var(--qc-ink2);
+  font-size: 12.5px;
+}
+.pr-banner__btn {
+  flex: none;
+  align-self: center;
+}
+.pr-decided,
+.pr-side-hint {
+  margin: 0;
+  font-size: 12.5px;
+}
+.pr-hunks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pr-hunk {
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-radius-card);
+  background: var(--qc-surface);
+  overflow: hidden;
+}
+.pr-hunk--conflict {
+  border-color: var(--qc-bad);
+}
+.pr-hunk__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--qc-line);
+  background: var(--qc-sunken);
+  color: var(--qc-ink2);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.pr-hunk__tag {
+  margin-left: auto;
+}
+.pr-hunk__text {
+  padding: 10px 14px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.pr-hunk--off .pr-hunk__text {
+  opacity: 0.55;
+}
+.pr-hunk__ctx {
+  margin: 0;
+  color: var(--qc-ink3);
+}
+.pr-line {
+  margin: 0;
+}
+.pr-line .del,
+.pr-line .ins {
+  white-space: pre-wrap;
+}
+.pr-view__foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 28px;
+  border-top: 1px solid var(--qc-line);
+}
+.pr-view--compact .pr-view__foot {
+  padding: 10px 14px;
+}
+.pr-view__foot-note {
+  flex: 1;
+  margin: 0;
+  font-size: 12.5px;
+}
+.pr-view__actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.pr-view--compact .pr-view__actions {
+  width: 100%;
+}
+.pr-view--compact .pr-view__accept {
+  margin-left: auto;
+}
+
+/* ---- Three-way comparison ---- */
+.pr-3w {
+  margin-top: 12px;
+}
+.pr-3w__title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.pr-3w__cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.pr-3w__col {
+  min-width: 0;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-radius-card);
+  overflow: hidden;
+}
+.pr-3w__label {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--qc-line);
+  background: var(--qc-sunken);
+  color: var(--qc-ink2);
+  font-size: 12px;
+  font-weight: 600;
+}
+.pr-3w__col--mine .pr-3w__label {
+  background: var(--qc-accent-soft);
+  color: var(--qc-accent);
+}
+.pr-3w__col--theirs .pr-3w__label {
+  background: var(--qc-ok-soft);
+  color: var(--qc-ok);
+}
+.pr-3w__text {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Editor sidebar 提案 tab ---- */
+.pr-side {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pr-side__nav {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--qc-line);
+  font-size: 12.5px;
+}
+.pr-side__nav > :first-child {
+  flex: 1;
+}
+/* The changes in the editor's text (visual mode). */
+[data-proposal-hit] {
+  border-radius: 4px;
+  background: var(--qc-ok-soft);
+  box-shadow:
+    -10px 0 0 var(--qc-ok-soft),
+    -12px 0 0 var(--qc-ok);
+}
+
+.pr-view__title-row .link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+  font-size: 12.5px;
+}

@@ -11,7 +11,7 @@ import { urlRejectedText, validateImportUrl } from '../src/renderer/ImportsPage.
 import { mountErrorText, sortMounts } from '../src/renderer/SettingsPage.js';
 import { t } from '../src/renderer/i18n.js';
 import { countRows, filterRows, jobRow, taskRows, uploadRow } from '../src/renderer/tasks.js';
-import { sortTokens } from '../src/renderer/TokensPanel.js';
+import { sortTokens } from '../src/renderer/agents-settings.js';
 import { ApiError } from '@qiu-creator/api-client';
 import type { ApiToken, Mount } from '@qiu-creator/contracts';
 

@@ -48,6 +48,7 @@ import { PreviewPanel } from './PreviewPanel.js';
 import { currentModel, useAiLibrary } from './ai-library.js';
 import type { TabStatusPatch, TabView } from './tabs.js';
 import { EditorSide, useSideStore } from './EditorSide.js';
+import { ProposalsSideTab, usePendingFor, type TextRange } from './ProposalsSideTab.js';
 import {
   WorkSession,
   type Draft,
@@ -270,6 +271,14 @@ function SessionEditor({
   );
   // QC-085: 預覽, AI, 歷史 and 素材 are tabs of the window's right sidebar (⌘⇧P, ⌘⇧I, ⌥⌘0).
   const side = useSideStore();
+  const sideState = useSyncExternalStore(side.subscribe, side.getSnapshot);
+  // QC-091: the 提案 tab while the work has pending agent proposals; its changes light up in the text.
+  const pendingProposals = usePendingFor(work.id);
+  const proposalsShown =
+    pendingProposals > 0 &&
+    (sideState.drawer ? sideState.drawerOpen : sideState.prefs.open) &&
+    sideState.prefs.tab === 'proposals';
+  const [proposalHits, setProposalHits] = useState<readonly TextRange[]>([]);
   const onOverLimit = useCallback(
     (over: boolean) => {
       side.setOver(work.id, over);
@@ -747,6 +756,22 @@ function SessionEditor({
   useEffect(() => {
     forcedMode.current = undefined;
   }, []);
+
+  // The proposal's changes, framed in the visual text while 提案 is in front (QC-091).
+  useEffect(() => {
+    if (!proposalsShown || mode !== 'visual' || proposalHits.length === 0) return;
+    const frame = requestAnimationFrame(() => {
+      for (const r of proposalHits) {
+        for (const el of editor.current?.blockElements(r) ?? []) el.dataset['proposalHit'] = '';
+      }
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      for (const el of docRef.current?.querySelectorAll<HTMLElement>('[data-proposal-hit]') ?? []) {
+        delete el.dataset['proposalHit'];
+      }
+    };
+  }, [proposalsShown, mode, proposalHits, editorKey, state.epoch, state.draft.markdown]);
 
   const readOnly = state.readOnly !== null;
   // External works keep their images in their own folder; nothing is copied into it (QC-039).
@@ -1238,6 +1263,7 @@ function SessionEditor({
       <EditorSide
         workId={work.id}
         active={active}
+        badges={{ proposals: pendingProposals }}
         inert={dialogOpen}
         panels={{
           preview: (
@@ -1286,6 +1312,29 @@ function SessionEditor({
                 }}
               />
             ),
+          ...(pendingProposals > 0
+            ? {
+                proposals: (
+                  <ProposalsSideTab
+                    client={client}
+                    workId={work.id}
+                    text={state.draft.markdown}
+                    prepare={async () => {
+                      await session.save();
+                      const now = session.snapshot;
+                      return session.hasUnsavedChanges() || now.status === 'conflict'
+                        ? null
+                        : now.baseRevision;
+                    }}
+                    onHighlight={setProposalHits}
+                    onNotice={(text, tone) => {
+                      if (tone === 'ok') setOkNotice(text);
+                      else setNotice(text);
+                    }}
+                  />
+                ),
+              }
+            : {}),
           history: (
             <HistoryPanel
               client={client}
