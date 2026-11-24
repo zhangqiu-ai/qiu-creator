@@ -1,11 +1,5 @@
 # Next
 
-## QC-088: MCP 匯入與寫入工具
-
-**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend
-
-依賴 QC-087。`work_create`、`asset_upload_file`（本機路徑，經 tus）、`asset_import_url`、`job_get`／`job_wait`、素材連結與排序、`work_update_meta`、`variant_update`、回收站與批量、`works_assign_projects`、`project_create`／`project_update`；409 與冪等鍵完整傳回；行程內 MCP client 情境測試。
-
 ## QC-089: Agent 提案、直接修改開關、活動記錄與權杖限定項目（後端）
 
 **Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend
