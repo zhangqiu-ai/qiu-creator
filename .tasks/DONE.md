@@ -1,3 +1,9 @@
+## QC-094: 安裝時附帶 creatorhub CLI，MCP 設定帶真實路徑
+
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend | **Done:** 2026-11-24
+
+完成摘要：服務建置把 agent-sdk CLI 打包成 `creatorhub.mjs` 與啟動器 `bin/creatorhub`（用服務自帶的 Node），installer 固定裝在 `~/Library/Application Support/qiu-creator/server/bin/creatorhub`，隨升級與回滾一起換；`/api/v1/session` 回報 `cli`（只限主權杖），「複製 MCP 設定」帶真實路徑與 `CREATORHUB_URL`，開發模式另標示。全套 1324 passed／0 failed；e2e 一般 61／0、動效 62／0。真實安裝與 launchd NOT_VERIFIED（交 qc-release）。證據 `docs/evidence/qc094-cli-install.md`。
+
 ## QC-091: MCP 相關介面實作
 
 **Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend | **Done:** 2026-11-24
