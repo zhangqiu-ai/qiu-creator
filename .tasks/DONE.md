@@ -1,3 +1,9 @@
+## QC-089: Agent 提案、直接修改開關、活動記錄與權杖限定項目（後端）
+
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend | **Done:** 2026-11-24
+
+完成摘要：`propose` 範圍與提案（穩定 id 的修改處、部分採用、重疊回 409 附三方文字、捨棄保留 30 天、`/proposals/counts`）；`allow_direct_body_edit`（預設關，改正文與恢復版本都需要，否則 403）；權杖限定項目（範圍外一律 404，列表、事件、提案都過濾）；活動記錄 `GET /tokens/:id/activity`；`change_log.actor`；revision 加 `agent` 欄位（`source` 不變）；migration 0021 可回滾。MCP 新增 `work_propose_edit`、`proposals_list`、`proposal_get`、`work_update_body`。既有行為改變：write 權杖不能再直接改正文。全套 1281 passed／0 failed；e2e 與真實 Agent NOT_VERIFIED（QC-093）。證據 `docs/evidence/qc089-agent-proposals.md`。
+
 ## QC-088: MCP 匯入與寫入工具
 
 **Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend | **Done:** 2026-11-24
