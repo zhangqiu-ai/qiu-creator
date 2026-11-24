@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ErrorCodeSchema, WorkListItemSchema } from './api.js';
 import { IdSchema, TimestampSchema, WorkStatusSchema } from './entities.js';
+import { PROJECT_DESCRIPTION_MAX_CHARS, ProjectRulesSchema } from './project-rules.js';
 
 /**
  * Projects group works in the library (QC-062). A work may be in several
@@ -42,6 +43,10 @@ export const ProjectSchema = z.object({
   deleted_at: TimestampSchema.nullable(),
   /** Works in the project, not counting works in 回收站. */
   work_count: z.number().int().nonnegative(),
+  /** What the project is about, for people and agents (QC-092). Absent from older servers. */
+  description: z.string().optional(),
+  /** Rules for suggesting and auto-assigning works (QC-092). Absent from older servers. */
+  rules: ProjectRulesSchema.optional(),
   created_at: TimestampSchema,
   updated_at: TimestampSchema,
 });
@@ -56,6 +61,8 @@ export const ProjectIdParamsSchema = z.object({ id: IdSchema });
 export const CreateProjectRequestSchema = z.object({
   name: ProjectNameSchema,
   color: ProjectColorSchema.default(0),
+  description: z.string().trim().max(PROJECT_DESCRIPTION_MAX_CHARS).optional(),
+  rules: ProjectRulesSchema.optional(),
 });
 export type CreateProjectRequest = z.input<typeof CreateProjectRequestSchema>;
 
@@ -66,10 +73,20 @@ export const PatchProjectRequestSchema = z
     name: ProjectNameSchema.optional(),
     color: ProjectColorSchema.optional(),
     archived: z.boolean().optional(),
+    /** QC-092. */
+    description: z.string().trim().max(PROJECT_DESCRIPTION_MAX_CHARS).optional(),
+    /** QC-092: replaces all rules; send empty lists to clear. */
+    rules: ProjectRulesSchema.optional(),
   })
-  .refine((v) => v.name !== undefined || v.color !== undefined || v.archived !== undefined, {
-    message: 'at least one of name, color or archived is required',
-  });
+  .refine(
+    (v) =>
+      v.name !== undefined ||
+      v.color !== undefined ||
+      v.archived !== undefined ||
+      v.description !== undefined ||
+      v.rules !== undefined,
+    { message: 'at least one of name, color, archived, description or rules is required' },
+  );
 export type PatchProjectRequest = z.input<typeof PatchProjectRequestSchema>;
 
 /** The full new order of every project that is not deleted (archived ones included). */

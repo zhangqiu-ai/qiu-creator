@@ -643,6 +643,26 @@ export const migrations: readonly Migration[] = [
       CREATE INDEX token_activity_token ON token_activity (token_id, id DESC);
     `,
   },
+  {
+    id: '0022',
+    name: 'project_rules_membership',
+    sql: /* sql */ `
+      -- QC-092: project description and rules, and who put a work in a
+      -- project and why. Columns only; see PROJECT_RULES_ROLLBACK_SQL.
+      ALTER TABLE projects ADD COLUMN description TEXT NOT NULL DEFAULT '';
+      -- JSON {keywords, tags, folders, domains}
+      ALTER TABLE projects ADD COLUMN rules TEXT NOT NULL DEFAULT '{}';
+      -- 'user' (the owner by hand), 'agent' (an agent token's choice), 'rule' (auto_assign).
+      -- Existing memberships were made in the app: 'user'.
+      ALTER TABLE work_projects ADD COLUMN added_by TEXT NOT NULL DEFAULT 'user'
+        CHECK (added_by IN ('user','agent','rule'));
+      ALTER TABLE work_projects ADD COLUMN added_by_token TEXT;
+      ALTER TABLE work_projects ADD COLUMN added_by_name TEXT;
+      ALTER TABLE work_projects ADD COLUMN score REAL;
+      -- JSON array of reasons for 'rule' assignments.
+      ALTER TABLE work_projects ADD COLUMN reasons TEXT NOT NULL DEFAULT '[]';
+    `,
+  },
 ];
 
 /**
@@ -771,4 +791,20 @@ export const AGENT_PROPOSALS_ROLLBACK_SQL = /* sql */ `
   ALTER TABLE api_tokens DROP COLUMN project_ids;
   ALTER TABLE api_tokens DROP COLUMN allow_direct_body_edit;
   DELETE FROM schema_migrations WHERE id = '0021';
+`;
+
+/**
+ * Undoes `0022_project_rules_membership` so an older build can open the
+ * database again (QC-092): project descriptions and rules, and the record
+ * of who assigned each work, are dropped; memberships themselves stay.
+ */
+export const PROJECT_RULES_ROLLBACK_SQL = /* sql */ `
+  ALTER TABLE work_projects DROP COLUMN reasons;
+  ALTER TABLE work_projects DROP COLUMN score;
+  ALTER TABLE work_projects DROP COLUMN added_by_name;
+  ALTER TABLE work_projects DROP COLUMN added_by_token;
+  ALTER TABLE work_projects DROP COLUMN added_by;
+  ALTER TABLE projects DROP COLUMN rules;
+  ALTER TABLE projects DROP COLUMN description;
+  DELETE FROM schema_migrations WHERE id = '0022';
 `;

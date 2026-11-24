@@ -77,7 +77,10 @@ export function registerAgentRules(
     }
     if (key === 'POST /api/v1/works') {
       const ids = Array.isArray(body['project_ids']) ? (body['project_ids'] as unknown[]) : [];
-      if (ids.length === 0 || ids.some((p) => typeof p !== 'string' || !limit.includes(p))) {
+      // QC-092: with auto_assign the rules may supply the project; the route
+      // still refuses the work if none of this token's projects fits.
+      const missing = ids.length === 0 && body['auto_assign'] !== true;
+      if (missing || ids.some((p) => typeof p !== 'string' || !limit.includes(p))) {
         await deny(
           403,
           'project_scope',

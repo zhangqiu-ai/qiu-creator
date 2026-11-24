@@ -8,9 +8,17 @@ import {
   ProjectListResponseSchema,
   ProjectSchema,
   ProjectSummarySchema,
+  ProjectSuggestionsResponseSchema,
   ReorderProjectsRequestSchema,
+  RulesPreviewRequestSchema,
+  RulesPreviewResponseSchema,
+  SuggestProjectsRequestSchema,
+  WorkIdParamsSchema,
+  WorkProjectParamsSchema,
+  WorkProjectsResponseSchema,
 } from '@qiu-creator/contracts';
 import type { App } from '../http/app-type.js';
+import type { ProjectRuleService } from '../projects/project-rules.js';
 import type { ProjectService } from '../projects/project-service.js';
 
 const errors = {
@@ -24,7 +32,92 @@ const errors = {
  * Projects (QC-062). Reads need `read`; every change needs `write`
  * (deleting a project is reversible and never deletes works).
  */
-export function registerProjectRoutes(app: App, projects: ProjectService): void {
+export function registerProjectRoutes(
+  app: App,
+  projects: ProjectService,
+  rules: ProjectRuleService,
+): void {
+  // ---- QC-092: rules, suggestions and who assigned what ----
+
+  app.get(
+    '/api/v1/works/:id/projects',
+    {
+      schema: {
+        description:
+          'The projects a work is in, each with `added_by`: `user` (the owner by hand), `agent` (an agent token’s choice) or `rule` (auto_assign, with score and reasons).',
+        params: WorkIdParamsSchema,
+        response: { 200: WorkProjectsResponseSchema, ...errors },
+      },
+    },
+    (req) => ({ items: projects.memberships(req.params.id) }),
+  );
+
+  app.post(
+    '/api/v1/works/:id/projects/:projectId/keep',
+    {
+      schema: {
+        description:
+          '保留：make an agent or rule assignment manual, so agents and rules leave it alone (owner only: the user’s decision).',
+        params: WorkProjectParamsSchema,
+        response: { 200: WorkProjectsResponseSchema, ...errors, 409: ErrorResponseSchema },
+      },
+    },
+    (req) => ({ items: projects.keepMembership(req.params.id, req.params.projectId) }),
+  );
+
+  app.delete(
+    '/api/v1/works/:id/projects/:projectId',
+    {
+      schema: {
+        description:
+          '復原歸入：take the work out of a project an agent or a rule put it in (owner only). A manual membership is 409 `membership_manual`; remove those with `POST /api/v1/works/batch/projects`.',
+        params: WorkProjectParamsSchema,
+        response: { 200: WorkProjectsResponseSchema, ...errors, 409: ErrorResponseSchema },
+      },
+    },
+    (req) => ({ items: projects.undoMembership(req.params.id, req.params.projectId) }),
+  );
+
+  app.get(
+    '/api/v1/works/:id/project-suggestions',
+    {
+      schema: {
+        description:
+          'Projects that fit a work by their rules, best first, with a 0–1 score, `outcome` (`auto` ≥ 0.8, `suggest` 0.5–0.8, `none`) and reasons. Deterministic, no AI; projects without rules are not listed.',
+        params: WorkIdParamsSchema,
+        response: { 200: ProjectSuggestionsResponseSchema, ...errors },
+      },
+    },
+    (req) => ({ items: rules.forWork(req.params.id) }),
+  );
+
+  app.post(
+    '/api/v1/projects/suggestions',
+    {
+      schema: {
+        description:
+          'Like `GET /works/:id/project-suggestions` for content not saved yet (title, markdown, tags, source URL). Only reads.',
+        body: SuggestProjectsRequestSchema,
+        response: { 200: ProjectSuggestionsResponseSchema, ...errors },
+      },
+    },
+    (req) => ({ items: rules.forDraft(req.body) }),
+  );
+
+  app.post(
+    '/api/v1/projects/:id/rules/preview',
+    {
+      schema: {
+        description:
+          'Try rules on the most recently updated works (default 20) without saving them: each work’s score, outcome and reasons, and whether it is already in the project. Only reads.',
+        params: ProjectIdParamsSchema,
+        body: RulesPreviewRequestSchema,
+        response: { 200: RulesPreviewResponseSchema, ...errors },
+      },
+    },
+    (req) => rules.preview(req.params.id, req.body),
+  );
+
   app.get(
     '/api/v1/projects',
     {

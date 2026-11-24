@@ -40,6 +40,7 @@ export const errors = defineMessages({
     direct_edit_not_allowed: '這個 Agent 不能直接修改正文，請改用提案',
     proposal_conflict: '提案和之後的修改重疊，需要先對照合併',
     proposal_closed: '這個提案已經採用或捨棄了',
+    membership_manual: '這是你手動歸入的項目，Agent 和規則不會變動它',
     project_scope: '這個 Agent 只能在指定的項目內操作',
     body_not_editable: '平台正文跟隨原稿，請直接修改原稿',
     front_matter_invalid: '作品檔案開頭的 front matter 格式有誤，請先在檔案裡修正',
@@ -84,6 +85,7 @@ export const errors = defineMessages({
     direct_edit_not_allowed: '这个 Agent 不能直接修改正文，请改用提案',
     proposal_conflict: '提案和之后的修改重叠，需要先对照合并',
     proposal_closed: '这个提案已经采用或舍弃了',
+    membership_manual: '这是你手动归入的项目，Agent 和规则不会变动它',
     project_scope: '这个 Agent 只能在指定的项目内操作',
     body_not_editable: '平台正文跟随原稿，请直接修改原稿',
     front_matter_invalid: '作品文件开头的 front matter 格式有误，请先在文件里修正',
@@ -129,6 +131,8 @@ export const errors = defineMessages({
       'This agent can’t change the text directly. It can propose the change instead.',
     proposal_conflict: 'The proposal overlaps later edits. Compare and merge them first.',
     proposal_closed: 'This proposal was already accepted or discarded.',
+    membership_manual:
+      'You put this work in the project yourself, so agents and rules leave it alone.',
     project_scope: 'This agent can only work inside its projects.',
     body_not_editable: 'The platform text follows the original. Edit the original instead.',
     front_matter_invalid:
