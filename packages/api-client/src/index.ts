@@ -1,4 +1,9 @@
 import {
+  ListChangesResponseSchema,
+  SessionResponseSchema,
+  type ListChangesQuery,
+  type ListChangesResponse,
+  type SessionResponse,
   CreateWorkRequestSchema,
   ErrorResponseSchema,
   HealthResponseSchema,
@@ -168,6 +173,10 @@ function worksQuery(query: ListWorksQuery | WorkFacetsQuery | WorkRefsQuery): st
 
 export interface CreatorHubClient {
   health(): Promise<HealthResponse>;
+  /** The calling token: kind, name and scopes (QC-087). Works for every token. */
+  session(): Promise<SessionResponse>;
+  /** One page of the change log after `since` (QC-087); continue with `next_since` while `has_more`. */
+  changes(query?: ListChangesQuery): Promise<ListChangesResponse>;
   works: {
     /** `options.idempotencyKey` is required when using an agent token. */
     create(input: CreateWorkRequest, options?: IdempotencyOptions): Promise<WorkDetail>;
@@ -307,6 +316,14 @@ export function createClient(options: CreatorHubClientOptions): CreatorHubClient
     backups: createBackupsApi(ctx),
     trash: createTrashApi(ctx),
     health: () => request(HealthResponseSchema, 'GET', '/health'),
+    session: () => request(SessionResponseSchema, 'GET', '/api/v1/session'),
+    changes: (query = {}) => {
+      const params = new URLSearchParams();
+      if (query.since !== undefined) params.set('since', String(query.since));
+      if (query.limit !== undefined) params.set('limit', String(query.limit));
+      const qs = params.toString();
+      return request(ListChangesResponseSchema, 'GET', `/api/v1/changes${qs ? `?${qs}` : ''}`);
+    },
     works: {
       create: (input, createOptions) =>
         request(WorkDetailSchema, 'POST', '/api/v1/works', {

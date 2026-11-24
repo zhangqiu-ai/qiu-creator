@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./mcp": "./mcp/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -15,10 +16,12 @@
     "creatorhub": "./bin/creatorhub.js"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@qiu-creator/api-client": "workspace:*",
     "@qiu-creator/contracts": "workspace:*",
     "commander": "^15.1.0",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@qiu-creator/mac-server": "workspace:*"
