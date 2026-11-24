@@ -1,5 +1,11 @@
 # Backlog
 
+## QC-086: 公眾號正文支援公式、圖表與程式碼高亮
+
+**Priority:** P4 | **Assignee:** qc-frontend ＋ qc-prototype | **Tags:** M3, frontend
+
+使用者 2026-11-24 記入。參考 markdown-viewer/markdown-viewer-extension（GPL-3.0，只參考做法，不引入程式碼）：公眾號長文常含程式碼、LaTeX 公式與 Mermaid 圖表，目前預覽只顯示原文。評估以授權寬鬆的成熟套件（如 Shiki、KaTeX、Mermaid）接入公眾號正文的 `deriveVariantBody` 與預覽；同時確認貼到公眾號後台時的呈現（內聯樣式、圖表是否需轉成圖片）。新增依賴須記錄在 `docs/dependencies.md`；呈現方式改變要先出原型給使用者核准。
+
 ## QC-083: 視頻理解摘要作為 AI 標題素材
 
 **Priority:** P3 | **Assignee:** qc-backend ＋ qc-frontend | **Tags:** M3
