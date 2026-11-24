@@ -13,3 +13,9 @@ QC-004 的驗收本體，依賴 QC-030–032。實機安裝後：重開機自啟
 **Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend
 
 依賴 QC-088。項目加 `description`、`rules`（可回滾 migration）；`projects_suggest` 以確定性規則評分，回候選、分數與原因，不呼叫雲端 AI；`work_create` 的 `auto_assign`（分數夠高才歸入，回應說明原因）；手動歸屬不被自動規則覆蓋。
+
+## QC-091: MCP 相關介面實作
+
+**Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend
+
+依賴 QC-089、QC-090 核准、QC-092。依原型實作。

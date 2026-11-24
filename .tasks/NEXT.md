@@ -1,11 +1,5 @@
 # Next
 
-## QC-091: MCP 相關介面實作
-
-**Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend
-
-依賴 QC-089、QC-090 核准、QC-092。依原型實作。
-
 ## QC-093: MCP 驗收與發版
 
 **Priority:** P1 | **Assignee:** qc-test | **Tags:** M3
