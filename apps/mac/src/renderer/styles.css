@@ -4488,18 +4488,18 @@ kbd {
   position: relative;
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
+  /* QC-085: work tabs and editor on the left, the full-height sidebar on the right (editor-side.css). */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
 }
 .tabs-area[hidden],
 .tab-pane[hidden] {
   display: none;
 }
+/* A pane has no box of its own: its editor and its sidebar land in the area's columns. */
 .tab-pane {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+  display: contents;
 }
 .tabbar {
   flex: none;

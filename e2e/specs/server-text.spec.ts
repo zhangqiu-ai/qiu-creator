@@ -3,6 +3,7 @@ import path from 'node:path';
 import { expect, type Page } from '@playwright/test';
 import { fail } from '../../services/mac-server/test/fake-ai.js';
 import { test } from '../fixtures/desktop.js';
+import { showSideTab } from '../fixtures/side.js';
 
 /**
  * QC-043: text the service used to send in 繁體中文 (AI failure details,
@@ -78,6 +79,7 @@ test('服務端文字跟隨介面語言：English 的 AI 錯誤、简体的備�
     const nav = page.getByRole('navigation', { name: 'Main navigation' });
     await nav.getByRole('button', { name: 'All posts', exact: true }).click();
     await page.getByRole('button', { name: new RegExp(TITLE) }).click();
+    await showSideTab(page, 'AI');
     const panel = page.getByRole('complementary', { name: 'AI rewrite' });
     await panel.getByRole('button', { name: 'Rewrite all', exact: true }).click();
     const alert = panel.getByRole('alert');

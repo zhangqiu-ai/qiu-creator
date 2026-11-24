@@ -4,6 +4,7 @@ import { aiServices } from './aiServices.js';
 import { assets } from './assets.js';
 import { common } from './common.js';
 import { editor } from './editor.js';
+import { editorSide } from './editorSide.js';
 import { errors } from './errors.js';
 import { format } from './format.js';
 import { imagePost } from './imagePost.js';
@@ -49,6 +50,7 @@ export const catalog = {
   prompts,
   phone,
   previewPanel,
+  editorSide,
 } as const;
 
 type Areas = typeof catalog;

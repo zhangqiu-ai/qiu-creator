@@ -8,12 +8,7 @@ import {
   type WorkDetail,
 } from '@qiu-creator/contracts';
 import { formatShortDate } from '@qiu-creator/i18n';
-import {
-  getTemplate,
-  PLATFORM_NAME_KEY,
-  PLATFORM_SHORT_KEY,
-  PLATFORMS,
-} from '@qiu-creator/platform-preview';
+import { getTemplate, PLATFORM_SHORT_KEY, PLATFORMS } from '@qiu-creator/platform-preview';
 import {
   useCallback,
   useDeferredValue,
@@ -32,7 +27,7 @@ import { currentModel, useAiLibrary } from './ai-library.js';
 import { useChangeEvents } from './events.js';
 import { t, useLocale } from './i18n.js';
 import { Icon } from './Icon.js';
-import { AnimatedItem, Presence, useExitFade } from './motion.js';
+import { AnimatedItem, Presence } from './motion.js';
 import { CoverGenSession, coverPromptFrom, ratioStyle } from './preview-cover.js';
 import { PreviewTitleSession, titleLimitOf } from './preview-titles.js';
 import { addTags } from './TagEditor.js';
@@ -47,20 +42,13 @@ import {
 import type { PhoneActions, PhoneModel, Screen } from './preview/phone-model.js';
 import {
   blockAt,
-  clampSplit,
   loadPreviewPrefs,
   savePreviewPrefs,
-  SPLIT_MIN,
-  SPLIT_DEFAULT,
-  SPLIT_STEP,
   type PreviewPrefs,
 } from './preview/preview-prefs.js';
 import { PreviewStage } from './preview/PreviewStage.js';
 import type { PrefStorage } from './sidebar-prefs.js';
 import './preview.css';
-
-/** Below this window width the split is 400 wide and the follow label hides (PT-20261123-001). */
-export const PREVIEW_NARROW_BELOW = 1360;
 
 function shortName(platform: Platform): string {
   return t(PLATFORM_SHORT_KEY[platform]);
@@ -96,7 +84,8 @@ export interface PreviewPanelProps {
   onShorten?: (limit: number) => void;
   /** Resolves a Markdown image target for the article simulation. */
   resolveImage?: (src: string) => Promise<string>;
-  onClose: () => void;
+  /** Some platform goes over a limit (the orange dot on the sidebar's 預覽, QC-085). */
+  onOverLimit?: (over: boolean) => void;
   onNotice: (text: string) => void;
 }
 
@@ -106,22 +95,6 @@ function storage(): PrefStorage | null {
   } catch {
     return null;
   }
-}
-
-function useNarrow(): boolean {
-  const query = `(max-width: ${String(PREVIEW_NARROW_BELOW - 1)}px)`;
-  const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches);
-  useEffect(() => {
-    const mq = window.matchMedia(query);
-    const on = () => {
-      setNarrow(mq.matches);
-    };
-    mq.addEventListener('change', on);
-    return () => {
-      mq.removeEventListener('change', on);
-    };
-  }, [query]);
-  return narrow;
 }
 
 function useStore<S>(store: { subscribe: (l: () => void) => () => void; snapshot: S }): S {
@@ -302,12 +275,9 @@ export function PreviewPanel({
   onEditSource,
   onShorten,
   resolveImage,
-  onClose,
+  onOverLimit,
   onNotice,
 }: PreviewPanelProps) {
-  const panelRef = useRef<HTMLElement>(null);
-  useExitFade(panelRef, 'panel');
-  const narrow = useNarrow();
   const locale = useLocale();
   const list = useMemo(() => [...platforms], [platforms]);
   const [platform, setPlatform] = useState<Platform>(list[0] ?? 'xiaohongshu');
@@ -333,8 +303,7 @@ export function PreviewPanel({
   useEffect(() => {
     if (open === undefined || !list.includes(open.platform)) return;
     setPlatform(open.platform);
-    setPrefs({ collapsed: false });
-  }, [open, list, setPrefs]);
+  }, [open, list]);
 
   useEffect(() => {
     let alive = true;
@@ -508,52 +477,10 @@ export function PreviewPanel({
     onNotice(notice);
   };
 
-  const narrowWidth = narrow ? SPLIT_MIN : clampSplit(prefs.width);
-
-  if (prefs.collapsed) {
-    return (
-      <aside
-        ref={panelRef}
-        className="panel pv-rail"
-        aria-label={t('library.preview')}
-        id="preview-panel"
-      >
-        <button
-          type="button"
-          className="btn btn--ghost btn--icon pv-rail__btn"
-          aria-label={t('previewPanel.expand')}
-          title={t('previewPanel.expand')}
-          onClick={() => {
-            setPrefs({ collapsed: false });
-          }}
-        >
-          <Icon name="chevronLeft" size={16} />
-        </button>
-        {list.map((p) => {
-          const m = models.get(p);
-          const warn = m !== undefined && overLimit(m);
-          return (
-            <button
-              key={p}
-              type="button"
-              className="pv-rail__btn pv-rail__plat"
-              aria-label={t(PLATFORM_NAME_KEY[p])}
-              title={t(PLATFORM_NAME_KEY[p])}
-              onClick={() => {
-                setPlatform(p);
-                setPrefs({ collapsed: false });
-              }}
-            >
-              {Array.from(shortName(p))[0]}
-              {warn && (
-                <span className="pv-tab__warn" role="img" aria-label={t('library.overLimit')} />
-              )}
-            </button>
-          );
-        })}
-      </aside>
-    );
-  }
+  const anyOver = [...models.values()].some(overLimit);
+  useEffect(() => {
+    onOverLimit?.(anyOver);
+  }, [anyOver, onOverLimit]);
 
   const conflictSheet =
     state?.conflict != null && session !== undefined ? (
@@ -561,21 +488,7 @@ export function PreviewPanel({
     ) : null;
 
   return (
-    <aside
-      ref={panelRef}
-      className={narrow ? 'panel pv-split pv-split--narrow' : 'panel pv-split'}
-      style={{ width: narrowWidth }}
-      aria-label={t('library.preview')}
-      id="preview-panel"
-    >
-      {!narrow && (
-        <ResizeHandle
-          width={narrowWidth}
-          onWidth={(w) => {
-            setPrefs({ width: w });
-          }}
-        />
-      )}
+    <aside className="panel pv-split" aria-label={t('library.preview')} id="preview-panel">
       <div className="pv-split__head">
         <div
           className="pv-tabs"
@@ -633,33 +546,13 @@ export function PreviewPanel({
             type="button"
             className="pv-follow"
             aria-pressed={prefs.follow}
-            aria-label={narrow ? t('previewPanel.follow') : undefined}
             title={t('previewPanel.followHint')}
             onClick={() => {
               setPrefs({ follow: !prefs.follow });
             }}
           >
-            {!narrow && t('previewPanel.follow')}
             <Icon name="follow" size={14} />
-          </button>
-          <button
-            type="button"
-            className="btn btn--ghost btn--icon btn--small"
-            aria-label={t('previewPanel.collapse')}
-            title={t('previewPanel.collapse')}
-            onClick={() => {
-              setPrefs({ collapsed: true });
-            }}
-          >
-            <Icon name="chevronRight" size={14} />
-          </button>
-          <button
-            type="button"
-            className="btn btn--ghost btn--icon btn--small pv-split__close"
-            aria-label={t('library.closePreview')}
-            onClick={onClose}
-          >
-            <Icon name="close" size={14} />
+            {t('previewPanel.follow')}
           </button>
         </div>
       </div>
@@ -836,49 +729,6 @@ function useSessions(
 const EMPTY: ReadonlyMap<Platform, OverrideState> = new Map();
 
 /** The split's left edge: drag 400–720, ←／→ in steps, double-click back to 520 (remembered). */
-function ResizeHandle({ width, onWidth }: { width: number; onWidth: (w: number) => void }) {
-  return (
-    <div
-      className="pv-resize"
-      role="separator"
-      aria-orientation="vertical"
-      aria-label={t('previewPanel.resize')}
-      aria-valuemin={SPLIT_MIN}
-      aria-valuemax={720}
-      aria-valuenow={width}
-      tabIndex={0}
-      onPointerDown={(e) => {
-        e.preventDefault();
-        const startX = e.clientX;
-        const startW = width;
-        document.body.classList.add('is-resizing');
-        const move = (ev: PointerEvent) => {
-          onWidth(clampSplit(startW + (startX - ev.clientX)));
-        };
-        const up = () => {
-          document.body.classList.remove('is-resizing');
-          window.removeEventListener('pointermove', move);
-          window.removeEventListener('pointerup', up);
-        };
-        window.addEventListener('pointermove', move);
-        window.addEventListener('pointerup', up);
-      }}
-      onDoubleClick={() => {
-        onWidth(SPLIT_DEFAULT);
-      }}
-      onKeyDown={(e) => {
-        // The handle is on the left: ← widens the split.
-        if (e.key === 'ArrowLeft') onWidth(clampSplit(width + SPLIT_STEP));
-        else if (e.key === 'ArrowRight') onWidth(clampSplit(width - SPLIT_STEP));
-        else if (e.key === 'Home') onWidth(SPLIT_MIN);
-        else if (e.key === 'End') onWidth(720);
-        else return;
-        e.preventDefault();
-      }}
-    />
-  );
-}
-
 /** A bottom sheet inside the phone, like the real apps (PT v2). */
 function Sheet({
   label,

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { expect, type Page } from '@playwright/test';
 import { test } from '../fixtures/desktop.js';
 import { startScreencast } from '../fixtures/screencast.js';
+import { showSideTab } from '../fixtures/side.js';
 
 /*
  * QC-065 area 2, overlays (DESIGN.md 動效 · 選單、右鍵選單、對話框、側面板、Toast):
@@ -107,18 +108,20 @@ test('浮層動效錄影（正常速度）與減少動態效果', async ({ deskt
   await page.getByRole('menuitemradio', { name: '待審核' }).click();
   await expect(page.locator('[data-toast]')).toHaveCount(3);
 
-  // Side panels: the history panel and the asset drawer come in from the right.
+  // The editor sidebar (QC-085): its tabs fade in; it slides in from the right when shown.
   await card(page, '京都散步路線').click();
-  await page.getByRole('button', { name: '歷史', exact: true }).click();
-  await expect(page.locator('#history-panel')).toBeVisible();
-  await page.getByRole('button', { name: '歷史', exact: true }).click();
-  await expect(page.locator('#history-panel')).toHaveCount(0);
+  await showSideTab(page, '歷史');
+  await expect(page.locator('.tab-pane:not([hidden]) #history-panel')).toBeVisible();
+  await showSideTab(page, '預覽');
+  await expect(page.locator('.tab-pane:not([hidden]) #history-panel')).toBeHidden();
   await page.getByRole('button', { name: '插入', exact: true }).click();
   await page.getByRole('menuitem', { name: /從素材庫/ }).click();
   const drawer = page.getByRole('complementary', { name: '素材抽屜' });
   await expect(drawer).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(drawer).toHaveCount(0);
+  await page.keyboard.press('Meta+Shift+i');
+  await expect(drawer).toBeHidden();
+  await page.keyboard.press('Alt+Meta+0');
+  await expect(drawer).toBeVisible();
   await page.locator('.editor').first().hover();
   if (stop !== null) test.info().annotations.push({ type: 'video', description: await stop() });
 

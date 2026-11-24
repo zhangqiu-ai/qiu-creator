@@ -3,6 +3,7 @@ import path from 'node:path';
 import { expect, type Page } from '@playwright/test';
 import { ok } from '../../services/mac-server/test/fake-ai.js';
 import { test } from '../fixtures/desktop.js';
+import { showSideTab } from '../fixtures/side.js';
 
 /*
  * QC-040: scrolling the editor must never slide the toolbar, the AI tabs or
@@ -72,7 +73,9 @@ async function expectNothingCovered(page: Page, label: string): Promise<void> {
   if (await panel.isVisible()) {
     const p = await box(page, '.panel.ai');
     const tabs = await box(page, '.ai__tabs');
-    expect(p.top, `${label}: panel inside the body`).toBeGreaterThanOrEqual(body.top - 1);
+    // QC-085: the panel is in the sidebar, under its tab bar.
+    const sideBody = await box(page, '.tab-pane:not([hidden]) .side__body');
+    expect(p.top, `${label}: panel inside the sidebar`).toBeGreaterThanOrEqual(sideBody.top - 1);
     expect(p.bottom, `${label}: panel inside the window`).toBeLessThanOrEqual(viewport.height + 1);
     expect(tabs.top, `${label}: AI tabs pinned`).toBeGreaterThanOrEqual(p.top - 1);
     expect(tabs.bottom, `${label}: AI tabs pinned`).toBeLessThanOrEqual(p.bottom);
@@ -108,6 +111,8 @@ test('捲動正文與 AI 面板時，工具列與分頁列不會蓋住內容', a
     .getByRole('region', { name: '作品', exact: true })
     .getByRole('button', { name: new RegExp(WORK_TITLE) })
     .click();
+  // QC-085: the AI panel is a tab of the editor sidebar, which opens on 預覽.
+  await showSideTab(page, 'AI');
   const panel = page.getByRole('complementary', { name: 'AI 改寫' });
   await panel.getByRole('button', { name: '改寫全文', exact: true }).click();
   await expect(panel.locator('.ai__hunk').first()).toBeVisible();
@@ -134,17 +139,25 @@ test('捲動正文與 AI 面板時，工具列與分頁列不會蓋住內容', a
     await page.getByRole('button', { name: '視覺', exact: true }).click();
   });
 
-  await test.step('窄視窗：上下排列，各自捲動', async () => {
+  await test.step('窄視窗：邊欄成為抽屜（QC-085），正文與 AI 面板各自捲動', async () => {
     for (const size of [
       { width: 1000, height: 800 },
       { width: 760, height: 800 },
     ]) {
       await page.setViewportSize(size);
-      await page.waitForTimeout(200);
+      // The drawer starts closed: the text has the room.
+      await expect(page.locator('.panel.ai')).toBeHidden();
       await wheel(page, '.editor__doc', 1500);
+      await expectNothingCovered(page, `${String(size.width)}px`);
+      await showSideTab(page, 'AI');
       await wheel(page, '.panel.ai', 1500);
       await shot(page, `narrow-${String(size.width)}`);
-      await expectNothingCovered(page, `${String(size.width)}px`);
+      const p = await box(page, '.panel.ai');
+      const tabs = await box(page, '.ai__tabs');
+      expect(p.bottom).toBeLessThanOrEqual(size.height + 1);
+      expect(tabs.top).toBeGreaterThanOrEqual(p.top - 1);
+      await page.keyboard.press('Escape');
+      await expect(page.locator('.panel.ai')).toBeHidden();
     }
   });
 });

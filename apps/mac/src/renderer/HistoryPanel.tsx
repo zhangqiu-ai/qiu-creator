@@ -5,7 +5,6 @@ import { conflictHunks } from './conflict.js';
 import { formatWhen, REVISION_SOURCE_LABEL } from './format.js';
 import { useExitFade } from './motion.js';
 import { t } from './i18n.js';
-import { Icon } from './Icon.js';
 import type { RestoreResult } from './work-session.js';
 
 function lines(text: readonly string[]): string {
@@ -27,7 +26,6 @@ export function HistoryPanel({
   currentTitle,
   readOnly,
   onRestore,
-  onClose,
 }: {
   client: CreatorHubClient;
   workId: string;
@@ -38,7 +36,6 @@ export function HistoryPanel({
   currentTitle: string;
   readOnly: boolean;
   onRestore: (revisionId: string) => Promise<RestoreResult>;
-  onClose: () => void;
 }) {
   const panelRef = useRef<HTMLElement>(null);
   useExitFade(panelRef, 'panel');
@@ -114,23 +111,12 @@ export function HistoryPanel({
       className="panel"
       aria-label={t('editor.historyTitle')}
       onKeyDown={(e) => {
-        if (e.key === 'Escape' && !e.nativeEvent.isComposing) {
-          if (confirming) setConfirming(false);
-          else onClose();
-        }
+        if (e.key === 'Escape' && !e.nativeEvent.isComposing && confirming) setConfirming(false);
       }}
     >
       <div className="panel__head">
         <span className="panel__title">{t('editor.historyTitle')}</span>
         <span className="faint">{revisions.length}</span>
-        <button
-          type="button"
-          className="btn btn--ghost btn--icon panel__close"
-          aria-label={t('editor.closeHistory')}
-          onClick={onClose}
-        >
-          <Icon name="close" />
-        </button>
       </div>
       <ol className="revs">
         {revisions.map((r) => (

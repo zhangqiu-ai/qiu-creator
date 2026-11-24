@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { expect, type Locator, type Page } from '@playwright/test';
 import { videoResult } from '../../services/mac-server/test/fake-gemini-video.js';
 import { test } from '../fixtures/desktop.js';
+import { sidePane, showSideTab } from '../fixtures/side.js';
 
 /*
  * QC-046 視頻作品 (PT-20261121-001 「v3 · 視頻作品」): pick a video, play it
@@ -32,7 +33,7 @@ const CLIP = fileURLToPath(new URL('../fixtures/media/portrait-8s.webm', import.
 const GEMINI_KEY = 'AIzaFakeQc046E2eKey0123456789';
 
 /**
- * A right panel holds the AI results, and the 預覽 split the 340 px phone, without
+ * The sidebar's AI tab holds the AI results, and its 預覽 tab the scaled phone, without
  * scrolling sideways; the phone is not cut off (same rule as QC-049).
  */
 async function expectSideFits(page: Page, selector = '.vw__side'): Promise<void> {
@@ -59,10 +60,12 @@ async function shot(page: Page, name: string): Promise<void> {
 }
 
 const editor = (page: Page): Locator => page.locator('.tab-pane:not([hidden]) main.vw');
-const side = (page: Page): Locator => editor(page).getByRole('complementary', { name: 'AI 理解' });
-/** QC-076: 抖音 and 視頻號 copy versions live in the shared 預覽 split. */
+/** QC-085: the understanding panel is the sidebar's AI tab; picking a video brings it forward. */
+const side = (page: Page): Locator =>
+  sidePane(page).getByRole('complementary', { name: 'AI 理解' });
+/** QC-076: 抖音 and 視頻號 copy versions live in the shared 預覽 (a sidebar tab since QC-085). */
 const preview = (page: Page): Locator =>
-  editor(page).getByRole('complementary', { name: '平台預覽' });
+  sidePane(page).getByRole('complementary', { name: '平台預覽' });
 
 async function newVideoWork(page: Page): Promise<void> {
   await page
@@ -181,8 +184,8 @@ test('視頻：選視頻、播放與 ←→、截取封面、共用與抖音文�
     await expect(editor(page).locator('#vw-title-' + work.id)).toHaveValue(
       '嵐山竹林：清晨人最少的時段與散步路線',
     );
-    await preview(page).getByRole('button', { name: '關閉預覽' }).click();
-    await expect(preview(page)).toHaveCount(0);
+    await showSideTab(page, 'AI');
+    await expect(preview(page)).toBeHidden();
   });
 
   await test.step('Gemini：先看預估、勾選同意才送出，分析後出現摘要與待核驗的時間點', async () => {

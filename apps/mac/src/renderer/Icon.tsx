@@ -49,6 +49,7 @@ export type IconName =
   | 'prompt'
   | 'language'
   | 'sidebar'
+  | 'sideRight'
   | 'appearance'
   | 'server'
   | 'info'
@@ -73,6 +74,10 @@ const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   ],
   inbox: ['M3 13h5l1.5 3h5L16 13h5', 'M5.5 5h13L21 13v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5Z'],
   sidebar: ['M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z', 'M9 4v16'],
+  sideRight: [
+    'M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z',
+    'M15 4v16',
+  ],
   appearance: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z', 'M12 3v18'],
   server: ['M4 5h16v6H4Z', 'M4 13h16v6H4Z', 'M8 8h.01', 'M8 16h.01'],
   info: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z', 'M12 11v5', 'M12 8h.01'],

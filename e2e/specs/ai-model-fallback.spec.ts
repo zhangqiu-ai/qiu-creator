@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { expect, type Page } from '@playwright/test';
 import { test } from '../fixtures/desktop.js';
+import { showSideTab } from '../fixtures/side.js';
 
 /*
  * QC-082: the New API relay cannot list its models (503). The model menu
@@ -45,6 +46,8 @@ test('中轉站清單讀取失敗：New API 仍列出已存模型，提示原因
     .getByRole('region', { name: '作品', exact: true })
     .getByRole('button', { name: /京都散步/ })
     .click();
+  // QC-085: the AI panel is a tab of the editor sidebar, which opens on 預覽.
+  await showSideTab(page, 'AI');
 
   const panel = page.getByRole('complementary', { name: 'AI' });
   await panel.getByRole('button', { name: '模型', exact: true }).click();

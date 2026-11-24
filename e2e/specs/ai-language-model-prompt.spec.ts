@@ -3,6 +3,7 @@ import path from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
 import { ok } from '../../services/mac-server/test/fake-ai.js';
 import { test } from '../fixtures/desktop.js';
+import { showSideTab } from '../fixtures/side.js';
 
 /*
  * QC-075 (PT-20261122-003): the selection toolbar and the 改寫 panel switch
@@ -92,6 +93,8 @@ async function setUp(desktop: Parameters<Parameters<typeof test>[2]>[0]['desktop
     .getByRole('button', { name: /京都散步/ })
     .click();
   await expect(content(page)).toContainText('第一段寫紅葉');
+  // QC-085: the AI panel is a tab of the editor sidebar, which opens on 預覽.
+  await showSideTab(page, 'AI');
   return { page, c, upstream };
 }
 

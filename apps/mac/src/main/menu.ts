@@ -34,6 +34,11 @@ export function menuTemplate(
   );
   jumps.push(tab('jump-9', t('main.menuTabLast'), 'CommandOrControl+9'));
   const view: MenuItemConstructorOptions[] = [
+    // The editor's right sidebar (QC-085).
+    tab('side-toggle', t('main.menuToggleSide'), 'Alt+CommandOrControl+0'),
+    tab('side-preview', t('main.menuSidePreview'), 'CommandOrControl+Shift+P'),
+    tab('side-assets', t('main.menuSideAssets'), 'CommandOrControl+Shift+I'),
+    { type: 'separator' },
     { role: 'reload', label: t('main.menuReload') },
     { role: 'forceReload', label: t('main.menuForceReload') },
   ];

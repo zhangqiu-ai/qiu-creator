@@ -66,13 +66,12 @@ describe('TabsModel: opening and switching (QC-047)', () => {
     expect(m.active?.id).toBe('b');
   });
 
-  it('keeps each tab’s view (mode, caret, scroll, panel) as saved', () => {
+  it('keeps each tab’s view (mode, caret, scroll) as saved', () => {
     const m = modelWith(['a', 'b']);
     const view = {
       mode: 'source' as const,
       selection: { start: 3, end: 7 },
       scrollTop: 420,
-      panel: 'history' as const,
     };
     m.saveView('a', view);
     m.activate('a');

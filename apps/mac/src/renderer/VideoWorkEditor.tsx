@@ -38,7 +38,8 @@ import { Icon } from './Icon.js';
 import { shortPlatform } from './image-post.js';
 import { AssetDrawer } from './InsertUI.js';
 import { diffSentences } from './rewrite-diff.js';
-import type { TabPanel, TabStatusPatch, TabView } from './tabs.js';
+import type { TabStatusPatch, TabView } from './tabs.js';
+import { EditorSide, useSideStore } from './EditorSide.js';
 import { TagEditor } from './TagEditor.js';
 import { ProjectTags } from './ProjectTags.js';
 import { TechnicalDetails } from './TechnicalDetails.js';
@@ -155,17 +156,21 @@ function VideoEditor({
   const external = work.storage_mode === 'external';
   const bridge = window.creatorhub ?? null;
 
-  const [panel, setPanel] = useState<TabPanel>(initialView?.panel ?? 'ai');
-  // QC-076: the 抖音 and 視頻號 copy versions live in the shared 預覽 split.
-  const [previewOpen, setPreviewOpen] = useState(false);
+  // QC-085: 預覽, AI (影片理解), 歷史 and 素材 are tabs of the window's right sidebar.
+  const side = useSideStore();
   const [previewAsk, setPreviewAsk] = useState<{ platform: Platform; n: number } | undefined>(
     undefined,
   );
   const openPreview = (platform: Platform) => {
-    setPanel('ai');
     setPreviewAsk((r) => ({ platform, n: (r?.n ?? 0) + 1 }));
-    setPreviewOpen(true);
+    side.show('preview');
   };
+  const onOverLimit = useCallback(
+    (over: boolean) => {
+      side.setOver(work.id, over);
+    },
+    [side, work.id],
+  );
   const [notice, setNotice] = useState<{ text: string; tone: 'ok' | 'bad' } | null>(null);
   const [undo, setUndo] = useState<{ label: string; revision: string } | null>(null);
   const [adopt, setAdopt] = useState<Adopt | null>(null);
@@ -307,19 +312,18 @@ function VideoEditor({
   }, [vs?.phase, result, onTabStatus]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollTop = useRef(initialView?.scrollTop ?? 0);
-  const latest = useRef({ panel, onViewChange });
-  latest.current = { panel, onViewChange };
+  const latest = useRef({ onViewChange });
+  latest.current = { onViewChange };
   const reportView = useCallback(() => {
     latest.current.onViewChange?.({
       mode: null,
       selection: null,
       scrollTop: scrollTop.current,
-      panel: latest.current.panel,
     });
   }, []);
   useEffect(() => {
     if (active) reportView();
-  }, [panel, active, reportView]);
+  }, [active, reportView]);
   useLayoutEffect(() => {
     if (!active) return;
     return () => {
@@ -347,11 +351,6 @@ function VideoEditor({
       if (!e.shiftKey && key === 's') {
         e.preventDefault();
         void session.save();
-      } else if (e.shiftKey && key === 'p') {
-        e.preventDefault();
-        void session.save().finally(() => {
-          setPreviewOpen((open) => !open);
-        });
       }
     };
     window.addEventListener('keydown', onKey);
@@ -544,35 +543,6 @@ function VideoEditor({
             />
           </span>
           {rev !== undefined && <Chip>r{rev}</Chip>}
-          <div className="editor__actions">
-            <button
-              type="button"
-              className="btn"
-              aria-pressed={previewOpen}
-              aria-controls="preview-panel"
-              aria-keyshortcuts="Meta+Shift+P"
-              onClick={() => {
-                void session.save().finally(() => {
-                  setPreviewOpen((open) => !open);
-                });
-              }}
-            >
-              <Icon name="phone" />
-              {t('editor.preview')}
-            </button>
-            <button
-              type="button"
-              className="btn btn--ghost"
-              aria-expanded={panel === 'history'}
-              onClick={() => {
-                setPreviewOpen(false);
-                setPanel((p) => (p === 'history' ? 'ai' : 'history'));
-              }}
-            >
-              <Icon name="history" />
-              {t('editor.history')}
-            </button>
-          </div>
         </header>
 
         <div className="editor__meta">
@@ -669,7 +639,7 @@ function VideoEditor({
                     className="btn btn--small"
                     disabled={readOnly || uploading !== null}
                     onClick={() => {
-                      setPanel('assets');
+                      side.show('assets');
                     }}
                   >
                     {t('videoWork.replaceVideo')}
@@ -721,7 +691,7 @@ function VideoEditor({
                       className="btn btn--primary"
                       disabled={readOnly || external}
                       onClick={() => {
-                        setPanel('assets');
+                        side.show('assets');
                       }}
                     >
                       <Icon name="assets" size={14} />
@@ -921,74 +891,6 @@ function VideoEditor({
               </div>
             </section>
           </div>
-
-          {previewOpen ? (
-            <PreviewPanel
-              client={client}
-              work={work}
-              platforms={VIDEO_PLATFORMS}
-              open={previewAsk}
-              workCoverAssetId={coverAsset}
-              source={{
-                title: draft.title,
-                text: draft.markdown,
-                format: 'text',
-                tags: draft.tags,
-              }}
-              extraTitles={result?.title_suggestions ?? []}
-              onClose={() => {
-                setPreviewOpen(false);
-              }}
-              onNotice={(text) => {
-                setNotice({ text, tone: 'ok' });
-              }}
-            />
-          ) : panel === 'history' ? (
-            <HistoryPanel
-              client={client}
-              workId={work.id}
-              revisions={revisions}
-              numbers={numbers}
-              currentRevision={state.baseRevision}
-              currentMarkdown={state.file}
-              currentTitle={state.saved.title}
-              readOnly={readOnly}
-              onRestore={(rid) => session.restore(rid)}
-              onClose={() => {
-                setPanel('ai');
-              }}
-            />
-          ) : panel === 'assets' ? (
-            <AssetDrawer
-              client={client}
-              workId={work.id}
-              forPost
-              kind="video"
-              disabledReason={external ? t('videoWork.externalLocked') : null}
-              onInsert={(a) => {
-                session.edit({ video: a.id });
-                setPanel('ai');
-              }}
-              onDragAsset={() => undefined}
-              onClose={() => {
-                setPanel('ai');
-              }}
-            />
-          ) : (
-            <aside className="panel vw__side" aria-label={t('videoWork.understanding')}>
-              <Understanding
-                s={vs}
-                video={video}
-                asset={asset}
-                block={block}
-                hasVideo={videoId !== null}
-                readOnly={readOnly}
-                onSeek={seek}
-                onAdopt={setAdopt}
-                onOpenSettings={onOpenSettings}
-              />
-            </aside>
-          )}
         </div>
 
         <input
@@ -1028,6 +930,74 @@ function VideoEditor({
           }}
         />
       </main>
+      <EditorSide
+        workId={work.id}
+        active={active}
+        panels={{
+          preview: (
+            <PreviewPanel
+              client={client}
+              work={work}
+              platforms={VIDEO_PLATFORMS}
+              open={previewAsk}
+              workCoverAssetId={coverAsset}
+              source={{
+                title: draft.title,
+                text: draft.markdown,
+                format: 'text',
+                tags: draft.tags,
+              }}
+              extraTitles={result?.title_suggestions ?? []}
+              onOverLimit={onOverLimit}
+              onNotice={(text) => {
+                setNotice({ text, tone: 'ok' });
+              }}
+            />
+          ),
+          ai: (
+            <aside className="panel vw__side" aria-label={t('videoWork.understanding')}>
+              <Understanding
+                s={vs}
+                video={video}
+                asset={asset}
+                block={block}
+                hasVideo={videoId !== null}
+                readOnly={readOnly}
+                onSeek={seek}
+                onAdopt={setAdopt}
+                onOpenSettings={onOpenSettings}
+              />
+            </aside>
+          ),
+          history: (
+            <HistoryPanel
+              client={client}
+              workId={work.id}
+              revisions={revisions}
+              numbers={numbers}
+              currentRevision={state.baseRevision}
+              currentMarkdown={state.file}
+              currentTitle={state.saved.title}
+              readOnly={readOnly}
+              onRestore={(rid) => session.restore(rid)}
+            />
+          ),
+          assets: (
+            <AssetDrawer
+              client={client}
+              workId={work.id}
+              forPost
+              kind="video"
+              disabledReason={external ? t('videoWork.externalLocked') : null}
+              onInsert={(a) => {
+                session.edit({ video: a.id });
+                side.show('ai');
+              }}
+              onDragAsset={() => undefined}
+            />
+          ),
+        }}
+      />
 
       {vs?.phase === 'confirm' && video !== null && (
         <ConfirmDialog s={vs} session={video} requireAck />

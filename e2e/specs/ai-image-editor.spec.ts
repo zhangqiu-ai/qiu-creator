@@ -4,6 +4,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 import { ok } from '../../services/mac-server/test/fake-ai.js';
 import { pngBytes } from '../../services/mac-server/test/fixtures.js';
 import { test } from '../fixtures/desktop.js';
+import { showSideTab } from '../fixtures/side.js';
 import { startScreencast } from '../fixtures/screencast.js';
 
 /*
@@ -107,6 +108,8 @@ async function setUp(
     .getByRole('button', { name: /京都散步/ })
     .click();
   await expect(content(page)).toContainText('第一段寫紅葉');
+  // QC-085: the AI panel is a tab of the editor sidebar, which opens on 預覽.
+  await showSideTab(page, 'AI');
   return { page, c, upstream, work };
 }
 
@@ -182,7 +185,7 @@ test('選取浮動工具列：原位改寫候選、配圖佔位與保留、費�
 
   await test.step('配圖：費用無法預估先問一次；佔位在段落後、下文讓位；圖片落位後保留寫入作品', async () => {
     upstream.imageReplies.push({ ...(await images('#9E4428', '#2F4FCF')), delayMs: 800 });
-    const third = page.getByText('第三段寫晚上的鴨川。');
+    const third = content(page).getByText('第三段寫晚上的鴨川。');
     const before = (await third.boundingBox())?.y ?? 0;
     await selectInVisual(page, '竹林小徑');
     await toolbar(page).getByRole('button', { name: '配圖' }).click();
