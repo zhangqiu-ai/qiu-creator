@@ -353,3 +353,14 @@ exit 0。升級前備份 id：**`20261121T154449342Z-manual`**。
 - 偏好檔 `preferences.json`：升級前後 sha256 完全相同（`88912be1…30813b`，與上次升級後相同）。
 - 升級後有一個 qiu-creator App 行程（pid 28575），本會話未開關，仍是舊行程；除備份外未動 `~/CreatorHub` 內容，未碰金鑰與 Keychain，未發 AI 請求。
 - NOT_VERIFIED：新版介面、視窗截圖。
+
+## 升級到 4b52c37（2026-11-24，QC-087～094 MCP 功能，遷移 0021、0022）：成功
+
+- 建置：乾淨 worktree，commit `4b52c37b4fad42b2ad24165f64fa929dc9d4f198`（無 `-dirty`），`codesign --verify --deep --strict` 通過。
+- 升級前（15:22:23）：7420 只有 launchd 服務（pid 19123），7431 無監聽；`/health` 為 941a935；schema 最新 0020。
+- 乾跑後 `upgrade --yes`（15:22:54）exit 0；升級前備份 `20261124T232254458Z-manual`（ok）。
+- 升級後：`/health` commit 4b52c37、built_at `2026-11-24T23:22:37.906Z`；launchd running（pid 34091）；schema 最新 `0022|project_rules_membership`，其次 `0021|agent_proposals_activity`、0020；`server.prev`（941a935）與 `app.prev` 在；日誌 level-50 為 0 筆、err.log 0 位元組。
+- 真實安裝的 CLI：`~/Library/Application Support/qiu-creator/server/bin/creatorhub --help` 能跑，印出用法與 `works`、`projects` 等指令（先前為 NOT_VERIFIED，現已驗證；未帶權杖、未連線）。安裝輸出同時印出 MCP 設定，權杖為 `<token>` 佔位符。
+- 偏好檔 `preferences.json`：以升級前一刻為基準，升級前後 sha256 完全相同（`50082307…ad29d`）。此值與上次升級後的 `88912be1…` 不同，是使用者 App 在兩次升級之間自己寫入的（本會話未碰）。
+- 升級後有一個 qiu-creator App 行程（pid 54137），本會話未開關，仍是舊行程；除備份與遷移外未動 `~/CreatorHub` 內容，未碰金鑰與 Keychain，未發 AI 請求，未建立 MCP 權杖。
+- NOT_VERIFIED：新版介面、視窗截圖、真實安裝上 `creatorhub mcp` 實際連線（只驗到 `--help`）。
