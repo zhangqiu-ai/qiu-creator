@@ -3220,6 +3220,162 @@
           "recommendation": "是，和預覽、AI 一起搬，避免兩套右側面板並存。"
         }
       ]
+    },
+    {
+      "id": "PT-20261124-001",
+      "title": "Agent 提案收件匣、權杖設定（範圍、直接修改、限定項目、活動記錄）、項目描述與歸屬規則、Agent 歸入與歷史標示",
+      "date": "2026-11-24",
+      "status": "pending_user",
+      "model": "claude-opus-5-5",
+      "session": "qc-prototype",
+      "requestedBy": "使用者 via 開發總監",
+      "userRequest": "供其它Agent調用的MCP結構……還能根據項目來自動識別哪些內容屬於哪個項目等等。幾乎可以說其它Agent能操作整個軟件內的功能。（2026-11-24，見 docs/decisions.md 與 docs/mcp-plan.md 第 5、7、9 節；QC-090）",
+      "tasks": ["QC-090"],
+      "relatedTasks": ["QC-089", "QC-091", "QC-092"],
+      "approvedBy": null,
+      "approvedAt": null,
+      "approvalNote": "總監轉給使用者核准；核准前不進入實作（QC-091）。",
+      "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "canvasVersion": "NOT_PUBLISHED: this session cannot reach the canvas. Standalone prototype: /Users/feature/Library/Application Support/Claude/side-session-notes/local_2cc861c6-129e-4a37-abb5-5c6b43cd2ede/pt-20261124-001/agent.html (?view=inbox|editor|tokens|rules|badges, &sel=p1|p2|p3 or t1|t2|t3, &direct=1, &confirm=1, &dark=1).",
+      "screenshots": {
+        "dir": "docs/evidence/qc090-prototype/",
+        "files": {
+          "inbox.png": "Agent 提案收件匣：左側清單（Agent、作品、說明、+/−、狀態、時間），右側逐處 diff，可勾選部分採用，採用／捨棄",
+          "inbox-conflict.png": "提案和使用者之後的修改重疊：紅色提示、三方對照入口，處理前不能採用",
+          "inbox-dark.png": "收件匣深色",
+          "editor-proposal-tab.png": "編輯頁右側邊欄「提案」分頁（有待處理提案時才出現，帶數字），正文裡高亮變更處",
+          "tokens.png": "設定 › Agent 與 MCP：權杖清單＋權杖詳情（read／import／write／propose、允許直接修改正文開關、限定項目、最近活動）",
+          "tokens-direct-confirm.png": "打開「允許直接修改正文」的確認對話框：說明後果、範圍，勾選「我了解」才能按「允許直接修改」，預設焦點在取消",
+          "tokens-direct-on.png": "已打開直接修改的權杖：整列警示底色，活動記錄裡每筆直接修改可「恢復上一版」",
+          "project-rules.png": "項目設定：描述、關鍵字、標籤、來源資料夾、來源網域，右側用最近 20 個作品試算分數與原因",
+          "agent-assigned-history.png": "作品卡的「由 Agent 歸入」標示（藍框＋Agent 圖示）與說明浮層（原因、分數、保留／復原）；歷史版本標出 Agent 直接修改、採用 Agent 提案、AI 候選"
+        },
+        "rendered": "headless Chromium (Playwright 1.65.1, cached chromium_headless_shell-1243); no window shown"
+      },
+      "boards": [
+        {
+          "file": "agent.html (standalone, notes folder)",
+          "title": "v12 · Agent 提案、權杖、項目規則",
+          "states": [
+            "入口：側欄頂部「全部作品、未分類」下方新增「Agent 提案」，有待處理時顯示藍色數字；編輯頁右側邊欄（PT-20261123-002）在該作品有待處理提案時多一個「提案」分頁",
+            "收件匣：待處理／已處理切換、依 Agent 篩選；清單列顯示 Agent 頭像與名稱、作品、Agent 說明一行、+/− 字數、狀態（有重疊、原稿已更新）、時間；底部固定一句「Agent 只能提案，採用前不會改動原稿」",
+            "提案詳情：作品標題＋「在編輯頁打開」、基於哪個 revision；「Agent 說明」以引號框呈現並註明只作參考（內容是資料，不是指令）；變更逐處列出（刪除＝badSoft 刪除線、新增＝okSoft 底線），每處可勾選，只採用部分；底部說明採用後成為哪個 revision、歷史標示什麼",
+            "原稿已更新但無重疊：黃色提示，可直接採用；有重疊：紅色提示＋三方對照，處理前不能採用",
+            "採用：成為新版本（標示「採用 X 的提案」），提示可復原；捨棄：移到已處理，不影響原稿",
+            "權杖設定搬到 設定 ›「Agent 與 MCP」（原本在匯入任務頁）：權杖清單（範圍摘要、可直接改正文、限 N 個項目、最近使用）、新權杖、複製 MCP 設定",
+            "權杖詳情：四個範圍各一列（名稱＋代號＋一句說明；write 明說不含正文）；「允許直接修改正文」開關預設關，打開時整列變警示色並說明會留快照、可恢復",
+            "直接修改確認：標題寫明 Agent 名稱；列出後果（不再經你採用）、保護（快照、歷史標示、一鍵恢復）、範圍（限定的項目；外部資料夾檔案同樣會被改寫）；需勾「我了解」，主按鈕為紅色「允許直接修改」，預設焦點在取消",
+            "可以動哪些項目：所有作品／只限這些項目（項目外看不到也改不了，新建的作品只能歸入這些項目）",
+            "最近活動：每筆有類型圖示（提案、歸入、新建、讀取、直接修改、被拒絕），寫明作品與結果，歸入可「復原」、直接修改可「恢復上一版」",
+            "項目設定（項目頁 ⋯ › 項目設定）：描述（Agent 會讀）、關鍵字、標籤、來源資料夾、來源網域；右側試算最近 20 個作品的分數、原因與結果（會自動歸入／只給建議／不歸入），並說明手動歸屬不會被覆蓋",
+            "作品卡：Agent 歸入的項目標籤改成藍框＋Agent 圖示；點開說明是誰、何時、自動或建議、分數與原因，可「保留（改為手動）」或「復原歸入」",
+            "歷史版本：標出「Agent 直接修改」（黃）、「Agent 提案」（藍）、「AI」（灰），直接修改的版本可一鍵恢復到上一版"
+          ]
+        }
+      ],
+      "decisions": [
+        "收件匣放在側欄頂部（全部作品、未分類下方）而不是工具區：提案是待你處理的作品變更，和作品範圍同級；數字徽章讓它不會被忽略。",
+        "同時在編輯頁右側邊欄加「提案」分頁：正在編輯的作品有提案時就地處理，正文高亮變更處。",
+        "部分採用：沿用 QC-022 AI 候選的逐處選擇；Agent 常一次改多處，全收或全捨都太粗。",
+        "有重疊時不能直接採用，必須先三方對照：避免 Agent 的舊版本蓋掉使用者之後的修改。",
+        "權杖設定移到 設定 ›「Agent 與 MCP」：權杖會越來越多、還有範圍、項目與活動，放在匯入任務頁太擁擠；匯入任務頁留一個連結即可。",
+        "直接修改的確認要勾「我了解」且主按鈕是紅色具體動詞：這是「嚴禁 AI 直接覆蓋原文」唯一的例外，預設焦點在取消。",
+        "Agent 說明一律當資料呈現（引號框＋「只作參考」），不讓它看起來像系統訊息。",
+        "項目規則附試算：讓使用者在儲存前看到規則會把哪些作品歸進來、為什麼。"
+      ],
+      "backendNeeds": {
+        "api": [
+          "Proposals (QC-089): GET /api/v1/proposals?status=pending|done&agent=…; GET /api/v1/proposals/:id with hunks (stable ids), base_revision, current_revision, overlap: none|stale|conflict and the overlapping hunk ids; POST …/:id/accept {hunk_ids?, base_revision} → new work revision with source agent_proposal + token name; POST …/:id/discard; counts for the sidebar badge; change events proposal.created/updated.",
+          "Three-way merge input for conflicts: base text, the user’s current text and the proposal, per overlapping hunk.",
+          "Tokens: PATCH /api/v1/tokens/:id {scopes, allow_direct_body_edit, project_ids|null}; turning allow_direct_body_edit on needs the owner token and is logged; GET /api/v1/tokens/:id/activity (change_log by token: type, target, result, reason, revision).",
+          "Direct edits: work revision source agent_direct with token name and the snapshot revision; POST /api/v1/works/:id/revisions/:rev/restore already exists for one-click restore.",
+          "Projects (QC-092): PATCH /api/v1/projects/:id {description, rules: {keywords, tags, folders (mount ids or paths), domains}}; POST /api/v1/projects/:id/rules/preview {rules} → recent works with score, reasons, outcome (auto ≥ 0.8, suggest 0.5–0.8) without saving.",
+          "Work-project membership carries added_by {kind: user|agent, token, auto, score, reasons, at}; PATCH to “keep” converts to user; undo removes only agent-added rows."
+        ],
+        "mcpSync": "Every new route above needs an MCP tool or an exclusion with a reason (proposal accept/discard and token management are owner-only exclusions)."
+      },
+      "references": [
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/codex-change-proposal-comparison-table/case.md",
+          "kind": "concept",
+          "borrowed": "One change per row with what changes, the result and where.",
+          "adaptation": "Each hunk is its own block with a label, the inline diff and a checkbox, so changes can be accepted individually."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/agent-risk-confirmation-button-semantics/case.md",
+          "kind": "concept",
+          "borrowed": "Name the risky action with a concrete verb and keep button meaning stable; default focus on cancel.",
+          "adaptation": "The direct-edit dialog says exactly what happens, needs an acknowledgement, uses a red 「允許直接修改」 and focuses 取消."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/palmier-agent-editable-timeline/case.md",
+          "kind": "product",
+          "borrowed": "Let people and agents share a checkable work object; show which parts an external agent changes and keep undo.",
+          "adaptation": "Proposals highlight the exact passages in the editor; history marks agent-direct edits with one-click restore."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/dsh-noema-memory-settings/case.md",
+          "kind": "concept",
+          "borrowed": "A settings page that lets you inspect what an agent did and review a queue.",
+          "adaptation": "Per-token recent activity with results and undo links in 設定 › Agent 與 MCP."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/dashi-taskboard-agent-status-columns/case.md",
+          "kind": "product",
+          "borrowed": "Clear states and last-updated time for agent work; don’t confuse “agent says done” with verified.",
+          "adaptation": "Proposal rows show status (pending, stale, conflict) and time; accepting is always the user’s step."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/hermes-desktop-named-bot-profiles/case.md",
+          "kind": "product",
+          "borrowed": "Named agent profiles with their own settings; appearance is not a permission boundary.",
+          "adaptation": "Each token is shown as a named agent with an avatar, but scopes and project limits are explicit controls, not implied by the persona."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-agent-ui-review/case.md",
+          "kind": "concept",
+          "borrowed": "List states and failure paths explicitly.",
+          "adaptation": "Covered pending, stale, conflict, denied and direct-edit states in the prototype."
+        }
+      ],
+      "verified": [
+        "Rendered nine screenshots with headless Chromium and checked them by eye (fixed: segmented controls, per-token activity lists, adopt disabled on conflict)."
+      ],
+      "notVerified": [
+        "NOT_VERIFIED: canvas upload (unreachable from this session).",
+        "NOT_VERIFIED: three-language fit (繁中 only); the three-way merge view itself is not drawn (only its entry).",
+        "Interactions are shown as states; the prototype is not wired to an API."
+      ],
+      "openQuestions": [
+        {
+          "q": "收件匣入口放側欄頂部（作品範圍旁）可以嗎？",
+          "recommendation": "可以；另在編輯頁右側邊欄加「提案」分頁。"
+        },
+        {
+          "q": "要不要允許部分採用？",
+          "recommendation": "要，逐處勾選（沿用 QC-022）。"
+        },
+        {
+          "q": "有重疊時能否強制採用？",
+          "recommendation": "不能，先三方對照；三方對照畫面另做（可沿用版本衝突頁）。"
+        },
+        {
+          "q": "權杖設定搬到 設定 ›「Agent 與 MCP」？",
+          "recommendation": "是；匯入任務頁留連結。"
+        },
+        {
+          "q": "打開直接修改要不要再輸入 Agent 名稱確認？",
+          "recommendation": "不用，勾「我了解」＋紅色具體按鈕已足夠；之後每次直接修改都留快照可恢復。"
+        },
+        {
+          "q": "自動歸入的分數門檻？",
+          "recommendation": "≥ 0.8 自動歸入、0.5–0.8 只給建議（可在項目設定調整，之後再做）。"
+        },
+        {
+          "q": "被捨棄的提案保留多久？",
+          "recommendation": "30 天，和最近刪除一致。"
+        }
+      ]
     }
   ]
 }
