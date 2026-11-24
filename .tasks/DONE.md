@@ -1,3 +1,9 @@
+## QC-091: MCP 相關介面實作
+
+**Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend | **Done:** 2026-11-24
+
+完成摘要：依 PT-20261124-001 實作側欄「Agent 提案」與收件匣（逐處勾選、重疊停用採用、簡易唯讀三欄比對）、編輯頁「提案」分頁與改動處標亮、「設定 › Agent 與 MCP」（範圍、直接修改確認、限定項目、活動記錄與恢復上一版、複製 MCP 設定）、歷史版本 Agent 標記、「項目設定…」描述與規則即時試算、作品卡「由 Agent 歸入」標示與保留／復原。修了兩個產品問題（範圍勾選延遲、卡片彈出框事件冒泡）。單元 1317 passed；e2e 一般 61 passed／10 skipped／0 failed，動效 62／9／0。MCP 設定的 CLI 路徑仍是範例，轉 QC-094。證據 `docs/evidence/qc091-agent-ui.md`。
+
 ## QC-092: 項目自動歸屬
 
 **Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend | **Done:** 2026-11-24

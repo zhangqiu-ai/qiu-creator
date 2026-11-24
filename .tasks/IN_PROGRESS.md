@@ -8,8 +8,9 @@ QC-004 的驗收本體，依賴 QC-030–032。實機安裝後：重開機自啟
 
 **Status（2026-11-19）:** U0 備份通過；U2、U3 使用者豁免（未驗證）；U4 New API 真實呼叫通過，Gemini／Claude／GPT 使用者豁免（未驗證）。U1 已通過（2026-11-21 03:14 系統自行重開，服務開機後 119 秒自啟）。剩 U5 日常使用一輪。證據在分支 `test/qc033-acceptance`（未合併）。此卡在開 QC-036 時被誤刪，2026-11-19 補回。
 
-## QC-091: MCP 相關介面實作
+## QC-094: 安裝時附帶 creatorhub CLI，MCP 設定帶真實路徑
 
-**Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend
 
-依賴 QC-089、QC-090 核准、QC-092。依原型實作。
+QC-091 驗收發現：打包安裝不含 `creatorhub` CLI，「複製 MCP 設定」只能給文件範例路徑，Agent 實際無法連線。installer 安裝服務時一併安裝建置好的 CLI（固定路徑、用同一個 Node runtime），App 的「複製 MCP 設定」帶出真實的命令路徑；發版前檢查要驗證這條路徑可啟動 `creatorhub mcp`。QC-093 依賴這張。
+
