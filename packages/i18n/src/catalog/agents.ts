@@ -83,6 +83,12 @@ export const agents = defineMessages({
     settingsTitle: 'Agent 與 MCP',
     copyMcp: '複製 MCP 設定',
     mcpCopied: '已複製 MCP 設定，把權杖貼進 CREATORHUB_TOKEN',
+    mcpCopiedSource: '已複製 MCP 設定（開發模式：命令指向這份原始碼），把權杖貼進 CREATORHUB_TOKEN',
+    mcpCopiedExample: '已複製 MCP 設定。服務沒有回報 CLI 位置，命令是範例路徑，請改成實際位置',
+    mcpCliInstalled: '命令是隨服務安裝的 CLI：{path}',
+    mcpCliSource:
+      '開發模式：從原始碼執行，命令指向這份 repo 的 CLI。安裝版會改用服務目錄下的 bin/creatorhub。',
+    mcpCliExample: '服務沒有回報 CLI 位置，命令是範例路徑，請改成實際位置。',
     mcpCopiedWithSecret: '已複製 MCP 設定（含這個權杖）',
     mcpTokenPlaceholder: '貼上權杖',
     copyFailed: '無法複製到剪貼簿',
@@ -288,6 +294,13 @@ export const agents = defineMessages({
     settingsTitle: 'Agent 与 MCP',
     copyMcp: '复制 MCP 设置',
     mcpCopied: '已复制 MCP 设置，把令牌粘贴到 CREATORHUB_TOKEN',
+    mcpCopiedSource:
+      '已复制 MCP 设置（开发模式：命令指向这份源代码），把令牌粘贴到 CREATORHUB_TOKEN',
+    mcpCopiedExample: '已复制 MCP 设置。服务没有报告 CLI 位置，命令是示例路径，请改成实际位置',
+    mcpCliInstalled: '命令是随服务安装的 CLI：{path}',
+    mcpCliSource:
+      '开发模式：从源代码运行，命令指向这份 repo 的 CLI。安装版会改用服务目录下的 bin/creatorhub。',
+    mcpCliExample: '服务没有报告 CLI 位置，命令是示例路径，请改成实际位置。',
     mcpCopiedWithSecret: '已复制 MCP 设置（含这个令牌）',
     mcpTokenPlaceholder: '粘贴令牌',
     copyFailed: '无法复制到剪贴板',
@@ -493,6 +506,15 @@ export const agents = defineMessages({
     settingsTitle: 'Agents & MCP',
     copyMcp: 'Copy MCP config',
     mcpCopied: 'MCP config copied. Paste the token into CREATORHUB_TOKEN.',
+    mcpCopiedSource:
+      'MCP config copied (development: the command points at this source tree). Paste the token into CREATORHUB_TOKEN.',
+    mcpCopiedExample:
+      'MCP config copied. The service didn’t report where the CLI is, so the command is an example path; change it to the real one.',
+    mcpCliInstalled: 'The command is the CLI installed with the service: {path}',
+    mcpCliSource:
+      'Development: running from source, so the command points at this repo’s CLI. The installed app uses bin/creatorhub in the service folder.',
+    mcpCliExample:
+      'The service didn’t report where the CLI is, so the command is an example path; change it to the real one.',
     mcpCopiedWithSecret: 'MCP config copied (with this token)',
     mcpTokenPlaceholder: 'paste-token-here',
     copyFailed: 'Couldn’t copy to the clipboard',

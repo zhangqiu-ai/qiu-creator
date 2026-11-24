@@ -1,14 +1,21 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createClient } from '@qiu-creator/api-client';
-import { startTestServer, TEST_TOKEN, type TestServer } from './helpers.js';
+import { locateCli } from '../src/agent-cli.js';
+import { startTestServer, TEST_TOKEN, type TestServer, type StartOptions } from './helpers.js';
 
 const servers: TestServer[] = [];
 afterEach(async () => {
   for (const s of servers.splice(0)) await s.close();
 });
 
-async function start(): Promise<TestServer> {
-  const s = await startTestServer();
+const repo = path.resolve(import.meta.dirname, '..', '..', '..');
+
+async function start(options: StartOptions = {}): Promise<TestServer> {
+  const s = await startTestServer(options);
   servers.push(s);
   return s;
 }
@@ -22,6 +29,13 @@ describe('GET /api/v1/session (QC-087)', () => {
       scopes: ['read', 'import', 'write', 'propose'],
       allow_direct_body_edit: false,
       project_ids: null,
+      // Running from source: the repository's CLI with this Node (QC-094).
+      cli: {
+        command: process.execPath,
+        args: [path.join(repo, 'packages', 'agent-sdk', 'bin', 'creatorhub.js')],
+        source: 'source',
+        server_url: s.baseUrl,
+      },
     });
     for (const scopes of [['read'], ['import'], ['write']] as const) {
       const t = s.tokens.create({ name: `agent-${scopes[0]}`, scopes: [...scopes] });
@@ -32,6 +46,7 @@ describe('GET /api/v1/session (QC-087)', () => {
         scopes: [...scopes],
         allow_direct_body_edit: false,
         project_ids: null,
+        cli: null,
       });
     }
     const res = await fetch(`${s.baseUrl}/api/v1/session`);
@@ -74,5 +89,52 @@ describe('GET /api/v1/changes (QC-087)', () => {
       headers: { authorization: `Bearer ${importer.secret}` },
     });
     expect(res.status).toBe(403);
+  });
+});
+
+describe('the creatorhub CLI location (QC-094)', () => {
+  it('reports the installed CLI next to the service to the owner only', async () => {
+    const cli = '/Users/me/Library/Application Support/qiu-creator/server/bin/creatorhub';
+    const s = await start({ cli: { command: cli, args: [], source: 'installed' } });
+    expect((await s.client.session()).cli).toEqual({
+      command: cli,
+      args: [],
+      source: 'installed',
+      server_url: s.baseUrl,
+    });
+    const t = s.tokens.create({ name: 'agent', scopes: ['read'] });
+    const agent = createClient({ baseUrl: s.baseUrl, token: t.secret });
+    expect((await agent.session()).cli).toBeNull();
+  });
+
+  it('reports nothing when no CLI was found', async () => {
+    const s = await start({ cli: null });
+    expect((await s.client.session()).cli).toBeNull();
+  });
+
+  it('prefers the launcher next to the server, then the repository CLI', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qc-cli-'));
+    try {
+      const launcher = path.join(dir, 'server', 'bin', 'creatorhub');
+      const repoBin = path.join(dir, 'repo', 'creatorhub.js');
+      const at = (p: string) => pathToFileURL(p);
+      expect(locateCli(at(launcher), at(repoBin), '/n')).toBeNull();
+      fs.mkdirSync(path.dirname(repoBin), { recursive: true });
+      fs.writeFileSync(repoBin, '');
+      expect(locateCli(at(launcher), at(repoBin), '/n')).toEqual({
+        command: '/n',
+        args: [repoBin],
+        source: 'source',
+      });
+      fs.mkdirSync(path.dirname(launcher), { recursive: true });
+      fs.writeFileSync(launcher, '');
+      expect(locateCli(at(launcher), at(repoBin), '/n')).toEqual({
+        command: launcher,
+        args: [],
+        source: 'installed',
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

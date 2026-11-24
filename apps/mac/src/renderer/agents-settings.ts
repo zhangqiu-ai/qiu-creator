@@ -1,4 +1,4 @@
-import type { ApiToken, TokenActivity, TokenScope } from '@qiu-creator/contracts';
+import type { ApiToken, SessionCli, TokenActivity, TokenScope } from '@qiu-creator/contracts';
 import type { IconName } from './Icon.js';
 import { t } from './i18n.js';
 
@@ -61,28 +61,58 @@ export function toggleScope(scopes: readonly TokenScope[], scope: TokenScope): T
   return next.length === 0 ? null : SCOPES.filter((s) => next.includes(s));
 }
 
-/** Where the `creatorhub` CLI lives is up to the install; this is the documented example path. */
+/**
+ * Placeholder path, used only when the service did not report a CLI (an old
+ * service, or a source tree without the agent SDK).
+ */
 export const CLI_PATH_EXAMPLE = '/path/to/qiu-creator/packages/agent-sdk/bin/creatorhub.js';
 
 /**
+ * Where the copied command comes from (QC-094): the CLI installed with the
+ * service, the repository's CLI while running from source, or the example
+ * path when the service reported none.
+ */
+export type McpCliKind = SessionCli['source'] | 'example';
+
+export function mcpCliKind(cli: SessionCli | null): McpCliKind {
+  return cli === null ? 'example' : cli.source;
+}
+
+/** One line under the config saying which command it uses. */
+export function mcpCliNote(cli: SessionCli | null): string {
+  if (cli === null) return t('agents.mcpCliExample');
+  return cli.source === 'installed'
+    ? t('agents.mcpCliInstalled', { path: cli.command })
+    : t('agents.mcpCliSource');
+}
+
+/** The toast after 複製 MCP 設定 (without the secret). */
+export function mcpCopiedText(cli: SessionCli | null): string {
+  const kind = mcpCliKind(cli);
+  return kind === 'installed'
+    ? t('agents.mcpCopied')
+    : kind === 'source'
+      ? t('agents.mcpCopiedSource')
+      : t('agents.mcpCopiedExample');
+}
+
+/**
  * The Claude Code / Claude Desktop `mcpServers` entry (docs/architecture.md,
- * MCP 設定範例). The secret is only known right after creating a token;
+ * MCP 設定範例). `cli` is what `/api/v1/session` reports for this Mac
+ * (QC-094); the secret is only known right after creating a token,
  * otherwise a placeholder the user replaces.
  */
-export function mcpConfig(secret: string | null): string {
-  return `${JSON.stringify(
-    {
-      mcpServers: {
-        creatorhub: {
-          command: 'node',
-          args: [CLI_PATH_EXAMPLE, 'mcp'],
-          env: { CREATORHUB_TOKEN: secret ?? t('agents.mcpTokenPlaceholder') },
-        },
-      },
-    },
-    null,
-    2,
-  )}\n`;
+export function mcpConfig(secret: string | null, cli: SessionCli | null): string {
+  const token = secret ?? t('agents.mcpTokenPlaceholder');
+  const entry =
+    cli === null
+      ? { command: 'node', args: [CLI_PATH_EXAMPLE, 'mcp'], env: { CREATORHUB_TOKEN: token } }
+      : {
+          command: cli.command,
+          args: [...cli.args, 'mcp'],
+          env: { CREATORHUB_URL: cli.server_url, CREATORHUB_TOKEN: token },
+        };
+  return `${JSON.stringify({ mcpServers: { creatorhub: entry } }, null, 2)}\n`;
 }
 
 export type ActivityKind =

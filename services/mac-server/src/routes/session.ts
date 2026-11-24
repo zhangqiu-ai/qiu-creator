@@ -5,6 +5,7 @@ import {
   SessionResponseSchema,
   type ChangeEvent,
 } from '@qiu-creator/contracts';
+import type { CliLocation } from '../agent-cli.js';
 import { currentProjectLimit, type ProjectScope } from '../auth/project-scope.js';
 import { requirePrincipal } from '../auth/token-service.js';
 import type { ChangeFeed } from '../events/change-feed.js';
@@ -28,13 +29,18 @@ export function eventVisibility(scope: ProjectScope): (event: ChangeEvent) => bo
         : true;
 }
 
-export function registerSessionRoutes(app: App, feed: ChangeFeed, scope: ProjectScope): void {
+export function registerSessionRoutes(
+  app: App,
+  feed: ChangeFeed,
+  scope: ProjectScope,
+  cli: CliLocation | null,
+): void {
   app.get(
     '/api/v1/session',
     {
       schema: {
         description:
-          'The calling token: owner or agent, its name, scopes (`read`, `import`, `write`, `propose`), whether it may edit text directly, and the projects it is limited to. Any token may read its own session.',
+          'The calling token: owner or agent, its name, scopes (`read`, `import`, `write`, `propose`), whether it may edit text directly, and the projects it is limited to. Any token may read its own session. The owner also gets `cli`: how to start the `creatorhub` CLI on this Mac (for the MCP config).',
         response: { 200: SessionResponseSchema, ...errors },
       },
     },
@@ -46,6 +52,16 @@ export function registerSessionRoutes(app: App, feed: ChangeFeed, scope: Project
         scopes: [...p.scopes],
         allow_direct_body_edit: p.kind === 'agent' && p.allowDirectBodyEdit,
         project_ids: p.kind === 'agent' && p.projectIds !== null ? [...p.projectIds] : null,
+        // QC-094: a local path, so only the owner sees it.
+        cli:
+          p.kind === 'owner' && cli !== null
+            ? {
+                command: cli.command,
+                args: [...cli.args],
+                source: cli.source,
+                server_url: `http://127.0.0.1:${String(req.socket.localPort)}`,
+              }
+            : null,
       };
     },
   );

@@ -18,6 +18,7 @@ describe('computePaths', () => {
   it('derives every location from HOME and the applications folder', () => {
     const p = computePaths('/Users/me', '/Applications');
     expect(p.server).toBe('/Users/me/Library/Application Support/qiu-creator/server');
+    expect(p.cli).toBe('/Users/me/Library/Application Support/qiu-creator/server/bin/creatorhub');
     expect(p.serverPrev).toBe('/Users/me/Library/Application Support/qiu-creator/server.prev');
     expect(p.appPrev).toBe(
       '/Users/me/Library/Application Support/qiu-creator/app.prev/qiu-creator.app',

@@ -11,6 +11,7 @@ import {
   computePaths,
   exchangePlan,
   healthMatchesBuild,
+  mcpConfigExample,
   missingFiles,
   parseBuildInfo,
   preflightProblems,
@@ -154,6 +155,19 @@ class Run {
     return this.buildInfoOf(dir);
   }
 
+  /** The installed CLI, for the report (QC-094); a rolled-back build may predate it. */
+  reportCli(): void {
+    const p = this.paths;
+    if (this.o.dryRun || fs.existsSync(p.cli)) {
+      this.d.log(`creatorhub CLI: ${p.cli}`);
+      this.d.log(
+        `MCP 設定（權杖到 設定 › Agent 與 MCP 建立）：\n${mcpConfigExample(p.cli, this.o.port)}`,
+      );
+    } else {
+      this.d.log('這一版服務沒有附帶 creatorhub CLI（QC-094 之前的建置）。');
+    }
+  }
+
   checkApp(bundle: string): void {
     if (!fs.existsSync(path.join(bundle, 'Contents', 'MacOS'))) {
       throw new InstallError(`找不到 .app（${bundle}）。先跑 apps/mac 的 package。`);
@@ -286,6 +300,7 @@ export async function install(o: Options, d: Deps): Promise<void> {
       `服務沒有在 ${o.healthTimeoutMs / 1000} 秒內回報預期版本。檢查 ${p.logDir}。已安裝的檔案保留；要清掉請跑 uninstall。`,
     );
   }
+  run.reportCli();
   d.log(
     o.dryRun ? 'dry run finished; nothing was changed' : `installed ${build.version}; /health ok`,
   );
@@ -342,6 +357,7 @@ export async function upgrade(o: Options, d: Deps): Promise<void> {
       `升級失敗，已回到 ${old.version}。升級前備份：${backupId}。新版的錯誤見 ${p.logDir}。`,
     );
   }
+  run.reportCli();
   if (o.dryRun) {
     d.log('dry run finished; nothing was changed');
     return;
@@ -410,6 +426,7 @@ export async function rollback(o: Options, d: Deps): Promise<void> {
   if (!(await run.waitHealthy(target))) {
     throw new InstallError(`回滾到 ${target.version} 後服務沒有回報預期版本。檢查 ${p.logDir}。`);
   }
+  run.reportCli();
   d.log(
     `rolled back ${from.version} -> ${target.version}. 若新版已遷移過資料庫而舊版讀不了，請從升級前的備份還原（設定頁或 POST /api/v1/backups/:id/restore）。`,
   );

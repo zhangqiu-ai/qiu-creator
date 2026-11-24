@@ -91,6 +91,20 @@ export const TokenScopeSchema = z.enum(['read', 'import', 'write', 'propose']);
 export type TokenScope = z.infer<typeof TokenScopeSchema>;
 
 /**
+ * How to start the `creatorhub` CLI on the Mac (QC-094): the MCP config is
+ * `command` with `[...args, 'mcp']` and `CREATORHUB_URL` = `server_url`.
+ * `installed` is the CLI shipped with the installed service; `source` is the
+ * repository's CLI (running from source, development only).
+ */
+export const SessionCliSchema = z.object({
+  command: z.string(),
+  args: z.array(z.string()),
+  source: z.enum(['installed', 'source']),
+  server_url: z.string(),
+});
+export type SessionCli = z.infer<typeof SessionCliSchema>;
+
+/**
  * `GET /api/v1/session` (QC-087): who the bearer token is and what it may do,
  * so an agent can tell which tools will work before calling them.
  */
@@ -103,6 +117,8 @@ export const SessionResponseSchema = z.object({
   allow_direct_body_edit: z.boolean().default(false),
   /** QC-089: projects this agent is limited to; null = all. */
   project_ids: z.array(IdSchema).nullable().default(null),
+  /** QC-094: the CLI on this Mac; owner token only (null for agents, or when not found). */
+  cli: SessionCliSchema.nullable().default(null),
 });
 export type SessionResponse = z.infer<typeof SessionResponseSchema>;
 

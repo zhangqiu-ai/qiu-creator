@@ -74,7 +74,7 @@
 | better-sqlite3 | ^13.2.0 | MIT | mac-server | SQLite（WAL、FTS5） | `node:sqlite`（見上） |
 | zod | ^4.6.7 | MIT | contracts、api-client、mac-server、agent-sdk（QC-087：MCP 工具參數） | 共用契約與執行期驗證 | Valibot、TypeBox |
 | commander | ^15.1.0 | MIT | agent-sdk | `creatorhub` CLI 解析 | yargs、citty |
-| @modelcontextprotocol/sdk | ^1.32.2 | MIT | agent-sdk | `creatorhub mcp`（QC-087）：MCP 官方 TypeScript SDK，提供 stdio 伺服器、工具與 resources 註冊、Zod 4 參數轉 JSON Schema，測試用它的 client 與 in-memory transport。依賴 zod `^3.25 \|\| ^4.0`，與 contracts 共用 zod 4。會帶進 HTTP／OAuth 傳輸用的間接依賴（express、hono、cors、jose、ajv、eventsource 等，授權為 MIT、BSD-2-Clause（json-schema-typed）、ISC（zod-to-json-schema）），只在 agent-sdk，`creatorhub mcp` 只用 stdio，不載入也不開埠；不進 Mac App 或 mac-server 的打包 | 自己實作 JSON-RPC 與 MCP 協定（協定細節多、版本演進快）；fastmcp（社群包裝，多一層依賴） |
+| @modelcontextprotocol/sdk | ^1.32.2 | MIT | agent-sdk | `creatorhub mcp`（QC-087）：MCP 官方 TypeScript SDK，提供 stdio 伺服器、工具與 resources 註冊、Zod 4 參數轉 JSON Schema，測試用它的 client 與 in-memory transport。依賴 zod `^3.25 \|\| ^4.0`，與 contracts 共用 zod 4。會帶進 HTTP／OAuth 傳輸用的間接依賴（express、hono、cors、jose、ajv、eventsource 等，授權為 MIT、BSD-2-Clause（json-schema-typed）、ISC（zod-to-json-schema）），只在 agent-sdk，`creatorhub mcp` 只用 stdio，不載入也不開埠；不進 Mac App，也不進 `server.mjs`。QC-094 起 esbuild 把 CLI 打成服務產物裡的 `creatorhub.mjs`，只帶進實際 import 到的部分（stdio 伺服器，約 1.7 MB） | 自己實作 JSON-RPC 與 MCP 協定（協定細節多、版本演進快）；fastmcp（社群包裝，多一層依賴） |
 | @tus/server | ^2.4.7 | MIT | mac-server | tus 1.0.0 可續傳上傳伺服器 | 自訂分塊協議 |
 | @tus/file-store | ^2.1.2 | MIT | mac-server | tus 上傳暫存（`data/uploads/`） | — |
 | file-type | ^22.3.0 | MIT | mac-server | magic bytes 類型判斷 | libmagic |
@@ -128,11 +128,13 @@
     - @fastify/swagger-ui：會從自己套件目錄讀靜態檔。
     - file-type：執行期才用非字面的 `import()` 載入 strtok3，打包器看不到。
   - 把建置時的 Node 執行檔複製成 `bin/node`（Node.js 授權 MIT），確保原生模組的 ABI 一致。
+  - QC-094：同一個 esbuild 也把 `packages/agent-sdk/src/bin.ts` 打成 `creatorhub.mjs`（CLI 沒有原生模組，單檔即可），再寫一支 `bin/creatorhub` shell 啟動器，用 `bin/node` 執行它。沒有新增依賴。
 - 產物約 200 MB，其中 Node 約 110 MB、libvips 約 20 MB。
 - 驗證：`test/build-artifact.test.ts` 把產物複製到倉庫外的資料夾，在沒有倉庫 PATH 的環境啟動，驗證以下幾點：
   - `/health` 的 commit 正確。
   - SQLite 讀寫正常。
   - sharp 能產生縮圖。
+  - 安裝位置的 `bin/creatorhub mcp` 能在沒有 Node PATH 的環境用 stdio 列出工具並呼叫 `server_status`（QC-094）。
   - keyring 原生模組能載入，但不讀 Keychain。
   - `/docs` 可用。
   - 產物裡沒有符號連結。

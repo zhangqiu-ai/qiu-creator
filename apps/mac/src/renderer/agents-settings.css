@@ -264,6 +264,10 @@
   font-size: 12px;
   white-space: pre;
 }
+.ag-mcp__cli {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
 .ag-mcp__copy {
   align-self: flex-start;
 }

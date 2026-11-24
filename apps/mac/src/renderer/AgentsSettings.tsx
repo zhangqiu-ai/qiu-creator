@@ -3,6 +3,7 @@ import type {
   ApiToken,
   Project,
   Revision,
+  SessionCli,
   TokenActivity,
   TokenScope,
   UpdateTokenRequest,
@@ -12,7 +13,9 @@ import {
   ACTIVITY_ICON,
   activityKind,
   activityText,
+  mcpCliNote,
   mcpConfig,
+  mcpCopiedText,
   SCOPE_HINT,
   SCOPE_LABEL,
   SCOPES,
@@ -67,6 +70,8 @@ export function AgentsSettings({ client }: { client: CreatorHubClient }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
+  // QC-094: where the creatorhub CLI is on this Mac, for the MCP config.
+  const [cli, setCli] = useState<SessionCli | null>(null);
 
   useToast(
     notice === null
@@ -105,6 +110,20 @@ export function AgentsSettings({ client }: { client: CreatorHubClient }) {
       });
   }, [client]);
   useEffect(load, [load]);
+  useEffect(() => {
+    let live = true;
+    client
+      .session()
+      .then((s) => {
+        if (live) setCli(s.cli);
+      })
+      .catch(() => {
+        // An older service without `cli`: the example path is copied.
+      });
+    return () => {
+      live = false;
+    };
+  }, [client]);
 
   const token = tokens?.find((x) => x.id === selected) ?? null;
   const live = tokens?.filter((x) => x.revoked_at === null).length ?? 0;
@@ -120,10 +139,10 @@ export function AgentsSettings({ client }: { client: CreatorHubClient }) {
             type="button"
             className="btn"
             onClick={() => {
-              void copy(mcpConfig(null)).then((ok) => {
+              void copy(mcpConfig(null, cli)).then((ok) => {
                 setNotice(
                   ok
-                    ? { text: t('agents.mcpCopied'), tone: 'ok' }
+                    ? { text: mcpCopiedText(cli), tone: 'ok' }
                     : { text: t('agents.copyFailed'), tone: 'bad' },
                 );
               });
@@ -223,6 +242,7 @@ export function AgentsSettings({ client }: { client: CreatorHubClient }) {
       {creating && (
         <CreateTokenDialog
           client={client}
+          cli={cli}
           onCreated={(id) => {
             setSelected(id);
             load();
@@ -742,10 +762,12 @@ function Activity({
 
 function CreateTokenDialog({
   client,
+  cli,
   onCreated,
   onClose,
 }: {
   client: CreatorHubClient;
+  cli: SessionCli | null;
   onCreated: (id: string) => void;
   onClose: () => void;
 }) {
@@ -815,12 +837,13 @@ function CreateTokenDialog({
             </button>
           </div>
           <p className="faint">{t('agents.tokenSecretMcp')}</p>
-          <pre className="ag-mcp mono">{mcpConfig(secret)}</pre>
+          <pre className="ag-mcp mono">{mcpConfig(secret, cli)}</pre>
+          <p className="faint ag-mcp__cli">{mcpCliNote(cli)}</p>
           <button
             type="button"
             className="btn ag-mcp__copy"
             onClick={() => {
-              void copy(mcpConfig(secret)).then((ok) => {
+              void copy(mcpConfig(secret, cli)).then((ok) => {
                 if (ok) setCopied('mcp');
               });
             }}

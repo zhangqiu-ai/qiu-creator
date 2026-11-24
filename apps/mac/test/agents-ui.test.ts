@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   activityKind,
   activityText,
+  CLI_PATH_EXAMPLE,
+  mcpCliNote,
   mcpConfig,
+  mcpCopiedText,
   scopeSummary,
   sortTokens,
   tokenChangeText,
@@ -37,6 +40,10 @@ const detail = (hunks: ProposalHunk[], status: ProposalDetail['status'] = 'pendi
   hunks,
   current_revision: 'rev-now',
 });
+
+interface McpJson {
+  mcpServers: { creatorhub: { command: string; args: string[]; env: Record<string, string> } };
+}
 
 describe('accepting a proposal', () => {
   it('picks every change except the overlapping ones by default', () => {
@@ -163,12 +170,51 @@ describe('agent tokens', () => {
   });
 
   it('copies an MCP config with the secret, or a placeholder when it is not known', () => {
-    const withSecret = JSON.parse(mcpConfig('chk_secret')) as {
-      mcpServers: { creatorhub: { command: string; args: string[]; env: Record<string, string> } };
-    };
+    const withSecret = JSON.parse(mcpConfig('chk_secret', null)) as McpJson;
     expect(withSecret.mcpServers.creatorhub.args.at(-1)).toBe('mcp');
     expect(withSecret.mcpServers.creatorhub.env['CREATORHUB_TOKEN']).toBe('chk_secret');
-    expect(mcpConfig(null)).toContain('"CREATORHUB_TOKEN": "貼上權杖"');
+    expect(mcpConfig(null, null)).toContain('"CREATORHUB_TOKEN": "貼上權杖"');
+  });
+
+  it('uses the CLI the service reports, and says where it comes from (QC-094)', () => {
+    const path = '/Users/me/Library/Application Support/qiu-creator/server/bin/creatorhub';
+    const installed = {
+      command: path,
+      args: [],
+      source: 'installed' as const,
+      server_url: 'http://127.0.0.1:7421',
+    };
+    expect(JSON.parse(mcpConfig('chk_s', installed))).toEqual({
+      mcpServers: {
+        creatorhub: {
+          command: path,
+          args: ['mcp'],
+          env: { CREATORHUB_URL: 'http://127.0.0.1:7421', CREATORHUB_TOKEN: 'chk_s' },
+        },
+      },
+    });
+    expect(mcpCliNote(installed)).toBe(`命令是隨服務安裝的 CLI：${path}`);
+    expect(mcpCopiedText(installed)).toBe('已複製 MCP 設定，把權杖貼進 CREATORHUB_TOKEN');
+
+    const source = {
+      command: '/usr/local/bin/node',
+      args: ['/repo/packages/agent-sdk/bin/creatorhub.js'],
+      source: 'source' as const,
+      server_url: 'http://127.0.0.1:7420',
+    };
+    const fromSource = JSON.parse(mcpConfig(null, source)) as McpJson;
+    expect(fromSource.mcpServers.creatorhub.command).toBe('/usr/local/bin/node');
+    expect(fromSource.mcpServers.creatorhub.args).toEqual([
+      '/repo/packages/agent-sdk/bin/creatorhub.js',
+      'mcp',
+    ]);
+    expect(mcpCliNote(source)).toContain('開發模式');
+    expect(mcpCopiedText(source)).toContain('開發模式');
+
+    const example = JSON.parse(mcpConfig(null, null)) as McpJson;
+    expect(example.mcpServers.creatorhub.args[0]).toBe(CLI_PATH_EXAMPLE);
+    expect(mcpCliNote(null)).toContain('範例路徑');
+    expect(mcpCopiedText(null)).toContain('範例路徑');
   });
 
   it('reads activity entries in words', () => {

@@ -37,6 +37,8 @@ function makeBuild(name: string, version: string, opts: { broken?: boolean } = {
   fs.mkdirSync(path.join(dir, 'bin'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'server.mjs'), opts.broken === true ? 'BROKEN' : 'ok');
   fs.writeFileSync(path.join(dir, 'bin', 'node'), '#!/bin/sh');
+  fs.writeFileSync(path.join(dir, 'bin', 'creatorhub'), `#!/bin/sh\n# cli ${version}\n`);
+  fs.writeFileSync(path.join(dir, 'creatorhub.mjs'), `// cli ${version}`);
   fs.writeFileSync(path.join(dir, 'package.json'), '{"type":"module"}');
   fs.writeFileSync(
     path.join(dir, 'build-info.json'),
@@ -201,6 +203,34 @@ describe('install', () => {
     expect(f.state.loaded).toBe(true);
   });
 
+  it('installs the creatorhub CLI with the service and reports its path (QC-094)', async () => {
+    const o = options({ serverBuild: makeBuild('b1', '1.0.0'), appBundle: makeApp('a1', 'app1') });
+    const f = fake(o);
+    await install(o, f.deps);
+    const p = computePaths(home, apps);
+    const cli = `${home}/Library/Application Support/qiu-creator/server/bin/creatorhub`;
+    expect(p.cli).toBe(cli);
+    expect(read(cli)).toContain('cli 1.0.0');
+    expect(read(path.join(p.server, 'creatorhub.mjs'))).toBe('// cli 1.0.0');
+    expect(f.logs).toContain(`creatorhub CLI: ${cli}`);
+    const report = f.logs.find((l) => l.startsWith('MCP 設定')) ?? '';
+    const config = JSON.parse(report.slice(report.indexOf('\n') + 1)) as {
+      mcpServers: { creatorhub: { command: string; args: string[]; env: Record<string, string> } };
+    };
+    expect(config.mcpServers.creatorhub.command).toBe(cli);
+    expect(config.mcpServers.creatorhub.args).toEqual(['mcp']);
+    expect(config.mcpServers.creatorhub.env['CREATORHUB_URL']).toBe('http://127.0.0.1:7420');
+  });
+
+  it('rejects a build without the CLI (QC-094)', async () => {
+    const dir = makeBuild('b1', '1.0.0');
+    fs.rmSync(path.join(dir, 'creatorhub.mjs'));
+    fs.rmSync(path.join(dir, 'bin', 'creatorhub'));
+    const o = options({ serverBuild: dir, appBundle: makeApp('a1', 'app1') });
+    await expect(install(o, fake(o).deps)).rejects.toThrow(/creatorhub\.mjs, bin\/creatorhub/);
+    expect(fs.existsSync(computePaths(home, apps).server)).toBe(false);
+  });
+
   it('refuses when the port is busy, the agent is loaded, or files exist, and changes nothing', async () => {
     const o = options({ serverBuild: makeBuild('b1', '1.0.0'), appBundle: makeApp('a1', 'app1') });
     const f = fake(o);
@@ -281,6 +311,10 @@ describe('upgrade', () => {
     );
     expect(read(path.join(p.server, 'build-info.json'))).toContain('2.0.0');
     expect(read(path.join(p.serverPrev, 'build-info.json'))).toContain('1.0.0');
+    // QC-094: the CLI is replaced with the service, the old one kept with server.prev.
+    expect(read(p.cli)).toContain('cli 2.0.0');
+    expect(read(path.join(p.serverPrev, 'bin', 'creatorhub'))).toContain('cli 1.0.0');
+    expect(f.logs).toContain(`creatorhub CLI: ${p.cli}`);
     expect(read(path.join(p.app, 'Contents/MacOS/qiu-creator'))).toBe('app2');
     expect(read(path.join(p.appPrev, 'Contents/MacOS/qiu-creator'))).toBe('app1');
     expect(fs.existsSync(p.serverNext)).toBe(false);
@@ -337,6 +371,7 @@ describe('upgrade', () => {
     await expect(upgrade(next, f.deps)).rejects.toThrow(/已回到 1\.0\.0[\s\S]*bk-1/);
     const p = computePaths(home, apps);
     expect(read(path.join(p.server, 'build-info.json'))).toContain('1.0.0');
+    expect(read(p.cli)).toContain('cli 1.0.0');
     expect(read(path.join(p.app, 'Contents/MacOS/qiu-creator'))).toBe('app1');
     expect(fs.existsSync(p.serverPrev)).toBe(false);
     expect(f.state.loaded).toBe(true);
@@ -427,6 +462,7 @@ describe('slow removal after bootout', () => {
 
     const p = computePaths(home, apps);
     expect(read(path.join(p.server, 'build-info.json'))).toContain('1.0.0');
+    expect(read(p.cli)).toContain('cli 1.0.0');
     expect(read(path.join(p.app, 'Contents/MacOS/qiu-creator'))).toBe('app1');
     expect(fs.existsSync(p.serverPrev)).toBe(false);
     // 100 ms polls for 10 s on the injected clock; no bootstrap was attempted.
@@ -475,12 +511,30 @@ describe('rollback', () => {
 
     await rollback(next, f.deps);
     expect(read(path.join(p.server, 'build-info.json'))).toContain('1.0.0');
+    expect(read(p.cli)).toContain('cli 1.0.0');
     expect(read(path.join(p.app, 'Contents/MacOS/qiu-creator'))).toBe('app1');
     expect(read(path.join(p.serverPrev, 'build-info.json'))).toContain('2.0.0');
 
     await rollback(next, f.deps);
     expect(read(path.join(p.server, 'build-info.json'))).toContain('2.0.0');
+    expect(read(p.cli)).toContain('cli 2.0.0');
     expect(f.state.loaded).toBe(true);
+  });
+
+  it('says so when the build it went back to has no CLI (QC-094)', async () => {
+    const { f } = await installed();
+    const next = options({
+      serverBuild: makeBuild('b2', '2.0.0'),
+      appBundle: makeApp('a2', 'app2'),
+    });
+    await upgrade(next, f.deps);
+    const p = computePaths(home, apps);
+    // A build from before QC-094.
+    fs.rmSync(path.join(p.serverPrev, 'bin', 'creatorhub'));
+    f.logs.length = 0;
+    await rollback(next, f.deps);
+    expect(fs.existsSync(p.cli)).toBe(false);
+    expect(f.logs).toContain('這一版服務沒有附帶 creatorhub CLI（QC-094 之前的建置）。');
   });
 
   it('says so when there is no previous build', async () => {
