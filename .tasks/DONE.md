@@ -1,16 +1,14 @@
+## QC-087: MCP 基礎與唯讀工具
+
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend | **Done:** 2026-11-24
+
+完成摘要：`creatorhub mcp`（stdio，`@modelcontextprotocol/sdk`），12 個唯讀工具與 3 個 resources，`--toolsets`；新增 `GET /api/v1/changes`（變更分頁）與 `GET /api/v1/session`（權杖身分與範圍，`any` 權限）；`mcp/coverage.ts` 路由覆蓋表與覆蓋、權限一致測試；設定範例寫入 `docs/architecture.md`。全套 1250 passed／0 failed。真實 Agent 連線 NOT_VERIFIED，留給 QC-093。證據 `docs/evidence/qc087-mcp-readonly.md`。
+
 ## QC-085: 編輯頁全高右側邊欄：預覽／AI／歷史／素材分頁，操作移到左欄
 
 **Priority:** P1 | **Assignee:** qc-prototype → qc-frontend | **Tags:** M3, prototype, frontend | **Done:** 2026-11-23
 
 - PT-20261123-002 A 案（使用者本人核准）。邊欄與編輯欄同高，分頁預覽／AI／歷史／素材；左欄兩列操作；寬度 400–760 記住、收合 44px 圖示欄、⌥⌘0／⌘⇧P／⌘⇧I；空間不足先縮到 400，編輯區小於 960 才改抽屜。發版前修正 81b59c6（measure(0) 競態造成 new-api 偶發、1280 寬時誤成抽屜）。單元 1233／0；e2e 兩種模式 0 failed。已安裝 941a935（備份 20261124T045226448Z-manual）。
-
-## QC-087: MCP 基礎與唯讀工具
-
-**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend
-
-完成摘要：`creatorhub mcp`（stdio，`@modelcontextprotocol/sdk`），12 個唯讀工具與 3 個 resources，`--toolsets`；新增 `GET /api/v1/changes`（變更分頁）與 `GET /api/v1/session`（權杖身分與範圍，`any` 權限）；`mcp/coverage.ts` 路由覆蓋表與覆蓋、權限一致測試；設定範例寫入 `docs/architecture.md`。全套 1250 passed／0 failed。真實 Agent 連線 NOT_VERIFIED，留給 QC-093。證據 `docs/evidence/qc087-mcp-readonly.md`。
-
-**Completed:** 2026-11-24
 
 ## QC-084: 編輯頁平台預覽重新設計：正文跟隨原稿、三畫面真實模擬、原位編輯、手機縮放
 
