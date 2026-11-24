@@ -1,3 +1,9 @@
+## QC-090: 原型：Agent 提案收件匣、權杖設定、項目描述與規則
+
+**Priority:** P1 | **Assignee:** qc-prototype | **Tags:** M3, prototype | **Done:** 2026-11-24
+
+完成摘要：PT-20261124-001 使用者核准，七個未決問題照推薦（見決策記錄 2026-11-24）。提案收件匣（逐處勾選、衝突須三方比對）、「設定 › Agent 與 MCP」權杖範圍／直接修改開關／限定項目／活動記錄、項目描述與規則試算（0.8 自動、0.5–0.8 建議）、作品卡 Agent 歸入標示與歷史標記。三方比對畫面只畫入口、簡中與英文未驗證。截圖 `docs/evidence/qc090-prototype/`；後端需求在帳本。
+
 ## QC-087: MCP 基礎與唯讀工具
 
 **Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend | **Done:** 2026-11-24
