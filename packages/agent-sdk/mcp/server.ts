@@ -1,7 +1,9 @@
 import type { CreatorHubClient } from '@qiu-creator/api-client';
 import { PlatformSchema } from '@qiu-creator/contracts';
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import {
+  isReadOnly,
   platformRules,
   toErrorResult,
   toResult,
@@ -45,7 +47,11 @@ export function enabledTools(toolsets: readonly Toolset[]): McpToolDef[] {
 }
 
 const allows = (scopes: readonly string[], owner: boolean, access: ToolAccess): boolean =>
-  owner || access === 'any' || scopes.includes(access);
+  owner ||
+  access === 'any' ||
+  (access === 'read_or_own_import'
+    ? scopes.includes('read') || scopes.includes('import')
+    : scopes.includes(access));
 
 /**
  * The CreatorHub MCP server: read tools and resources over the Mac server's
@@ -63,6 +69,8 @@ export function createCreatorHubMcpServer(options: CreatorHubMcpOptions): McpSer
       instructions: [
         'CreatorHub is the user’s content workbench on their Mac (works, assets, projects, platform versions for 小紅書, 公眾號, 抖音, 視頻號).',
         'Call server_status first to see which tools this token may use.',
+        'Edits need the base_revision you read; on 409 read again, merge, and retry with details.current_revision. Create and import calls take an idempotency_key: reuse it only to retry the same request.',
+        'Agents never change the text of a work (its Markdown or description): that stays with the user.',
         USER_DATA_NOTE,
       ].join(' '),
     },
@@ -73,8 +81,12 @@ export function createCreatorHubMcpServer(options: CreatorHubMcpOptions): McpSer
       def.name,
       {
         description: def.description,
-        inputSchema: def.inputSchema,
-        annotations: { readOnlyHint: true, openWorldHint: false },
+        inputSchema: z.object(def.inputSchema).strict(),
+        annotations: {
+          readOnlyHint: isReadOnly(def.access),
+          destructiveHint: def.destructive === true,
+          openWorldHint: def.name === 'asset_import_url',
+        },
       },
       async (args: Record<string, unknown>) => {
         try {

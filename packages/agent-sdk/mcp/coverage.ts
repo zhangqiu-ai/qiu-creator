@@ -38,6 +38,14 @@ export const MCP_EXCLUDED: Readonly<Record<string, string>> = {
   'GET /api/v1/works/facets': 'filter-chip counts for the library UI; works_search covers search',
   'GET /api/v1/works/refs': 'id list for the library UI selection; works_search covers search',
   'PUT /api/v1/works/:id/thumbnail-frame': 'internal: caches a video frame for the card image',
+  'PUT /api/v1/projects/order':
+    '側欄排序屬於使用者介面偏好 (sidebar order is a UI preference of the user)',
+  'POST /api/v1/works/:id/variants':
+    'deprecated since QC-084 (QC-084 後已棄用): variants are overrides; variant_update writes them',
+  'POST /api/v1/works/:id/variants/:platform/draft':
+    'deprecated since QC-084 (QC-084 後已棄用): variant_update with reset_all follows the work again',
+  'POST /api/v1/assets/uploads':
+    'single-request upload for the app; asset_upload_file always uses the resumable tus path',
   // External folder mounts are the owner's (docs/mcp-plan.md §4).
   'GET /api/v1/mounts': 'external folder mounts are managed by the owner in the app',
   'GET /api/v1/mounts/:id': 'external folder mounts are managed by the owner in the app',
@@ -75,46 +83,20 @@ export const MCP_EXCLUDED_AREAS: readonly { prefix: string; reason: string }[] =
   },
   { prefix: '/api/v1/backups', reason: 'owner only: backups and restore replace the database' },
   { prefix: '/api/v1/tokens', reason: 'owner only: agent token management' },
-];
-
-/** Routes whose tools come in a later task (write and import tools). */
-export const MCP_PENDING: Readonly<Record<string, string>> = {
-  'POST /api/v1/works': 'QC-088 work_create',
-  'PATCH /api/v1/works/:id': 'QC-088 work_update_meta',
-  'DELETE /api/v1/works/:id': 'QC-088 work_trash',
-  'POST /api/v1/works/:id/restore': 'QC-088 work_restore',
-  'POST /api/v1/works/batch': 'QC-088 works_batch',
-  'POST /api/v1/works/:id/revisions/:rid/restore':
-    'QC-088 decide: revision restore tool or exclusion',
-  'POST /api/v1/works/:id/assets': 'QC-088 work_attach_asset',
-  'POST /api/v1/works/:id/media/attach': 'QC-088 work_attach_asset (copy into the work folder)',
-  'DELETE /api/v1/works/:id/assets/:assetId': 'QC-088 work_detach_asset',
-  'PUT /api/v1/works/:id/assets/order': 'QC-088 work_reorder_assets',
-  'POST /api/v1/assets/uploads': 'QC-088 asset_upload_file',
-  'POST /api/v1/imports/urls': 'QC-088 asset_import_url',
-  'GET /api/v1/jobs': 'QC-088 job_get',
-  'GET /api/v1/jobs/:id': 'QC-088 job_get / job_wait',
-  'POST /api/v1/jobs/:id/retry': 'QC-088 job retry',
-  'POST /api/v1/projects': 'QC-088 project_create',
-  'PATCH /api/v1/projects/:id': 'QC-088 project_update',
-  'PUT /api/v1/projects/order': 'QC-088 decide: project reorder tool or exclusion',
-  'DELETE /api/v1/projects/:id': 'QC-088 decide: project delete tool or exclusion',
-  'POST /api/v1/projects/:id/restore': 'QC-088 decide: project restore tool or exclusion',
-  'POST /api/v1/works/batch/projects': 'QC-088 works_assign_projects',
-  'PATCH /api/v1/works/:id/variants/:platform': 'QC-088 variant_update',
-  'POST /api/v1/works/:id/variants': 'QC-088 decide: deprecated by QC-084 overrides',
-  'POST /api/v1/works/:id/variants/:platform/draft':
-    'QC-088 decide: deprecated by QC-084 overrides',
-  'DELETE /api/v1/works/:id/variants/:platform': 'QC-088 variant_update (clear all overrides)',
-};
-
-/** tus resumable uploads (all methods): used by QC-088 asset_upload_file. */
-export const MCP_PENDING_AREAS: readonly { prefix: string; reason: string }[] = [
   {
     prefix: '/api/v1/assets/uploads/tus',
-    reason: 'QC-088 asset_upload_file (resumable upload protocol)',
+    reason:
+      'tus protocol methods asset_upload_file does not call (it uses POST to create and PATCH to send)',
   },
 ];
+
+/**
+ * Routes whose tools come in a later task. Empty since QC-088; keep the
+ * mechanism for routes added before their tools.
+ */
+export const MCP_PENDING: Readonly<Record<string, string>> = {};
+
+export const MCP_PENDING_AREAS: readonly { prefix: string; reason: string }[] = [];
 
 export type Coverage =
   | { kind: 'tool'; tools: string[] }

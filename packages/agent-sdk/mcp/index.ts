@@ -1,5 +1,5 @@
 /**
- * MCP adapter for external agents (QC-087, docs/mcp-plan.md): `creatorhub mcp`.
+ * MCP adapter for external agents (QC-087 reads, QC-088 imports and writes; docs/mcp-plan.md): `creatorhub mcp`.
  * Calls `@qiu-creator/api-client` only — never the filesystem or SQLite.
  */
 export {
@@ -12,8 +12,12 @@ export {
 export { serveMcpStdio } from './stdio.js';
 export {
   TOOLS,
+  READ_TOOLS,
+  WRITE_TOOLS,
   TOOLSETS,
   USER_DATA_NOTE,
+  isReadOnly,
+  retryHint,
   platformRules,
   type McpToolDef,
   type ToolAccess,
