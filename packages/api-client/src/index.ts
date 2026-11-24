@@ -110,6 +110,8 @@ export {
   type CreatorHubTrashApi,
   type CreatorHubWorkAssetsApi,
   type ResumableUploadInput,
+  type ResumableSourceUploadInput,
+  type UploadSource,
   type SubscribeOptions,
   type UploadInput,
 } from './assets.js';

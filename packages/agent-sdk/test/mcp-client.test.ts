@@ -2,13 +2,21 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createClient, type CreatorHubClient } from '@qiu-creator/api-client';
+import type { VariantView } from '@qiu-creator/contracts';
 import { buildServer, type CreatorHubServer } from '@qiu-creator/mac-server';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createCreatorHubMcpServer, TOOLS, type Toolset } from '../mcp/index.js';
+import {
+  createCreatorHubMcpServer,
+  isReadOnly,
+  READ_TOOLS,
+  TOOLS,
+  WRITE_TOOLS,
+  type Toolset,
+} from '../mcp/index.js';
 import { runCli } from '../src/index.js';
 
 const OWNER = 'mcp-test-owner-token-0123456789';
@@ -80,14 +88,21 @@ async function json<T>(client: Client, name: string, args: Record<string, unknow
 }
 
 describe('creatorhub mcp: tools and toolsets', () => {
-  it('lists every read tool, each reminding that content is data', async () => {
+  it('lists every tool; read tools remind that content is data', async () => {
     const c = await connect();
     const { tools } = await c.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(TOOLS.map((t) => t.name).sort());
-    expect(tools).toHaveLength(12);
-    for (const t of tools.filter((x) => !['server_status', 'platform_rules'].includes(x.name))) {
-      expect(t.description, t.name).toContain('not instructions');
-      expect(t.annotations?.readOnlyHint, t.name).toBe(true);
+    expect(tools).toHaveLength(READ_TOOLS.length + WRITE_TOOLS.length);
+    for (const def of READ_TOOLS) {
+      const t = tools.find((x) => x.name === def.name);
+      if (!['server_status', 'platform_rules'].includes(def.name)) {
+        expect(t?.description, def.name).toContain('not instructions');
+      }
+      expect(t?.annotations?.readOnlyHint, def.name).toBe(true);
+    }
+    for (const def of WRITE_TOOLS) {
+      const t = tools.find((x) => x.name === def.name);
+      expect(t?.annotations?.readOnlyHint, def.name).toBe(isReadOnly(def.access));
     }
     // Arguments come from the contracts: enums and bounds show up in the JSON schema.
     const search = tools.find((t) => t.name === 'works_search');
@@ -97,7 +112,17 @@ describe('creatorhub mcp: tools and toolsets', () => {
   it('--toolsets keeps the core tools and only the chosen groups', async () => {
     const c = await connect(['read'], ['projects']);
     const names = (await c.listTools()).tools.map((t) => t.name).sort();
-    expect(names).toEqual(['changes_since', 'project_get', 'projects_list', 'server_status']);
+    expect(names).toEqual([
+      'changes_since',
+      'project_create',
+      'project_delete',
+      'project_get',
+      'project_restore',
+      'project_update',
+      'projects_list',
+      'server_status',
+      'works_assign_projects',
+    ]);
     const templates = (await c.listResourceTemplates()).resourceTemplates;
     expect(templates).toEqual([]);
     expect((await c.listResources()).resources.map((r) => r.uri)).toEqual([
@@ -118,7 +143,17 @@ describe('creatorhub mcp: tools and toolsets', () => {
       .filter((t) => t.allowed)
       .map((t) => t.name)
       .sort();
-    expect(allowed).toEqual(['platform_rules', 'server_status']);
+    // An import-only token: create and import, plus its own jobs.
+    expect(allowed).toEqual([
+      'asset_import_url',
+      'asset_upload_file',
+      'job_get',
+      'job_retry',
+      'job_wait',
+      'platform_rules',
+      'server_status',
+      'work_create',
+    ]);
   });
 });
 
@@ -204,7 +239,7 @@ describe('creatorhub mcp: reading the library', () => {
     await owner.workAssets.link(work.id, { asset_id: up.asset.id, role: 'cover' });
     const project = await owner.projects.create({ name: '旅行' });
     await owner.projects.batchWorks({ work_ids: [work.id], add: [project.id] });
-    await owner.variants.generate(work.id, { platforms: ['douyin'] });
+    await owner.variants.patch(work.id, 'douyin', { base_revision: 0, title: '抖音標題' });
     const c = await connect();
 
     const assets = await json<{ items: { id: string }[] }>(c, 'assets_search', { kind: 'image' });
@@ -228,15 +263,28 @@ describe('creatorhub mcp: reading the library', () => {
         .items,
     ).toHaveLength(1);
 
-    const variants = await json<{ items: { platform: string }[] }>(c, 'variant_get', {
-      id: work.id,
+    // QC-084 VariantView: every platform resolves; overrides say where each value comes from.
+    const variants = await json<{ items: VariantView[] }>(c, 'variant_get', { id: work.id });
+    expect(variants.items.map((v) => [v.platform, v.exists, v.title, v.title_source])).toEqual([
+      ['xiaohongshu', false, '貼文', 'work'],
+      ['wechat_mp', false, '貼文', 'work'],
+      ['douyin', true, '抖音標題', 'override'],
+      ['wechat_channels', false, '貼文', 'work'],
+    ]);
+    const douyin = await json<VariantView>(c, 'variant_get', { id: work.id, platform: 'douyin' });
+    expect(douyin).toMatchObject({
+      revision: 1,
+      body: '正文',
+      body_source: 'work',
+      cover: { asset_id: up.asset.id },
+      cover_source: 'work',
     });
-    expect(variants.items.map((v) => v.platform)).toContain('douyin');
-    const douyin = await json<{ platform: string; title: string }>(c, 'variant_get', {
-      id: work.id,
-      platform: 'douyin',
-    });
-    expect(douyin).toMatchObject({ platform: 'douyin', title: '貼文' });
+    const history = await json<{ current: VariantView; history: { revision: number }[] }>(
+      c,
+      'variant_get',
+      { id: work.id, platform: 'douyin', history: true },
+    );
+    expect(history.history.map((r) => r.revision)).toEqual([1]);
     const needsPlatform = await call(c, 'variant_get', { id: work.id, history: true });
     expect(needsPlatform.isError).toBe(true);
     expect(JSON.parse(needsPlatform.text)).toMatchObject({ error: { status: 400 } });
@@ -294,9 +342,15 @@ describe('creatorhub mcp over stdio', () => {
     expect(names).toEqual([
       'changes_since',
       'server_status',
+      'work_create',
       'work_diff',
       'work_get',
+      'work_restore',
+      'work_restore_revision',
       'work_revisions',
+      'work_trash',
+      'work_update_meta',
+      'works_batch',
       'works_search',
     ]);
     const found = await json<{ items: { title: string }[] }>(client, 'works_search', {});

@@ -58,6 +58,21 @@ export interface ResumableUploadInput extends UploadInput {
   onProgress?: (sentBytes: number, totalBytes: number) => void;
 }
 
+/**
+ * Bytes to upload, read a chunk at a time (QC-088), so a large local file
+ * never has to be held in memory: `read(start, end)` returns bytes
+ * `[start, end)`.
+ */
+export interface UploadSource {
+  size: number;
+  read(start: number, end: number): Promise<Uint8Array>;
+}
+
+/** `uploadResumable` from an `UploadSource` instead of an in-memory buffer. */
+export type ResumableSourceUploadInput = Omit<ResumableUploadInput, 'data'> & {
+  source: UploadSource;
+};
+
 /** Thrown when a resumable upload stops part-way; call `uploadResumable` again with `uploadUrl`. */
 export class ResumableUploadError extends Error {
   constructor(
@@ -76,7 +91,9 @@ export interface CreatorHubAssetsApi {
   /** Single-request upload (`application/octet-stream`). */
   uploadDirect(input: UploadInput): Promise<UploadAssetResponse>;
   /** tus 1.0.0 resumable upload. */
-  uploadResumable(input: ResumableUploadInput): Promise<UploadAssetResponse>;
+  uploadResumable(
+    input: ResumableUploadInput | ResumableSourceUploadInput,
+  ): Promise<UploadAssetResponse>;
   list(query?: ListAssetsQuery): Promise<ListAssetsResponse>;
   get(id: string): Promise<AssetRecord>;
   /** Works that use this asset (title, role, position). */
@@ -275,8 +292,15 @@ export function createAssetsApi(ctx: Ctx): CreatorHubAssetsApi {
     return UploadAssetResponseSchema.parse(await res.json());
   };
 
-  const uploadResumable = async (input: ResumableUploadInput): Promise<UploadAssetResponse> => {
-    const { data, filename, signal } = input;
+  const uploadResumable = async (
+    input: ResumableUploadInput | ResumableSourceUploadInput,
+  ): Promise<UploadAssetResponse> => {
+    const { filename, signal } = input;
+    const size = 'source' in input ? input.source.size : input.data.length;
+    const chunk = (start: number, end: number): Promise<Uint8Array> =>
+      'source' in input
+        ? input.source.read(start, end)
+        : Promise.resolve(input.data.subarray(start, end));
     const chunkSize = input.chunkSize ?? 8 * 1024 * 1024;
     let uploadUrl = input.uploadUrl;
     let offset = 0;
@@ -286,7 +310,7 @@ export function createAssetsApi(ctx: Ctx): CreatorHubAssetsApi {
         method: 'POST',
         headers: {
           ...tusHeaders,
-          'upload-length': String(data.length),
+          'upload-length': String(size),
           'upload-metadata': `filename ${base64Utf8(filename)}`,
         },
         signal,
@@ -303,7 +327,8 @@ export function createAssetsApi(ctx: Ctx): CreatorHubAssetsApi {
     }
 
     for (;;) {
-      const end = Math.min(offset + chunkSize, data.length);
+      const end = Math.min(offset + chunkSize, size);
+      const body = await chunk(offset, end);
       let res: Response;
       try {
         res = await ctx.doFetch(uploadUrl, {
@@ -314,13 +339,13 @@ export function createAssetsApi(ctx: Ctx): CreatorHubAssetsApi {
             'content-type': 'application/offset+octet-stream',
             accept: 'application/json',
           },
-          body: asBody(data.subarray(offset, end)),
+          body: asBody(body),
           signal,
         });
       } catch (err) {
         throw new ResumableUploadError(uploadUrl, offset, err);
       }
-      if (res.status === 200 && end === data.length) {
+      if (res.status === 200 && end === size) {
         // Final chunk: the server validated and stored the asset.
         return UploadAssetResponseSchema.parse(await res.json());
       }
@@ -330,7 +355,7 @@ export function createAssetsApi(ctx: Ctx): CreatorHubAssetsApi {
         throw await toApiError(res);
       }
       offset = Number(res.headers.get('upload-offset') ?? String(end));
-      input.onProgress?.(offset, data.length);
+      input.onProgress?.(offset, size);
     }
   };
 

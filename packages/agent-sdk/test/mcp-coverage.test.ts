@@ -9,6 +9,7 @@ import {
   MCP_EXCLUDED_AREAS,
   MCP_PENDING,
   MCP_PENDING_AREAS,
+  isReadOnly,
   toolRoutes,
   TOOLS,
 } from '../mcp/index.js';
@@ -90,11 +91,22 @@ describe('MCP tool permissions match the server (scopes.ts)', () => {
     expect(mismatches).toEqual([]);
   });
 
-  it('read-only for this task: no tool needs import or write yet', () => {
-    expect(TOOLS.filter((t) => t.access === 'import' || t.access === 'write')).toEqual([]);
+  it('nothing is left pending since QC-088', () => {
+    expect(MCP_PENDING).toEqual({});
+    expect(MCP_PENDING_AREAS).toEqual([]);
     // Tools without routes run locally and work for every token.
     expect(TOOLS.filter((t) => t.routes.length === 0).map((t) => [t.name, t.access])).toEqual([
       ['platform_rules', 'any'],
+    ]);
+  });
+
+  it('only read tools are marked read-only to the agent', () => {
+    for (const t of TOOLS) {
+      expect(isReadOnly(t.access), t.name).toBe(t.access !== 'import' && t.access !== 'write');
+    }
+    expect(TOOLS.filter((t) => t.destructive === true).map((t) => t.name)).toEqual([
+      'work_trash',
+      'project_delete',
     ]);
   });
 });
