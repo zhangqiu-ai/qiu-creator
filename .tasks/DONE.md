@@ -1,3 +1,9 @@
+## QC-085: 編輯頁全高右側邊欄：預覽／AI／歷史／素材分頁，操作移到左欄
+
+**Priority:** P1 | **Assignee:** qc-prototype → qc-frontend | **Tags:** M3, prototype, frontend | **Done:** 2026-11-23
+
+- PT-20261123-002 A 案（使用者本人核准）。邊欄與編輯欄同高，分頁預覽／AI／歷史／素材；左欄兩列操作；寬度 400–760 記住、收合 44px 圖示欄、⌥⌘0／⌘⇧P／⌘⇧I；空間不足先縮到 400，編輯區小於 960 才改抽屜。發版前修正 81b59c6（measure(0) 競態造成 new-api 偶發、1280 寬時誤成抽屜）。單元 1233／0；e2e 兩種模式 0 failed。已安裝 941a935（備份 20261124T045226448Z-manual）。
+
 ## QC-084: 編輯頁平台預覽重新設計：正文跟隨原稿、三畫面真實模擬、原位編輯、手機縮放
 
 **Priority:** P1 | **Assignee:** qc-prototype → qc-backend ＋ qc-frontend | **Tags:** M3, prototype, backend, frontend | **Done:** 2026-11-23
