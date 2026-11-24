@@ -1,3 +1,9 @@
+## QC-093: MCP 驗收與發版
+
+**Priority:** P1 | **Assignee:** qc-test | **Tags:** M3 | **Done:** 2026-11-24
+
+在 e989492 乾淨 checkout 驗收：全套單元測試 1324／0／1324，兩種 e2e 模式 0 failed，MCP SDK client 經 stdio 跑 10 個情境 10／10，migration 0021／0022 可升級與回滾；證據 `docs/evidence/qc093-mcp-acceptance.md`。真 Agent（Claude Code）因使用者選擇跳過，NOT_VERIFIED。qc-release 升級本機到 4b52c37，備份 `20261124T232254458Z-manual`，schema 0022，真實安裝的 `creatorhub --help` 可執行；`creatorhub mcp` 實際連線與新版介面截圖 NOT_VERIFIED。
+
 ## QC-094: 安裝時附帶 creatorhub CLI，MCP 設定帶真實路徑
 
 **Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend | **Done:** 2026-11-24

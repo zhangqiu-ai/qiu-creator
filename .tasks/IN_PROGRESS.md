@@ -7,9 +7,3 @@ QC-004 的驗收本體，依賴 QC-030–032。實機安裝後：重開機自啟
 **Started:** 2026-11-19（使用者「Approve install」同意真實安裝；qc-release 安裝，qc-test 驗收。安裝時 `~/CreatorHub` 尚不存在，為全新安裝）
 
 **Status（2026-11-19）:** U0 備份通過；U2、U3 使用者豁免（未驗證）；U4 New API 真實呼叫通過，Gemini／Claude／GPT 使用者豁免（未驗證）。U1 已通過（2026-11-21 03:14 系統自行重開，服務開機後 119 秒自啟）。剩 U5 日常使用一輪。證據在分支 `test/qc033-acceptance`（未合併）。此卡在開 QC-036 時被誤刪，2026-11-19 補回。
-
-## QC-093: MCP 驗收與發版
-
-**Priority:** P1 | **Assignee:** qc-test | **Tags:** M3
-
-依賴 QC-087～QC-092。用真的 Claude Code 在臨時資料目錄連本機 MCP 跑一輪情境（新建文章、上傳素材、歸入項目、提案與直接修改、409、權限不足）；兩種 e2e 模式全綠；之後由 qc-release 發版。

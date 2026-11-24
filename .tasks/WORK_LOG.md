@@ -1,5 +1,9 @@
 # Work Log
 
+## 2026-11-24 · QC-093 完成並發版
+
+- MCP 驗收通過（真 Agent NOT_VERIFIED，使用者跳過）；qc-release 升級本機到 4b52c37，備份 `20261124T232254458Z-manual`；總監複核 /health 與 CLI。
+
 ## 2026-11-24 · QC-094 完成
 
 - CLI 隨服務安裝，MCP 設定帶真實路徑；QC-093 驗收與發版前檢查開始。
