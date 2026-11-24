@@ -183,6 +183,12 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 
 `0011_change_log_system_entity`：`change_log.entity` 允許 `system`（備份事件，QC-030）。SQLite 無法修改 CHECK，所以重建資料表，保留 `seq` 與 AUTOINCREMENT 的最高值，SSE 的 id 不會倒退。
 
+`0022_project_rules_membership`（QC-092）：只加欄位。
+
+- `projects` 加 `description` 與 `rules`（JSON）。
+- `work_projects` 加 `added_by`（user／agent／rule，既有資料為 user）、`added_by_token`、`added_by_name`、`score`、`reasons`。
+- 回滾用 `PROJECT_RULES_ROLLBACK_SQL`：刪除這些欄位，歸屬本身保留。詳見「項目規則與自動歸屬（QC-092）」。
+
 `0021_agent_proposals_activity`（QC-089）：只加欄位與資料表。
 
 - `api_tokens` 加 `allow_direct_body_edit`、`project_ids`；`change_log` 加 `actor`。
@@ -312,6 +318,12 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/tokens/:id/activity` | 權杖的活動記錄，新到舊，`before` 分頁（只限主權杖）（QC-089） |
 | POST | `/api/v1/works/:id/proposals` | Agent 提出正文修改（`propose`；Agent 須帶 `Idempotency-Key`），拆成有穩定 id 的 hunk，不寫入作品（QC-089） |
 | GET | `/api/v1/proposals`、`/api/v1/proposals/counts`、`/api/v1/proposals/:id` | 提案列表（pending／done／all，可依作品或權杖過濾）、側欄數量、單一提案（含 hunk 的重疊狀態與三方比對輸入）（QC-089） |
+| GET | `/api/v1/works/:id/projects` | 作品所在的項目，每筆帶 `added_by`（user、agent、rule，以及權杖、分數、原因）（QC-092） |
+| POST | `/api/v1/works/:id/projects/:projectId/keep` | 保留：把 Agent 或規則的歸入改為手動（只限主權杖）（QC-092） |
+| DELETE | `/api/v1/works/:id/projects/:projectId` | 復原歸入：只撤銷 Agent 或規則的歸入，手動的回 409 `membership_manual`（只限主權杖）（QC-092） |
+| GET | `/api/v1/works/:id/project-suggestions` | 依項目規則的候選，0–1 分數、`outcome`（auto ≥ 0.8、suggest 0.5–0.8、none）、原因（QC-092） |
+| POST | `/api/v1/projects/suggestions` | 同上，針對尚未儲存的內容（title、markdown、tags、source），只讀（QC-092） |
+| POST | `/api/v1/projects/:id/rules/preview` | 用給定的規則試算最近 20 篇（`limit` 1–50），不儲存，只讀（QC-092） |
 | POST | `/api/v1/proposals/:id/accept`、`…/discard` | 採用全部或部分 hunk（成為新版本）／捨棄（保留 30 天），只限主權杖（QC-089） |
 
 - **鑑權：** `/api/*` 一律要 `Authorization: Bearer <token>`，可以是主權杖（使用者自己、Electron）或 Agent 權杖；無效或已撤銷回 401，權限不足回 403 `forbidden`。詳見下文「Agent 權杖與權限」。
@@ -1097,6 +1109,59 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
   - `GET /api/v1/session` 任何有效權杖都能讀（`any`），讓 Agent 知道自己能用哪些工具，以及是否允許直接修改正文、限定哪些項目（QC-087、QC-089）。
   - 未列出的 `/api` 路由（包括之後新增的）預設只有主權杖能用，不會在無意間開放給 Agent。
 
+## 項目規則與自動歸屬（QC-092）
+
+規格見 [MCP 規劃](mcp-plan.md) 第 7 節、已核准原型 PT-20261124-001 的後端需求，以及[決策記錄](decisions.md) 2026-11-24（門檻 0.8 與 0.5）。
+
+**項目欄位：**
+
+- `description`：這個項目在做什麼，給人和 Agent 讀，不參與評分。
+- `rules`：`{keywords, tags, folders, domains}`。
+  - `folders` 填掛載 id 或絕對資料夾路徑。
+  - `domains` 填主機名，會轉成小寫，子網域也算相符。
+- `POST /projects` 與 `PATCH /projects/:id` 都可以設定；PATCH 照常帶 `base_revision` 或 `If-Match`，`rules` 整份取代。
+
+**評分（`packages/domain/src/project-rules.ts`，子路徑 `@qiu-creator/domain/project-rules`）：** 確定性規則，不呼叫任何 AI。
+
+| 訊號 | 權重 |
+| --- | --- |
+| 作品在規則的資料夾或掛載裡（外部作品） | 0.9 |
+| 來源網址或正文連結在規則網域 | 0.7 |
+| 標題出現關鍵字 | 0.6 |
+| 有規則標籤 | 0.6 |
+| 關鍵字只出現在正文（每個不同的關鍵字各算一次） | 0.35 |
+
+- 分數為 `1 − Π(1 − 權重)`，四捨五入到小數兩位。
+  - 例：資料夾單獨即可達 0.9；標題關鍵字加標籤為 0.84，自動歸入。
+  - 例：單一標題關鍵字或單一標籤為 0.6，兩個正文關鍵字為 0.58，都只建議。
+- 關鍵字比對前做搜尋摺疊（大小寫、全半形、繁簡）。
+- 每個原因帶 `kind`、`value`、`weight`，以及一句繁體中文 `text`；App 依 `kind` 與 `value` 自己組多語句子。
+- 沒有規則的項目不參與。權杖限定項目時，只用它範圍內的項目當候選。
+
+**自動歸入：**
+
+- `POST /works` 帶 `auto_assign: true` 時，用新內容評分，自動加入所有 ≥ 0.8 的項目。
+  - 回應的 `auto_assignment` 列出 `assigned` 與只建議的 `suggested`（0.5–0.8），兩者都帶原因。
+  - 這段計算在冪等鍵範圍內，重送會拿到同一份結果。
+- 權杖限定項目時，若沒帶 `project_ids`，又沒有範圍內的項目達 0.8，回 403 `project_scope`，什麼都不建立；`details.suggested` 列出接近的項目。
+
+**誰歸入的（`work_projects.added_by`）：**
+
+- 三種來源：
+  - `user`：主權杖手動。
+  - `agent`：Agent 權杖明確指定，記下權杖 id 與名稱。
+  - `rule`：自動歸入，記下分數與原因；由 Agent 觸發時也記下權杖。
+- 規則與 Agent 不會覆蓋或移除手動的歸屬：
+  - Agent 或規則再次加入同一項目時，保持原來的來源。
+  - Agent 用批量移除手動歸屬時，該作品失敗，回 `membership_manual`。
+  - 主權杖手動加入，會把 Agent 或規則的歸屬改為 `user`。
+- **保留**（`POST /works/:id/projects/:projectId/keep`）：改為 `user`。
+- **復原歸入**（`DELETE /works/:id/projects/:projectId`）：只刪 agent 或 rule 的歸屬，手動的回 409。
+- 保留與復原都只限主權杖，因為是使用者的確認。
+- `work.projects_changed` 事件帶 `by`；保留時帶 `kept`，復原時帶 `undone: true`。
+
+**試算：** `POST /projects/:id/rules/preview` 用請求中的規則（不是已存的規則）評最近更新的作品（預設 20 篇，只算範圍內），回傳每篇的分數、結果、原因與 `member`，什麼都不寫入。
+
 ## Agent 提案、直接修改、項目限定與活動記錄（QC-089）
 
 規格見已核准原型 PT-20261124-001 的後端需求，以及[決策記錄](decisions.md) 2026-11-24 的兩條。
@@ -1152,7 +1217,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 - 成功的讀取不記錄。每個權杖保留最近 2000 筆。
 - 查詢用 `GET /tokens/:id/activity`，只限主權杖。
 
-## MCP（QC-087、QC-088、QC-089）
+## MCP（QC-087～QC-089、QC-092）
 
 設計與任務拆分見 [MCP 規劃](mcp-plan.md)。`creatorhub mcp` 是由 Agent（Claude Code、Codex、Claude Desktop）在本機啟動的 stdio MCP 伺服器，程式在 `packages/agent-sdk/mcp/`。
 
@@ -1194,7 +1259,9 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 | `work_trash`、`work_restore`、`works_batch` | `DELETE /api/v1/works/:id`、`POST …/restore`、`POST /api/v1/works/batch` | write |
 | `work_restore_revision` | `POST /api/v1/works/:id/revisions/:rid/restore`（新增一個 `restore` 版本） | write |
 | `project_create`、`project_update`、`project_delete`、`project_restore` | `POST /api/v1/projects`、`PATCH …/:id`（`base_revision` 必填）、`DELETE …/:id`、`POST …/:id/restore` | write |
-| `works_assign_projects` | `POST /api/v1/works/batch/projects` | write |
+| `works_assign_projects` | `POST /api/v1/works/batch/projects`（Agent 不能移除使用者手動的歸屬：`membership_manual`） | write |
+| `projects_suggest` | `GET /api/v1/works/:id/project-suggestions` 或 `POST /api/v1/projects/suggestions`（QC-092） | read |
+| `project_rules_preview` | `POST /api/v1/projects/:id/rules/preview`（QC-092） | read |
 | `variant_update` | `PATCH /api/v1/works/:id/variants/:platform`；`reset_all` 時 `DELETE` 同一路由 | write |
 
 - **正文（QC-089）：**
@@ -1239,6 +1306,8 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
   - 平台版本的 generate 與 draft：QC-084 後已棄用。
   - 單次直傳 `POST /assets/uploads`：MCP 一律走 tus。
   - QC-089：提案的採用與捨棄只限主權杖，因為那是使用者的確認。權杖的更新與活動記錄落在既有的 `/api/v1/tokens` 排除範圍。
+  - QC-092：歸屬的「保留」與「復原歸入」只限主權杖（使用者確認）。
+  - QC-092 的其他變更：`work_get` 會帶出作品的項目與歸入來源；`work_create` 支援 `auto_assign`；`project_create` 與 `project_update` 可以設定 `description` 和 `rules`。
 - `MCP_PENDING`：路由先上線、工具隨後補上時使用，須寫明由哪個任務補上。QC-088 起清空，測試也斷言它是空的。
 
 兩個相關測試：

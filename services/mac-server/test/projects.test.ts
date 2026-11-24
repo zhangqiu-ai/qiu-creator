@@ -196,6 +196,8 @@ describe('works and projects (QC-062)', () => {
     expect(JSON.parse(events(s, 'work.projects_changed').at(-1)?.data ?? '{}')).toEqual({
       added: [],
       removed: [q.id],
+      // QC-092: who changed the membership.
+      by: 'user',
     });
 
     // A deleted project stops the whole request before anything changes.

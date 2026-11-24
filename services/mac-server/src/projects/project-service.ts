@@ -14,6 +14,7 @@ import {
   type Project,
   type ProjectSummary,
   type ReorderProjectsRequest,
+  type WorkProjectMembership,
   type WorkStatus,
 } from '@qiu-creator/contracts';
 import { checkRevision, resolveBaseRevision } from '@qiu-creator/domain';
@@ -23,6 +24,8 @@ import type { Db } from '../db/database.js';
 import { notFound, ServiceError } from '../errors.js';
 import type { ChangeFeed } from '../events/change-feed.js';
 import type { WorkService } from '../works/work-service.js';
+import { addMembership, membershipRow, requesterAddedBy, toAddedBy } from './membership.js';
+import { parseRules } from './project-rules.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -37,6 +40,8 @@ interface ProjectRow {
   created_at: string;
   updated_at: string;
   work_count: number;
+  description: string;
+  rules: string;
 }
 
 export interface ProjectServiceOptions {
@@ -107,10 +112,20 @@ export class ProjectService {
         .get();
       this.db
         .prepare(
-          `INSERT INTO projects (id, name, color, sort_order, revision, created_at, updated_at)
-           VALUES (?, ?, ?, ?, 1, ?, ?)`,
+          `INSERT INTO projects (id, name, color, sort_order, revision, created_at, updated_at,
+             description, rules)
+           VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)`,
         )
-        .run(id, req.name, req.color, (last?.max ?? -1) + 1, now, now);
+        .run(
+          id,
+          req.name,
+          req.color,
+          (last?.max ?? -1) + 1,
+          now,
+          now,
+          req.description ?? '',
+          JSON.stringify(req.rules ?? {}),
+        );
       this.feed?.record('project', id, 'project.created', {});
     })();
     return this.get(id);
@@ -133,6 +148,19 @@ export class ProjectService {
         sets.push('color = ?');
         values.push(body.color);
         fields.push('color');
+      }
+      if (body.description !== undefined && body.description !== row.description) {
+        sets.push('description = ?');
+        values.push(body.description);
+        fields.push('description');
+      }
+      if (body.rules !== undefined) {
+        const rules = JSON.stringify(body.rules);
+        if (rules !== JSON.stringify(parseRules(row.rules))) {
+          sets.push('rules = ?');
+          values.push(rules);
+          fields.push('rules');
+        }
       }
       if (body.archived !== undefined && body.archived !== (row.archived_at !== null)) {
         sets.push('archived_at = ?');
@@ -290,13 +318,23 @@ export class ProjectService {
         this.db.transaction(() => {
           this.works.requireActive(workId);
           const now = this.stamp();
+          const by = requesterAddedBy();
+          // QC-092: agents never take a work out of a project the owner put it in.
+          if (by.kind === 'agent') {
+            const manual = req.remove.filter(
+              (projectId) => membershipRow(this.db, workId, projectId)?.added_by === 'user',
+            );
+            if (manual.length > 0) {
+              throw new ServiceError(
+                409,
+                'membership_manual',
+                'the owner put this work in these projects by hand; agents cannot take it out',
+                { project_ids: manual },
+              );
+            }
+          }
           const added = req.add.filter(
-            (projectId) =>
-              this.db
-                .prepare(
-                  'INSERT OR IGNORE INTO work_projects (work_id, project_id, added_at) VALUES (?, ?, ?)',
-                )
-                .run(workId, projectId, now).changes === 1,
+            (projectId) => addMembership(this.db, workId, projectId, by, now) === 'added',
           );
           const removed = req.remove.filter(
             (projectId) =>
@@ -305,7 +343,11 @@ export class ProjectService {
                 .run(workId, projectId).changes === 1,
           );
           if (added.length + removed.length > 0) {
-            this.feed?.record('work', workId, 'work.projects_changed', { added, removed });
+            this.feed?.record('work', workId, 'work.projects_changed', {
+              added,
+              removed,
+              by: by.kind,
+            });
           }
         })();
         results.push({ id: workId, ok: true, work: this.works.listItemById(workId) });
@@ -326,7 +368,95 @@ export class ProjectService {
     return { results, succeeded, failed: results.length - succeeded };
   }
 
+  /** A work's projects with who put it there and why (QC-092). */
+  memberships(workId: string): WorkProjectMembership[] {
+    this.works.get(workId);
+    const limit = currentProjectLimit();
+    return this.db
+      .prepare<
+        [string],
+        {
+          project_id: string;
+          project_name: string;
+          added_by: string;
+          added_by_token: string | null;
+          added_by_name: string | null;
+          score: number | null;
+          reasons: string;
+          added_at: string;
+        }
+      >(
+        `SELECT wp.project_id, p.name AS project_name, wp.added_by, wp.added_by_token,
+           wp.added_by_name, wp.score, wp.reasons, wp.added_at
+         FROM work_projects wp JOIN projects p ON p.id = wp.project_id
+         WHERE wp.work_id = ? AND p.deleted_at IS NULL ORDER BY p.sort_order, p.id`,
+      )
+      .all(workId)
+      .filter((r) => limit === null || limit.includes(r.project_id))
+      .map((r) => ({
+        project_id: r.project_id,
+        project_name: r.project_name,
+        added_by: toAddedBy(r),
+      }));
+  }
+
+  /**
+   * 保留：make an agent or rule assignment manual, so rules and agents leave
+   * it alone from now on (the owner's decision).
+   */
+  keepMembership(workId: string, projectId: string): WorkProjectMembership[] {
+    this.requireMembership(workId, projectId);
+    this.db.transaction(() => {
+      if (
+        addMembership(this.db, workId, projectId, { kind: 'user' }, this.stamp()) === 'made_manual'
+      ) {
+        this.feed?.record('work', workId, 'work.projects_changed', {
+          added: [],
+          removed: [],
+          kept: [projectId],
+          by: 'user',
+        });
+      }
+    })();
+    return this.memberships(workId);
+  }
+
+  /**
+   * 復原歸入：take the work out of a project an agent or a rule put it in.
+   * A manual membership is 409 `membership_manual` (remove it by hand instead).
+   */
+  undoMembership(workId: string, projectId: string): WorkProjectMembership[] {
+    const row = this.requireMembership(workId, projectId);
+    if (row.added_by === 'user') {
+      throw new ServiceError(
+        409,
+        'membership_manual',
+        'this work was put in the project by hand; only agent or rule assignments can be undone',
+        { project_id: projectId },
+      );
+    }
+    this.db.transaction(() => {
+      this.db
+        .prepare('DELETE FROM work_projects WHERE work_id = ? AND project_id = ?')
+        .run(workId, projectId);
+      this.feed?.record('work', workId, 'work.projects_changed', {
+        added: [],
+        removed: [projectId],
+        undone: true,
+        by: 'user',
+      });
+    })();
+    return this.memberships(workId);
+  }
+
   // ---- Internals ----------------------------------------------------------------
+
+  private requireMembership(workId: string, projectId: string): { added_by: string } {
+    this.works.requireActive(workId);
+    const row = membershipRow(this.db, workId, projectId);
+    if (row === undefined) throw notFound('project membership');
+    return row;
+  }
 
   private rows(where: string, ...params: string[]): ProjectRow[] {
     return this.db
@@ -406,5 +536,7 @@ function toProject(row: ProjectRow): Project {
     work_count: row.work_count,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    description: row.description,
+    rules: parseRules(row.rules),
   };
 }

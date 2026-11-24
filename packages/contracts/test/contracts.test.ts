@@ -28,6 +28,8 @@ describe('contracts', () => {
       source: 'api',
       // QC-062: a new work is in no project unless asked.
       project_ids: [],
+      // QC-092: nor assigned by rules unless asked.
+      auto_assign: false,
     });
   });
 

@@ -13,6 +13,7 @@ import {
   WorkRefsQuerySchema,
   WorkSchema,
   type CreateWorkRequest,
+  type ProjectMatch,
   type ExternalState,
   type ListWorksQuery,
   type ListWorksResponse,
@@ -39,6 +40,7 @@ import {
   writeWorkSource,
 } from '@qiu-creator/domain';
 import { currentPrincipal } from '../auth/actor-context.js';
+import { addMembership, requesterAddedBy, ruleAddedBy } from '../projects/membership.js';
 import { currentProjectLimit, WORK_IN_LIMIT_SQL } from '../auth/project-scope.js';
 import type { Db } from '../db/database.js';
 import { notFound, ServiceError } from '../errors.js';
@@ -236,7 +238,10 @@ export class WorkService {
   private readonly typed: TypedWorkMedia;
   private readonly cards: WorkCardImages;
 
-  create(input: CreateWorkRequest): WorkDetail {
+  create(
+    input: CreateWorkRequest,
+    options: { autoAssigned?: readonly ProjectMatch[] } = {},
+  ): WorkDetail {
     const req = CreateWorkRequestSchema.parse(input);
     if (req.description !== undefined && !isTypedWork(req.type)) {
       throw new ServiceError(400, 'validation_error', 'description is for image and video works');
@@ -298,14 +303,21 @@ export class WorkService {
           created_at: now,
         });
         this.indexFts(id, req.title, req.tags, req.markdown);
-        for (const projectId of req.project_ids) {
-          this.db
-            .prepare('INSERT INTO work_projects (work_id, project_id, added_at) VALUES (?, ?, ?)')
-            .run(id, projectId, now);
+        // QC-092: record who put it there; rule assignments carry score and reasons.
+        const by = requesterAddedBy();
+        for (const projectId of req.project_ids) addMembership(this.db, id, projectId, by, now);
+        for (const m of options.autoAssigned ?? []) {
+          addMembership(this.db, id, m.project_id, ruleAddedBy(m.score, m.reasons), now);
         }
+        const projectIds = [
+          ...req.project_ids,
+          ...(options.autoAssigned ?? [])
+            .map((m) => m.project_id)
+            .filter((p) => !req.project_ids.includes(p)),
+        ];
         this.feed?.record('work', id, 'work.created', {
           revision_id: revisionId,
-          ...(req.project_ids.length > 0 ? { project_ids: req.project_ids } : {}),
+          ...(projectIds.length > 0 ? { project_ids: projectIds } : {}),
         });
       })();
     } catch (err) {

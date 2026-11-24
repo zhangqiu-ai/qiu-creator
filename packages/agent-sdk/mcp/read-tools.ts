@@ -56,8 +56,12 @@ export const READ_TOOLS: readonly McpToolDef[] = [
     name: 'work_get',
     group: 'works',
     access: 'read',
-    routes: ['GET /api/v1/works/:id', 'GET /api/v1/works/:id/assets'],
-    description: `One work: metadata, its Markdown (front matter included), current_revision_id (needed later as base_revision for edits) and linked assets (cover, body, video, in order). ${USER_DATA_NOTE}`,
+    routes: [
+      'GET /api/v1/works/:id',
+      'GET /api/v1/works/:id/assets',
+      'GET /api/v1/works/:id/projects',
+    ],
+    description: `One work: metadata, its Markdown (front matter included), current_revision_id (needed later as base_revision for edits), linked assets (cover, body, video, in order) and its projects with who put it there (user by hand, an agent, or a rule with score and reasons). ${USER_DATA_NOTE}`,
     inputSchema: {
       id: id('work'),
       include_markdown: z
@@ -66,14 +70,16 @@ export const READ_TOOLS: readonly McpToolDef[] = [
         .describe('false to leave out the Markdown and save context'),
     },
     run: async (client, args) => {
-      const [work, assets] = await Promise.all([
+      const [work, assets, projects] = await Promise.all([
         client.works.get(args.id),
         client.workAssets.list(args.id),
+        client.projects.workMemberships(args.id),
       ]);
       return {
         // JSON leaves out the undefined Markdown.
         work: args.include_markdown ? work : { ...work, markdown: undefined },
         assets: assets.items,
+        projects: projects.items,
       };
     },
   }),
