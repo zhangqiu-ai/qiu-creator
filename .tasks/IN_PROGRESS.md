@@ -1,10 +1,12 @@
 ## QC-085: 編輯頁右側邊欄：預覽區佔滿視窗高度，編輯區操作移到左欄
 
-**Priority:** P1 | **Assignee:** qc-prototype（原型）→ 待定 | **Tags:** M3, prototype, frontend
+**Priority:** P1 | **Assignee:** qc-prototype → qc-frontend | **Tags:** M3, prototype, frontend
 
 使用者 2026-11-23（附截圖與 Codex 參考圖）：「預覽區的高度空間不是很夠，可以將編輯區和預覽區統一高度，編輯區的操作往左移動。或者可以像Codex 一樣從右邊拉一起右側邊欄起來呈現預覽區。右側邊欄後續還可以承載其它內容。」
 
 先出原型給使用者核對。
+
+**Status（2026-11-23）:** PT-20261123-002 A 案使用者本人核准，已合併；交 qc-frontend 實作。
 
 **Started:** 2026-11-23
 

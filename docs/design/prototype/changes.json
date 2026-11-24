@@ -3075,7 +3075,7 @@
       "id": "PT-20261123-002",
       "title": "作品編輯頁：全高右側邊欄（預覽、AI、歷史、素材分頁），編輯操作移到左欄",
       "date": "2026-11-23",
-      "status": "pending_user",
+      "status": "approved",
       "model": "claude-opus-5-5",
       "session": "qc-prototype",
       "requestedBy": "使用者 via 開發總監",
@@ -3084,9 +3084,9 @@
       "dependsOn": [
         "PT-20261123-001 (QC-084 three-screen preview, reused unchanged inside the sidebar)"
       ],
-      "approvedBy": null,
-      "approvedAt": null,
-      "approvalNote": "由使用者本人核准。",
+      "approvedBy": "user",
+      "approvedAt": "2026-11-23",
+      "approvalNote": "使用者本人核准 A 案：「核准 A，照推薦做」（2026-11-23）。openQuestions 全部採用推薦。",
       "supersedes": [
         "PT-20261122-004 的「預覽分欄與 AI 面板互斥」與編輯頁右上角的「視覺／原始碼、插入、預覽、歷史」列"
       ],
