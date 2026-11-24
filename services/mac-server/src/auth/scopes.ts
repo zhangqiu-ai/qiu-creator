@@ -5,8 +5,9 @@ import { TUS_UPLOAD_PATH } from '@qiu-creator/contracts';
  * `owner` = only the main token (token management).
  * `read_or_own_import` = `read`, or an `import` token reading a job it created
  * itself (the route checks ownership), so import-only agents can follow their work.
+ * `any` = every valid token (QC-087: a token reading its own session).
  */
-export type RequiredAccess = TokenScope | 'owner' | 'read_or_own_import';
+export type RequiredAccess = TokenScope | 'owner' | 'read_or_own_import' | 'any';
 
 const WRITE_ROUTES = new Set([
   'PATCH /api/v1/works/:id',
@@ -64,6 +65,7 @@ export function requiredAccess(method: string, routeUrl: string | undefined): Re
   if (routeUrl.startsWith('/api/v1/assets/:id/ai/')) return 'owner';
   if (routeUrl === TUS_UPLOAD_PATH || routeUrl.startsWith(`${TUS_UPLOAD_PATH}/`)) return 'import';
   const key = `${method} ${routeUrl}`;
+  if (key === 'GET /api/v1/session' || key === 'HEAD /api/v1/session') return 'any';
   if (key === 'GET /api/v1/jobs/:id' || key === 'HEAD /api/v1/jobs/:id')
     return 'read_or_own_import';
   if (IMPORT_ROUTES.has(key)) return 'import';

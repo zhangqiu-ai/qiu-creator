@@ -86,6 +86,18 @@ export type ListJobsResponse = z.infer<typeof ListJobsResponseSchema>;
 export const TokenScopeSchema = z.enum(['read', 'import', 'write']);
 export type TokenScope = z.infer<typeof TokenScopeSchema>;
 
+/**
+ * `GET /api/v1/session` (QC-087): who the bearer token is and what it may do,
+ * so an agent can tell which tools will work before calling them.
+ */
+export const SessionResponseSchema = z.object({
+  kind: z.enum(['owner', 'agent']),
+  /** Agent token name; null for the owner token. */
+  name: z.string().nullable(),
+  scopes: z.array(TokenScopeSchema),
+});
+export type SessionResponse = z.infer<typeof SessionResponseSchema>;
+
 export const CreateTokenRequestSchema = z.object({
   name: z.string().trim().min(1).max(100),
   scopes: z.array(TokenScopeSchema).min(1),

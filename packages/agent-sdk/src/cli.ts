@@ -9,6 +9,8 @@ import {
   type ImportJobRecord,
 } from '@qiu-creator/contracts';
 import { Command, CommanderError, InvalidArgumentError } from 'commander';
+import { parseToolsets, serveMcpStdio } from '../mcp/index.js';
+import { TOOLSETS } from '../mcp/tools.js';
 
 export const DEFAULT_SERVER_URL = 'http://127.0.0.1:7420';
 
@@ -18,6 +20,8 @@ export interface CliIo {
   env: NodeJS.ProcessEnv;
   /** Override client construction (tests). */
   createClient?: (baseUrl: string, token: string) => CreatorHubClient;
+  /** Override the MCP stdio server (tests). */
+  serveMcp?: typeof serveMcpStdio;
 }
 
 interface GlobalOptions {
@@ -486,6 +490,22 @@ export function buildProgram(io: CliIo): Command {
     .action(async (id: string) => {
       const m = await client().mounts.remove(id);
       io.stdout(`unmounted ${m.id} (${m.work_count} works kept as "unmounted")\n`);
+    });
+
+  program
+    .command('mcp')
+    .description(
+      'run the CreatorHub MCP server on stdin/stdout for AI agents (Claude Code, Codex, Claude Desktop); ' +
+        'uses the agent token from --token or CREATORHUB_TOKEN',
+    )
+    .option(
+      '--toolsets <names>',
+      `comma-separated tool groups to expose (${TOOLSETS.join(', ')}; default all; server_status and changes_since are always on)`,
+    )
+    .action(async (opts: { toolsets?: string }) => {
+      const toolsets = parseToolsets(opts.toolsets);
+      const serve = io.serveMcp ?? serveMcpStdio;
+      await serve({ client: client(), toolsets });
     });
 
   return program;

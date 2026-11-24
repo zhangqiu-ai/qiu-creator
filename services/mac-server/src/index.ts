@@ -3,7 +3,9 @@ export {
   SERVER_VERSION,
   type BuildServerOptions,
   type CreatorHubServer,
+  type RegisteredRoute,
 } from './server.js';
+export { requiredAccess, type RequiredAccess } from './auth/scopes.js';
 export {
   loadConfig,
   defaultHome,

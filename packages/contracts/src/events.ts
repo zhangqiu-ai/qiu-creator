@@ -108,3 +108,33 @@ export const ChangeEventSchema = z.object({
 export type ChangeEvent = z.infer<typeof ChangeEventSchema>;
 
 export const EVENTS_PATH = '/api/v1/events';
+
+// ---- Change list (QC-087) -------------------------------------------------------
+
+/** Most change events one `GET /api/v1/changes` returns. */
+export const CHANGES_PAGE_MAX = 500;
+
+/**
+ * `GET /api/v1/changes`: the same change log as the SSE stream, as a bounded
+ * JSON page for clients that poll (MCP `changes_since`). Without `since` it
+ * starts from the beginning of the log.
+ */
+export const ListChangesQuerySchema = z.object({
+  since: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(CHANGES_PAGE_MAX).default(100),
+});
+export interface ListChangesQuery {
+  since?: number;
+  limit?: number;
+}
+
+export const ListChangesResponseSchema = z.object({
+  items: z.array(ChangeEventSchema),
+  /** Pass as `since` for the next page; equals `since` when there was nothing new. */
+  next_since: z.number().int().nonnegative(),
+  /** More events after this page. */
+  has_more: z.boolean(),
+  /** Newest seq in the log right now. */
+  latest_seq: z.number().int().nonnegative(),
+});
+export type ListChangesResponse = z.infer<typeof ListChangesResponseSchema>;

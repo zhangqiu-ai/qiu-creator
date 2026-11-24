@@ -53,6 +53,7 @@ import { registerWorkThumbnailRoutes } from './routes/work-thumbnails.js';
 import { registerAssetLibraryRoutes } from './routes/asset-library.js';
 import { registerAssetRoutes } from './routes/assets.js';
 import { registerEventRoutes } from './routes/events.js';
+import { registerSessionRoutes } from './routes/session.js';
 import { registerImportRoutes, registerTokenRoutes } from './routes/imports.js';
 import { registerMediaRoutes } from './routes/media.js';
 import { WorkMediaAttacher } from './media/attach.js';
@@ -185,8 +186,19 @@ export interface BuildServerOptions {
   projects?: ProjectServiceOptions;
 }
 
+/** One registered route: method and URL pattern as Fastify matches it (`/api/v1/works/:id`). */
+export interface RegisteredRoute {
+  method: string;
+  url: string;
+}
+
 export interface CreatorHubServer {
   app: FastifyInstance;
+  /**
+   * Every route registered on `app`, one entry per method (QC-087: the MCP
+   * coverage test compares these with its route table).
+   */
+  routes: readonly RegisteredRoute[];
   db: Db;
   layout: Layout;
   works: WorkService;
@@ -319,6 +331,11 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   }).withTypeProvider<ZodTypeProvider>();
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
+  const routes: RegisteredRoute[] = [];
+  app.addHook('onRoute', (route) => {
+    const methods = Array.isArray(route.method) ? route.method : [route.method];
+    for (const method of methods) routes.push({ method, url: route.url });
+  });
   app.addHook('onClose', async () => {
     unsubscribeSleep();
     sleep.stop();
@@ -395,6 +412,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     const access = requiredAccess(req.method, req.routeOptions.url);
     const allowed =
       principal.kind === 'owner' ||
+      access === 'any' ||
       (access === 'read_or_own_import'
         ? principal.scopes.includes('read') || principal.scopes.includes('import')
         : access !== 'owner' && principal.scopes.includes(access));
@@ -636,6 +654,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerProjectRoutes(app, projects);
   await registerWorkThumbnailRoutes(app, works);
   registerEventRoutes(app, feed, options.heartbeatMs);
+  registerSessionRoutes(app, feed);
   registerImportRoutes(app, imports, idempotency);
   registerTokenRoutes(app, tokens);
   registerMountRoutes(app, mounts);
@@ -668,6 +687,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   if (aiOptions.start !== false) ai.start();
   return {
     app,
+    routes,
     db,
     layout,
     works,
