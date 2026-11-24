@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
 import { test } from '../fixtures/desktop.js';
+import { showSideTab } from '../fixtures/side.js';
 import { startScreencast } from '../fixtures/screencast.js';
 
 /*
@@ -96,6 +97,8 @@ test('設定與 AI 動效錄影（正常速度）與減少動態效果', async (
 
   // The AI panel's tab underline glides between 改寫 and 圖片 (標題 moved to the preview, QC-076).
   await page.locator('.card-grid .wcard', { hasText: '京都散步路線' }).click();
+  // QC-085: the AI panel is a tab of the editor sidebar, which opens on 預覽.
+  await showSideTab(page, 'AI');
   const aiTabs = page.getByRole('tablist', { name: 'AI' });
   await aiTabs.getByRole('tab', { name: '圖片' }).click();
   await aiTabs.getByRole('tab', { name: '改寫' }).click();

@@ -65,7 +65,8 @@ import {
 } from './image-post.js';
 import { ASSET_DRAG_TYPE, AssetDrawer } from './InsertUI.js';
 import { externalSource, useMounts } from './mounts.js';
-import type { TabPanel, TabStatusPatch, TabView } from './tabs.js';
+import type { TabStatusPatch, TabView } from './tabs.js';
+import { EditorSide, useSideStore } from './EditorSide.js';
 import { TagEditor } from './TagEditor.js';
 import { ProjectTags } from './ProjectTags.js';
 import { WorkSession, type Draft, type DraftCover, type SaveError } from './work-session.js';
@@ -161,17 +162,28 @@ function PostEditor({
       ? t('imagePost.externalLocked')
       : null;
 
-  const [panel, setPanel] = useState<TabPanel>(initialView?.panel ?? 'ai');
-  // QC-076: the platform versions live in the 預覽 split, shared with the other editors.
-  const [previewOpen, setPreviewOpen] = useState(false);
+  // QC-085: 預覽, 歷史 and 素材 are tabs of the window's right sidebar (posts have no AI panel).
+  const side = useSideStore();
+  const sideState = useSyncExternalStore(side.subscribe, side.getSnapshot);
+  const assetsShown =
+    (sideState.drawer ? sideState.drawerOpen : sideState.prefs.open) &&
+    sideState.prefs.tab === 'assets';
   const [previewAsk, setPreviewAsk] = useState<{ platform: Platform; n: number } | undefined>(
     undefined,
   );
   const openPreview = (platform: Platform) => {
-    setPanel('ai');
     setPreviewAsk((r) => ({ platform, n: (r?.n ?? 0) + 1 }));
-    setPreviewOpen(true);
+    side.show('preview');
   };
+  const openAssets = () => {
+    side.show('assets');
+  };
+  const onOverLimit = useCallback(
+    (over: boolean) => {
+      side.setOver(work.id, over);
+    },
+    [side, work.id],
+  );
   const [coverOpen, setCoverOpen] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [undo, setUndo] = useState<{
@@ -320,19 +332,22 @@ function PostEditor({
   }, [state, draft.title, session, onTabStatus]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollTop = useRef(initialView?.scrollTop ?? 0);
-  const latest = useRef({ panel, onViewChange });
-  latest.current = { panel, onViewChange };
+  const latest = useRef({ onViewChange });
+  latest.current = { onViewChange };
   const reportView = useCallback(() => {
     latest.current.onViewChange?.({
       mode: null,
       selection: null,
       scrollTop: scrollTop.current,
-      panel: latest.current.panel,
     });
   }, []);
   useEffect(() => {
     if (active) reportView();
-  }, [panel, active, reportView]);
+  }, [active, reportView]);
+  // 重新選圖 picks from 素材; leaving 素材 drops the pending replacement.
+  useEffect(() => {
+    if (!assetsShown) replacingRef.current = null;
+  }, [assetsShown]);
   // Leaving the front: read the scroll position before the pane is hidden (see EditorPage).
   useLayoutEffect(() => {
     if (!active) return;
@@ -368,15 +383,6 @@ function PostEditor({
       if (!e.shiftKey && key === 's') {
         e.preventDefault();
         void session.save();
-      } else if (e.shiftKey && key === 'p') {
-        e.preventDefault();
-        void session.save().finally(() => {
-          setPreviewOpen((open) => !open);
-        });
-      } else if (e.shiftKey && key === 'i') {
-        e.preventDefault();
-        setPreviewOpen(false);
-        setPanel((p) => (p === 'assets' ? 'ai' : 'assets'));
       } else if (e.shiftKey && key === 'u') {
         e.preventDefault();
         if (imagesLocked === null) upload();
@@ -545,35 +551,6 @@ function PostEditor({
             />
           </span>
           {rev !== undefined && <Chip>r{rev}</Chip>}
-          <div className="editor__actions">
-            <button
-              type="button"
-              className="btn"
-              aria-pressed={previewOpen}
-              aria-controls="preview-panel"
-              aria-keyshortcuts="Meta+Shift+P"
-              onClick={() => {
-                void session.save().finally(() => {
-                  setPreviewOpen((open) => !open);
-                });
-              }}
-            >
-              <Icon name="phone" />
-              {t('editor.preview')}
-            </button>
-            <button
-              type="button"
-              className="btn btn--ghost"
-              aria-expanded={panel === 'history'}
-              onClick={() => {
-                setPreviewOpen(false);
-                setPanel((p) => (p === 'history' ? 'ai' : 'history'));
-              }}
-            >
-              <Icon name="history" />
-              {t('editor.history')}
-            </button>
-          </div>
         </header>
 
         <div className="editor__meta">
@@ -806,9 +783,9 @@ function PostEditor({
                                     className="btn btn--small"
                                     disabled={imagesLocked !== null}
                                     onClick={() => {
-                                      replacingRef.current = id;
                                       setNotice(t('imagePost.repickHint', { n: i + 1 }));
-                                      setPanel('assets');
+                                      openAssets();
+                                      replacingRef.current = id;
                                     }}
                                   >
                                     {t('imagePost.repick')}
@@ -951,9 +928,7 @@ function PostEditor({
                 ))}
                 {imagesLocked === null && (
                   <AddTile
-                    onLibrary={() => {
-                      setPanel('assets');
-                    }}
+                    onLibrary={openAssets}
                     onUpload={() => {
                       upload();
                     }}
@@ -1025,57 +1000,6 @@ function PostEditor({
               />
             </section>
           </div>
-
-          {previewOpen ? (
-            <PreviewPanel
-              client={client}
-              work={work}
-              source={{
-                title: draft.title,
-                text: draft.markdown,
-                format: 'text',
-                tags: draft.tags,
-              }}
-              open={previewAsk}
-              workCoverAssetId={shownCover}
-              onClose={() => {
-                setPreviewOpen(false);
-              }}
-              onNotice={setNotice}
-            />
-          ) : panel === 'history' ? (
-            <HistoryPanel
-              client={client}
-              workId={work.id}
-              revisions={revisions}
-              numbers={numbers}
-              currentRevision={state.baseRevision}
-              currentMarkdown={state.file}
-              currentTitle={state.saved.title}
-              readOnly={readOnly}
-              onRestore={(rid) => session.restore(rid)}
-              onClose={() => {
-                setPanel('ai');
-              }}
-            />
-          ) : panel === 'assets' ? (
-            <AssetDrawer
-              client={client}
-              workId={work.id}
-              forPost
-              disabledReason={imagesLocked}
-              onInsert={(asset) => {
-                void insert?.insertAsset(asset, 'end');
-              }}
-              onDragAsset={(asset) => {
-                draggedAsset.current = asset;
-              }}
-              onClose={() => {
-                replacingRef.current = null;
-                setPanel('ai');
-              }}
-            />
-          ) : null}
         </div>
 
         <input
@@ -1091,6 +1015,56 @@ function PostEditor({
           }}
         />
       </main>
+      <EditorSide
+        workId={work.id}
+        active={active}
+        inert={state.status === 'conflict'}
+        panels={{
+          preview: (
+            <PreviewPanel
+              client={client}
+              work={work}
+              source={{
+                title: draft.title,
+                text: draft.markdown,
+                format: 'text',
+                tags: draft.tags,
+              }}
+              open={previewAsk}
+              workCoverAssetId={shownCover}
+              onOverLimit={onOverLimit}
+              onNotice={setNotice}
+            />
+          ),
+          history: (
+            <HistoryPanel
+              client={client}
+              workId={work.id}
+              revisions={revisions}
+              numbers={numbers}
+              currentRevision={state.baseRevision}
+              currentMarkdown={state.file}
+              currentTitle={state.saved.title}
+              readOnly={readOnly}
+              onRestore={(rid) => session.restore(rid)}
+            />
+          ),
+          assets: (
+            <AssetDrawer
+              client={client}
+              workId={work.id}
+              forPost
+              disabledReason={imagesLocked}
+              onInsert={(asset) => {
+                void insert?.insertAsset(asset, 'end');
+              }}
+              onDragAsset={(asset) => {
+                draggedAsset.current = asset;
+              }}
+            />
+          ),
+        }}
+      />
 
       {state.status === 'conflict' && (
         <Dialog

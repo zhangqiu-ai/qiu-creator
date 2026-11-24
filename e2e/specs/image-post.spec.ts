@@ -4,6 +4,7 @@ import path from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
 import { pngBytes } from '../../services/mac-server/test/fixtures.js';
 import { test } from '../fixtures/desktop.js';
+import { collapseSide, sidePane, showSideTab } from '../fixtures/side.js';
 import { chooseFilter, filterCount, filterOption } from '../fixtures/library.js';
 
 /*
@@ -22,7 +23,7 @@ async function shot(page: Page, name: string): Promise<void> {
 }
 
 /**
- * The simulated phone is a fixed 340 px wide. The 預覽 split must be wide enough for it: no
+ * The simulated phone is scaled into the sidebar's 預覽 tab (QC-085): no
  * horizontal scrollbar, and the phone's right edge inside the panel (QC-049, QC-076).
  */
 async function expectPreviewFits(page: Page): Promise<void> {
@@ -191,7 +192,7 @@ test('貼圖：新建選類型、加圖、上限提示、鍵盤排序、移除�
       await editor(page)
         .getByRole('button', { name: /^視頻號 12\/9$/ })
         .click();
-      const side = editor(page).getByRole('complementary', { name: '平台預覽' });
+      const side = sidePane(page).getByRole('complementary', { name: '平台預覽' });
       await expect(side.getByRole('tab', { name: /視頻號/ })).toHaveAttribute(
         'aria-selected',
         'true',
@@ -205,8 +206,8 @@ test('貼圖：新建選類型、加圖、上限提示、鍵盤排序、移除�
         'aria-selected',
         'true',
       );
-      await side.getByRole('button', { name: '關閉預覽' }).click();
-      await expect(side).toHaveCount(0);
+      await collapseSide(page);
+      await expect(side).toBeHidden();
     });
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -293,7 +294,7 @@ test('貼圖：檔案遺失後重新指定、作品庫類型篩選與縮圖、�
   });
 
   await test.step('預覽分欄：超出張數上限在平台分頁加橘點、張數變橘（QC-048、QC-084）', async () => {
-    await editor(page).getByRole('button', { name: '預覽', exact: true }).click();
+    await showSideTab(page, '預覽');
     const tab = page.getByRole('tablist', { name: '平台' }).getByRole('tab', { name: /視頻號/ });
     await tab.click();
     // The platform follows the post (images and cover from its front matter).
@@ -350,11 +351,8 @@ test('貼圖：檔案遺失後重新指定、作品庫類型篩選與縮圖、�
       .getByRole('button', { name: /週末咖啡館/ })
       .click();
     await expect(editor(page)).toBeVisible();
-    // The preview split from the step above is still open: close it for the editor screenshots.
-    await editor(page)
-      .getByRole('complementary', { name: '平台預覽' })
-      .getByRole('button', { name: '關閉預覽' })
-      .click();
+    // The sidebar from the step above is still open: hide it for the editor screenshots.
+    await collapseSide(page);
     for (const lang of ['zh-Hans', 'en'] as const) {
       await page.evaluate(`window.creatorhub.setLanguage('${lang}')`);
       await expect(editor(page)).toHaveAttribute(

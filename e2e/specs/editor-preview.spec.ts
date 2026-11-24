@@ -1,20 +1,25 @@
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { expect, type Locator, type Page } from '@playwright/test';
+import { expect, type ElectronApplication, type Locator, type Page } from '@playwright/test';
 import { ok } from '../../services/mac-server/test/fake-ai.js';
 import { pngBytes } from '../../services/mac-server/test/fixtures.js';
 import { test } from '../fixtures/desktop.js';
 
 /*
- * QC-084 平台預覽 v2 (PT-20261123-001): 「預覽」 (⌘⇧P) opens a 520 px split,
- * mutually exclusive with the AI panel, history and the asset drawer. Each
- * platform has three screens — 發布編輯 (title, cover, image order and tags
- * edited in place), 刷到時 and 正文 (read-only) — switched by tabs, swipes or
- * ←／→. The body follows the editor's unsaved draft; overrides are 「自訂」
- * until 改回跟隨原稿. Zoom (fit height by default, ⌘0／⌘＋／⌘－ while in the
- * stage), follow, collapse to a 44 px rail, resize 400–720 (remembered).
+ * QC-085 作品編輯頁右側邊欄 (PT-20261123-002 A) around QC-084 平台預覽 v2
+ * (PT-20261123-001). The sidebar runs from the window's top to its bottom,
+ * its tab bar level with the work tabs; tabs 預覽, AI, 歷史, 素材 replace the
+ * mutually exclusive buttons. ⌥⌘0 shows or hides it, ⌘⇧P 預覽, ⌘⇧I 素材 (also
+ * in the menu bar); collapsed it is a 44 px icon rail; resize 400–760,
+ * double-click 520, remembered for the window; under a 560 px editor column
+ * it is a drawer over the text.
+ * Inside 預覽: three screens per platform — 發布編輯 (title, cover, image
+ * order and tags edited in place), 刷到時 and 正文 (read-only) — by tabs,
+ * swipes or ←／→. The body follows the unsaved draft; overrides are 「自訂」
+ * until 改回跟隨原稿. Zoom sits right of the screen tabs (fit height by
+ * default, ⌘0／⌘＋／⌘－ while in the stage), never over the phone.
  * Both AI providers are local fakes; nothing leaves the machine.
- * QC084_SHOTS=<dir> saves screenshots.
+ * QC085_SHOTS=<dir> saves screenshots.
  */
 
 const IMAGE_MODEL = 'gpt-image-1';
@@ -26,38 +31,54 @@ const PARAS = [
 ];
 
 async function shot(page: Page, name: string): Promise<void> {
-  const dir = process.env['QC084_SHOTS'];
+  const dir = process.env['QC085_SHOTS'];
   if (dir === undefined || dir === '') return;
   mkdirSync(dir, { recursive: true });
-  await page.screenshot({ path: path.join(dir, `qc084-${name}.png`) });
+  await page.screenshot({ path: path.join(dir, `qc085-${name}.png`) });
 }
 
 const nav = (page: Page): Locator => page.getByRole('navigation', { name: '主導航' });
 const editor = (page: Page): Locator => page.locator('.tab-pane:not([hidden]) main.editor');
-const split = (page: Page): Locator => editor(page).locator('#preview-panel');
+const pane = (page: Page): Locator => page.locator('.tab-pane:not([hidden])');
+const side = (page: Page): Locator => pane(page).locator('section.side');
+const sideTab = (page: Page, name: string): Locator =>
+  side(page).getByRole('tablist', { name: '側邊欄分頁' }).getByRole('tab', { name });
+const split = (page: Page): Locator => pane(page).locator('#preview-panel');
 const stage = (page: Page): Locator => split(page).locator('.pv-stage');
 /** The screen tabs by class: their name changes with the interface language. */
 const screens = (page: Page): Locator => split(page).locator('.pv-stage__screens');
 /** The screen in front (the others are inert). */
 const shown = (page: Page, name: 'publish' | 'feed' | 'body'): Locator =>
   split(page).locator(`.pv-page:not([inert]) [data-screen="${name}"]`);
-const aiPanel = (page: Page): Locator => editor(page).getByRole('complementary', { name: 'AI' });
-const previewButton = (page: Page): Locator =>
-  editor(page).getByRole('button', { name: '預覽', exact: true });
+const aiPanel = (page: Page): Locator => pane(page).getByRole('complementary', { name: 'AI' });
 const content = (page: Page): Locator =>
   page.locator('.tab-pane:not([hidden]) .qc-md-editor__content');
 
-function width(page: Page): Promise<number> {
-  return page.evaluate<number>(
-    "document.querySelector('.tab-pane:not([hidden]) #preview-panel').getBoundingClientRect().width",
+/** A box of the visible tab pane, e.g. `rect(page, 'section.side')`. */
+function rect(
+  page: Page,
+  selector: string,
+): Promise<{ top: number; bottom: number; left: number; right: number; width: number }> {
+  return page.evaluate(
+    `(() => { const r = document.querySelector('.tab-pane:not([hidden]) ${selector}').getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width }; })()`,
   );
+}
+
+async function width(page: Page): Promise<number> {
+  return (await rect(page, 'section.side')).width;
+}
+
+async function clickMenu(app: ElectronApplication, id: string): Promise<void> {
+  await app.evaluate(({ Menu }, itemId) => {
+    Menu.getApplicationMenu()?.getMenuItemById(itemId)?.click();
+  }, id);
 }
 
 async function setUp(
   desktop: Parameters<Parameters<typeof test>[2]>[0]['desktop'],
   options: { width?: number; long?: boolean } = {},
 ) {
-  const { page, backend, upstream } = desktop;
+  const { page, backend, upstream, app } = desktop;
   await page.setViewportSize({ width: options.width ?? 1600, height: 960 });
   await page.emulateMedia({ colorScheme: 'light' });
   const c = backend.client;
@@ -96,20 +117,46 @@ async function setUp(
     .getByRole('button', { name: /書房改成剪輯室/ })
     .click();
   await expect(content(page)).toContainText('十坪的書房');
-  return { page, c, upstream, work };
+  return { page, c, upstream, work, app };
 }
 
-test('預覽 v2：三個畫面、原位編輯、跟隨原稿、AI 標題、縮放與互斥', async ({ desktop }) => {
+test('側邊欄：全高、預覽三畫面、原位編輯、跟隨原稿、AI 標題、縮放、分頁、收合與寬度', async ({
+  desktop,
+}) => {
   test.setTimeout(150_000);
-  const { page, c, upstream, work } = await setUp(desktop);
+  const { page, c, upstream, work, app } = await setUp(desktop);
 
-  await test.step('⌘⇧P 打開 520 寬的分欄，第一次停在「刷到時」，適應高度', async () => {
-    await expect(aiPanel(page)).toBeVisible();
-    await page.keyboard.press('Meta+Shift+p');
+  await test.step('邊欄預設開在「預覽」：520 寬、從視窗頂端到底、分頁列和作品分頁列同高', async () => {
     await expect(split(page)).toBeVisible();
-    await expect(previewButton(page)).toHaveAttribute('aria-pressed', 'true');
-    await expect(aiPanel(page)).toHaveCount(0);
+    await expect(sideTab(page, '預覽')).toHaveAttribute('aria-selected', 'true');
+    await expect(sideTab(page, '預覽').locator('..').getByRole('tab')).toHaveText([
+      '預覽',
+      'AI',
+      '歷史',
+      '素材',
+    ]);
     expect(await width(page)).toBeCloseTo(520, -1);
+    const bar = await page.evaluate<{ top: number; bottom: number; right: number }>(
+      "(() => { const r = document.querySelector('.tabbar').getBoundingClientRect(); return { top: r.top, bottom: r.bottom, right: r.right }; })()",
+    );
+    const s = await rect(page, 'section.side');
+    const head = await rect(page, '.side__head');
+    const main = await rect(page, 'main.editor');
+    expect(s.top).toBeCloseTo(bar.top, 0);
+    expect(head.bottom).toBeCloseTo(bar.bottom, 0);
+    // The work tabs span only the left column; the editor ends where the sidebar begins.
+    expect(bar.right).toBeLessThanOrEqual(s.left + 1);
+    expect(main.right).toBeLessThanOrEqual(s.left + 1);
+    expect(s.bottom).toBeCloseTo(main.bottom, 0);
+    // The editor head no longer has 預覽 or 歷史 buttons.
+    await expect(editor(page).getByRole('button', { name: '預覽', exact: true })).toHaveCount(0);
+    await expect(editor(page).getByRole('button', { name: '歷史', exact: true })).toHaveCount(0);
+    // Zoom sits in the bar right of the screen tabs, above the phone.
+    const zoomBox = await rect(page, '.pv-zoom');
+    const screensBox = await rect(page, '.pv-stage__screens');
+    const phoneBox = await rect(page, '.pv-phone');
+    expect(zoomBox.left).toBeGreaterThan(screensBox.right);
+    expect(zoomBox.bottom).toBeLessThanOrEqual(phoneBox.top);
     await expect(screens(page).getByRole('tab')).toHaveText(['發布編輯', '刷到時', '正文']);
     await expect(screens(page).getByRole('tab', { name: '刷到時' })).toHaveAttribute(
       'aria-selected',
@@ -129,7 +176,7 @@ test('預覽 v2：三個畫面、原位編輯、跟隨原稿、AI 標題、縮�
       "(() => { const s = document.querySelector('.tab-pane:not([hidden]) .pv-stage'); return s === null ? -1 : s.scrollHeight - s.clientHeight; })()",
     );
     expect(scrolls).toBeLessThanOrEqual(0);
-    await shot(page, '1-feed');
+    await shot(page, 'side-preview-feed');
   });
 
   await test.step('正文跟隨左邊未儲存的草稿，即時', async () => {
@@ -204,7 +251,7 @@ test('預覽 v2：三個畫面、原位編輯、跟隨原稿、AI 標題、縮�
     await expect
       .poll(async () => (await c.variants.get(work.id, 'xiaohongshu')).title)
       .toBe('書房變剪輯室：先處理光');
-    // 復原 sits beside the zoom pill, never over the phone.
+    // 復原 sits above the phone, never over it.
     expect(
       await page.evaluate<boolean>(
         "(() => { const q = (s) => document.querySelector('.tab-pane:not([hidden]) ' + s); const a = q('.pv-undo').getBoundingClientRect(); const b = q('.pv-phone').getBoundingClientRect(); return a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom; })()",
@@ -270,7 +317,7 @@ test('預覽 v2：三個畫面、原位編輯、跟隨原稿、AI 標題、縮�
         ),
       )
       .toBeGreaterThanOrEqual(0);
-    await shot(page, '6-zoom-100');
+    await shot(page, 'side-zoom-100');
     // Pointer over the stage: ⌘0 goes back to fit height.
     const box = await stage(page).boundingBox();
     if (box === null) throw new Error('no stage');
@@ -280,9 +327,10 @@ test('預覽 v2：三個畫面、原位編輯、跟隨原稿、AI 標題、縮�
     await page.keyboard.press('Meta+=');
     await expect(zoom).not.toContainText('適應高度');
     const kept = await zoom.textContent();
-    // Closing and reopening keeps the choice and the screen.
-    await split(page).getByRole('button', { name: '關閉預覽' }).click();
-    await previewButton(page).click();
+    // Hiding and showing the sidebar (⌥⌘0) keeps the choice and the screen.
+    await page.keyboard.press('Alt+Meta+0');
+    await expect(split(page)).toBeHidden();
+    await page.keyboard.press('Alt+Meta+0');
     await expect(split(page).getByRole('group', { name: '縮放' })).toHaveText(kept ?? '');
     await expect(screens(page).getByRole('tab', { name: '正文' })).toHaveAttribute(
       'aria-selected',
@@ -291,47 +339,89 @@ test('預覽 v2：三個畫面、原位編輯、跟隨原稿、AI 標題、縮�
     await page.keyboard.press('Meta+0');
   });
 
-  await test.step('收合成 44px 的平台列，再展開；拖曳寬度 400–720 並記住', async () => {
-    await split(page).getByRole('button', { name: '收合預覽' }).click();
+  await test.step('分頁：AI、歷史、素材在同一個邊欄，切回預覽狀態還在；⌘⇧P、⌘⇧I', async () => {
+    await sideTab(page, 'AI').click();
+    await expect(aiPanel(page)).toBeVisible();
+    await expect(split(page)).toBeHidden();
+    await shot(page, 'side-ai');
+    // ←／→ move along the sidebar tabs.
+    await sideTab(page, 'AI').focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(sideTab(page, '歷史')).toHaveAttribute('aria-selected', 'true');
+    await expect(pane(page).locator('#history-panel')).toBeVisible();
+    // ⌘⇧P brings 預覽 forward, on the screen it was left on.
+    await page.keyboard.press('Meta+Shift+p');
+    await expect(split(page)).toBeVisible();
+    await expect(screens(page).getByRole('tab', { name: '正文' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    // ⌘⇧I: 素材 with the caret in its search; again hides the sidebar.
+    await page.keyboard.press('Meta+Shift+i');
+    const drawer = pane(page).getByRole('complementary', { name: '素材抽屜' });
+    await expect(drawer.getByPlaceholder('搜尋素材')).toBeFocused();
+    await page.keyboard.press('Meta+Shift+i');
+    await expect(drawer).toBeHidden();
     expect(await width(page)).toBeCloseTo(44, -1);
-    await shot(page, '7-collapsed');
-    await split(page).getByRole('button', { name: '展開預覽' }).click();
-    const handle = split(page).getByRole('separator', { name: '調整預覽寬度' });
+    // The menu bar has the same three commands.
+    const labels = await app.evaluate(({ Menu }) =>
+      ['tab-side-toggle', 'tab-side-preview', 'tab-side-assets'].map(
+        (id) => Menu.getApplicationMenu()?.getMenuItemById(id)?.label ?? null,
+      ),
+    );
+    expect(labels).toEqual(['顯示或隱藏側邊欄', '預覽', '素材']);
+    await clickMenu(app, 'tab-side-toggle');
+    await expect(drawer).toBeVisible();
+    await clickMenu(app, 'tab-side-preview');
+    await expect(split(page)).toBeVisible();
+  });
+
+  await test.step('收合成 44px 圖示欄，點圖示展開到該分頁；拖曳寬度 400–760、雙擊 520、拖過頭收合', async () => {
+    await side(page).getByRole('button', { name: '收合側邊欄' }).click();
+    expect(await width(page)).toBeCloseTo(44, -1);
+    const rail = side(page).getByRole('toolbar', { name: '側邊欄分頁' });
+    await expect(rail.getByRole('button')).toHaveCount(5);
+    await rail.getByRole('button', { name: '歷史' }).hover();
+    await shot(page, 'side-collapsed');
+    await rail.getByRole('button', { name: '歷史' }).click();
+    await expect(sideTab(page, '歷史')).toHaveAttribute('aria-selected', 'true');
+    expect(await width(page)).toBeCloseTo(520, -1);
+    await sideTab(page, '預覽').click();
+    const handle = side(page).getByRole('separator', { name: '調整側邊欄寬度' });
     const box = await handle.boundingBox();
     if (box === null) throw new Error('no handle');
-    await page.mouse.move(box.x + 3, box.y + 200);
+    await page.mouse.move(box.x + 4, box.y + 200);
     await page.mouse.down();
     await page.mouse.move(box.x - 400, box.y + 200, { steps: 4 });
     await page.mouse.up();
-    expect(await width(page)).toBeCloseTo(720, -1);
+    expect(await width(page)).toBeCloseTo(760, -1);
     await handle.focus();
     await page.keyboard.press('ArrowRight');
-    expect(await width(page)).toBeCloseTo(704, -1);
+    expect(await width(page)).toBeCloseTo(744, -1);
     await handle.dblclick();
     expect(await width(page)).toBeCloseTo(520, -1);
-  });
-
-  await test.step('和 AI 面板、歷史、素材抽屜互斥', async () => {
-    await editor(page).getByRole('button', { name: '歷史' }).click();
-    await expect(split(page)).toHaveCount(0);
-    await previewButton(page).click();
+    // Dragging far below the minimum snaps it shut; ⌥⌘0 brings it back at its width.
+    const again = await handle.boundingBox();
+    if (again === null) throw new Error('no handle');
+    await page.mouse.move(again.x + 4, again.y + 200);
+    await page.mouse.down();
+    await page.mouse.move(again.x + 260, again.y + 200, { steps: 4 });
+    await page.mouse.up();
+    expect(await width(page)).toBeCloseTo(44, -1);
+    await page.keyboard.press('Alt+Meta+0');
+    expect(await width(page)).toBeCloseTo(520, -1);
     await expect(split(page)).toBeVisible();
-    await page.keyboard.press('Meta+Shift+i');
-    await expect(split(page)).toHaveCount(0);
-    await page.keyboard.press('Meta+Shift+i');
-    await previewButton(page).click();
-    await split(page).getByRole('button', { name: '關閉預覽' }).click();
-    await expect(split(page)).toHaveCount(0);
-    await expect(aiPanel(page)).toBeVisible();
   });
 });
 
-test('預覽 v2：超出正文上限、另一處改了標題（409）、窄視窗、深色與三語', async ({ desktop }) => {
+test('側邊欄：超出正文上限的橘點、另一處改了標題（409）、窄視窗抽屜、深色與三語', async ({
+  desktop,
+}) => {
   test.setTimeout(150_000);
   const { page, c, work } = await setUp(desktop, { long: true });
 
-  await test.step('超出上限：平台分頁橘點、截斷線、在原稿標出第 1000 字', async () => {
-    await previewButton(page).click();
+  await test.step('超出上限：平台分頁與邊欄「預覽」橘點、截斷線、在原稿標出第 1000 字', async () => {
+    await expect(sideTab(page, '預覽').getByRole('img', { name: '有平台超出上限' })).toBeVisible();
     const tabs = split(page).getByRole('tablist', { name: '平台' });
     await expect(
       tabs.getByRole('tab', { name: /小紅書/ }).getByRole('img', { name: '超出上限' }),
@@ -343,11 +433,17 @@ test('預覽 v2：超出正文上限、另一處改了標題（409）、窄視�
     // The limit is formatted for the language (1,000).
     await expect(cut).toContainText(/第 1,?000 字/);
     await cut.scrollIntoViewIfNeeded();
-    await shot(page, '8-over-limit');
+    await shot(page, 'side-over-limit');
     await shown(page, 'body')
       .getByRole('button', { name: /在原稿標出第 1,?000 字/ })
       .click();
     await expect(content(page)).toBeFocused();
+    // Collapsed, the rail's 預覽 keeps the dot.
+    await page.keyboard.press('Alt+Meta+0');
+    const rail = side(page).getByRole('toolbar', { name: '側邊欄分頁' });
+    await expect(rail.getByRole('button', { name: '預覽 · 有平台超出上限' })).toBeVisible();
+    await expect(rail.locator('.side__dot')).toHaveCount(1);
+    await page.keyboard.press('Alt+Meta+0');
   });
 
   await test.step('409：另一處改了標題，在手機裡選保留我的', async () => {
@@ -368,19 +464,36 @@ test('預覽 v2：超出正文上限、另一處改了標題（409）、窄視�
       .toBe('我的小紅書標題 2');
   });
 
-  await test.step('窄視窗：分欄 400 寬，跟隨只剩圖示', async () => {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    // The split follows the window once the media query reports the new width.
-    await expect.poll(() => width(page)).toBeCloseTo(400, -1);
+  await test.step('窄視窗：編輯欄不到 560 時邊欄是蓋在正文上的抽屜；Esc 或點正文收起', async () => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    // Closed at first: the text keeps its room, the rail stays as the way in.
+    await expect.poll(() => width(page)).toBeCloseTo(44, -1);
+    await expect(split(page)).toBeHidden();
+    const before = await rect(page, 'main.editor');
+    await page.keyboard.press('Meta+Shift+p');
+    await expect(split(page)).toBeVisible();
+    const after = await rect(page, 'main.editor');
+    expect(after.width).toBeCloseTo(before.width, 0);
+    const drawer = await rect(page, '.side__panel');
+    expect(drawer.left).toBeLessThan(before.right);
     await expect(split(page).getByRole('button', { name: '跟隨', exact: true })).toBeVisible();
-    await shot(page, '10-narrow');
+    await shot(page, 'side-narrow-drawer');
+    await page.keyboard.press('Escape');
+    await expect(split(page)).toBeHidden();
+    await page.keyboard.press('Meta+Shift+p');
+    await expect(split(page)).toBeVisible();
+    await content(page).getByText('吸音其實不錯').click();
+    await expect(split(page)).toBeHidden();
+    // Wide again: docked and open, as remembered.
     await page.setViewportSize({ width: 1600, height: 960 });
+    await expect.poll(() => width(page)).toBeCloseTo(520, -1);
+    await expect(split(page)).toBeVisible();
   });
 
   await test.step('深色與三語', async () => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await screens(page).getByRole('tab', { name: '刷到時' }).click();
-    await shot(page, '11-dark-feed');
+    await shot(page, 'side-dark-feed');
     await page.emulateMedia({ colorScheme: 'light' });
     for (const lang of ['zh-Hans', 'en'] as const) {
       await page.evaluate(`window.creatorhub.setLanguage('${lang}')`);
@@ -388,9 +501,12 @@ test('預覽 v2：超出正文上限、另一處改了標題（409）、窄視�
         'aria-label',
         lang === 'en' ? 'Platform preview' : '平台预览',
       );
+      await expect(side(page).locator('.side__tab')).toHaveText(
+        lang === 'en' ? ['Preview', 'AI', 'History', 'Assets'] : ['预览', 'AI', '历史', '素材'],
+      );
       for (const tab of lang === 'en' ? ['Publish', 'Post'] : ['发布编辑', '正文']) {
         await screens(page).getByRole('tab', { name: tab }).click();
-        await shot(page, `12-${lang}-${tab === 'Post' || tab === '正文' ? 'body' : 'publish'}`);
+        await shot(page, `side-${lang}-${tab === 'Post' || tab === '正文' ? 'body' : 'publish'}`);
       }
       // Nothing in the phone runs past its screen.
       const overflow = await page.evaluate<string[]>(

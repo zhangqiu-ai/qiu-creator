@@ -2,16 +2,12 @@ import type { PersistedTabs, TabKind, TabMode } from '../shared/tabs.js';
 
 export type { PersistedTabs, TabKind, TabMode } from '../shared/tabs.js';
 
-/** The side panel next to the document; it belongs to the tab. */
-export type TabPanel = 'ai' | 'history' | 'assets';
-
 /** Where the user was in a tab, kept across switches and unloads. */
 export interface TabView {
   mode: TabMode | null;
   /** Caret or selection as a Markdown source range. */
   selection: { start: number; end: number } | null;
   scrollTop: number;
-  panel: TabPanel;
 }
 
 export interface Tab {
@@ -54,7 +50,8 @@ export interface TabsState {
   restored: number | null;
 }
 
-export const DEFAULT_VIEW: TabView = { mode: null, selection: null, scrollTop: 0, panel: 'ai' };
+/** The right sidebar's tab is the window's, not the tab's (QC-085). */
+export const DEFAULT_VIEW: TabView = { mode: null, selection: null, scrollTop: 0 };
 
 /** Editors kept mounted at once; the rest are unloaded (least recently used first). */
 export const MAX_LOADED = 8;
@@ -212,7 +209,7 @@ export class TabsModel {
     this.enforceLimit();
   }
 
-  /** Mode, caret, scroll and side panel, saved when the tab is left or unloaded. */
+  /** Mode, caret and scroll, saved when the tab is left or unloaded. */
   saveView(id: string, view: TabView): void {
     if (this.find(id) === null) return;
     this.set({ tabs: this.state.tabs.map((t) => (t.id === id ? { ...t, view } : t)) });

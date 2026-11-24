@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
 import { ok } from '../../services/mac-server/test/fake-ai.js';
 import { test } from '../fixtures/desktop.js';
+import { showSideTab } from '../fixtures/side.js';
 
 const BASE_URL = 'https://relay.example.test/v1';
 const FAKE_KEY = 'fake-new-api-key';
@@ -39,6 +40,8 @@ test('設定 New API、獨立確認使用告知，並切換供應商改寫', asy
       .getByRole('region', { name: '作品', exact: true })
       .getByRole('button', { name: new RegExp(WORK_TITLE) })
       .click();
+    // QC-085: the AI panel is a tab of the editor sidebar.
+    await showSideTab(page, 'AI');
   };
   const panel = page.getByRole('complementary', { name: 'AI 改寫' });
   // QC-075: the panel switches the model (grouped by ready provider), not the provider.

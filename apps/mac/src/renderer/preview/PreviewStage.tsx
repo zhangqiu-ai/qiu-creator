@@ -99,6 +99,7 @@ export function PreviewStage({
 }: PreviewStageProps) {
   const mode = useMotionMode();
   const animated = moves(mode);
+  const boxRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const size = useStageSize(stageRef);
   const scale = size.w === 0 ? 1 : scaleFor(zoom, size);
@@ -170,7 +171,7 @@ export function PreviewStage({
   // ⌘0 / ⌘＋ / ⌘－ only while the pointer or focus is in the stage; elsewhere the App's own zoom.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const el = stageRef.current;
+      const el = boxRef.current;
       if (el === null || e.isComposing) return;
       const inside = hover.current || el.contains(document.activeElement);
       if (!inside) return;
@@ -234,175 +235,182 @@ export function PreviewStage({
 
   return (
     <div
-      ref={stageRef}
-      className={`pv-stage${spaceDown ? ' pv-stage--pan' : ''}${dragging ? ' pv-stage--panning' : ''}`}
+      ref={boxRef}
+      className="pv-stagebox"
       onPointerEnter={() => {
         hover.current = true;
       }}
       onPointerLeave={() => {
         hover.current = false;
       }}
-      onPointerDown={(e) => {
-        if (!spaceDown) return;
-        e.preventDefault();
-        const start = { x: e.clientX - shownPan.x, y: e.clientY - shownPan.y };
-        setDragging(true);
-        const move = (ev: PointerEvent) => {
-          setPan({ x: ev.clientX - start.x, y: ev.clientY - start.y });
-        };
-        const up = () => {
-          setDragging(false);
-          window.removeEventListener('pointermove', move);
-          window.removeEventListener('pointerup', up);
-        };
-        window.addEventListener('pointermove', move);
-        window.addEventListener('pointerup', up);
-      }}
     >
-      <div
-        className="seg pv-stage__screens"
-        role="tablist"
-        aria-label={t('previewPanel.screens')}
-        onKeyDown={(e) => {
-          if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-          e.preventDefault();
-          const next = SCREENS[index + (e.key === 'ArrowRight' ? 1 : -1)];
-          if (next === undefined) return;
-          onScreen(next);
-          requestAnimationFrame(() => {
-            stageRef.current?.querySelector<HTMLElement>(`[data-screen-tab="${next}"]`)?.focus();
-          });
-        }}
-      >
-        {SCREENS.map((s) => (
+      {/* Screen tabs on the left, zoom on the right: a bar above the stage, never over the phone (QC-085). */}
+      <div className="pv-stage__bar">
+        <div
+          className="seg pv-stage__screens"
+          role="tablist"
+          aria-label={t('previewPanel.screens')}
+          onKeyDown={(e) => {
+            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+            e.preventDefault();
+            const next = SCREENS[index + (e.key === 'ArrowRight' ? 1 : -1)];
+            if (next === undefined) return;
+            onScreen(next);
+            requestAnimationFrame(() => {
+              boxRef.current?.querySelector<HTMLElement>(`[data-screen-tab="${next}"]`)?.focus();
+            });
+          }}
+        >
+          {SCREENS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              role="tab"
+              data-screen-tab={s}
+              aria-selected={s === screen}
+              tabIndex={s === screen ? 0 : -1}
+              onClick={() => {
+                onScreen(s);
+              }}
+            >
+              {t(SCREEN_LABEL[s])}
+            </button>
+          ))}
+        </div>
+        <div className="pv-zoom" role="group" aria-label={t('previewPanel.zoom')}>
           <button
-            key={s}
             type="button"
-            role="tab"
-            data-screen-tab={s}
-            aria-selected={s === screen}
-            tabIndex={s === screen ? 0 : -1}
+            aria-label={t('previewPanel.zoomOut')}
+            title={`${t('previewPanel.zoomOut')} ⌘−`}
             onClick={() => {
-              onScreen(s);
+              onZoom(stepZoom(scale, -1));
             }}
           >
-            {t(SCREEN_LABEL[s])}
+            <Icon name="minus" size={14} />
           </button>
-        ))}
+          <button
+            type="button"
+            className="pv-zoom__val"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => {
+              setMenuOpen((o) => !o);
+            }}
+          >
+            {zoomLabel(zoom)}
+            <span className="pv-zoom__pct">{`${String(Math.round(zoomed))}%`}</span>
+          </button>
+          <button
+            type="button"
+            aria-label={t('previewPanel.zoomIn')}
+            title={`${t('previewPanel.zoomIn')} ⌘＋`}
+            onClick={() => {
+              onZoom(stepZoom(scale, 1));
+            }}
+          >
+            <Icon name="plus" size={14} />
+          </button>
+          {menuOpen && (
+            <ZoomMenu
+              zoom={zoom}
+              onPick={(z) => {
+                setMenuOpen(false);
+                onZoom(z);
+              }}
+              onClose={() => {
+                setMenuOpen(false);
+              }}
+            />
+          )}
+        </div>
       </div>
-      <span className="pv-stage__sim" title={t('library.simulationNote')}>
-        {t('previewPanel.simulated')}
-      </span>
-
-      <motion.div
-        className="pv-phwrap"
-        style={measured ? undefined : { visibility: 'hidden' }}
-        initial={false}
-        animate={{ width: phoneW, height: phoneH, x: shownPan.x, y: shownPan.y }}
-        transition={dragging ? { duration: 0 } : spring}
-        onAnimationComplete={() => {
-          pinching.current = false;
+      <div
+        ref={stageRef}
+        className={`pv-stage${spaceDown ? ' pv-stage--pan' : ''}${dragging ? ' pv-stage--panning' : ''}`}
+        onPointerDown={(e) => {
+          if (!spaceDown) return;
+          e.preventDefault();
+          const start = { x: e.clientX - shownPan.x, y: e.clientY - shownPan.y };
+          setDragging(true);
+          const move = (ev: PointerEvent) => {
+            setPan({ x: ev.clientX - start.x, y: ev.clientY - start.y });
+          };
+          const up = () => {
+            setDragging(false);
+            window.removeEventListener('pointermove', move);
+            window.removeEventListener('pointerup', up);
+          };
+          window.addEventListener('pointermove', move);
+          window.addEventListener('pointerup', up);
         }}
       >
+        <span className="pv-stage__sim" title={t('library.simulationNote')}>
+          {t('previewPanel.simulated')}
+        </span>
+
         <motion.div
-          className="pv-phone"
-          data-tone={screenTone(model.platform, screen)}
+          className="pv-phwrap"
+          style={measured ? undefined : { visibility: 'hidden' }}
           initial={false}
-          animate={{ scale }}
-          transition={spring}
-          aria-label={t('previewPanel.phone')}
-          role="group"
+          animate={{ width: phoneW, height: phoneH, x: shownPan.x, y: shownPan.y }}
+          transition={dragging ? { duration: 0 } : spring}
+          onAnimationComplete={() => {
+            pinching.current = false;
+          }}
         >
-          <div
-            className="pv-phone__bar"
-            style={{ background: statusBarColor(model.platform, screen) }}
-            aria-hidden="true"
+          <motion.div
+            className="pv-phone"
+            data-tone={screenTone(model.platform, screen)}
+            initial={false}
+            animate={{ scale }}
+            transition={spring}
+            aria-label={t('previewPanel.phone')}
+            role="group"
           >
-            <span>9:41</span>
-            <span className="pv-phone__sig">
-              <i />
-              <i />
-              <i />
-              <b />
-            </span>
-          </div>
-          <motion.div className="pv-pager" style={{ x: pagerX }}>
-            {SCREENS.map((s) => (
-              <div
-                key={s}
-                className="pv-page"
-                data-tone={screenTone(model.platform, s)}
-                aria-hidden={s !== screen}
-                inert={s !== screen}
-              >
-                {s === 'publish' && (
-                  <PublishScreen
-                    model={model}
-                    actions={actions}
-                    focus={screen === 'publish' && focus !== null ? focus.field : null}
-                    key={focus?.n ?? 0}
-                  />
-                )}
-                {s === 'feed' && <FeedScreen model={model} actions={actions} />}
-                {s === 'body' && <BodyScreen model={model} actions={actions} />}
-              </div>
-            ))}
+            <div
+              className="pv-phone__bar"
+              style={{ background: statusBarColor(model.platform, screen) }}
+              aria-hidden="true"
+            >
+              <span>9:41</span>
+              <span className="pv-phone__sig">
+                <i />
+                <i />
+                <i />
+                <b />
+              </span>
+            </div>
+            <motion.div className="pv-pager" style={{ x: pagerX }}>
+              {SCREENS.map((s) => (
+                <div
+                  key={s}
+                  className="pv-page"
+                  data-tone={screenTone(model.platform, s)}
+                  aria-hidden={s !== screen}
+                  inert={s !== screen}
+                >
+                  {s === 'publish' && (
+                    <PublishScreen
+                      model={model}
+                      actions={actions}
+                      focus={screen === 'publish' && focus !== null ? focus.field : null}
+                      key={focus?.n ?? 0}
+                    />
+                  )}
+                  {s === 'feed' && <FeedScreen model={model} actions={actions} />}
+                  {s === 'body' && <BodyScreen model={model} actions={actions} />}
+                </div>
+              ))}
+            </motion.div>
+            {sheet}
           </motion.div>
-          {sheet}
         </motion.div>
-      </motion.div>
 
-      <div className="pv-dots" aria-hidden="true">
-        {SCREENS.map((s) => (
-          <i key={s} className={s === screen ? 'on' : undefined} />
-        ))}
-      </div>
-
-      <div className="pv-zoom" role="group" aria-label={t('previewPanel.zoom')}>
-        <button
-          type="button"
-          aria-label={t('previewPanel.zoomOut')}
-          title={`${t('previewPanel.zoomOut')} ⌘−`}
-          onClick={() => {
-            onZoom(stepZoom(scale, -1));
-          }}
-        >
-          <Icon name="minus" size={14} />
-        </button>
-        <button
-          type="button"
-          className="pv-zoom__val"
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          onClick={() => {
-            setMenuOpen((o) => !o);
-          }}
-        >
-          {zoomLabel(zoom)}
-          <span className="pv-zoom__pct">{`${String(Math.round(zoomed))}%`}</span>
-        </button>
-        <button
-          type="button"
-          aria-label={t('previewPanel.zoomIn')}
-          title={`${t('previewPanel.zoomIn')} ⌘＋`}
-          onClick={() => {
-            onZoom(stepZoom(scale, 1));
-          }}
-        >
-          <Icon name="plus" size={14} />
-        </button>
-        {menuOpen && (
-          <ZoomMenu
-            zoom={zoom}
-            onPick={(z) => {
-              setMenuOpen(false);
-              onZoom(z);
-            }}
-            onClose={() => {
-              setMenuOpen(false);
-            }}
-          />
-        )}
+        <div className="pv-dots" aria-hidden="true">
+          {SCREENS.map((s) => (
+            <i key={s} className={s === screen ? 'on' : undefined} />
+          ))}
+        </div>
       </div>
     </div>
   );

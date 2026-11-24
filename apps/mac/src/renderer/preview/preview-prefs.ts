@@ -13,8 +13,11 @@ import { SCREENS, type Screen } from './phone-model.js';
 
 export const PHONE_W = 390;
 export const PHONE_H = 844;
-/** Room the stage keeps around the phone: screen tabs above, dots and zoom pill below. */
-export const STAGE_PAD = { top: 48, bottom: 76, side: 20 } as const;
+/**
+ * Room the stage keeps around the phone: the 模擬 badge and 復原 above, the
+ * position dots below. Screen tabs and zoom sit in a bar above the stage (QC-085).
+ */
+export const STAGE_PAD = { top: 44, bottom: 36, side: 20 } as const;
 
 export const ZOOM_STEPS = [50, 75, 100, 150] as const;
 export const ZOOM_MIN = 25;
@@ -69,8 +72,8 @@ export function zoomKey(e: {
 }
 
 /**
- * Where a phone taller than the room rests: its top just under the screen
- * tabs (QC-084 pre-release), not centred with the top hidden behind them.
+ * Where a phone taller than the room rests: its top at the top of the room
+ * (QC-084 pre-release), not centred with the top cut off.
  * The offset is from the centred position; space-drag pans from here.
  */
 export function restingPan(
@@ -89,8 +92,8 @@ export function clampPan(
 ): { x: number; y: number } {
   const room = (p: number, s: number, margin: number) => Math.max(0, (p - s) / 2 + margin);
   const rx = room(phone.w, stage.w, 40);
-  // Vertically the resting place (top under the screen tabs) must be reachable.
-  const ry = room(phone.h, stage.h, STAGE_PAD.bottom);
+  // Vertically the resting place (top at the top of the room) must be reachable.
+  const ry = room(phone.h, stage.h, Math.max(STAGE_PAD.top, STAGE_PAD.bottom));
   return {
     x: Math.min(rx, Math.max(-rx, pan.x)),
     y: Math.min(ry, Math.max(-ry, pan.y)),
@@ -100,23 +103,8 @@ export function clampPan(
 /** Two-finger horizontal swipe: accumulated deltaX past this switches screens. */
 export const SWIPE_PX = 60;
 
-/* Split width (PT: default 520, drag 400–720, remembered) */
-
-export const SPLIT_DEFAULT = 520;
-export const SPLIT_MIN = 400;
-export const SPLIT_MAX = 720;
-export const SPLIT_STEP = 16;
-/** Collapsed: a 44 px column of platform buttons. */
-export const SPLIT_RAIL = 44;
-
-export function clampSplit(width: number): number {
-  if (!Number.isFinite(width)) return SPLIT_DEFAULT;
-  return Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, Math.round(width)));
-}
-
+/** What the preview remembers; width and open/closed belong to the editor sidebar (QC-085). */
 export interface PreviewPrefs {
-  width: number;
-  collapsed: boolean;
   zoom: ZoomChoice;
   /** First open lands on 刷到時: it shows best how title and cover look. */
   screen: Screen;
@@ -124,8 +112,6 @@ export interface PreviewPrefs {
 }
 
 export const DEFAULT_PREFS: PreviewPrefs = {
-  width: SPLIT_DEFAULT,
-  collapsed: false,
   zoom: FIT_HEIGHT,
   screen: 'feed',
   follow: true,
@@ -151,8 +137,6 @@ export function loadPreviewPrefs(storage: PrefStorage | null): PreviewPrefs {
     const v = JSON.parse(raw) as Record<string, unknown>;
     const screen = SCREENS.find((s) => s === v['screen']) ?? DEFAULT_PREFS.screen;
     return {
-      width: typeof v['width'] === 'number' ? clampSplit(v['width']) : SPLIT_DEFAULT,
-      collapsed: v['collapsed'] === true,
       zoom: parseZoom(v['zoom']),
       screen,
       follow: v['follow'] !== false,
@@ -164,7 +148,7 @@ export function loadPreviewPrefs(storage: PrefStorage | null): PreviewPrefs {
 
 export function savePreviewPrefs(storage: PrefStorage | null, prefs: PreviewPrefs): void {
   try {
-    storage?.setItem(KEY, JSON.stringify({ ...prefs, width: clampSplit(prefs.width) }));
+    storage?.setItem(KEY, JSON.stringify(prefs));
   } catch {
     // A convenience only: the defaults apply next time.
   }

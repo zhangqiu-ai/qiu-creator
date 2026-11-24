@@ -1,15 +1,13 @@
 /*
- * 平台預覽 split (QC-084, PT-20261123-001 v2): platform tabs, the stage with
- * the simulated phone (only its screen scrolls), screen tabs, dots and the
- * zoom pill. 520 px by default, 400–720 by dragging the left edge, 400 in
- * narrow windows, a 44 px rail when collapsed. Phone screens: preview/phone.css.
+ * 平台預覽 (QC-084, PT-20261123-001 v2) inside the editor sidebar's 預覽 tab
+ * (QC-085): platform tabs and follow, a bar with the screen tabs and zoom,
+ * then the stage with the simulated phone (only its screen scrolls) and the
+ * position dots. Width, collapse and drawer belong to the sidebar
+ * (editor-side.css). Phone screens: preview/phone.css.
  */
 
-/* `.panel.pv-split`: wider than the other right panels; the width comes from the inline style. */
 .panel.pv-split {
   position: relative;
-  flex: none;
-  max-width: none;
   overflow: hidden;
 }
 .pv-split__head {
@@ -95,53 +93,25 @@
   margin: 8px 10px 0;
 }
 
-/* The left edge drags the width (400–720). */
-.pv-resize {
-  position: absolute;
-  z-index: 6;
-  top: 0;
-  bottom: 0;
-  left: -3px;
-  width: 7px;
-  cursor: col-resize;
-}
-.pv-resize:hover,
-.pv-resize:focus-visible {
-  outline: none;
-  background: linear-gradient(90deg, transparent 3px, var(--qc-accent) 3px 5px, transparent 5px);
-}
-
-/* ---- Collapsed: a 44 px rail of platform buttons ---- */
-.panel.pv-rail {
-  flex: none;
-  width: 44px;
-  max-width: 44px;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 0;
-  overflow: hidden;
-}
-.pv-rail__btn {
-  position: relative;
-  width: 32px;
-  height: 32px;
-  border: 0;
-  border-radius: var(--qc-radius-control);
-  background: transparent;
-  color: var(--qc-ink2);
-  font-weight: 600;
-  cursor: pointer;
-}
-.pv-rail__plat:hover {
-  background: var(--qc-sunken);
-}
-.pv-rail__plat .pv-tab__warn {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-}
-
 /* ---- Stage ---- */
+.pv-stagebox {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* Screen tabs on the left, zoom on the right: never over the phone (QC-085). */
+.pv-stage__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 44px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--qc-line);
+  background: var(--qc-bg);
+}
 .pv-stage {
   position: relative;
   flex: 1;
@@ -150,7 +120,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 48px 0 76px;
+  padding: 44px 0 36px;
   background: var(--qc-sunken);
   overscroll-behavior: contain;
 }
@@ -164,12 +134,8 @@
 .pv-stage--pan .pv-phone {
   pointer-events: none;
 }
-.pv-stage > .pv-stage__screens {
-  position: absolute;
-  z-index: 4;
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
+.pv-stage__screens {
+  flex: none;
   white-space: nowrap;
 }
 .pv-stage__screens button {
@@ -193,12 +159,6 @@
   background: var(--qc-bg);
   color: var(--qc-ink3);
   font-size: 11px;
-}
-/* Narrow splits: the screen tabs take the middle, the badge moves below them. */
-.pv-split--narrow .pv-stage__sim {
-  top: auto;
-  bottom: 18px;
-  right: 10px;
 }
 
 .pv-phwrap {
@@ -299,7 +259,7 @@
 .pv-dots {
   position: absolute;
   z-index: 4;
-  bottom: 52px;
+  bottom: 15px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -319,21 +279,17 @@
   background: var(--qc-ink2);
 }
 
-/* ---- Zoom pill ---- */
+/* ---- Zoom, at the right of the screen-tab bar ---- */
 .pv-zoom {
-  position: absolute;
+  position: relative;
   z-index: 5;
-  bottom: 12px;
-  left: 50%;
-  transform: translateX(-50%);
+  flex: none;
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--qc-line);
-  border-radius: 10px;
-  background: var(--qc-surface);
-  box-shadow: var(--qc-shadow-card);
+  padding: 2px;
+  border-radius: var(--qc-radius-segment);
+  background: var(--qc-sunken);
 }
 .pv-zoom > button {
   display: inline-flex;
@@ -355,7 +311,7 @@
   color: var(--qc-ink);
 }
 .pv-zoom__val {
-  min-width: 92px;
+  min-width: 84px;
   font-weight: 600;
   color: var(--qc-ink) !important;
   font-variant-numeric: tabular-nums;
@@ -366,9 +322,8 @@
 }
 .pv-zmenu {
   position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
+  top: calc(100% + 6px);
+  right: 0;
   width: 200px;
   display: flex;
   flex-direction: column;
@@ -379,16 +334,16 @@
   background: var(--qc-surface);
   box-shadow: var(--qc-shadow-dialog);
   animation: pv-pop var(--qc-dur-base) var(--qc-ease-out) both;
-  transform-origin: bottom center;
+  transform-origin: top right;
 }
 @keyframes pv-pop {
   from {
     opacity: 0;
-    transform: translateX(-50%) scale(0.96);
+    transform: scale(0.96);
   }
   to {
     opacity: 1;
-    transform: translateX(-50%) scale(1);
+    transform: scale(1);
   }
 }
 .pv-zmenu button {
@@ -425,10 +380,10 @@
 
 /* ---- 復原 after an AI title or cover ---- */
 .pv-undo {
-  /* Bottom left, level with the zoom pill: never over the top of the phone (QC-084 pre-release). */
+  /* Top left of the stage, in the band above the phone (the 模擬 badge is top right): never over it. */
   position: absolute;
   z-index: 6;
-  bottom: 12px;
+  top: 50px;
   left: 12px;
   display: flex;
   align-items: center;

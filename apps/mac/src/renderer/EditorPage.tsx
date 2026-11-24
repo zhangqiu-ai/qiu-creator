@@ -46,7 +46,8 @@ import { TagEditor } from './TagEditor.js';
 import { ProjectTags } from './ProjectTags.js';
 import { PreviewPanel } from './PreviewPanel.js';
 import { currentModel, useAiLibrary } from './ai-library.js';
-import type { TabPanel, TabStatusPatch, TabView } from './tabs.js';
+import type { TabStatusPatch, TabView } from './tabs.js';
+import { EditorSide, useSideStore } from './EditorSide.js';
 import {
   WorkSession,
   type Draft,
@@ -267,20 +268,14 @@ function SessionEditor({
   const forcedMode = useRef<EditorMode | undefined>(
     initialView?.mode === 'source' ? 'source' : undefined,
   );
-  const [historyOpen, setHistoryOpen] = useState(initialView?.panel === 'history');
-  // QC-039: the asset drawer replaces the AI panel while open (⌘⇧I).
-  const [drawerOpen, setDrawerOpen] = useState(initialView?.panel === 'assets');
-  // QC-076: 預覽 (⌘⇧P) opens the platform preview as a split, like the other right panels.
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const togglePreview = useCallback(() => {
-    setPreviewOpen((open) => {
-      if (!open) {
-        setHistoryOpen(false);
-        setDrawerOpen(false);
-      }
-      return !open;
-    });
-  }, []);
+  // QC-085: 預覽, AI, 歷史 and 素材 are tabs of the window's right sidebar (⌘⇧P, ⌘⇧I, ⌥⌘0).
+  const side = useSideStore();
+  const onOverLimit = useCallback(
+    (over: boolean) => {
+      side.setOver(work.id, over);
+    },
+    [side, work.id],
+  );
   const [slashAt, setSlashAt] = useState<{ x: number; y: number } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   /** A quiet confirmation (an AI candidate kept), shown as an ok toast. */
@@ -396,9 +391,7 @@ function SessionEditor({
   }, []);
   const [tabRequest, setTabRequest] = useState<{ tab: AiTab; n: number } | undefined>(undefined);
   const showAiTab = (tab: AiTab) => {
-    setHistoryOpen(false);
-    setDrawerOpen(false);
-    setPreviewOpen(false);
+    side.show('ai');
     setTabRequest((r) => ({ tab, n: (r?.n ?? 0) + 1 }));
   };
   const costConfirm = useCostConfirm();
@@ -507,6 +500,7 @@ function SessionEditor({
     if (ai === null) return;
     const range = { start: 0, end: state.draft.markdown.length };
     if (mode === 'visual') setRewriteTarget({ range, mode: 'custom' });
+    else showAiTab('rewrite');
     void ai.rewrite.generate({
       mode: 'custom',
       instruction: t('previewPanel.shortenInstruction', { limit }),
@@ -601,17 +595,9 @@ function SessionEditor({
       if (!e.shiftKey && e.key.toLowerCase() === 's') {
         e.preventDefault();
         void session.save();
-      } else if (e.shiftKey && e.key.toLowerCase() === 'p') {
-        e.preventDefault();
-        void session.save().finally(togglePreview);
       } else if (e.key === '/') {
         e.preventDefault();
         editor.current?.requestMode(editor.current.getMode() === 'visual' ? 'source' : 'visual');
-      } else if (e.shiftKey && e.key.toLowerCase() === 'i') {
-        e.preventDefault();
-        setDrawerOpen((v) => !v);
-        setHistoryOpen(false);
-        setPreviewOpen(false);
       } else if (e.shiftKey && e.key.toLowerCase() === 'u') {
         e.preventDefault();
         fileInput.current?.click();
@@ -621,7 +607,7 @@ function SessionEditor({
     return () => {
       window.removeEventListener('keydown', onKey);
     };
-  }, [session, togglePreview, active]);
+  }, [session, active]);
 
   // ---- QC-047: tab badges and where the user was ----------------------------------------------
   useEffect(() => {
@@ -642,7 +628,6 @@ function SessionEditor({
     });
   }, [rewriteState, unkeptImages, imagesBusy, onTabStatus]);
 
-  const panel: TabPanel = historyOpen ? 'history' : drawerOpen ? 'assets' : 'ai';
   /** Kept up to date while the tab is in front, read when it goes to the background or unloads. */
   const where = useRef<{
     scrollTop: number;
@@ -653,8 +638,8 @@ function SessionEditor({
     selection: initialView?.selection ?? null,
     domRange: null,
   });
-  const latest = useRef({ mode, panel, onViewChange });
-  latest.current = { mode, panel, onViewChange };
+  const latest = useRef({ mode, onViewChange });
+  latest.current = { mode, onViewChange };
   /** Read the caret from the DOM now, if it is inside the document. */
   const rememberSelection = useCallback(() => {
     const doc = docRef.current;
@@ -677,12 +662,11 @@ function SessionEditor({
     };
   }, [active, rememberSelection]);
   const reportView = useCallback(() => {
-    const { mode: m, panel: p, onViewChange: report } = latest.current;
+    const { mode: m, onViewChange: report } = latest.current;
     report?.({
       mode: m,
       selection: where.current.selection,
       scrollTop: where.current.scrollTop,
-      panel: p,
     });
   }, []);
   // The text scrolls in the document (visual) or inside the source textarea.
@@ -711,10 +695,10 @@ function SessionEditor({
       rememberSelection();
     };
   }, [active, rememberSelection]);
-  // Mode and panel are saved as they change, so a quit keeps them for the next launch.
+  // The mode is saved as it changes, so a quit keeps it for the next launch.
   useEffect(() => {
     if (active) reportView();
-  }, [mode, panel, active, reportView]);
+  }, [mode, active, reportView]);
   // Going to the background: hand the view to the tab (it may be unloaded later).
   // Coming back: AI keys and consent may have changed in 設定 meanwhile, so re-read them
   // (before tabs, leaving the editor unmounted it and the panel started fresh).
@@ -772,9 +756,7 @@ function SessionEditor({
       ? t('editor.insertBlockedExternal')
       : null;
   const openDrawer = () => {
-    setHistoryOpen(false);
-    setPreviewOpen(false);
-    setDrawerOpen(true);
+    side.show('assets');
   };
   const slashCommands: SlashCommand[] = [
     {
@@ -933,33 +915,6 @@ function SessionEditor({
                 fileInput.current?.click();
               }}
             />
-            <button
-              type="button"
-              className="btn"
-              aria-pressed={previewOpen}
-              aria-controls="preview-panel"
-              aria-keyshortcuts="Meta+Shift+P"
-              onClick={() => {
-                void session.save().finally(togglePreview);
-              }}
-            >
-              <Icon name="phone" />
-              {t('editor.preview')}
-            </button>
-            <button
-              type="button"
-              className="btn btn--ghost"
-              aria-expanded={historyOpen}
-              aria-controls="history-panel"
-              onClick={() => {
-                setPreviewOpen(false);
-                setDrawerOpen(false);
-                setHistoryOpen((v) => !v);
-              }}
-            >
-              <Icon name="history" />
-              {t('editor.history')}
-            </button>
           </div>
         </header>
 
@@ -1255,91 +1210,6 @@ function SessionEditor({
               locale={locale}
             />
           </section>
-
-          {previewOpen && (
-            <PreviewPanel
-              client={client}
-              work={work}
-              source={{
-                title: state.draft.title,
-                text: state.draft.markdown,
-                format: 'markdown',
-                tags: state.draft.tags,
-              }}
-              caret={selectionRange?.start ?? null}
-              resolveImage={resolveImage}
-              onEditSource={(start, end) => {
-                editor.current?.restoreSelection({ start, end });
-              }}
-              onShorten={ai === null || readOnly ? undefined : shortenAll}
-              onClose={() => {
-                setPreviewOpen(false);
-                editor.current?.focus();
-              }}
-              onNotice={setOkNotice}
-            />
-          )}
-
-          {!previewOpen && !historyOpen && drawerOpen && (
-            <AssetDrawer
-              client={client}
-              workId={work.id}
-              disabledReason={insertBlocked}
-              onInsert={(asset) => {
-                void insert?.insertAsset(asset, takeWhere());
-              }}
-              onDragAsset={(asset) => {
-                draggedAsset.current = asset;
-              }}
-              onClose={() => {
-                setDrawerOpen(false);
-                editor.current?.focus();
-              }}
-            />
-          )}
-
-          {!previewOpen && !historyOpen && !drawerOpen && ai !== null && (
-            <AiPanel
-              providers={ai.providers}
-              rewrite={ai.rewrite}
-              selection={aiSelection}
-              readOnly={readOnly}
-              revisionNumber={(id) => numbers.get(id)}
-              refreshToken={providersEpoch}
-              images={ai.images}
-              selectionText={
-                aiSelection.range === null
-                  ? ''
-                  : state.draft.markdown.slice(aiSelection.range.start, aiSelection.range.end)
-              }
-              insertOffset={insertOffset}
-              onNotice={setOkNotice}
-              {...(tabRequest === undefined ? {} : { tabRequest })}
-              onOpenSettings={() => {
-                void session.save().finally(() => onOpenSettings?.());
-              }}
-              onOpenPrompts={() => {
-                void session.save().finally(() => onOpenPrompts?.());
-              }}
-            />
-          )}
-
-          {!previewOpen && historyOpen && (
-            <HistoryPanel
-              client={client}
-              workId={work.id}
-              revisions={revisions}
-              numbers={numbers}
-              currentRevision={state.baseRevision}
-              currentMarkdown={state.saved.markdown}
-              currentTitle={state.saved.title}
-              readOnly={readOnly}
-              onRestore={(rid) => session.restore(rid)}
-              onClose={() => {
-                setHistoryOpen(false);
-              }}
-            />
-          )}
         </div>
         {slashAt !== null && (
           <SlashMenu
@@ -1365,6 +1235,85 @@ function SessionEditor({
           }}
         />
       </main>
+      <EditorSide
+        workId={work.id}
+        active={active}
+        inert={dialogOpen}
+        panels={{
+          preview: (
+            <PreviewPanel
+              client={client}
+              work={work}
+              source={{
+                title: state.draft.title,
+                text: state.draft.markdown,
+                format: 'markdown',
+                tags: state.draft.tags,
+              }}
+              caret={selectionRange?.start ?? null}
+              resolveImage={resolveImage}
+              onEditSource={(start, end) => {
+                editor.current?.restoreSelection({ start, end });
+              }}
+              onShorten={ai === null || readOnly ? undefined : shortenAll}
+              onOverLimit={onOverLimit}
+              onNotice={setOkNotice}
+            />
+          ),
+          ai:
+            ai === null ? null : (
+              <AiPanel
+                providers={ai.providers}
+                rewrite={ai.rewrite}
+                selection={aiSelection}
+                readOnly={readOnly}
+                revisionNumber={(id) => numbers.get(id)}
+                refreshToken={providersEpoch}
+                images={ai.images}
+                selectionText={
+                  aiSelection.range === null
+                    ? ''
+                    : state.draft.markdown.slice(aiSelection.range.start, aiSelection.range.end)
+                }
+                insertOffset={insertOffset}
+                onNotice={setOkNotice}
+                {...(tabRequest === undefined ? {} : { tabRequest })}
+                onOpenSettings={() => {
+                  void session.save().finally(() => onOpenSettings?.());
+                }}
+                onOpenPrompts={() => {
+                  void session.save().finally(() => onOpenPrompts?.());
+                }}
+              />
+            ),
+          history: (
+            <HistoryPanel
+              client={client}
+              workId={work.id}
+              revisions={revisions}
+              numbers={numbers}
+              currentRevision={state.baseRevision}
+              currentMarkdown={state.saved.markdown}
+              currentTitle={state.saved.title}
+              readOnly={readOnly}
+              onRestore={(rid) => session.restore(rid)}
+            />
+          ),
+          assets: (
+            <AssetDrawer
+              client={client}
+              workId={work.id}
+              disabledReason={insertBlocked}
+              onInsert={(asset) => {
+                void insert?.insertAsset(asset, takeWhere());
+              }}
+              onDragAsset={(asset) => {
+                draggedAsset.current = asset;
+              }}
+            />
+          ),
+        }}
+      />
 
       {costConfirm.node}
       {dialogOpen && (

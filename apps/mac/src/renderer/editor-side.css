@@ -1,0 +1,223 @@
+/* ---- 作品編輯頁右側邊欄（QC-085，PT-20261123-002 A） ----
+ * The tab area is two columns: the work tabs and the editor on the left,
+ * the sidebar on the right from the window's top to its bottom. Each tab
+ * pane takes no box of its own (`display: contents`), so its editor and its
+ * sidebar land in those columns; hidden panes take no room at all. */
+.tabs-area > .tabbar {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+.tab-pane > main {
+  grid-column: 1;
+  grid-row: 2;
+  min-height: 0;
+}
+.tab-pane > .side {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.side {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  border-left: 1px solid var(--qc-line);
+  background: var(--qc-bg);
+}
+.side--collapsed,
+.side--drawer {
+  width: 44px;
+}
+
+/* Collapsed: a 44 px column of icons, names on hover. */
+.side__rail {
+  flex: none;
+  width: 43px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: 4px;
+  background: var(--qc-sunken);
+}
+.side__rail-btn {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--qc-radius-control);
+  background: transparent;
+  color: var(--qc-ink2);
+}
+.side__rail-btn:first-child {
+  margin-bottom: 6px;
+}
+.side__rail-btn:hover,
+.side__rail-btn[aria-pressed='true'] {
+  background: var(--qc-surface);
+  color: var(--qc-ink);
+}
+.side__rail-btn[data-tip]:hover::after,
+.side__rail-btn[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--qc-ink);
+  color: var(--qc-bg);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.side__panel {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  animation: side-in var(--qc-dur-moderate) var(--qc-ease-out);
+}
+.side__panel[hidden] {
+  display: none;
+}
+/* Narrow window: the panel is a drawer over the text, with the rail beneath it. */
+.side--drawer .side__panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  width: min(420px, calc(100vw - 120px));
+  border-left: 1px solid var(--qc-line);
+  background: var(--qc-bg);
+  box-shadow: var(--qc-shadow-dialog);
+}
+@keyframes side-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .side__panel {
+    animation-name: qc-fade-in;
+  }
+}
+
+.side__resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
+  z-index: 4;
+  cursor: col-resize;
+}
+.side__resize:hover,
+.side__resize:focus-visible {
+  background: linear-gradient(
+    to right,
+    transparent 3px,
+    var(--qc-accent) 3px,
+    var(--qc-accent) 5px,
+    transparent 5px
+  );
+  outline: none;
+}
+
+/* The sidebar's tab bar lines up with the work tab bar: same height, same bottom line. */
+.side__head {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  height: 36px;
+  border-bottom: 1px solid var(--qc-line);
+  background: var(--qc-sunken);
+}
+.side__tabs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 4px 0 0 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.side__tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 7px 7px 0 0;
+  background: transparent;
+  color: var(--qc-ink2);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.side__tab:hover {
+  color: var(--qc-ink);
+}
+.side__tab[aria-selected='true'] {
+  margin-bottom: -1px;
+  border-color: var(--qc-line);
+  background: var(--qc-bg);
+  color: var(--qc-ink);
+  font-weight: 600;
+}
+.side__collapse {
+  align-self: center;
+  margin: 0 6px;
+}
+.side__dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--qc-warn);
+}
+.side__tab .side__dot {
+  position: static;
+  margin-left: -2px;
+  align-self: flex-start;
+  margin-top: 8px;
+}
+
+.side__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.side__pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  animation: qc-fade-in var(--qc-dur-fast) var(--qc-ease-out);
+}
+.side__pane[hidden] {
+  display: none;
+}
+/* The panels that used to sit beside the text fill the sidebar instead. */
+.side__pane > .panel {
+  flex: 1;
+  max-width: none;
+  max-height: none;
+  border: 0;
+  /* The pane fades as a tab; the panels' own slide-in is for when they stood alone. */
+  animation: none !important;
+}

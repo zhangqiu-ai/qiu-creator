@@ -3,6 +3,7 @@ import path from 'node:path';
 import { expect, type ElectronApplication, type Locator, type Page } from '@playwright/test';
 import { ok } from '../../services/mac-server/test/fake-ai.js';
 import { test } from '../fixtures/desktop.js';
+import { editorSide, showSideTab } from '../fixtures/side.js';
 import { settleAfterDrop } from '../fixtures/dnd.js';
 
 /*
@@ -101,17 +102,18 @@ test('開多個作品、切換保留狀態、重複開啟、快捷鍵與選單',
     );
     expect(scrolled).toBeGreaterThan(300);
 
-    // ⌘⇧] to 乙, whose history panel is opened; then back with ⌘⇧[.
+    // ⌘⇧] to 乙, where the sidebar's 歷史 is brought forward; then back with ⌘⇧[.
     await page.keyboard.press('Meta+Shift+BracketRight');
     expect(await selectedTitles(page)).toEqual(['乙篇草稿']);
     await expect(page.getByRole('textbox', { name: '標題' })).toHaveValue('乙篇草稿');
-    await page.getByRole('button', { name: '歷史', exact: true }).click();
-    await expect(page.getByRole('button', { name: '歷史', exact: true })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    );
+    await showSideTab(page, '歷史');
     await page.keyboard.press('Meta+Shift+BracketLeft');
     expect(await selectedTitles(page)).toEqual(['甲篇長文']);
+    // QC-085: the sidebar's tab belongs to the window, so 甲 shows 歷史 too.
+    await expect(editorSide(page).getByRole('tab', { name: '歷史' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
     await expect(source).toBeVisible();
     await expect(source).toHaveValue(/^.{10}Q/s);
     // Put back on the next frame.
@@ -183,8 +185,8 @@ test('開多個作品、切換保留狀態、重複開啟、快捷鍵與選單',
       .toBe(21);
 
     await tab(page, '乙篇草稿').click();
-    await expect(page.getByRole('button', { name: '歷史', exact: true })).toHaveAttribute(
-      'aria-expanded',
+    await expect(editorSide(page).getByRole('tab', { name: '歷史' })).toHaveAttribute(
+      'aria-selected',
       'true',
     );
     await expect(page.getByRole('button', { name: '視覺', exact: true })).toHaveAttribute(
@@ -443,6 +445,7 @@ test('截圖：三種語言與深色', async ({ desktop }) => {
   for (const t of titles) await openFromLibrary(page, t);
   // 第二篇 gets an AI candidate (★ on its tab), the fourth a title that cannot be saved (dot).
   await tab(page, titles[1] ?? '').click();
+  await showSideTab(page, 'AI');
   const panel = page.getByRole('complementary', { name: 'AI 改寫' });
   await panel.getByRole('button', { name: '改寫全文', exact: true }).click();
   await expect(panel.locator('.ai__hunk').first()).toBeVisible();

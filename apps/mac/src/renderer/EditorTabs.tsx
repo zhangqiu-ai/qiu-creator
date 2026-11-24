@@ -31,6 +31,8 @@ import { anchorOf, ContextMenu, type MenuAnchor } from './ContextMenu.js';
 import { Dialog } from './Dialog.js';
 import { RenameField } from './RenameField.js';
 import { EditorPage } from './EditorPage.js';
+import { SideStore } from './editor-side.js';
+import { SideContext } from './EditorSide.js';
 import type { EditorTabHandle } from './tab-handle.js';
 import { changeWork, type EditorHandles } from './work-actions.js';
 import { ImagePostEditor } from './ImagePostEditor.js';
@@ -113,6 +115,28 @@ export function EditorTabs(props: EditorTabsProps) {
   const [confirm, setConfirm] = useState<{ id: string; failedAgain: boolean } | null>(null);
   /** A tab closed with AI candidates not yet kept (QC-070): ask before they are dropped. */
   const [confirmCandidates, setConfirmCandidates] = useState<string | null>(null);
+  /** The right sidebar's tab, width and open state belong to the window, not to a work (QC-085). */
+  const [side] = useState(() => {
+    let storage: Storage | null;
+    try {
+      storage = window.localStorage;
+    } catch {
+      storage = null;
+    }
+    return new SideStore(storage);
+  });
+  const area = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = area.current;
+    if (el === null) return;
+    const observer = new ResizeObserver(() => {
+      side.measure(el.clientWidth);
+    });
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+    };
+  }, [side]);
 
   useEffect(() => {
     if (notice === null || notice.kind === 'restored') return;
@@ -184,19 +208,30 @@ export function EditorTabs(props: EditorTabsProps) {
         void requestClose(active.id);
         return true;
       }
+      if (command === 'side-toggle' || command === 'side-preview' || command === 'side-assets') {
+        if (!visible || model.active === null) return false;
+        if (command === 'side-toggle') side.toggle();
+        else side.toggleTab(command === 'side-preview' ? 'preview' : 'assets');
+        return true;
+      }
       if (model.tabs.length === 0) return false;
       if (command === 'next' || command === 'previous') model.step(command === 'next' ? 1 : -1);
       else model.jump(Number(command.slice('jump-'.length)));
       onFocusEditor();
       return true;
     },
-    [confirm, model, visible, requestClose, onFocusEditor],
+    [confirm, confirmCandidates, model, visible, requestClose, onFocusEditor, side],
   );
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return;
+      if (!e.metaKey || e.ctrlKey || e.isComposing) return;
       let command: TabCommand | null = null;
-      if (!e.shiftKey && e.key.toLowerCase() === 'w') command = 'close';
+      // ⌥⌘0 (the key, whatever ⌥ makes of it).
+      if (e.altKey) {
+        if (!e.shiftKey && e.code === 'Digit0') command = 'side-toggle';
+      } else if (e.shiftKey && e.code === 'KeyP') command = 'side-preview';
+      else if (e.shiftKey && e.code === 'KeyI') command = 'side-assets';
+      else if (!e.shiftKey && e.key.toLowerCase() === 'w') command = 'close';
       else if (e.shiftKey && e.code === 'BracketRight') command = 'next';
       else if (e.shiftKey && e.code === 'BracketLeft') command = 'previous';
       else if (!e.shiftKey && /^Digit[1-9]$/.test(e.code)) {
@@ -311,135 +346,137 @@ export function EditorTabs(props: EditorTabsProps) {
   );
 
   return (
-    <div className="tabs-area" hidden={!visible}>
-      <TabBar
-        model={model}
-        tabs={state.tabs}
-        activeId={state.activeId}
-        flashId={state.flashId}
-        flashSeq={state.flashSeq}
-        onActivate={(id, focus) => {
-          model.activate(id);
-          if (focus) onFocusEditor();
-        }}
-        onClose={(id) => {
-          void requestClose(id);
-        }}
-        onCloseOthers={(id) => {
-          const n = model.closeOthers(id);
-          if (n > 0) setNotice({ kind: 'closedOthers', count: n });
-          onFocusEditor();
-        }}
-        onRename={renameTab}
-      />
-      {loaded.map((tab) => (
-        <TabPane
-          key={tab.id}
-          {...props}
-          tab={tab}
-          active={visible && tab.id === state.activeId}
-          shown={tab.id === state.activeId}
-          handles={handles.current}
-          reopenDrafts={reopenDrafts.current}
+    <SideContext.Provider value={side}>
+      <div ref={area} className="tabs-area" hidden={!visible}>
+        <TabBar
+          model={model}
+          tabs={state.tabs}
+          activeId={state.activeId}
+          flashId={state.flashId}
+          flashSeq={state.flashSeq}
+          onActivate={(id, focus) => {
+            model.activate(id);
+            if (focus) onFocusEditor();
+          }}
+          onClose={(id) => {
+            void requestClose(id);
+          }}
+          onCloseOthers={(id) => {
+            const n = model.closeOthers(id);
+            if (n > 0) setNotice({ kind: 'closedOthers', count: n });
+            onFocusEditor();
+          }}
+          onRename={renameTab}
         />
-      ))}
+        {loaded.map((tab) => (
+          <TabPane
+            key={tab.id}
+            {...props}
+            tab={tab}
+            active={visible && tab.id === state.activeId}
+            shown={tab.id === state.activeId}
+            handles={handles.current}
+            reopenDrafts={reopenDrafts.current}
+          />
+        ))}
 
-      {confirmCandidates !== null && (
-        <Dialog
-          title={t('tabs.candidateTitle', {
-            title: tabTitle(model.find(confirmCandidates) ?? { title: '' }),
-          })}
-          onClose={() => {
-            setConfirmCandidates(null);
-          }}
-          footer={
-            <>
-              <button
-                type="button"
-                className="btn btn--danger"
-                onClick={() => {
-                  const id = confirmCandidates;
-                  setConfirmCandidates(null);
-                  finishClose(id, null);
-                }}
-              >
-                {t('tabs.discardCandidatesClose')}
-              </button>
-              <button
-                type="button"
-                className="btn dialog__primary"
-                data-autofocus
-                onClick={() => {
-                  setConfirmCandidates(null);
-                }}
-              >
-                {t('common.cancel')}
-              </button>
-            </>
-          }
-        >
-          <p>{t('tabs.candidateBody')}</p>
-        </Dialog>
-      )}
-      {confirm !== null && confirmTab !== null && (
-        <Dialog
-          title={t('tabs.unsavedTitle', { title: tabTitle(confirmTab) })}
-          onClose={() => {
-            setConfirm(null);
-          }}
-          footer={
-            <>
-              <button
-                type="button"
-                className="btn btn--danger"
-                onClick={() => {
-                  const draft = handles.current.get(confirm.id)?.discard() ?? null;
-                  setConfirm(null);
-                  finishClose(confirm.id, draft);
-                }}
-              >
-                {t('tabs.discardClose')}
-              </button>
-              <button
-                type="button"
-                className="btn dialog__primary"
-                data-autofocus
-                onClick={() => {
-                  setConfirm(null);
-                }}
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                type="button"
-                className="btn btn--primary"
-                onClick={() => {
-                  const handle = handles.current.get(confirm.id);
-                  if (handle === undefined) return;
-                  void handle.flush().then((clean) => {
-                    if (clean) {
-                      setConfirm(null);
-                      finishClose(confirm.id, null);
-                    } else {
-                      setConfirm({ id: confirm.id, failedAgain: true });
-                    }
-                  });
-                }}
-              >
-                {t('tabs.retrySave')}
-              </button>
-            </>
-          }
-        >
-          <p>{t(confirmTab.conflict ? 'tabs.conflictBody' : 'tabs.unsavedBody')}</p>
-          {confirm.failedAgain && (
-            <p className="dialog__warn" role="alert">
-              {t('tabs.stillUnsaved')}
-            </p>
-          )}
-        </Dialog>
-      )}
-    </div>
+        {confirmCandidates !== null && (
+          <Dialog
+            title={t('tabs.candidateTitle', {
+              title: tabTitle(model.find(confirmCandidates) ?? { title: '' }),
+            })}
+            onClose={() => {
+              setConfirmCandidates(null);
+            }}
+            footer={
+              <>
+                <button
+                  type="button"
+                  className="btn btn--danger"
+                  onClick={() => {
+                    const id = confirmCandidates;
+                    setConfirmCandidates(null);
+                    finishClose(id, null);
+                  }}
+                >
+                  {t('tabs.discardCandidatesClose')}
+                </button>
+                <button
+                  type="button"
+                  className="btn dialog__primary"
+                  data-autofocus
+                  onClick={() => {
+                    setConfirmCandidates(null);
+                  }}
+                >
+                  {t('common.cancel')}
+                </button>
+              </>
+            }
+          >
+            <p>{t('tabs.candidateBody')}</p>
+          </Dialog>
+        )}
+        {confirm !== null && confirmTab !== null && (
+          <Dialog
+            title={t('tabs.unsavedTitle', { title: tabTitle(confirmTab) })}
+            onClose={() => {
+              setConfirm(null);
+            }}
+            footer={
+              <>
+                <button
+                  type="button"
+                  className="btn btn--danger"
+                  onClick={() => {
+                    const draft = handles.current.get(confirm.id)?.discard() ?? null;
+                    setConfirm(null);
+                    finishClose(confirm.id, draft);
+                  }}
+                >
+                  {t('tabs.discardClose')}
+                </button>
+                <button
+                  type="button"
+                  className="btn dialog__primary"
+                  data-autofocus
+                  onClick={() => {
+                    setConfirm(null);
+                  }}
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => {
+                    const handle = handles.current.get(confirm.id);
+                    if (handle === undefined) return;
+                    void handle.flush().then((clean) => {
+                      if (clean) {
+                        setConfirm(null);
+                        finishClose(confirm.id, null);
+                      } else {
+                        setConfirm({ id: confirm.id, failedAgain: true });
+                      }
+                    });
+                  }}
+                >
+                  {t('tabs.retrySave')}
+                </button>
+              </>
+            }
+          >
+            <p>{t(confirmTab.conflict ? 'tabs.conflictBody' : 'tabs.unsavedBody')}</p>
+            {confirm.failedAgain && (
+              <p className="dialog__warn" role="alert">
+                {t('tabs.stillUnsaved')}
+              </p>
+            )}
+          </Dialog>
+        )}
+      </div>
+    </SideContext.Provider>
   );
 }
 

@@ -146,7 +146,11 @@ export type TabCommand =
   | 'previous'
   | `jump-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`
   /** 設定… (⌘,) in the app menu (QC-057): opens 設定 on the page shown last. */
-  | 'settings';
+  | 'settings'
+  /** The editor's right sidebar (QC-085): ⌥⌘0 shows or hides it, ⌘⇧P 預覽, ⌘⇧I 素材. */
+  | 'side-toggle'
+  | 'side-preview'
+  | 'side-assets';
 
 export const TAB_COMMANDS: readonly TabCommand[] = [
   'settings',
@@ -162,6 +166,9 @@ export const TAB_COMMANDS: readonly TabCommand[] = [
   'jump-7',
   'jump-8',
   'jump-9',
+  'side-toggle',
+  'side-preview',
+  'side-assets',
 ];
 
 /** 設定 → 外觀 → 語言 (QC-042): the choice, and what it resolves to right now. */

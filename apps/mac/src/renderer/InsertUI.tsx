@@ -246,7 +246,6 @@ export function AssetDrawer({
   disabledReason,
   onInsert,
   onDragAsset,
-  onClose,
   forPost = false,
   kind = 'image',
 }: {
@@ -255,8 +254,7 @@ export function AssetDrawer({
   disabledReason: string | null;
   onInsert: (asset: AssetRecord) => void;
   onDragAsset: (asset: AssetRecord | null) => void;
-  onClose: () => void;
-  /** Image posts (QC-045): images join the grid, and closing goes back to the preview. */
+  /** Image posts (QC-045): images join the grid. */
   forPost?: boolean;
   /** Videos for a video work (QC-046); images otherwise. */
   kind?: 'image' | 'video';
@@ -312,8 +310,7 @@ export function AssetDrawer({
     else if (e.key === 'Enter') {
       const a = items?.[selected];
       if (a !== undefined && disabledReason === null) onInsert(a);
-    } else if (e.key === 'Escape') onClose();
-    else return;
+    } else return;
     e.preventDefault();
   };
 
@@ -326,15 +323,6 @@ export function AssetDrawer({
     >
       <div className="drawer__head">
         <span className="drawer__title">{t('editor.assets')}</span>
-        <button
-          type="button"
-          className="btn btn--ghost btn--small drawer__close"
-          aria-keyshortcuts="Meta+Shift+I"
-          onClick={onClose}
-        >
-          <Icon name="spark" size={14} />
-          {t(forPost ? 'imagePost.backToPreview' : 'editor.backToAi')}
-        </button>
       </div>
       <div className="drawer__controls">
         <label className="search drawer__search">
@@ -344,6 +332,7 @@ export function AssetDrawer({
             type="search"
             placeholder={t('editor.searchAssets')}
             autoFocus
+            data-side-focus
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
