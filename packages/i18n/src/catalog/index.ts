@@ -1,4 +1,5 @@
 import type { CatalogArea } from '../define.js';
+import { agents } from './agents.js';
 import { ai } from './ai.js';
 import { aiServices } from './aiServices.js';
 import { assets } from './assets.js';
@@ -51,6 +52,7 @@ export const catalog = {
   phone,
   previewPanel,
   editorSide,
+  agents,
 } as const;
 
 type Areas = typeof catalog;

@@ -35,6 +35,7 @@ export function useSideStore(): SideStore {
 const ICON: Readonly<Record<SideTab, IconName>> = {
   preview: 'phone',
   ai: 'spark',
+  proposals: 'agentInbox',
   history: 'history',
   assets: 'image',
 };
@@ -42,6 +43,7 @@ const ICON: Readonly<Record<SideTab, IconName>> = {
 const LABEL = {
   preview: 'editorSide.preview',
   ai: 'editorSide.ai',
+  proposals: 'agents.sideTab',
   history: 'editorSide.history',
   assets: 'editorSide.assets',
 } as const;
@@ -54,6 +56,8 @@ export interface EditorSideProps {
   active: boolean;
   /** A dialog of the editor is open: the sidebar takes no input meanwhile. */
   inert?: boolean;
+  /** A number on a tab (QC-091: pending proposals on 提案). */
+  badges?: Partial<Record<SideTab, number>>;
 }
 
 /**
@@ -65,7 +69,13 @@ export interface EditorSideProps {
  * it opens as a drawer over the text. Visited panels stay mounted while
  * hidden, so switching tabs never loses a half-written instruction.
  */
-export function EditorSide({ workId, panels, active, inert = false }: EditorSideProps) {
+export function EditorSide({
+  workId,
+  panels,
+  active,
+  inert = false,
+  badges = {},
+}: EditorSideProps) {
   const store = useSideStore();
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const offered = SIDE_TABS.filter((k) => k in panels);
@@ -167,6 +177,11 @@ export function EditorSide({ workId, panels, active, inert = false }: EditorSide
             >
               <Icon name={ICON[k]} size={16} />
               {k === 'preview' && over && <span className="side__dot" aria-hidden="true" />}
+              {(badges[k] ?? 0) > 0 && (
+                <span className="side__badge side__badge--rail num" aria-hidden="true">
+                  {badges[k]}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -217,6 +232,7 @@ export function EditorSide({ workId, panels, active, inert = false }: EditorSide
                 {k === 'preview' && over && (
                   <span className="side__dot" role="img" aria-label={t('editorSide.overLimit')} />
                 )}
+                {(badges[k] ?? 0) > 0 && <span className="side__badge num">{badges[k]}</span>}
               </button>
             ))}
           </div>

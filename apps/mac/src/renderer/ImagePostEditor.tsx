@@ -67,6 +67,7 @@ import { ASSET_DRAG_TYPE, AssetDrawer } from './InsertUI.js';
 import { externalSource, useMounts } from './mounts.js';
 import type { TabStatusPatch, TabView } from './tabs.js';
 import { EditorSide, useSideStore } from './EditorSide.js';
+import { ProposalsSideTab, usePendingFor } from './ProposalsSideTab.js';
 import { TagEditor } from './TagEditor.js';
 import { ProjectTags } from './ProjectTags.js';
 import { WorkSession, type Draft, type DraftCover, type SaveError } from './work-session.js';
@@ -164,6 +165,8 @@ function PostEditor({
 
   // QC-085: 預覽, 歷史 and 素材 are tabs of the window's right sidebar (posts have no AI panel).
   const side = useSideStore();
+  // QC-091: the 提案 tab while the work has pending agent proposals.
+  const pendingProposals = usePendingFor(work.id);
   const sideState = useSyncExternalStore(side.subscribe, side.getSnapshot);
   const assetsShown =
     (sideState.drawer ? sideState.drawerOpen : sideState.prefs.open) &&
@@ -1018,6 +1021,7 @@ function PostEditor({
       <EditorSide
         workId={work.id}
         active={active}
+        badges={{ proposals: pendingProposals }}
         inert={state.status === 'conflict'}
         panels={{
           preview: (
@@ -1036,6 +1040,28 @@ function PostEditor({
               onNotice={setNotice}
             />
           ),
+          ...(pendingProposals > 0
+            ? {
+                proposals: (
+                  <ProposalsSideTab
+                    client={client}
+                    workId={work.id}
+                    text={draft.markdown}
+                    prepare={async () => {
+                      await session.save();
+                      const now = session.snapshot;
+                      return session.hasUnsavedChanges() || now.status === 'conflict'
+                        ? null
+                        : now.baseRevision;
+                    }}
+                    onHighlight={ignoreHighlight}
+                    onNotice={(text) => {
+                      setNotice(text);
+                    }}
+                  />
+                ),
+              }
+            : {}),
           history: (
             <HistoryPanel
               client={client}
@@ -1312,4 +1338,9 @@ function SortableTile({
       PointerEventHandler<HTMLDivElement> | undefined,
     dragging: sortable.isDragging,
   });
+}
+
+/** The description is plain text: proposals are not highlighted in it. */
+function ignoreHighlight(): void {
+  // nothing to frame
 }

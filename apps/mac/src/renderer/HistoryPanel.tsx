@@ -5,6 +5,7 @@ import { conflictHunks } from './conflict.js';
 import { formatWhen, REVISION_SOURCE_LABEL } from './format.js';
 import { useExitFade } from './motion.js';
 import { t } from './i18n.js';
+import { Icon } from './Icon.js';
 import type { RestoreResult } from './work-session.js';
 
 function lines(text: readonly string[]): string {
@@ -133,7 +134,31 @@ export function HistoryPanel({
             >
               <span className="mono rev__n">r{numbers.get(r.revision_id)}</span>
               <span className="rev__src">
-                {REVISION_SOURCE_LABEL[r.source]}
+                {r.agent == null ? (
+                  REVISION_SOURCE_LABEL[r.source]
+                ) : (
+                  // QC-091: which agent made this version, and how.
+                  <>
+                    <span
+                      className={
+                        r.agent.via === 'direct'
+                          ? 'rev__agent rev__agent--direct'
+                          : 'rev__agent rev__agent--proposal'
+                      }
+                    >
+                      <Icon name={r.agent.via === 'direct' ? 'robot' : 'agentInbox'} size={11} />
+                      {t(r.agent.via === 'direct' ? 'agents.histDirect' : 'agents.histProposal')}
+                    </span>
+                    <span className="rev__by">
+                      {t(
+                        r.agent.via === 'direct' ? 'agents.histDirectBy' : 'agents.histProposalBy',
+                        {
+                          name: r.agent.name,
+                        },
+                      )}
+                    </span>
+                  </>
+                )}
                 {r.revision_id === currentRevision && (
                   <span className="rev__cur">{t('editor.revCurrent')}</span>
                 )}

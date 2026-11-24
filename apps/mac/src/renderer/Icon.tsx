@@ -60,6 +60,8 @@ export type IconName =
   | 'trash'
   | 'pulse'
   | 'inbox'
+  | 'agentInbox'
+  | 'robot'
   | 'more';
 
 const PATHS: Readonly<Record<IconName, readonly string[]>> = {
@@ -73,6 +75,20 @@ const PATHS: Readonly<Record<IconName, readonly string[]>> = {
     'M16.8 12a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0',
   ],
   inbox: ['M3 13h5l1.5 3h5L16 13h5', 'M5.5 5h13L21 13v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5Z'],
+  agentInbox: [
+    'M3 14h5l1.5 2.5h5L16 14h5',
+    'M3 14v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4l-2.5-5H16',
+    'M8 9H5.5L3 14',
+    'M12 3v8',
+    'm9 8 3 3 3-3',
+  ],
+  robot: [
+    'M6 8h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z',
+    'M12 4v4',
+    'M9 13h.01',
+    'M15 13h.01',
+    'M10 16h4',
+  ],
   sidebar: ['M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z', 'M9 4v16'],
   sideRight: [
     'M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z',

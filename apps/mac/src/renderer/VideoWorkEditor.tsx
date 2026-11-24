@@ -40,6 +40,7 @@ import { AssetDrawer } from './InsertUI.js';
 import { diffSentences } from './rewrite-diff.js';
 import type { TabStatusPatch, TabView } from './tabs.js';
 import { EditorSide, useSideStore } from './EditorSide.js';
+import { ProposalsSideTab, usePendingFor } from './ProposalsSideTab.js';
 import { TagEditor } from './TagEditor.js';
 import { ProjectTags } from './ProjectTags.js';
 import { TechnicalDetails } from './TechnicalDetails.js';
@@ -158,6 +159,8 @@ function VideoEditor({
 
   // QC-085: 預覽, AI (影片理解), 歷史 and 素材 are tabs of the window's right sidebar.
   const side = useSideStore();
+  // QC-091: the 提案 tab while the work has pending agent proposals.
+  const pendingProposals = usePendingFor(work.id);
   const [previewAsk, setPreviewAsk] = useState<{ platform: Platform; n: number } | undefined>(
     undefined,
   );
@@ -933,6 +936,7 @@ function VideoEditor({
       <EditorSide
         workId={work.id}
         active={active}
+        badges={{ proposals: pendingProposals }}
         panels={{
           preview: (
             <PreviewPanel
@@ -969,6 +973,28 @@ function VideoEditor({
               />
             </aside>
           ),
+          ...(pendingProposals > 0
+            ? {
+                proposals: (
+                  <ProposalsSideTab
+                    client={client}
+                    workId={work.id}
+                    text={draft.markdown}
+                    prepare={async () => {
+                      await session.save();
+                      const now = session.snapshot;
+                      return session.hasUnsavedChanges() || now.status === 'conflict'
+                        ? null
+                        : now.baseRevision;
+                    }}
+                    onHighlight={ignoreHighlight}
+                    onNotice={(text, tone) => {
+                      setNotice({ text, tone });
+                    }}
+                  />
+                ),
+              }
+            : {}),
           history: (
             <HistoryPanel
               client={client}
@@ -1466,4 +1492,9 @@ function AdoptDialog({
       )}
     </Dialog>
   );
+}
+
+/** The description is plain text: proposals are not highlighted in it. */
+function ignoreHighlight(): void {
+  // nothing to frame
 }

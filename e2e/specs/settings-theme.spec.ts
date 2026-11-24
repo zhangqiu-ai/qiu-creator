@@ -42,12 +42,13 @@ test('設定：分類導覽、主題即時套用並記住、備份預設 3 份',
   const cats = page.getByRole('navigation', { name: '設定分類' });
   const themes = page.getByRole('radiogroup', { name: '主題' });
 
-  await test.step('六個分類，預設跟隨系統', async () => {
+  await test.step('七個分類（QC-091 加 Agent 與 MCP），預設跟隨系統', async () => {
     await expect(cats.getByRole('button')).toHaveText([
       '外觀',
       '本機服務',
       '備份與還原',
       'AI 服務',
+      'Agent 與 MCP',
       '資料夾',
       '關於',
     ]);

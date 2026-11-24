@@ -69,6 +69,7 @@ export function SidebarProjects({
   scope,
   active,
   onOpen,
+  proposals,
 }: {
   store: ProjectsStore;
   s: ProjectsState;
@@ -77,6 +78,8 @@ export function SidebarProjects({
   /** 作品庫 is the page in front (so the scope's row is the current one). */
   active: boolean;
   onOpen: (scope: LibraryScope) => void;
+  /** Agent 提案 (QC-091), under 未分類: pending count, and whether its page is in front. */
+  proposals?: { count: number; current: boolean; onOpen: () => void };
 }) {
   const notify = useNotice();
   const [open, setOpen] = useState(() => readOpen(SECTION_KEY, true));
@@ -327,6 +330,28 @@ export function SidebarProjects({
             </span>
           )}
         </button>
+        {proposals !== undefined && (
+          <button
+            type="button"
+            className="sb__nav"
+            aria-current={proposals.current ? 'page' : undefined}
+            aria-label={
+              proposals.count > 0
+                ? `${t('agents.nav')} ${t('agents.pendingCount', { count: proposals.count })}`
+                : t('agents.nav')
+            }
+            data-tip={t('agents.nav')}
+            onClick={proposals.onOpen}
+          >
+            <Icon name="agentInbox" />
+            <span className="sb__label">{t('agents.nav')}</span>
+            {proposals.count > 0 && (
+              <span key={proposals.count} className="sb__badge num sb__count--update">
+                {proposals.count}
+              </span>
+            )}
+          </button>
+        )}
       </div>
       <div className="sb__grp sb-proj" role="group" aria-label={t('projects.projects')}>
         <span id={hintId} className="visually-hidden">

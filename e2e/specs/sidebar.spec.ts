@@ -58,9 +58,11 @@ test('側欄：分組、調寬上下限、收起圖示列、記住狀態與服�
     const names = await Promise.all(groups.map((g) => g.getAttribute('aria-label')));
     // QC-069: the works' scopes (no heading), 項目, 素材, 工具; 回收站 and 設定 in the foot.
     expect(names).toEqual(['作品', '項目', '素材', '工具']);
+    // QC-091: Agent 提案 under 未分類 (no badge without pending proposals).
     await expect(nav.getByRole('group', { name: '作品' }).getByRole('button')).toHaveText([
       /^全部作品\d*$/,
       /^未分類\d*$/,
+      'Agent 提案',
     ]);
     // No projects yet, so 新建項目.
     await expect(nav.getByRole('group', { name: '項目' }).getByRole('button')).toHaveText([

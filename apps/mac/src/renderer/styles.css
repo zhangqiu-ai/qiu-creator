@@ -471,6 +471,21 @@ kbd {
   font-variant-numeric: tabular-nums;
   color: var(--qc-accent);
 }
+/* Agent 提案 (QC-091): pending proposals wait for you, so a filled badge, not a plain count. */
+.sb__badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--qc-accent);
+  color: var(--qc-on-accent);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
 .sb__foot {
   display: flex;
   flex-direction: column;
@@ -542,6 +557,17 @@ kbd {
 .sb--rail .sb__label,
 .sb--rail .sb__count {
   display: none;
+}
+/* The rail keeps the Agent 提案 count as a small badge on the icon (QC-091). */
+.sb--rail .sb__badge {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  font-size: 9.5px;
+  line-height: 15px;
 }
 .sb--rail .sb__scroll {
   /* Many projects scroll (QC-065); names show in the floating .sb__railtip, which is not clipped. */
@@ -8347,4 +8373,28 @@ mark.hit {
 .qpop__note-d {
   display: block;
   color: var(--qc-ink3);
+}
+
+/* QC-091: versions made by an agent — a direct edit (warn) or an accepted proposal (accent). */
+.rev__agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.rev__agent--direct {
+  background: var(--qc-warn-soft);
+  color: var(--qc-warn);
+}
+.rev__agent--proposal {
+  background: var(--qc-accent-soft);
+  color: var(--qc-accent);
+}
+.rev__by {
+  color: var(--qc-ink);
 }
