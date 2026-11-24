@@ -8,6 +8,8 @@ import path from 'node:path';
 export const LABEL = 'com.qiu-creator.mac-server';
 export const DEFAULT_PORT = 7420;
 export const APP_BUNDLE = 'qiu-creator.app';
+/** The CLI launcher inside a service build (services/mac-server/scripts/build.ts). */
+export const CLI_LAUNCHER = 'bin/creatorhub';
 
 export interface InstallPaths {
   home: string;
@@ -15,6 +17,11 @@ export interface InstallPaths {
   supportDir: string;
   /** Current service build. */
   server: string;
+  /**
+   * The `creatorhub` CLI shipped inside the service build (QC-094). It moves
+   * with `server`, so upgrades replace it and rollbacks restore it.
+   */
+  cli: string;
   /** Staging area for a new build while upgrading. */
   serverNext: string;
   /** Previous service build, kept for rollback. */
@@ -40,6 +47,7 @@ export function computePaths(home: string, applicationsDir: string): InstallPath
     home,
     supportDir,
     server: path.join(supportDir, 'server'),
+    cli: path.join(supportDir, 'server', CLI_LAUNCHER),
     serverNext: path.join(supportDir, 'server.next'),
     serverPrev: path.join(supportDir, 'server.prev'),
     appPrevDir,
@@ -136,7 +144,36 @@ export function parseBuildInfo(text: string): BuildInfo {
 }
 
 /** Files a service build must contain before it may replace the running one. */
-export const SERVER_REQUIRED_FILES = ['server.mjs', 'bin/node', 'build-info.json', 'package.json'];
+export const SERVER_REQUIRED_FILES = [
+  'server.mjs',
+  'bin/node',
+  'build-info.json',
+  'package.json',
+  // QC-094: the agent CLI and its launcher.
+  'creatorhub.mjs',
+  CLI_LAUNCHER,
+];
+
+/**
+ * The MCP config an agent (Claude Code, Claude Desktop) needs for this
+ * install, printed in the install report. The token is a placeholder: the
+ * user creates one in 設定 › Agent 與 MCP.
+ */
+export function mcpConfigExample(cli: string, port: number): string {
+  return JSON.stringify(
+    {
+      mcpServers: {
+        creatorhub: {
+          command: cli,
+          args: ['mcp'],
+          env: { CREATORHUB_URL: `http://127.0.0.1:${String(port)}`, CREATORHUB_TOKEN: '<token>' },
+        },
+      },
+    },
+    null,
+    2,
+  );
+}
 
 export function missingFiles(required: readonly string[], present: ReadonlySet<string>): string[] {
   return required.filter((f) => !present.has(f));

@@ -10,7 +10,7 @@
 
 | 位置 | 內容 |
 | --- | --- |
-| `~/Library/Application Support/qiu-creator/server/` | 建置產物：`server.mjs`、`node_modules/`（原生模組）、`bin/node`、`build-info.json` |
+| `~/Library/Application Support/qiu-creator/server/` | 建置產物：`server.mjs`、`node_modules/`（原生模組）、`bin/node`、`build-info.json`、Agent CLI `creatorhub.mjs` 與 `bin/creatorhub`（QC-094） |
 | `~/CreatorHub/` | 資料（`CREATORHUB_HOME`）：原稿、媒體、`data/creatorhub.sqlite`、`backups/` |
 | `~/Library/Logs/qiu-creator/` | 日誌 |
 | `~/Library/LaunchAgents/com.qiu-creator.mac-server.plist` | 本範本替換佔位符後的檔案 |
@@ -20,6 +20,7 @@
 - `server.mjs` 是 esbuild 打包的服務，包含所有純 JS 依賴與 `@qiu-creator/*` 套件。
 - `node_modules/` 只放不能打包的套件和它們的依賴：原生模組 better-sqlite3、@napi-rs/keyring、sharp（含 libvips），會從自己套件目錄讀檔的 @fastify/swagger-ui，以及執行期才 import `strtok3` 的 file-type。複製時解開所有符號連結。
 - `bin/node` 是建置時用的 Node（目前 24），和原生模組的 ABI 一致。Homebrew 升級 Node 不會弄壞已安裝的服務。
+- `bin/creatorhub` 是 Agent 用的 CLI（`creatorhub mcp` 是 MCP 伺服器），用 `bin/node` 執行打包好的 `creatorhub.mjs`。它在 `server/` 裡，所以升級和回滾會跟著服務一起換。安裝器的報告會印出這條路徑和 MCP 設定；App 的「設定 › Agent 與 MCP › 複製 MCP 設定」也會帶出它（QC-094）。
 
 `/health` 會回 `version`、`commit`（工作目錄有未提交修改時，結尾是 `-dirty`）和 `built_at`。
 

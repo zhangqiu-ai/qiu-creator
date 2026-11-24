@@ -282,7 +282,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/works/:id/variants/:platform/revisions[/:revision]` | 覆寫值的歷史；QC-084 之前的版本在 `legacy` 帶完整內容 |
 | GET | `/api/v1/events` | SSE 變更事件 |
 | GET | `/api/v1/changes` | 變更記錄的 JSON 分頁（`since`、`limit` 1–500，回 `next_since`、`has_more`、`latest_seq`），與 SSE 是同一份記錄；給輪詢的用戶端（MCP `changes_since`）（QC-087） |
-| GET | `/api/v1/session` | 呼叫者是主權杖或 Agent、名稱與權限範圍；任何有效權杖都能讀（QC-087） |
+| GET | `/api/v1/session` | 呼叫者是主權杖或 Agent、名稱與權限範圍；任何有效權杖都能讀（QC-087）。主權杖另有 `cli`：這台 Mac 上 `creatorhub` CLI 的啟動方式（QC-094） |
 | GET | `/api/v1/backups` | 備份列表（新的在前）、保留份數、資料夾、每日排程；只限主權杖 |
 | POST | `/api/v1/backups` | 立即手動備份（201），含完整性檢查結果；只限主權杖 |
 | POST | `/api/v1/backups/:id/restore` | 從備份還原（`confirm: true`，202）；先自動備份當前狀態，接著服務在行程內重新開啟；只限主權杖 |
@@ -1317,18 +1317,29 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 
 **設定範例：**
 
-- 先在 App 的權杖面板或用 `POST /api/v1/tokens` 建立 Agent 權杖，唯讀用途只給 `read`。
-- `creatorhub` 指令來自 `packages/agent-sdk`（`pnpm --filter @qiu-creator/agent-sdk exec creatorhub`，或把 `packages/agent-sdk/bin/creatorhub.js` 連到 PATH）。下面用絕對路徑示意：
+- 先在 App 的「設定 › Agent 與 MCP」建立 Agent 權杖（或用 `POST /api/v1/tokens`），唯讀用途只給 `read`。
+- **安裝版（QC-094）**：`creatorhub` CLI 隨服務一起安裝，路徑固定為：
 
-Claude Code（專案的 `.mcp.json`，或執行 `claude mcp add creatorhub -e CREATORHUB_TOKEN=chk_… -- node /path/to/qiu-creator/packages/agent-sdk/bin/creatorhub.js mcp`）：
+  ```text
+  ~/Library/Application Support/qiu-creator/server/bin/creatorhub
+  ```
+
+  它是一支 shell 啟動器，用服務自帶的 `bin/node` 執行同目錄的 `creatorhub.mjs`（esbuild 打包好的 CLI 與 MCP 伺服器）。不依賴 repo、tsx，也不需要 PATH 上有 Node。升級時它和服務一起換新，回滾時一起換回（都在 `server/` 資料夾裡）；安裝器的報告會印出這條路徑和完整的 MCP 設定。
+- App 的「複製 MCP 設定」用的是服務在 `GET /api/v1/session` 回報的 `cli`（只有主權杖看得到；Agent 權杖拿到 `null`）：
+  - `source: "installed"`：已安裝的 `bin/creatorhub`。
+  - `source: "source"`：從原始碼執行（開發模式）。`command` 是服務正在用的 Node，`args` 的第一項是這份 repo 的 `packages/agent-sdk/bin/creatorhub.js`。App 會標明這是開發模式。
+  - `null`：舊版服務沒有回報，App 改複製範例路徑，並提醒使用者自己改。
+  - `server_url` 是服務實際收到請求的埠，App 會把它寫進 `CREATORHUB_URL`，所以用 `--port` 安裝在別的埠也能連上。
+
+Claude Code（專案的 `.mcp.json`，或執行 `claude mcp add creatorhub -e CREATORHUB_TOKEN=chk_… -- "$HOME/Library/Application Support/qiu-creator/server/bin/creatorhub" mcp`）：
 
 ```json
 {
   "mcpServers": {
     "creatorhub": {
-      "command": "node",
-      "args": ["/path/to/qiu-creator/packages/agent-sdk/bin/creatorhub.js", "mcp"],
-      "env": { "CREATORHUB_TOKEN": "chk_…" }
+      "command": "/Users/<你>/Library/Application Support/qiu-creator/server/bin/creatorhub",
+      "args": ["mcp"],
+      "env": { "CREATORHUB_URL": "http://127.0.0.1:7420", "CREATORHUB_TOKEN": "chk_…" }
     }
   }
 }
@@ -1338,27 +1349,17 @@ Codex（`~/.codex/config.toml`）：
 
 ```toml
 [mcp_servers.creatorhub]
-command = "node"
-args = ["/path/to/qiu-creator/packages/agent-sdk/bin/creatorhub.js", "mcp", "--toolsets", "works,projects"]
-env = { CREATORHUB_TOKEN = "chk_…" }
+command = "/Users/<你>/Library/Application Support/qiu-creator/server/bin/creatorhub"
+args = ["mcp", "--toolsets", "works,projects"]
+env = { CREATORHUB_URL = "http://127.0.0.1:7420", CREATORHUB_TOKEN = "chk_…" }
 ```
 
-Claude Desktop（`~/Library/Application Support/Claude/claude_desktop_config.json`）：
+Claude Desktop（`~/Library/Application Support/Claude/claude_desktop_config.json`）：與 Claude Code 的 JSON 相同。
 
-```json
-{
-  "mcpServers": {
-    "creatorhub": {
-      "command": "/usr/local/bin/node",
-      "args": ["/path/to/qiu-creator/packages/agent-sdk/bin/creatorhub.js", "mcp"],
-      "env": { "CREATORHUB_TOKEN": "chk_…" }
-    }
-  }
-}
-```
+**從原始碼執行（開發）**：把 `command` 改成 Node 的絕對路徑，`args` 改成 `["/path/to/qiu-creator/packages/agent-sdk/bin/creatorhub.js", "mcp"]`。這支入口靠 tsx 載入 TypeScript 原始碼，只適合開發；也可以用 `pnpm --filter @qiu-creator/agent-sdk exec creatorhub`。
 
 - 權杖只放在 Agent 自己的設定檔裡，不要提交進任何倉庫。撤銷權杖後立即失效（401）。
-- Claude Desktop 不繼承 shell 的 PATH，`command` 要寫 node 的絕對路徑。
+- `command` 一律寫絕對路徑：Claude Desktop 不繼承 shell 的 PATH。路徑裡有空格（`Application Support`）沒關係，JSON／TOML 的 `command` 不經過 shell。
 
 ## 冪等鍵
 
@@ -1399,7 +1400,7 @@ Claude Desktop（`~/Library/Application Support/Claude/claude_desktop_config.jso
 
 ## 建置產物、日誌與睡眠（QC-030）
 
-- **建置產物**：`corepack pnpm --filter @qiu-creator/mac-server build` 產出 `services/mac-server/dist/`，內容是 `server.mjs`、`node_modules/`（原生模組等）、`bin/node`、`build-info.json`。整個資料夾複製到任何位置都能用 `bin/node server.mjs` 啟動，安裝位置是 `~/Library/Application Support/qiu-creator/server`。做法與理由見 `docs/dependencies.md`，安裝見 `deploy/launchd/README.md`。
+- **建置產物**：`corepack pnpm --filter @qiu-creator/mac-server build` 產出 `services/mac-server/dist/`，內容是 `server.mjs`、`node_modules/`（原生模組等）、`bin/node`、`build-info.json`，以及 `creatorhub.mjs` 與啟動器 `bin/creatorhub`（Agent CLI，QC-094）。整個資料夾複製到任何位置都能用 `bin/node server.mjs` 啟動，安裝位置是 `~/Library/Application Support/qiu-creator/server`。做法與理由見 `docs/dependencies.md`，安裝見 `deploy/launchd/README.md`。
 - **主程式與行程內重載**：`src/main.ts` 用 `startHost`（`src/host.ts`）啟動服務。還原時，服務在同一個行程裡關閉並重建，`/health` 與 API 只會中斷片刻。重建失敗就結束行程，交給 launchd 重啟；重啟時會再套用一次待還原的備份。
 - **日誌**：設了 `CREATORHUB_LOG_FILE`（launchd 範本有設）時，服務自己寫日誌檔：每檔 10 MB，保留 5 份舊檔（`src/log-file.ts`）。沒設時寫到 stdout。launchd 的 stderr 檔只收日誌系統以外的輸出，啟動時超過上限就清空。
 - **防閒置睡眠**（`src/power/sleep-guard.ts`）：

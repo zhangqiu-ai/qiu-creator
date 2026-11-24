@@ -2,6 +2,8 @@
  * Build a self-contained mac-server (QC-030):
  *
  *   <out>/server.mjs        bundled server (all JS deps and workspace packages)
+ *   <out>/creatorhub.mjs    bundled `creatorhub` CLI and MCP server (QC-094)
+ *   <out>/bin/creatorhub    launcher: runs creatorhub.mjs with bin/node
  *   <out>/node_modules/     native modules and packages that need their own files,
  *                           copied with their dependency closure (no symlinks)
  *   <out>/bin/node          the Node binary the native modules were built for
@@ -23,6 +25,23 @@ import { build } from 'esbuild';
 import { SOURCE_VERSION } from '../src/build-info.js';
 
 const serverDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+/** The agent SDK's CLI entry (packages/agent-sdk/src/bin.ts). */
+const cliEntry = path.join(serverDir, '..', '..', 'packages', 'agent-sdk', 'src', 'bin.ts');
+
+/** Where the CLI launcher sits inside a build (and so inside an installed service). */
+export const CLI_LAUNCHER = 'bin/creatorhub';
+
+/**
+ * The launcher runs the bundled CLI with the service's own Node, so it needs
+ * neither a Node on PATH nor this repository. A symlink to it (e.g. from
+ * /usr/local/bin) is resolved first so the sibling files are still found.
+ */
+const LAUNCHER_SCRIPT = `#!/bin/sh
+# creatorhub CLI (QC-094): runs ../creatorhub.mjs with the bundled bin/node.
+self=$(/usr/bin/readlink -f "$0" 2>/dev/null || printf '%s' "$0")
+dir=$(cd "$(dirname "$self")" && pwd -P)
+exec "$dir/node" "$dir/../creatorhub.mjs" "$@"
+`;
 
 /**
  * Not bundled: native addons (`.node` files and prebuilt per-platform
@@ -121,12 +140,29 @@ export async function buildServerArtifact(
     },
   });
 
+  // The CLI has no native modules, so it is one self-contained file.
+  await build({
+    entryPoints: [cliEntry],
+    outfile: path.join(out, 'creatorhub.mjs'),
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    target: 'node24',
+    sourcemap: 'linked',
+    legalComments: 'linked',
+    logLevel: 'warning',
+    banner: {
+      js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
+    },
+  });
+  fs.mkdirSync(path.join(out, 'bin'), { recursive: true });
+  fs.writeFileSync(path.join(out, CLI_LAUNCHER), LAUNCHER_SCRIPT, { mode: 0o755 });
+
   const modules = path.join(out, 'node_modules');
   const done = new Set<string>();
   for (const name of EXTERNAL_PACKAGES) copyClosure(name, serverDir, modules, done);
 
   if (options.withNode ?? true) {
-    fs.mkdirSync(path.join(out, 'bin'), { recursive: true });
     fs.copyFileSync(process.execPath, path.join(out, 'bin', 'node'));
     fs.chmodSync(path.join(out, 'bin', 'node'), 0o755);
   }

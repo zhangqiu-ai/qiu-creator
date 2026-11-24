@@ -1,4 +1,4 @@
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -34,6 +34,48 @@ function symlinks(dir: string): string[] {
   return found;
 }
 
+/**
+ * Minimal MCP stdio client (newline-delimited JSON-RPC): enough to
+ * initialize and list tools without pulling the MCP SDK into this package.
+ */
+function stdioRpc(proc: ChildProcessWithoutNullStreams) {
+  let buffer = '';
+  const waiting = new Map<number, (msg: Record<string, unknown>) => void>();
+  proc.stdout.on('data', (d: Buffer) => {
+    buffer += d.toString();
+    let nl = buffer.indexOf('\n');
+    while (nl !== -1) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      nl = buffer.indexOf('\n');
+      if (line === '') continue;
+      const msg = JSON.parse(line) as Record<string, unknown>;
+      if (typeof msg['id'] === 'number') waiting.get(msg['id'])?.(msg);
+    }
+  });
+  let next = 1;
+  const send = (msg: Record<string, unknown>): void => {
+    proc.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', ...msg })}\n`);
+  };
+  return {
+    notify: (method: string) => {
+      send({ method });
+    },
+    request: (method: string, params: Record<string, unknown>) =>
+      new Promise<Record<string, unknown>>((resolve, reject) => {
+        const id = next++;
+        const timer = setTimeout(() => {
+          reject(new Error(`no answer to ${method}`));
+        }, 20_000);
+        waiting.set(id, (msg) => {
+          clearTimeout(timer);
+          resolve(msg);
+        });
+        send({ id, method, params });
+      }),
+  };
+}
+
 describe('standalone build artifact (QC-030)', () => {
   // Bundles the server, copies native modules and Node (~200 MB), then starts it in another
   // folder: far longer than the 5 s default for unit tests.
@@ -56,6 +98,7 @@ describe('standalone build artifact (QC-030)', () => {
       expect(modules).not.toContain('tsx');
       expect(modules).not.toContain('@qiu-creator');
       expect(fs.existsSync(path.join(installed, 'bin', 'node'))).toBe(true);
+      expect(fs.existsSync(path.join(installed, 'creatorhub.mjs'))).toBe(true);
 
       const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
       expect(commit?.startsWith(head)).toBe(true);
@@ -114,6 +157,62 @@ describe('standalone build artifact (QC-030)', () => {
         }
         expect(thumb).toBe('ready');
         expect((await fetch(`${baseUrl}/docs/`)).status).toBe(200);
+
+        // QC-094: the CLI ships with the service, the service reports where it is,
+        // and `creatorhub mcp` started from the installed copy lists tools over stdio.
+        const cliPath = path.join(installed, 'bin', 'creatorhub');
+        expect(fs.statSync(cliPath).mode & 0o111).not.toBe(0);
+        expect((await client.session()).cli).toEqual({
+          // Node runs the server from its real path (/var is /private/var on macOS).
+          command: fs.realpathSync(cliPath),
+          args: [],
+          source: 'installed',
+          server_url: baseUrl,
+        });
+        const agent = (await client.tokens.create({ name: 'mcp check', scopes: ['read'] })).secret;
+        const mcp = spawn(cliPath, ['mcp'], {
+          // Like Claude Code or Claude Desktop would start it: no repo, no tsx, no Node on PATH.
+          cwd: home,
+          env: {
+            PATH: '/usr/bin:/bin',
+            HOME: home,
+            CREATORHUB_URL: baseUrl,
+            CREATORHUB_TOKEN: agent,
+          },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        let mcpErr = '';
+        mcp.stderr.on('data', (d: Buffer) => (mcpErr += d.toString()));
+        try {
+          const rpc = stdioRpc(mcp);
+          const init = await rpc.request('initialize', {
+            protocolVersion: '2025-06-18',
+            capabilities: {},
+            clientInfo: { name: 'qc-094-test', version: '0' },
+          });
+          expect(init['result']).toMatchObject({ serverInfo: { name: 'creatorhub' } });
+          rpc.notify('notifications/initialized');
+          const list = await rpc.request('tools/list', {});
+          const tools = (list['result'] as { tools: { name: string }[] }).tools.map((t) => t.name);
+          expect(tools).toContain('server_status');
+          expect(tools).toContain('works_search');
+          const status = await rpc.request('tools/call', { name: 'server_status', arguments: {} });
+          const content = (status['result'] as { content: { text: string }[] }).content;
+          expect(JSON.parse(content[0]?.text ?? '{}')).toMatchObject({
+            server: { status: 'ok', commit },
+            token: { kind: 'agent', name: 'mcp check' },
+          });
+        } finally {
+          mcp.kill('SIGTERM');
+          await new Promise<void>((resolve) => {
+            if (mcp.exitCode !== null) resolve();
+            else
+              mcp.once('exit', () => {
+                resolve();
+              });
+          });
+        }
+        expect(mcpErr).not.toMatch(/Cannot find (module|package)|ERR_/);
       } finally {
         proc.kill('SIGTERM');
         await new Promise<void>((resolve) => {

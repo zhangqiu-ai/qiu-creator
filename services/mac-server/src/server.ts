@@ -108,6 +108,7 @@ import {
   type BackupOptions,
 } from './backups/backup-service.js';
 import { loadBuildInfo, type BuildInfo } from './build-info.js';
+import { locateCli, type CliLocation } from './agent-cli.js';
 import { registerBackupRoutes } from './routes/backups.js';
 import { SleepGuard, type SleepGuardOptions } from './power/sleep-guard.js';
 
@@ -182,6 +183,11 @@ export interface BuildServerOptions {
    * Defaults to `caffeinate` on macOS; tests inject a fake provider.
    */
   sleep?: SleepGuardOptions;
+  /**
+   * The `creatorhub` CLI reported to the owner by `/api/v1/session` (QC-094);
+   * defaults to the one next to the installed server, or the repository's.
+   */
+  cli?: CliLocation | null;
   /** What `/health` reports; defaults to `build-info.json` next to the server. */
   buildInfo?: BuildInfo;
   /**
@@ -709,7 +715,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerProjectRoutes(app, projects, projectRules);
   await registerWorkThumbnailRoutes(app, works);
   registerEventRoutes(app, feed, options.heartbeatMs, scope);
-  registerSessionRoutes(app, feed, scope);
+  registerSessionRoutes(app, feed, scope, options.cli === undefined ? locateCli() : options.cli);
   registerImportRoutes(app, imports, idempotency);
   registerTokenRoutes(app, tokens, activity);
   registerProposalRoutes(app, proposals, idempotency);

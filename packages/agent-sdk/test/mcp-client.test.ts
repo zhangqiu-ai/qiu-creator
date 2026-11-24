@@ -150,6 +150,8 @@ describe('creatorhub mcp: tools and toolsets', () => {
       scopes: ['import'],
       allow_direct_body_edit: false,
       project_ids: null,
+      // QC-094: the CLI path is for the owner only.
+      cli: null,
     });
     const allowed = status.tools
       .filter((t) => t.allowed)
