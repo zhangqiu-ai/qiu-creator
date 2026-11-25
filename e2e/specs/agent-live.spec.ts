@@ -366,9 +366,9 @@ test('Agent 工作中（服務端，QC-096）：Agent 回報 → 作品卡即時
   ).toBeVisible();
   await expect(page.locator('.lv-head')).toHaveText('1 個 Agent 工作中');
 
-  await ac.agents.report({ work_ids: [work.id], state: 'done', step: '已整理完' });
+  // Done without a step reads 「已完成」 whether or not the service keeps steps on done reports.
+  await ac.agents.report({ work_ids: [work.id], state: 'done' });
   await expect(target).toHaveClass(/wcard--live-done/);
-  // The service keeps a step only while working (QC-096), so done reads 「已完成」.
   await expect(target.getByRole('status', { name: 'Claude Code：已完成' })).toBeVisible();
   // The service holds done for 8 s, then pushes idle.
   await expect(target.locator('.lv-layer')).toHaveCount(0, { timeout: 12_000 });
