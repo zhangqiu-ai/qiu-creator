@@ -1,0 +1,505 @@
+/* ---- Agent 工作中即時狀態（QC-097，PT-20261125-001） ----
+ * Loops (the ring sweep, the dots, the breathing dot, the skeleton) run only
+ * where JS adds an `--anim` class: full motion, on screen, at most 12 working
+ * cards. Reduced motion and test mode keep the static colours, icons and text. */
+
+/* ---- The ring around a card or row ---- */
+.lv-ring {
+  position: absolute;
+  inset: -1px;
+  z-index: 2;
+  border-radius: inherit;
+  pointer-events: none;
+}
+/* Working: an accent outline; with motion a light travels round it (2.4 s). */
+.lv-ring--working {
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--qc-accent) 55%, transparent);
+}
+.lv-ring__sweep {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  padding: 2px;
+  /* Only the 2 px band at the edge shows: the content box is cut out. */
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  opacity: 0;
+}
+.lv-ring__sweep::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 160%;
+  aspect-ratio: 1;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0 62%,
+    color-mix(in srgb, var(--qc-accent) 30%, transparent) 78%,
+    var(--qc-accent) 92%,
+    transparent 100%
+  );
+  transform: translate(-50%, -50%) rotate(0turn);
+}
+.lv-ring--anim .lv-ring__sweep {
+  opacity: 1;
+}
+.lv-ring--anim .lv-ring__sweep::before {
+  animation: lv-sweep 2.4s linear infinite;
+  will-change: transform;
+}
+@keyframes lv-sweep {
+  to {
+    transform: translate(-50%, -50%) rotate(1turn);
+  }
+}
+/* Done: a green ring that fades once (1.6 s); the label stays 8 s, then goes. */
+.lv-ring--done {
+  box-shadow: inset 0 0 0 2px var(--qc-ok);
+  animation: lv-done 1.6s var(--qc-ease-out) both;
+}
+@keyframes lv-done {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.35;
+  }
+}
+/* Needs you / failed / silent: static. */
+.lv-ring--needs_attention {
+  box-shadow: inset 0 0 0 2px var(--qc-warn);
+}
+.lv-ring--error {
+  box-shadow: inset 0 0 0 2px var(--qc-bad);
+}
+.lv-ring--stale {
+  border: 1.5px dashed var(--qc-ink3);
+}
+
+/* ---- The agent tag (top left of the cover; inline in a row) ---- */
+.lv-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 3px 10px 3px 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--qc-surface) 94%, transparent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  color: var(--qc-ink);
+  font-size: 11px;
+  line-height: 1.25;
+}
+.lv-tag--card {
+  position: absolute;
+  z-index: 3;
+  top: 8px;
+  left: 8px;
+  max-width: calc(100% - 16px);
+}
+.lv-tag--row {
+  box-shadow: none;
+  background: var(--qc-sunken);
+}
+.lv-tag__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.lv-tag__name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lv-tag__step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--qc-ink2);
+}
+.lv-tag__step-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lv-tag--done .lv-tag__step {
+  color: var(--qc-ok);
+}
+.lv-tag--needs_attention .lv-tag__step {
+  color: var(--qc-warn);
+}
+.lv-tag--error .lv-tag__step {
+  color: var(--qc-bad);
+}
+.lv-tag--stale .lv-tag__step {
+  color: var(--qc-ink3);
+}
+.lv-stack {
+  display: inline-flex;
+  flex: none;
+}
+.lv-stack > .pr-avatar {
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--qc-surface);
+}
+.lv-stack > .pr-avatar + .pr-avatar {
+  margin-left: -7px;
+}
+/* The newest agent (first) sits on top. */
+.lv-stack > .pr-avatar:first-child {
+  position: relative;
+  z-index: 1;
+}
+
+/* Three dots, lighting in turn (1.2 s). */
+.lv-dots {
+  display: inline-flex;
+  gap: 2px;
+  flex: none;
+}
+.lv-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--qc-accent);
+}
+.lv-dots i:nth-child(2) {
+  opacity: 0.6;
+}
+.lv-dots i:nth-child(3) {
+  opacity: 0.3;
+}
+.lv-anim .lv-dots i,
+.lv-dots--anim i {
+  animation: lv-dot 1.2s ease-in-out infinite;
+}
+.lv-anim .lv-dots i:nth-child(2),
+.lv-dots--anim i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.lv-anim .lv-dots i:nth-child(3),
+.lv-dots--anim i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes lv-dot {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+/* Breathing dot (1.8 s): editor tab, header, sidebar pill. */
+.lv-dot {
+  display: inline-block;
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--qc-accent);
+}
+.lv-dot--anim {
+  animation: lv-breathe 1.8s ease-in-out infinite;
+}
+@keyframes lv-breathe {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.75);
+  }
+}
+
+/* Cover skeleton while an agent is still creating the work. */
+.lv-skel {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 44px 18px 18px;
+  background: var(--qc-sunken);
+}
+.lv-skel i {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--qc-line);
+}
+.lv-skel i:nth-child(1) {
+  width: 70%;
+}
+.lv-skel i:nth-child(2) {
+  width: 52%;
+}
+.lv-skel i:nth-child(3) {
+  width: 60%;
+}
+.lv-skel--anim i {
+  animation: pulse var(--qc-dur-skeleton) ease-in-out infinite;
+}
+
+/* Card action (審閱提案 / 重試) in place of the time. */
+.lv-act {
+  margin-left: auto;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.lv-act--warn {
+  border: 1px solid var(--qc-warn);
+  background: var(--qc-warn-soft);
+  color: var(--qc-warn);
+}
+.lv-act--bad {
+  border: 1px solid var(--qc-bad);
+  background: var(--qc-bad-soft);
+  color: var(--qc-bad);
+}
+
+/* ---- List rows: a 3 px bar on the left edge ---- */
+.tbl tr[data-live] > td:first-child {
+  position: relative;
+}
+.tbl tr[data-live] > td:first-child::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--qc-accent);
+}
+.tbl tr[data-live='done'] > td:first-child::before {
+  background: var(--qc-ok);
+}
+.tbl tr[data-live='needs_attention'] > td:first-child::before {
+  background: var(--qc-warn);
+}
+.tbl tr[data-live='error'] > td:first-child::before {
+  background: var(--qc-bad);
+}
+.tbl tr[data-live='stale'] > td:first-child::before {
+  background: repeating-linear-gradient(var(--qc-ink3) 0 4px, transparent 4px 7px);
+}
+/* Working, with motion: light flowing down the bar. */
+.tbl tr.lv-anim[data-live='working'] > td:first-child::before {
+  background: linear-gradient(
+      var(--qc-accent),
+      color-mix(in srgb, var(--qc-accent) 25%, transparent),
+      var(--qc-accent)
+    )
+    0 0 / 100% 200%;
+  animation: lv-flow 1.6s linear infinite;
+}
+@keyframes lv-flow {
+  to {
+    background-position: 0 -200%;
+  }
+}
+.tbl__live {
+  max-width: 240px;
+}
+
+/* ---- Sidebar 「● N」 and its popover ---- */
+.lv-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--qc-accent-soft);
+  color: var(--qc-accent);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lv-pill + .sb__count {
+  margin-left: 6px;
+}
+.lv-pill:focus-visible {
+  outline: 2px solid var(--qc-accent);
+  outline-offset: 1px;
+}
+.sb--rail .lv-pill {
+  display: none;
+}
+.lv-pop {
+  position: fixed;
+  z-index: 30;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-radius-card);
+  background: var(--qc-surface);
+  box-shadow: var(--qc-shadow-dialog);
+  animation: qc-fade-in var(--qc-dur-fast) var(--qc-ease-out);
+}
+.lv-pop__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--qc-ink3);
+}
+.lv-pop__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lv-pop__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lv-pop__main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.lv-pop__works {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lv-pop__link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--qc-line);
+  width: 100%;
+}
+
+/* ---- Page header and editor ---- */
+.lv-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--qc-accent);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.lv-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 16px 0;
+  padding: 10px 14px;
+  border-radius: var(--qc-radius-card);
+  background: var(--qc-accent-soft);
+}
+.lv-banner--direct,
+.lv-banner--typing {
+  background: var(--qc-warn-soft);
+}
+.lv-banner__text {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lv-banner__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.lv-banner__sub {
+  color: var(--qc-ink2);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.lv-banner__actions {
+  flex: none;
+  display: flex;
+  gap: 6px;
+}
+.tab .lv-dot {
+  margin-right: 2px;
+}
+
+/* Safety net: whatever classes are on, test mode and reduced motion never loop. */
+:root[data-motion='off'] .lv-ring__sweep::before,
+:root[data-motion='off'] .lv-dots i,
+:root[data-motion='off'] .lv-dot,
+:root[data-motion='off'] .lv-skel i,
+:root[data-motion='off'] .lv-ring--done,
+:root[data-motion='off'] .tbl tr[data-live] > td:first-child::before {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lv-ring__sweep::before,
+  .lv-dots i,
+  .lv-dot,
+  .lv-skel i,
+  .tbl tr[data-live] > td:first-child::before {
+    animation: none !important;
+  }
+  .lv-ring__sweep {
+    opacity: 0 !important;
+  }
+}
+
+/* The live layer over a card: never takes clicks. */
+.lv-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.lv-layer > .lv-ring {
+  inset: 0;
+}
+.lv-layer > .lv-skel {
+  bottom: auto;
+  aspect-ratio: 16 / 10;
+}
+.wcard--live-working {
+  border-color: color-mix(in srgb, var(--qc-accent) 45%, var(--qc-line));
+}
+.wcard--live-done {
+  border-color: var(--qc-ok);
+}
+.wcard--live-needs_attention {
+  border-color: var(--qc-warn);
+}
+.wcard--live-error {
+  border-color: var(--qc-bad);
+}
+.wcard--live-stale {
+  border-style: dashed;
+  border-color: var(--qc-ink3);
+}

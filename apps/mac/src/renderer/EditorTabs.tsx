@@ -33,6 +33,7 @@ import { RenameField } from './RenameField.js';
 import { EditorPage } from './EditorPage.js';
 import { SideStore, type SideTab } from './editor-side.js';
 import { SideContext } from './EditorSide.js';
+import { LiveDot, useWorkLive } from './AgentLive.js';
 import type { EditorTabHandle } from './tab-handle.js';
 import { changeWork, type EditorHandles } from './work-actions.js';
 import { ImagePostEditor } from './ImagePostEditor.js';
@@ -95,6 +96,8 @@ export interface EditorTabsProps {
   onOpenSettings: () => void;
   /** 管理 Prompt from the toolbar's prompt picker (QC-075). */
   onOpenPrompts: () => void;
+  /** QC-097: 活動記錄 in an editor's live agent bar. */
+  onOpenAgentActivity?: () => void;
   /** Bring a sidebar tab forward (QC-091: a work opened from the Agent 提案 inbox shows 提案); `n` makes each ask new. */
   sideAsk?: { tab: SideTab; n: number };
 }
@@ -505,6 +508,7 @@ function TabPane({
   onBack,
   onOpenSettings,
   onOpenPrompts,
+  onOpenAgentActivity,
   tab,
   active,
   shown,
@@ -595,6 +599,7 @@ function TabPane({
           onViewChange={onViewChange}
           onHandle={onHandle}
           onBack={onBack}
+          onOpenAgentActivity={onOpenAgentActivity}
         />
       ) : loaded.state === 'ready' && loaded.work.type === 'video' ? (
         <VideoWorkEditor
@@ -608,6 +613,7 @@ function TabPane({
           onViewChange={onViewChange}
           onHandle={onHandle}
           onBack={onBack}
+          onOpenAgentActivity={onOpenAgentActivity}
           onOpenSettings={onOpenSettings}
         />
       ) : loaded.state === 'ready' ? (
@@ -623,6 +629,7 @@ function TabPane({
           onViewChange={onViewChange}
           onHandle={onHandle}
           onBack={onBack}
+          onOpenAgentActivity={onOpenAgentActivity}
           onOpenSettings={onOpenSettings}
           onOpenPrompts={onOpenPrompts}
         />
@@ -926,6 +933,7 @@ function TabItem({
   /** How the other tabs move aside while one is dragged. */
   sortTransitionMode: ReturnType<typeof useMotionMode>;
 }) {
+  const liveWorking = useWorkLive(tab.id)?.state === 'working';
   const ref = useRef<HTMLDivElement>(null);
   const sortable = useSortable({
     id: tab.id,
@@ -997,7 +1005,12 @@ function TabItem({
         onActivate(tab.id, true);
       }}
     >
-      <Icon name={icon} size={14} />
+      {liveWorking ? (
+        // QC-097: an agent is working on this work (breathing in full motion).
+        <LiveDot label={t('live.tabWorking')} />
+      ) : (
+        <Icon name={icon} size={14} />
+      )}
       {renaming ? (
         <RenameField
           value={tab.title}

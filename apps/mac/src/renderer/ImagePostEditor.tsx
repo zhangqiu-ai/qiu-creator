@@ -67,6 +67,7 @@ import { ASSET_DRAG_TYPE, AssetDrawer } from './InsertUI.js';
 import { externalSource, useMounts } from './mounts.js';
 import type { TabStatusPatch, TabView } from './tabs.js';
 import { EditorSide, useSideStore } from './EditorSide.js';
+import { LiveBanner } from './AgentLive.js';
 import { ProposalsSideTab, usePendingFor } from './ProposalsSideTab.js';
 import { TagEditor } from './TagEditor.js';
 import { ProjectTags } from './ProjectTags.js';
@@ -86,6 +87,8 @@ export interface ImagePostEditorProps {
   work: WorkDetail;
   userHome: string | null;
   onBack: () => void;
+  /** QC-097: 活動記錄 in the live agent bar (設定 › Agent 與 MCP). */
+  onOpenAgentActivity?: () => void;
   active?: boolean;
   initialView?: TabView;
   initialDraft?: Draft | null;
@@ -140,6 +143,7 @@ function PostEditor({
   work,
   userHome,
   onBack,
+  onOpenAgentActivity,
   session,
   active = true,
   initialView,
@@ -588,6 +592,19 @@ function PostEditor({
             initial={work.project_ids}
           />
         </div>
+
+        {/* QC-097: an agent working on this work right now. */}
+        <LiveBanner
+          client={client}
+          workId={work.id}
+          typing={session.hasUnsavedChanges()}
+          onSeeChanges={() => {
+            side.show('history');
+          }}
+          onOpenActivity={() => {
+            onOpenAgentActivity?.();
+          }}
+        />
 
         {state.status === 'error' && (
           <div className="banner banner--bad" role="alert">

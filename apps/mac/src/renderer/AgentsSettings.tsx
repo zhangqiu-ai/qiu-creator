@@ -24,6 +24,7 @@ import {
   tokenChangeText,
   toggleScope,
 } from './agents-settings.js';
+import { forgetDirectTokens } from './AgentLive.js';
 import { Dialog } from './Dialog.js';
 import { formatWhen } from './format.js';
 import { t } from './i18n.js';
@@ -291,6 +292,8 @@ function TokenDetail({
       .update(token.id, input)
       .then((next) => {
         onUpdated(next);
+        // The editor's live bar reads which agents may edit text directly (QC-097).
+        forgetDirectTokens();
         setActivityEpoch((n) => n + 1);
       })
       .catch(() => {

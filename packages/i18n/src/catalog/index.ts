@@ -10,6 +10,7 @@ import { errors } from './errors.js';
 import { format } from './format.js';
 import { imagePost } from './imagePost.js';
 import { library } from './library.js';
+import { live } from './live.js';
 import { main } from './main.js';
 import { modelPicker } from './modelPicker.js';
 import { phone } from './phone.js';
@@ -53,6 +54,7 @@ export const catalog = {
   previewPanel,
   editorSide,
   agents,
+  live,
 } as const;
 
 type Areas = typeof catalog;

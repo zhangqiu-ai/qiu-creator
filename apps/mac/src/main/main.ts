@@ -115,6 +115,9 @@ const relay = new EventRelay({
   onStatus: (status) => {
     broadcast(IPC.eventStatus, status);
   },
+  onAgentActivity: (event) => {
+    broadcast(IPC.agentActivity, event);
+  },
 });
 
 /** Pasted images are queued from temporary files (QC-039); see PasteFiles. */
@@ -259,6 +262,7 @@ function registerIpc(): void {
   handle(IPC.appInfo, (): AppInfo => ({
     home: config.home === null ? null : abbreviateHome(config.home, os.homedir()),
     userHome: os.homedir(),
+    e2e: backgroundRun,
   }));
   handle(IPC.getEventStatus, () => {
     // A renderer asking for status after the user pressed 重試 should not wait out the backoff.

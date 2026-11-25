@@ -1,4 +1,4 @@
-import type { ChangeEvent } from '@qiu-creator/contracts';
+import type { AgentActivityEvent, ChangeEvent } from '@qiu-creator/contracts';
 import type { EventStreamStatus } from '../shared/bridge.js';
 
 /**
@@ -10,6 +10,8 @@ export type Subscribe = (
     /** `since` is where the service starts when no Last-Event-ID was sent. */
     onOpen: (since: number | undefined) => void;
     onEvent: (event: ChangeEvent) => void;
+    /** QC-097: live agent status; no sequence number, never replayed. */
+    onAgentActivity?: (event: AgentActivityEvent) => void;
   },
   options: { lastEventId?: number; signal: AbortSignal },
 ) => Promise<void>;
@@ -20,6 +22,8 @@ export interface EventRelayOptions {
   /** Called for every event and every status change; the caller fans these out to windows. */
   onEvent: (event: ChangeEvent) => void;
   onStatus: (status: EventStreamStatus) => void;
+  /** QC-097: live agent status blocks, passed straight on (they do not move `lastSeq`). */
+  onAgentActivity?: (event: AgentActivityEvent) => void;
   /** Reconnect delays in ms; the last one repeats. */
   backoffMs?: readonly number[];
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
@@ -114,6 +118,9 @@ export class EventRelay {
                 if (this.lastSeq !== undefined && event.seq <= this.lastSeq) return;
                 this.lastSeq = event.seq;
                 this.options.onEvent(event);
+              },
+              onAgentActivity: (event) => {
+                this.options.onAgentActivity?.(event);
               },
             },
             { lastEventId: this.lastSeq, signal },

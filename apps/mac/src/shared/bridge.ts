@@ -3,7 +3,7 @@
  * Node or Electron access; everything it needs from the main process goes
  * through `window.creatorhub`.
  */
-import type { ChangeEvent, UploadAssetResponse } from '@qiu-creator/contracts';
+import type { AgentActivityEvent, ChangeEvent, UploadAssetResponse } from '@qiu-creator/contracts';
 import type { LanguagePreference, Locale } from '@qiu-creator/i18n';
 import type { PersistedTabs } from './tabs.js';
 
@@ -55,6 +55,11 @@ export interface AppInfo {
   home: string | null;
   /** The user's home directory, to show other paths (mount folders) as `~/…`. */
   userHome: string;
+  /**
+   * An e2e run (CREATORHUB_E2E_BACKGROUND). QC-097: until the service reports
+   * agent activity (QC-096), e2e sets the live records by hand.
+   */
+  e2e?: boolean;
 }
 
 export type RevealTarget =
@@ -85,6 +90,8 @@ export interface CreatorHubBridge {
 
   /** Change events from the service's SSE feed. Returns an unsubscribe function. */
   onEvent: (listener: (event: ChangeEvent) => void) => () => void;
+  /** QC-097: live agent status from the event stream (QC-096 `agent.activity`). */
+  onAgentActivity: (listener: (event: AgentActivityEvent) => void) => () => void;
   onEventStatus: (listener: (status: EventStreamStatus) => void) => () => void;
   eventStatus: () => Promise<EventStreamStatus>;
 
@@ -189,6 +196,7 @@ export const IPC = {
   motionMode: 'creatorhub:motion-mode',
   motionModeChanged: 'creatorhub:motion-mode-changed',
   event: 'creatorhub:event',
+  agentActivity: 'creatorhub:agent-activity',
   eventStatus: 'creatorhub:event-status',
   getEventStatus: 'creatorhub:get-event-status',
   pickAndUpload: 'creatorhub:pick-and-upload',

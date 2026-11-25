@@ -48,6 +48,7 @@ import { PreviewPanel } from './PreviewPanel.js';
 import { currentModel, useAiLibrary } from './ai-library.js';
 import type { TabStatusPatch, TabView } from './tabs.js';
 import { EditorSide, useSideStore } from './EditorSide.js';
+import { LiveBanner } from './AgentLive.js';
 import { ProposalsSideTab, usePendingFor, type TextRange } from './ProposalsSideTab.js';
 import {
   WorkSession,
@@ -176,6 +177,8 @@ export interface EditorPageProps {
   /** For showing mount folders as `~/…`. */
   userHome: string | null;
   onBack: () => void;
+  /** QC-097: 活動記錄 in the live agent bar (設定 › Agent 與 MCP). */
+  onOpenAgentActivity?: () => void;
   /** 「前往設定」 from the AI panel when no key or consent is set. */
   onOpenSettings?: () => void;
   /** 管理 Prompt (QC-075). */
@@ -247,6 +250,7 @@ function SessionEditor({
   work,
   userHome,
   onBack,
+  onOpenAgentActivity,
   onOpenSettings,
   onOpenPrompts,
   session,
@@ -975,6 +979,19 @@ function SessionEditor({
             initial={work.project_ids}
           />
         </div>
+
+        {/* QC-097: an agent working on this work right now. */}
+        <LiveBanner
+          client={client}
+          workId={work.id}
+          typing={session.hasUnsavedChanges()}
+          onSeeChanges={() => {
+            side.show('history');
+          }}
+          onOpenActivity={() => {
+            onOpenAgentActivity?.();
+          }}
+        />
 
         {state.readOnly !== null && (
           <div className="banner banner--bad" role="alert">

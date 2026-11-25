@@ -40,6 +40,7 @@ import { AssetDrawer } from './InsertUI.js';
 import { diffSentences } from './rewrite-diff.js';
 import type { TabStatusPatch, TabView } from './tabs.js';
 import { EditorSide, useSideStore } from './EditorSide.js';
+import { LiveBanner } from './AgentLive.js';
 import { ProposalsSideTab, usePendingFor } from './ProposalsSideTab.js';
 import { TagEditor } from './TagEditor.js';
 import { ProjectTags } from './ProjectTags.js';
@@ -72,6 +73,8 @@ export interface VideoWorkEditorProps {
   work: WorkDetail;
   userHome: string | null;
   onBack: () => void;
+  /** QC-097: 活動記錄 in the live agent bar (設定 › Agent 與 MCP). */
+  onOpenAgentActivity?: () => void;
   onOpenSettings?: () => void;
   active?: boolean;
   initialView?: TabView;
@@ -138,6 +141,7 @@ function VideoEditor({
   client,
   work,
   onBack,
+  onOpenAgentActivity,
   onOpenSettings,
   session,
   active = true,
@@ -585,6 +589,19 @@ function VideoEditor({
             ))}
           </span>
         </div>
+
+        {/* QC-097: an agent working on this work right now. */}
+        <LiveBanner
+          client={client}
+          workId={work.id}
+          typing={session.hasUnsavedChanges()}
+          onSeeChanges={() => {
+            side.show('history');
+          }}
+          onOpenActivity={() => {
+            onOpenAgentActivity?.();
+          }}
+        />
 
         {state.status === 'error' && (
           <div className="banner banner--bad" role="alert">

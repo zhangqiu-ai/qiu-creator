@@ -49,6 +49,14 @@ import {
 } from './work-actions.js';
 import { useChangeEvents, useRefreshOn } from './events.js';
 import { MembershipCache, MembershipContext, WorkProjectLabel } from './agent-assign.js';
+import {
+  LiveAction,
+  LiveAgentCell,
+  LiveCardLayer,
+  LiveHeader,
+  useLive,
+  useWorkLive,
+} from './AgentLive.js';
 import { formatWhen, sourceLabel, WORK_STATUS, WORK_TYPE } from './format.js';
 import { CardCover } from './WorkCover.js';
 import { CardFrameQueue } from './card-frames.js';
@@ -132,6 +140,10 @@ export interface LibraryPageProps {
   onScope?: (scope: LibraryScope) => void;
   /** 用到的素材 › of a project. */
   onOpenProjectAssets?: (projectId: string) => void;
+  /** QC-097: 審閱提案 on a card waiting for you. */
+  onOpenProposals?: () => void;
+  /** QC-097: 重試 on a card whose agent hit an error (the failed jobs are in 匯入任務). */
+  onOpenImports?: () => void;
 }
 
 const ALL: LibraryScope = { kind: 'all' };
@@ -179,6 +191,8 @@ export function LibraryPage({
   projectsState,
   onScope,
   onOpenProjectAssets,
+  onOpenProposals,
+  onOpenImports,
 }: LibraryPageProps) {
   const projectList = projectsState?.projects ?? [];
   const project =
@@ -190,6 +204,8 @@ export function LibraryPage({
   /** 回收站, opened from the foot of the sidebar (QC-069). */
   const inTrash = libraryScope.kind === 'trash';
   const notifyProject = useNotice();
+  // QC-097: agents at work in this scope (the page header).
+  const live = useLive();
   // QC-091: who put each work in its projects (an agent or a rule gets a mark on the card).
   const [memberships] = useState(
     () => new MembershipCache((id) => client.projects.workMemberships(id).then((r) => r.items)),
@@ -1094,6 +1110,15 @@ export function LibraryPage({
               ) : (
                 <>
                   {t('projects.worksCount', { count: feedState.total })}
+                  <LiveHeader
+                    count={
+                      project !== null
+                        ? (live.byProject[project.id] ?? 0)
+                        : unassigned
+                          ? 0
+                          : live.working
+                    }
+                  />
                   {project !== null && assetCount !== null && (
                     <>
                       <span aria-hidden="true"> · </span>
@@ -1456,6 +1481,8 @@ export function LibraryPage({
                               />
                             }
                             dragWorks={store === null ? undefined : dragWorks(w)}
+                            onReview={onOpenProposals}
+                            onRetry={onOpenImports}
                             onClick={(e, onTitle) => {
                               onItemClick(e, w, onTitle);
                             }}
@@ -1483,6 +1510,7 @@ export function LibraryPage({
                       <thead>
                         <tr>
                           <th scope="col">{t('library.colTitle')}</th>
+                          <th scope="col">{t('live.agentColumn')}</th>
                           <th scope="col">{t('library.colProject')}</th>
                           <th scope="col">{t('library.colType')}</th>
                           <th scope="col">{t('library.colStatus')}</th>
@@ -1576,6 +1604,7 @@ export function LibraryPage({
                                 {isMissing(w) && <MissingChip />}
                               </span>
                             </td>
+                            <LiveAgentCell workId={w.id} />
                             <td className="tbl__proj">
                               <WorkProjectLabel
                                 workId={w.id}
@@ -1765,8 +1794,13 @@ function WorkCard({
   onNeedsFrame,
   label,
   dragWorks,
+  onReview,
+  onRetry,
 }: {
   work: WorkListItem;
+  /** QC-097: what 審閱提案 and 重試 on a live card open. */
+  onReview?: (() => void) | undefined;
+  onRetry?: (() => void) | undefined;
   /** The work's projects as a label: colour, first name, +N (QC-069). */
   label?: ReactNode;
   /** What dragging this card onto a sidebar project adds; undefined: not draggable. */
@@ -1784,8 +1818,11 @@ function WorkCard({
   imageUrl: (relative: string) => string;
   onNeedsFrame: (work: WorkListItem) => void;
 }) {
+  // QC-097: an agent at work on it (ring, tag, skeleton; 審閱提案／重試 when it needs you).
+  const live = useWorkLive(work.id);
   const className = [
     'wcard',
+    live === undefined ? '' : `wcard--live-${live.state}`,
     isMissing(work) ? 'wcard--missing' : '',
     selected ? 'wcard--selected' : '',
     menuTarget ? 'wcard--menu' : '',
@@ -1806,7 +1843,19 @@ function WorkCard({
         </span>
       )}
       <span className="wcard__proj">{label}</span>
-      <span className="wcard__when">{formatWhen(work.updated_at)}</span>
+      {live !== undefined && (live.state === 'needs_attention' || live.state === 'error') ? (
+        <LiveAction
+          v={live}
+          onReview={() => {
+            onReview?.();
+          }}
+          onRetry={() => {
+            onRetry?.();
+          }}
+        />
+      ) : (
+        <span className="wcard__when">{formatWhen(work.updated_at)}</span>
+      )}
     </span>
   );
   const tooltip = [work.title, source?.file ?? source?.label ?? sourceLabel(work)].join('\n');
@@ -1846,6 +1895,9 @@ function WorkCard({
       onContextMenu={onMenu}
     >
       <CardCover work={work} imageUrl={imageUrl} onNeedsFrame={onNeedsFrame} />
+      {live !== undefined && (
+        <LiveCardLayer v={live} hasCover={(work.card_image?.url ?? null) !== null} />
+      )}
       <span className="wcard__body">
         <span
           className="wcard__title"
