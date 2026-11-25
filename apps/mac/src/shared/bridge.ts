@@ -55,6 +55,11 @@ export interface AppInfo {
   home: string | null;
   /** The user's home directory, to show other paths (mount folders) as `~/…`. */
   userHome: string;
+  /**
+   * An e2e run (CREATORHUB_E2E_BACKGROUND). QC-097: until the service reports
+   * agent activity (QC-096), e2e sets the live records by hand.
+   */
+  e2e?: boolean;
 }
 
 export type RevealTarget =

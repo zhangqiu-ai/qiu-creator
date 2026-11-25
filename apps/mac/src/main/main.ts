@@ -259,6 +259,7 @@ function registerIpc(): void {
   handle(IPC.appInfo, (): AppInfo => ({
     home: config.home === null ? null : abbreviateHome(config.home, os.homedir()),
     userHome: os.homedir(),
+    e2e: backgroundRun,
   }));
   handle(IPC.getEventStatus, () => {
     // A renderer asking for status after the user pressed 重試 should not wait out the backoff.

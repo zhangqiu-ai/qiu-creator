@@ -12,6 +12,7 @@ import {
 import { anchorOf } from './ContextMenu.js';
 import { t } from './i18n.js';
 import { Icon } from './Icon.js';
+import { LivePill, useLive } from './AgentLive.js';
 import { renameProject, useNotice } from './project-actions.js';
 import { sortTransition } from './dnd-motion.js';
 import type { DragData } from './projects-dnd.js';
@@ -70,6 +71,7 @@ export function SidebarProjects({
   active,
   onOpen,
   proposals,
+  onOpenAgentActivity,
 }: {
   store: ProjectsStore;
   s: ProjectsState;
@@ -80,7 +82,14 @@ export function SidebarProjects({
   onOpen: (scope: LibraryScope) => void;
   /** Agent 提案 (QC-091), under 未分類: pending count, and whether its page is in front. */
   proposals?: { count: number; current: boolean; onOpen: () => void };
+  /** QC-097: 「Agent 活動記錄」 in the 「● N」 popover. */
+  onOpenAgentActivity?: () => void;
 }) {
+  // QC-097: how many agents are working in all works and in each project.
+  const agentsLive = useLive();
+  const openActivity = () => {
+    onOpenAgentActivity?.();
+  };
   const notify = useNotice();
   const [open, setOpen] = useState(() => readOpen(SECTION_KEY, true));
   const [archivedOpen, setArchivedOpen] = useState(false);
@@ -283,6 +292,11 @@ export function SidebarProjects({
       >
         <span className="sb-proj__chip" style={{ background: projectColor(p.color) }} />
         <span className="sb__label">{p.name}</span>
+        <LivePill
+          count={agentsLive.byProject[p.id] ?? 0}
+          projectId={p.id}
+          onOpenActivity={openActivity}
+        />
         {/* A new count fades in (fast) instead of flashing (DESIGN.md 動效 · 放下). */}
         <span key={p.work_count} className="sb__count num sb__count--update">
           {p.work_count}
@@ -306,6 +320,7 @@ export function SidebarProjects({
         >
           <Icon name="library" />
           <span className="sb__label">{t('shell.navAllWorks')}</span>
+          <LivePill count={agentsLive.working} onOpenActivity={openActivity} />
           {s.allCount !== null && (
             <span key={s.allCount} className="sb__count num sb__count--update">
               {s.allCount}
