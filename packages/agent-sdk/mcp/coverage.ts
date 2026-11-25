@@ -49,6 +49,9 @@ export const MCP_EXCLUDED: Readonly<Record<string, string>> = {
     "owner only: accepting a proposal is the user's decision (使用者確認), never an agent's",
   'POST /api/v1/proposals/:id/discard':
     "owner only: discarding a proposal is the user's decision (使用者確認)",
+  // QC-096: the app's view of what agents are doing; agents report their own with agent_status_report.
+  'GET /api/v1/agents/activity':
+    "owner only: the app's live view of all agents (Agent 即時狀態); an agent reports its own state with agent_status_report",
   // QC-092: keeping or undoing an automatic assignment is the user's decision.
   'POST /api/v1/works/:id/projects/:projectId/keep':
     "owner only: 保留 turns an agent or rule assignment into the user's own (使用者確認)",
