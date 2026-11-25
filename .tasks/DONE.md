@@ -1,3 +1,9 @@
+## QC-098: Agent 回報的 done／error 也保留步驟文字
+
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend | **Done:** 2026-11-25
+
+所有回報狀態保留清理過的 step，推導狀態為 null；`agent_status_report` 說明與 architecture.md 同步。合併後 lint、typecheck、format 通過；mac-server 563／0／563、agent-sdk 43／0／43。
+
 ## QC-096: Agent 即時狀態（後端與 MCP）
 
 **Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend | **Done:** 2026-11-25

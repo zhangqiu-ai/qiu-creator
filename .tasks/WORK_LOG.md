@@ -1,5 +1,9 @@
 # Work Log
 
+## 2026-11-25 · QC-098 完成
+
+- done／error 保留 Agent 回報的結果文字，合併到 main；等 QC-097 後一起發版。
+
 ## 2026-11-25 · QC-096 完成
 
 - Agent 即時狀態服務、SSE 與 `agent_status_report` 合併到 main；QC-097 前端進行中。使用者授權「做完直接發版」。
