@@ -1,3 +1,9 @@
+## QC-095: 原型：Agent 工作中的即時狀態與動效
+
+**Priority:** P1 | **Assignee:** qc-prototype | **Tags:** M3, prototype | **Done:** 2026-11-25
+
+PT-20261125-001 使用者核准，七點照推薦（見 `docs/decisions.md` 2026-11-25）：外框光繞行、Agent 標籤與回報步驟、2／10 分鐘逾時、完成 8 秒淡出、需要處理不動畫、側欄「● N」、服務端推導加 `agent_status_report`、只動畫可見卡片且上限 12。截圖 `docs/evidence/qc095-prototype/`。
+
 ## QC-093: MCP 驗收與發版
 
 **Priority:** P1 | **Assignee:** qc-test | **Tags:** M3 | **Done:** 2026-11-24
