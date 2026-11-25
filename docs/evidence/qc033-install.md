@@ -364,3 +364,14 @@ exit 0。升級前備份 id：**`20261121T154449342Z-manual`**。
 - 偏好檔 `preferences.json`：以升級前一刻為基準，升級前後 sha256 完全相同（`50082307…ad29d`）。此值與上次升級後的 `88912be1…` 不同，是使用者 App 在兩次升級之間自己寫入的（本會話未碰）。
 - 升級後有一個 qiu-creator App 行程（pid 54137），本會話未開關，仍是舊行程；除備份與遷移外未動 `~/CreatorHub` 內容，未碰金鑰與 Keychain，未發 AI 請求，未建立 MCP 權杖。
 - NOT_VERIFIED：新版介面、視窗截圖、真實安裝上 `creatorhub mcp` 實際連線（只驗到 `--help`）。
+
+## 升級到 8d73900（2026-11-25，QC-095～098 Agent 即時狀態、QC-101 MCP 修正，無新遷移）：成功
+
+- 建置：乾淨 worktree，commit `8d73900431c312c3e49e3552844230112c817799`（無 `-dirty`），`codesign --verify --deep --strict` 通過。
+- 升級前（08:22:46）：7420 只有 launchd 服務（pid 34091），7431 無監聽；`/health` 為 4b52c37；schema 最新 0022。
+- 乾跑後 `upgrade --yes`（08:23:21）exit 0；升級前備份 `20261125T162321945Z-manual`（ok）。
+- 升級後：`/health` commit 8d73900、built_at `2026-11-25T16:23:01.815Z`；launchd running（pid 157）；schema 最新仍是 `0022|project_rules_membership`；`server.prev`（4b52c37）與 `app.prev` 在；日誌 level-50 為 0 筆、err.log 0 位元組。
+- 真實安裝的 CLI：`creatorhub --help` exit 0。`printf '' | creatorhub mcp`（假權杖，未建立真權杖）關閉 stdin 後 exit 0，stdout、stderr 皆 0 位元組，沒有 unsettled 警告。
+- 偏好檔 `preferences.json`：以升級前一刻為基準，升級前後 sha256 完全相同（`56216512…a6bd`）。此值與上次升級後的 `50082307…` 不同，是使用者 App 在兩次升級之間自己寫入的（本會話未碰）。
+- 升級後有一個 qiu-creator App 行程（pid 89378），本會話未開關，仍是舊行程；除備份外未動 `~/CreatorHub` 內容，未刪任何使用者資料，未碰金鑰與 Keychain，未發 AI 請求。
+- NOT_VERIFIED：新版介面、視窗截圖、真實安裝上帶權杖的 MCP 連線與狀態回報。
