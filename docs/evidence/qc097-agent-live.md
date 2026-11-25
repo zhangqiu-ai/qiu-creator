@@ -1,6 +1,6 @@
 # QC-097 前端：Agent 工作中即時狀態（介面與動效）
 
-日期：2026-11-25 · 會話：qc-frontend · 分支 `qc097-agent-live`（從 origin/main 34ae5e7 開）
+日期：2026-11-25 · 會話：qc-frontend · 分支 `qc097-agent-live`（從 origin/main 34ae5e7 開，交付前 rebase 到 3c4191d，含 QC-096、QC-098）
 
 規格：
 - 原型 PT-20261125-001，使用者核准；照它的 boards、decisions、motion 三節做。
@@ -88,6 +88,6 @@
 ## 沒做與 NOT_VERIFIED
 
 - **圖片佔位上的 Agent 步驟（編輯頁）沒做。** 原型 dataSource 沒有「Agent 在正文哪個位置配圖」的資料，只有作品層級的狀態，所以沒有可靠的位置可以標。等 QC-096 的回報帶位置（例如區塊序號或佔位 id）後補上。
-- QC-096 的服務目前只在 `working` 回報保留步驟，所以 done 與 error 只會顯示「已完成」「出錯了」，看不到原型裡的「✓ 已新建並上傳 6 張圖片」。介面收到步驟就會顯示；已經回報給 qc-backend 和總監，請他們決定。
+- 原本 QC-096 只在 `working` 回報保留步驟，QC-098（main 3c4191d）已改為 done、error、needs_attention 的回報也保留，e2e 也驗證了 done 帶步驟時會顯示。
 - 大量卡片同時動畫的實際耗能與幀率沒有量測，只依 12 件上限與「只動畫畫面內」的規則實作：**NOT_VERIFIED**。
 - 「重試」目前打開匯入任務頁，由使用者在那裡重試；如果 QC-096 提供 job id，可以改成就地重試。

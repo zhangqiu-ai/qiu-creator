@@ -370,6 +370,11 @@ test('Agent 工作中（服務端，QC-096）：Agent 回報 → 作品卡即時
   await ac.agents.report({ work_ids: [work.id], state: 'done' });
   await expect(target).toHaveClass(/wcard--live-done/);
   await expect(target.getByRole('status', { name: 'Claude Code：已完成' })).toBeVisible();
+  // QC-098: a done report keeps its step, shown as the agent wrote it.
+  await ac.agents.report({ work_ids: [work.id], state: 'done', step: '已整理完並補上標籤' });
+  await expect(
+    target.getByRole('status', { name: 'Claude Code：已整理完並補上標籤' }),
+  ).toBeVisible();
   // The service holds done for 8 s, then pushes idle.
   await expect(target.locator('.lv-layer')).toHaveCount(0, { timeout: 12_000 });
   await expect(nav(page).getByRole('button', { name: /個 Agent 工作中/ })).toHaveCount(0);
