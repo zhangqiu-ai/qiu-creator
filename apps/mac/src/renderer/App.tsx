@@ -14,6 +14,7 @@ import { PromptsPage } from './PromptsPage.js';
 import { ProposalsPage } from './ProposalsPage.js';
 import { ProposalCountsContext } from './ProposalsSideTab.js';
 import { AgentLiveStore, FixedSource, NO_SOURCE } from './agent-live.js';
+import { ServiceLiveSource } from './agent-live-service.js';
 import { AgentLiveContext } from './AgentLive.js';
 import { countsStore, isProposalEvent } from './proposals.js';
 import type { SideTab } from './editor-side.js';
@@ -204,6 +205,8 @@ export function App() {
   const [connection, setConnection] = useState<Connection>({ state: 'connecting' });
   /** Agents at work, live (QC-097); the service source plugs in with QC-096. */
   const [liveStore] = useState(() => new AgentLiveStore(NO_SOURCE));
+  /** e2e set the records by hand: keep the service source out (QC-097). */
+  const fixedLive = useRef(false);
   const [route, setRoute] = useState<Route>({ page: 'library' });
   const [home, setHome] = useState<string | null>(null);
   const [userHome, setUserHome] = useState<string | null>(null);
@@ -217,12 +220,16 @@ export function App() {
     setConnection({ state: 'connecting' });
     void connect(bridge).then(setConnection);
     void bridge.appInfo().then((info) => {
-      // QC-097: e2e drives the live agent status by hand until the service source (QC-096).
+      // QC-097: e2e may set the live agent status by hand (deterministic states and times);
+      // the first call swaps the service source for a fixed one.
       if (info.e2e === true) {
         const source = new FixedSource();
-        liveStore.use(source);
         window.qcAgentLive = {
           set: (records) => {
+            if (!fixedLive.current) {
+              fixedLive.current = true;
+              liveStore.use(source);
+            }
             source.set(records);
           },
         };
@@ -235,6 +242,12 @@ export function App() {
   useEffect(tryConnect, [tryConnect]);
 
   const client = 'state' in connection || !connection.ok ? null : connection.client;
+  // QC-097: the live agent status from the service (QC-096) once connected.
+  useEffect(() => {
+    const bridge = window.creatorhub;
+    if (client === null || bridge === undefined || fixedLive.current) return;
+    liveStore.use(new ServiceLiveSource(client, bridge));
+  }, [client, liveStore]);
   // Bumped when a backup restore replaced the database: every page refetches.
   const [dataEpoch, setDataEpoch] = useState(0);
   const onDataReplaced = useCallback(() => {

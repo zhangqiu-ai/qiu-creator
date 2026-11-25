@@ -1,4 +1,4 @@
-import type { ChangeEvent } from '@qiu-creator/contracts';
+import type { AgentActivityEvent, ChangeEvent } from '@qiu-creator/contracts';
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
 import {
   IPC,
@@ -40,6 +40,10 @@ const bridge: CreatorHubBridge = {
   onEvent: (listener) =>
     listen(IPC.event, (p) => {
       listener(p as ChangeEvent);
+    }),
+  onAgentActivity: (listener) =>
+    listen(IPC.agentActivity, (p) => {
+      listener(p as AgentActivityEvent);
     }),
   onEventStatus: (listener) =>
     listen(IPC.eventStatus, (p) => {

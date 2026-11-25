@@ -3,7 +3,7 @@
  * Node or Electron access; everything it needs from the main process goes
  * through `window.creatorhub`.
  */
-import type { ChangeEvent, UploadAssetResponse } from '@qiu-creator/contracts';
+import type { AgentActivityEvent, ChangeEvent, UploadAssetResponse } from '@qiu-creator/contracts';
 import type { LanguagePreference, Locale } from '@qiu-creator/i18n';
 import type { PersistedTabs } from './tabs.js';
 
@@ -90,6 +90,8 @@ export interface CreatorHubBridge {
 
   /** Change events from the service's SSE feed. Returns an unsubscribe function. */
   onEvent: (listener: (event: ChangeEvent) => void) => () => void;
+  /** QC-097: live agent status from the event stream (QC-096 `agent.activity`). */
+  onAgentActivity: (listener: (event: AgentActivityEvent) => void) => () => void;
   onEventStatus: (listener: (status: EventStreamStatus) => void) => () => void;
   eventStatus: () => Promise<EventStreamStatus>;
 
@@ -194,6 +196,7 @@ export const IPC = {
   motionMode: 'creatorhub:motion-mode',
   motionModeChanged: 'creatorhub:motion-mode-changed',
   event: 'creatorhub:event',
+  agentActivity: 'creatorhub:agent-activity',
   eventStatus: 'creatorhub:event-status',
   getEventStatus: 'creatorhub:get-event-status',
   pickAndUpload: 'creatorhub:pick-and-upload',

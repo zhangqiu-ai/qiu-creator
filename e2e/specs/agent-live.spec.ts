@@ -1,14 +1,16 @@
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
+import { createClient } from '../../packages/api-client/src/index.js';
 import { pngBytes } from '../../services/mac-server/test/fixtures.js';
 import { test } from '../fixtures/desktop.js';
 import { editorSide } from '../fixtures/side.js';
 
 /*
- * QC-097 (PT-20261125-001): agents at work, live. Until the service reports
- * activity (QC-096), e2e sets the records through the e2e-only
- * `window.qcAgentLive.set()` (AppInfo.e2e); agents are real test tokens.
+ * QC-097 (PT-20261125-001): agents at work, live. The first test sets exact
+ * records through the e2e-only `window.qcAgentLive.set()` (AppInfo.e2e) to
+ * reach every state and time; the second goes through the service (QC-096):
+ * an agent token reports, the change stream pushes, the card follows.
  * - Cards: ring (sweep only in full motion, on screen, ≤ 12 working), agent
  *   tag (name, 「X 等 N 個」, step), skeleton before a cover, 剛完成 for 8 s,
  *   審閱提案／重試 static, 「N 分鐘沒有回報」 dashed.
@@ -338,4 +340,37 @@ test('Agent 工作中：作品卡、列表、側欄、頁首、編輯頁', async
     await shot(page, 'grid-en');
     await page.evaluate("window.creatorhub.setLanguage('zh-Hant')");
   });
+});
+
+test('Agent 工作中（服務端，QC-096）：Agent 回報 → 作品卡即時出現，完成後淡出，側欄計數', async ({
+  desktop,
+}) => {
+  const { page, backend } = desktop;
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const c = backend.client;
+  const work = await c.works.create({
+    title: '嵐山竹林清晨拍攝筆記',
+    markdown: '# 嵐山\n\n第一段。\n',
+  });
+  const agent = backend.tokens.create({ name: 'Claude Code', scopes: ['read', 'propose'] });
+  const ac = createClient({ baseUrl: backend.baseUrl, token: agent.secret });
+  await page.reload();
+  const target = card(page, '嵐山竹林清晨拍攝筆記');
+  await expect(target).toBeVisible();
+  await expect(target.locator('.lv-layer')).toHaveCount(0);
+
+  await ac.agents.report({ work_ids: [work.id], state: 'working', step: '整理段落' });
+  await expect(target.getByRole('status', { name: 'Claude Code：整理段落' })).toBeVisible();
+  await expect(
+    nav(page).getByRole('button', { name: '1 個 Agent 工作中，查看是誰' }),
+  ).toBeVisible();
+  await expect(page.locator('.lv-head')).toHaveText('1 個 Agent 工作中');
+
+  await ac.agents.report({ work_ids: [work.id], state: 'done', step: '已整理完' });
+  await expect(target).toHaveClass(/wcard--live-done/);
+  // The service keeps a step only while working (QC-096), so done reads 「已完成」.
+  await expect(target.getByRole('status', { name: 'Claude Code：已完成' })).toBeVisible();
+  // The service holds done for 8 s, then pushes idle.
+  await expect(target.locator('.lv-layer')).toHaveCount(0, { timeout: 12_000 });
+  await expect(nav(page).getByRole('button', { name: /個 Agent 工作中/ })).toHaveCount(0);
 });

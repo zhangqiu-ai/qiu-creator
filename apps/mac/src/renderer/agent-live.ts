@@ -33,6 +33,20 @@ export interface WorkLiveRecord {
   updated_at: string;
   /** e.g. `failed` for 「重試 2 張」, `added`/`removed` for 「+3 −1」. */
   counts?: Readonly<{ failed?: number; added?: number; removed?: number }>;
+  /**
+   * From the service (QC-096): its state already accounts for time, and it
+   * pushes the next one when `expires_at` comes; the app keeps no clock of
+   * its own then, except hiding a `done` once it has expired.
+   */
+  server?: boolean;
+  expires_at?: string | null;
+}
+
+/** Counts the service gives (QC-096), used instead of counting the records. */
+export interface SourceCounts {
+  working: number;
+  workingWorks: number;
+  byProject: Readonly<Record<string, number>>;
 }
 
 /** Without any move or report for this long, working turns into 「可能已停止」. */
@@ -88,7 +102,10 @@ export function liveView(record: WorkLiveRecord, now: number): WorkLiveView | nu
   const at = Date.parse(record.updated_at);
   const age = Number.isFinite(at) ? Math.max(0, now - at) : 0;
   let state: LiveState = record.state;
-  if (state === 'working' || state === 'stale') {
+  if (record.server === true) {
+    const until = record.expires_at == null ? NaN : Date.parse(record.expires_at);
+    if (state === 'done' && Number.isFinite(until) && now >= until) state = 'idle';
+  } else if (state === 'working' || state === 'stale') {
     if (age >= IDLE_AFTER_MS) state = 'idle';
     else if (age >= STALE_AFTER_MS) state = 'stale';
     else state = 'working';
@@ -130,7 +147,11 @@ export const EMPTY_LIVE: LiveSnapshot = {
 };
 
 /** Everything the screens need, from the source's records at `now`. */
-export function snapshotOf(records: readonly WorkLiveRecord[], now: number): LiveSnapshot {
+export function snapshotOf(
+  records: readonly WorkLiveRecord[],
+  now: number,
+  counts: SourceCounts | null = null,
+): LiveSnapshot {
   const works = new Map<string, WorkLiveView>();
   const all = new Map<
     string,
@@ -157,6 +178,9 @@ export function snapshotOf(records: readonly WorkLiveRecord[], now: number): Liv
   }
   const byProject: Record<string, number> = {};
   for (const [p, set] of perProject) byProject[p] = set.size;
+  if (counts !== null) {
+    return { works, ...counts, agents: [...all.values()] };
+  }
   return { works, working: all.size, byProject, workingWorks, agents: [...all.values()] };
 }
 
@@ -175,6 +199,8 @@ export interface LiveSource {
   load(): Promise<readonly WorkLiveRecord[]>;
   /** Calls back when records may have changed; returns the unsubscribe. */
   watch(onChange: () => void): () => void;
+  /** Counts the source knows better than the records (the service's); null to count them. */
+  counts?(): SourceCounts | null;
 }
 
 /** No source yet (before QC-096): nothing is ever shown. */
@@ -257,7 +283,7 @@ export class AgentLiveStore {
 
   /** Recompute from the last records at the current time. */
   derive(): void {
-    this.snapshot = snapshotOf(this.records, this.now());
+    this.snapshot = snapshotOf(this.records, this.now(), this.source.counts?.() ?? null);
     for (const l of this.listeners) l();
     this.schedule();
   }
@@ -287,6 +313,14 @@ export class AgentLiveStore {
       const at = Date.parse(r.updated_at);
       if (!Number.isFinite(at)) continue;
       const age = now - at;
+      if (r.server === true) {
+        // The service pushes every change itself; only a done's fading is ours.
+        const until = r.expires_at == null ? NaN : Date.parse(r.expires_at);
+        if (r.state === 'done' && Number.isFinite(until) && until > now) {
+          next = Math.min(next, until - now);
+        }
+        continue;
+      }
       const marks =
         r.state === 'done'
           ? [DONE_FOR_MS]

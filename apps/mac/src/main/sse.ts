@@ -1,9 +1,21 @@
-import { ChangeEventSchema, EVENTS_PATH, type ChangeEvent } from '@qiu-creator/contracts';
+import {
+  AGENT_ACTIVITY_EVENT,
+  AgentActivityEventSchema,
+  ChangeEventSchema,
+  EVENTS_PATH,
+  type AgentActivityEvent,
+  type ChangeEvent,
+} from '@qiu-creator/contracts';
 
 export interface SseHandlers {
   /** The stream is open; `since` is the service's starting sequence from its `: connected` comment. */
   onOpen: (since: number | undefined) => void;
   onEvent: (event: ChangeEvent) => void;
+  /**
+   * QC-097: an `event: agent.activity` block (QC-096). It has no id and is
+   * never replayed: after a reconnect the renderer reads the current state.
+   */
+  onAgentActivity?: (event: AgentActivityEvent) => void;
 }
 
 export interface SseOptions {
@@ -122,6 +134,11 @@ export async function readEventStream(options: SseOptions, handlers: SseHandlers
           handlers.onOpen(connected?.[1] === undefined ? undefined : Number(connected[1]));
         }
         if (block.data === '') continue;
+        if (block.event === AGENT_ACTIVITY_EVENT) {
+          const activity = AgentActivityEventSchema.safeParse(safeJson(block.data));
+          if (activity.success) handlers.onAgentActivity?.(activity.data);
+          continue;
+        }
         const event = ChangeEventSchema.safeParse(safeJson(block.data));
         // Unknown actions from a newer service are ignored, not fatal.
         if (event.success) handlers.onEvent(event.data);

@@ -42,9 +42,7 @@ export function useWorkLive(workId: string): WorkLiveView | undefined {
 }
 
 export function namesOf(agents: readonly LiveAgent[]): string {
-  return agentsName(agents, (name, count) =>
-    t('live.moreAgents', { name, count }),
-  );
+  return agentsName(agents, (name, count) => t('live.moreAgents', { name, count }));
 }
 
 /** The state in words, as the tag's second line says it. */

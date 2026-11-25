@@ -115,6 +115,9 @@ const relay = new EventRelay({
   onStatus: (status) => {
     broadcast(IPC.eventStatus, status);
   },
+  onAgentActivity: (event) => {
+    broadcast(IPC.agentActivity, event);
+  },
 });
 
 /** Pasted images are queued from temporary files (QC-039); see PasteFiles. */
