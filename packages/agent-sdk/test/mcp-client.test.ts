@@ -1,3 +1,4 @@
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -35,6 +36,7 @@ let server: CreatorHubServer;
 let baseUrl: string;
 let owner: CreatorHubClient;
 const mcpClients: Client[] = [];
+const children: ChildProcessWithoutNullStreams[] = [];
 
 beforeEach(async () => {
   // A throwaway CREATORHUB_HOME; never the user's ~/CreatorHub.
@@ -50,6 +52,7 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   for (const c of mcpClients.splice(0)) await c.close();
+  for (const child of children.splice(0)) child.kill('SIGKILL');
   await server.app.close();
   fs.rmSync(home, { recursive: true, force: true });
 });
@@ -387,6 +390,82 @@ describe('creatorhub mcp over stdio', () => {
     const found = await json<{ items: { title: string }[] }>(client, 'works_search', {});
     expect(found.items.map((w) => w.title)).toEqual(['經由 stdio']);
   });
+});
+
+/** The real binary on raw pipes, after the `initialize` handshake, to watch how it ends. */
+async function spawnMcp() {
+  const token = server.tokens.create({ name: 'stdio exit', scopes: ['read'] });
+  const child = spawn(
+    process.execPath,
+    [path.join(import.meta.dirname, '../bin/creatorhub.js'), 'mcp'],
+    {
+      env: {
+        PATH: process.env['PATH'] ?? '',
+        CREATORHUB_URL: baseUrl,
+        CREATORHUB_TOKEN: token.secret,
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    },
+  );
+  children.push(child);
+  let stderr = '';
+  child.stderr.on('data', (d: Buffer) => (stderr += d.toString()));
+  const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
+    child.once('close', (code, signal) => {
+      resolve({ code, signal });
+    });
+  });
+  const answered = new Promise<string>((resolve) => {
+    child.stdout.once('data', (d: Buffer) => {
+      resolve(d.toString());
+    });
+  });
+  const send = (message: object) => child.stdin.write(`${JSON.stringify(message)}\n`);
+  send({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2025-06-18',
+      capabilities: {},
+      clientInfo: { name: 'exit-test', version: '1.0.0' },
+    },
+  });
+  expect(await answered).toContain('"creatorhub"');
+  send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+  return { child, send, exited, stderr: () => stderr };
+}
+
+describe('creatorhub mcp over stdio: ending (QC-101)', () => {
+  it('exits 0, with nothing on stderr, when the client closes stdin', async () => {
+    const mcp = await spawnMcp();
+    mcp.child.stdin.end();
+    expect(await mcp.exited).toEqual({ code: 0, signal: null });
+    expect(mcp.stderr()).not.toContain('unsettled');
+    expect(mcp.stderr()).toBe('');
+  });
+
+  it('exits 0 when stdin closes while a request is still in flight', async () => {
+    const mcp = await spawnMcp();
+    mcp.send({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'server_status', arguments: {} },
+    });
+    mcp.child.stdin.end();
+    expect(await mcp.exited).toEqual({ code: 0, signal: null });
+    expect(mcp.stderr()).toBe('');
+  });
+
+  for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+    it(`exits 0 on ${signal} while stdin is still open`, async () => {
+      const mcp = await spawnMcp();
+      mcp.child.kill(signal);
+      expect(await mcp.exited).toEqual({ code: 0, signal: null });
+      expect(mcp.stderr()).toBe('');
+    });
+  }
 });
 
 describe('creatorhub mcp command', () => {
