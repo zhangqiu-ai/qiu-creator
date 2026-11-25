@@ -40,7 +40,7 @@ import type { ServerConfig } from './config.js';
 import { openDatabase, type Db } from './db/database.js';
 import { ServiceError } from './errors.js';
 import { ChangeFeed } from './events/change-feed.js';
-import { requiredAccess } from './auth/scopes.js';
+import { REPORT_SCOPES, requiredAccess } from './auth/scopes.js';
 import { ActivityService } from './auth/activity-service.js';
 import { runWithActorSlot, setCurrentPrincipal } from './auth/actor-context.js';
 import { registerAgentRules } from './auth/agent-rules.js';
@@ -61,6 +61,8 @@ import { registerAssetLibraryRoutes } from './routes/asset-library.js';
 import { registerAssetRoutes } from './routes/assets.js';
 import { registerEventRoutes } from './routes/events.js';
 import { registerSessionRoutes } from './routes/session.js';
+import { registerAgentActivityRoutes } from './routes/agents.js';
+import { AgentActivityService, type AgentActivityOptions } from './agents/agent-activity.js';
 import { registerImportRoutes, registerTokenRoutes } from './routes/imports.js';
 import { registerMediaRoutes } from './routes/media.js';
 import { WorkMediaAttacher } from './media/attach.js';
@@ -201,6 +203,8 @@ export interface BuildServerOptions {
   projects?: ProjectServiceOptions;
   /** Agent proposals (QC-089): clock and purge interval for discarded ones. */
   proposals?: ProposalServiceOptions;
+  /** Agent live status (QC-096): clock, and whether lapses re-evaluate on a timer. */
+  agentActivity?: AgentActivityOptions;
 }
 
 /** One registered route: method and URL pattern as Fastify matches it (`/api/v1/works/:id`). */
@@ -235,6 +239,8 @@ export interface CreatorHubServer {
   proposals: ProposalService;
   /** What agent tokens did (QC-089). */
   activity: ActivityService;
+  /** Agent live status (QC-096). */
+  agentActivity: AgentActivityService;
   ai: AiService;
   /** AI image and cover generation (QC-070). */
   images: ImageAiService;
@@ -296,6 +302,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   const variants = new VariantService(db, works, assets, media, feed);
   const scope = new ProjectScope(db);
   const activity = new ActivityService(db);
+  const agentActivity = new AgentActivityService(db, feed, options.agentActivity);
   const proposals = new ProposalService(db, works, scope, feed, options.proposals);
   const attacher = new WorkMediaAttacher(layout, works, assets);
   const composer = new WorkComposer(db, works, attacher, assets);
@@ -370,6 +377,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     unsubscribeSleep();
     sleep.stop();
     proposals.stop();
+    agentActivity.close();
     assetLibrary.stop();
     workTrash.stop();
     projects.stop();
@@ -447,7 +455,9 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
       access === 'any' ||
       (access === 'read_or_own_import'
         ? principal.scopes.includes('read') || principal.scopes.includes('import')
-        : access !== 'owner' && principal.scopes.includes(access));
+        : access === 'report'
+          ? REPORT_SCOPES.some((s) => principal.scopes.includes(s))
+          : access !== 'owner' && principal.scopes.includes(access));
     if (!allowed) {
       await reply.code(403).send(
         errorBody('forbidden', `this token lacks the "${access}" permission`, {
@@ -714,7 +724,14 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerWorkTrashRoutes(app, workTrash, works, idempotency);
   registerProjectRoutes(app, projects, projectRules);
   await registerWorkThumbnailRoutes(app, works);
-  registerEventRoutes(app, feed, options.heartbeatMs, scope);
+  registerEventRoutes(app, feed, options.heartbeatMs, scope, agentActivity);
+  registerAgentActivityRoutes(
+    app,
+    agentActivity,
+    works,
+    scope,
+    options.agentActivity?.now ?? Date.now,
+  );
   registerSessionRoutes(app, feed, scope, options.cli === undefined ? locateCli() : options.cli);
   registerImportRoutes(app, imports, idempotency);
   registerTokenRoutes(app, tokens, activity);
@@ -767,6 +784,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     variants,
     proposals,
     activity,
+    agentActivity,
     ai,
     images,
     backups,

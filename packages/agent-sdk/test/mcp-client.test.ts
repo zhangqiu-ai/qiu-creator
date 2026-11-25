@@ -13,6 +13,7 @@ import {
   createCreatorHubMcpServer,
   isReadOnly,
   PROJECT_RULE_TOOLS,
+  AGENT_STATUS_TOOLS,
   PROPOSAL_TOOLS,
   READ_TOOLS,
   TOOLS,
@@ -95,7 +96,11 @@ describe('creatorhub mcp: tools and toolsets', () => {
     const { tools } = await c.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(TOOLS.map((t) => t.name).sort());
     expect(tools).toHaveLength(
-      READ_TOOLS.length + WRITE_TOOLS.length + PROPOSAL_TOOLS.length + PROJECT_RULE_TOOLS.length,
+      READ_TOOLS.length +
+        WRITE_TOOLS.length +
+        PROPOSAL_TOOLS.length +
+        PROJECT_RULE_TOOLS.length +
+        AGENT_STATUS_TOOLS.length,
     );
     for (const def of READ_TOOLS) {
       const t = tools.find((x) => x.name === def.name);
@@ -104,7 +109,12 @@ describe('creatorhub mcp: tools and toolsets', () => {
       }
       expect(t?.annotations?.readOnlyHint, def.name).toBe(true);
     }
-    for (const def of [...WRITE_TOOLS, ...PROPOSAL_TOOLS, ...PROJECT_RULE_TOOLS]) {
+    for (const def of [
+      ...WRITE_TOOLS,
+      ...PROPOSAL_TOOLS,
+      ...PROJECT_RULE_TOOLS,
+      ...AGENT_STATUS_TOOLS,
+    ]) {
       const t = tools.find((x) => x.name === def.name);
       expect(t?.annotations?.readOnlyHint, def.name).toBe(isReadOnly(def.access));
     }
@@ -117,6 +127,7 @@ describe('creatorhub mcp: tools and toolsets', () => {
     const c = await connect(['read'], ['projects']);
     const names = (await c.listTools()).tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      'agent_status_report',
       'changes_since',
       'project_create',
       'project_delete',
@@ -159,6 +170,7 @@ describe('creatorhub mcp: tools and toolsets', () => {
       .sort();
     // An import-only token: create and import, plus its own jobs.
     expect(allowed).toEqual([
+      'agent_status_report',
       'asset_import_url',
       'asset_upload_file',
       'job_get',
@@ -354,6 +366,7 @@ describe('creatorhub mcp over stdio', () => {
     expect(client.getServerVersion()?.name).toBe('creatorhub');
     const names = (await client.listTools()).tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      'agent_status_report',
       'changes_since',
       'proposal_get',
       'proposals_list',

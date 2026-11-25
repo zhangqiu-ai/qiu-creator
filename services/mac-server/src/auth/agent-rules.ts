@@ -147,6 +147,8 @@ export function registerAgentRules(
     if (principal?.kind !== 'agent') return;
     const reads = req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS';
     if (reads && reply.statusCode < 400) return;
+    // QC-096: status reports are shown live, not logged (an agent may send many).
+    if (req.routeOptions.url === '/api/v1/agents/status' && reply.statusCode < 400) return;
     const etag = reply.getHeader('etag');
     deps.activity.recordRequest({
       tokenId: principal.id,

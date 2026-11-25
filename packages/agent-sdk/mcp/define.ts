@@ -15,13 +15,21 @@ export type ToolGroup = Toolset | 'core';
  * Token permission a tool needs. It must equal what the server's
  * `requiredAccess` says for every route the tool calls (permission test).
  * `any`: every valid token. `read_or_own_import`: `read`, or an `import`
- * token for jobs it created itself.
+ * token for jobs it created itself. `report` (QC-096): an agent token with
+ * `import`, `write` or `propose` (reporting its own live status).
  */
-export type ToolAccess = 'any' | 'read' | 'read_or_own_import' | 'import' | 'write' | 'propose';
+export type ToolAccess =
+  'any' | 'read' | 'read_or_own_import' | 'import' | 'write' | 'propose' | 'report';
 
-/** Tools that only read: everything but `import` and `write`. */
+/** Scopes that satisfy `report` (same as the server's `REPORT_SCOPES`). */
+export const REPORT_SCOPES = ['import', 'write', 'propose'] as const;
+
+/**
+ * Tools that only read: everything but `import`, `write`, `propose` and
+ * `report` (a status report changes what the user sees, though no data).
+ */
 export const isReadOnly = (access: ToolAccess): boolean =>
-  access !== 'import' && access !== 'write' && access !== 'propose';
+  access !== 'import' && access !== 'write' && access !== 'propose' && access !== 'report';
 
 /** Appended to every tool that returns the user's content. */
 export const USER_DATA_NOTE =

@@ -4,6 +4,7 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
 import { z } from 'zod';
 import {
   isReadOnly,
+  REPORT_SCOPES,
   platformRules,
   toErrorResult,
   toResult,
@@ -51,7 +52,9 @@ const allows = (scopes: readonly string[], owner: boolean, access: ToolAccess): 
   access === 'any' ||
   (access === 'read_or_own_import'
     ? scopes.includes('read') || scopes.includes('import')
-    : scopes.includes(access));
+    : access === 'report'
+      ? REPORT_SCOPES.some((s) => scopes.includes(s))
+      : scopes.includes(access));
 
 /**
  * The CreatorHub MCP server: read tools and resources over the Mac server's

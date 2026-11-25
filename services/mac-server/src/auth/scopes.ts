@@ -6,8 +6,14 @@ import { TUS_UPLOAD_PATH } from '@qiu-creator/contracts';
  * `read_or_own_import` = `read`, or an `import` token reading a job it created
  * itself (the route checks ownership), so import-only agents can follow their work.
  * `any` = every valid token (QC-087: a token reading its own session).
+ * `report` = an agent token with `import`, `write` or `propose` (QC-096:
+ * reporting its own live status; any token that can change something may
+ * say what it is doing).
  */
-export type RequiredAccess = TokenScope | 'owner' | 'read_or_own_import' | 'any';
+export type RequiredAccess = TokenScope | 'owner' | 'read_or_own_import' | 'any' | 'report';
+
+/** Scopes that may report agent status (QC-096). */
+export const REPORT_SCOPES: readonly TokenScope[] = ['import', 'write', 'propose'];
 
 const WRITE_ROUTES = new Set([
   'PATCH /api/v1/works/:id',
@@ -76,6 +82,11 @@ export function requiredAccess(method: string, routeUrl: string | undefined): Re
   if (routeUrl.startsWith('/api/v1/assets/:id/ai/')) return 'owner';
   if (routeUrl === TUS_UPLOAD_PATH || routeUrl.startsWith(`${TUS_UPLOAD_PATH}/`)) return 'import';
   const key = `${method} ${routeUrl}`;
+  // QC-096: agent live status. The app reads it; agents report their own.
+  if (key === 'GET /api/v1/agents/activity' || key === 'HEAD /api/v1/agents/activity') {
+    return 'owner';
+  }
+  if (key === 'POST /api/v1/agents/status') return 'report';
   if (key === 'GET /api/v1/session' || key === 'HEAD /api/v1/session') return 'any';
   if (key === 'GET /api/v1/jobs/:id' || key === 'HEAD /api/v1/jobs/:id')
     return 'read_or_own_import';
