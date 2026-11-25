@@ -15,11 +15,3 @@ QC-004 的驗收本體，依賴 QC-030–032。實機安裝後：重開機自啟
 使用者授權「做完直接發版」。qc-test 在乾淨 checkout 跑全套、兩種 e2e、打包版檢查；通過後 qc-release 備份並升級本機。
 
 **Started:** 2026-11-25
-
-## QC-101: `creatorhub mcp` 在 client 關閉 stdin 後以 exit 13 結束
-
-**Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M3
-
-QC-100 發現：MCP SDK 1.32.2 的 `StdioServerTransport` 不處理 stdin `end`／`close`，`serveMcpStdio` 等待的 onclose 永不 resolve，頂層 await 未完成，Node 以 13 退出並印 "unsettled top-level await"。打包版與原始碼都會。修法：stdin 結束時關閉 transport 並正常結束；stdio 子行程測試斷言 exit 0、stderr 無警告。擋 QC-100 發版（Agent 會把非 0 結束碼當成伺服器崩潰）。
-
-**Started:** 2026-11-25

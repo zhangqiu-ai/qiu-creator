@@ -1,3 +1,9 @@
+## QC-101: `creatorhub mcp` 在 client 關閉 stdin 後以 exit 13 結束
+
+**Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M3 | **Done:** 2026-11-25
+
+`serveMcpStdio` 在 stdin end／close、SIGTERM、SIGINT 時關閉 transport，exit 0、stderr 無警告；stdin 錯誤會拋出。子行程測試補斷言。合併後 lint、typecheck、format 通過，agent-sdk 47／0／47。
+
 ## QC-097: Agent 即時狀態（介面與動效）
 
 **Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend | **Done:** 2026-11-25
