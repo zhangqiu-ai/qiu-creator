@@ -91,3 +91,13 @@
 - 原本 QC-096 只在 `working` 回報保留步驟，QC-098（main 3c4191d）已改為 done、error、needs_attention 的回報也保留，e2e 也驗證了 done 帶步驟時會顯示。
 - 大量卡片同時動畫的實際耗能與幀率沒有量測，只依 12 件上限與「只動畫畫面內」的規則實作：**NOT_VERIFIED**。
 - 「重試」目前打開匯入任務頁，由使用者在那裡重試；如果 QC-096 提供 job id，可以改成就地重試。
+
+## 數字（2026-11-25，已 rebase 到 origin/main 3c4191d，負載 2.4–3.8）
+
+- typecheck 0（含 e2e）、root lint 0、format 0。
+- 單元測試逐一套件跑，全部通過，共 1,356 個：mac 477、mac-server 563、markdown-editor-web 62、domain 58、agent-sdk 43、installer 42、i18n 30、platform-preview 27、contracts 26、api-client 22、design-tokens 6。
+- e2e：一般模式 63 passed／10 skipped，0 failed；`QC_E2E_MOTION=on` 64 passed／9 skipped，0 failed。
+- 兩次截圖執行（測試模式與動效模式）都是 0 failed。
+- 中間幾輪的狀況，都已在最後一輪重跑確認：
+  - i18n 佔位符一致性測試抓到一個問題：英文「X 等 N 個」用了不同的佔位符。已改成三種語言一致，英文為「Claude Code · 2 agents」。
+  - 有一輪在跑的途中修改了測試規格，導致動效模式那一輪失敗；那一輪的結果作廢。
