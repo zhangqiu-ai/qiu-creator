@@ -3376,6 +3376,148 @@
           "recommendation": "30 天，和最近刪除一致。"
         }
       ]
+    },
+    {
+      "id": "PT-20261125-001",
+      "title": "Agent 工作中的即時狀態與動效（作品卡、列表、編輯頁、側欄）",
+      "date": "2026-11-25",
+      "status": "pending_user",
+      "model": "claude-opus-5-5",
+      "session": "qc-prototype",
+      "requestedBy": "使用者 via 開發總監",
+      "userRequest": "這是 Agent 通過 MCP 在工作，我想看到一個實時的動態動效表明是 Agent 在工作，並且能看到具體是哪個 Agent，這樣就能清楚的知道任務狀態。這樣的設計能讓用戶感到這個作品是在認真做事。（2026-11-25，QC-095）",
+      "tasks": ["QC-095"],
+      "relatedTasks": ["QC-096", "QC-097"],
+      "approvedBy": null,
+      "approvedAt": null,
+      "approvalNote": "總監轉給使用者核准。",
+      "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "canvasVersion": "NOT_PUBLISHED: this session cannot reach the canvas. Standalone prototype with live CSS animation: /Users/feature/Library/Application Support/Claude/side-session-notes/local_2cc861c6-129e-4a37-abb5-5c6b43cd2ede/pt-20261125-001/agent-live.html (?view=grid|list|editor|motion, &pop=1, &mode=direct, &rm=1, &dark=1).",
+      "screenshots": {
+        "dir": "docs/evidence/qc095-prototype/",
+        "files": {
+          "grid.png": "作品卡七種狀態：工作中（佔位骨架＋光繞外框＋Agent 標籤「配圖生成中」）、兩個 Agent 同時工作、剛完成、需要你處理（提案待審＋審閱提案）、出錯（重試）、可能已停止（虛線框）、閒置",
+          "list.png": "列表模式：左緣狀態條（工作中為流動光）、Agent 欄位顯示頭像、名稱與步驟",
+          "sidebar-popover.png": "側欄：全部作品與項目旁的「● 數字」表示有幾個 Agent 在工作；點開列出 Agent、件數、作品與「Agent 活動記錄」連結",
+          "editor-propose.png": "編輯頁：兩個只能提案的 Agent 正在處理時的提示條＋圖片佔位上的 Agent 步驟；分頁上的呼吸點",
+          "editor-direct-typing.png": "編輯頁：可直接改正文的 Agent 工作中、你同時在打字時的警示（你的修改先留在視窗，寫入後對照合併，不互相覆蓋）",
+          "grid-reduced-motion.png": "減少動態效果：靜態外框、靜態圓點、靜態骨架",
+          "grid-dark.png": "深色",
+          "motion-frames.png": "動效分格：工作中 0／0.6／1.2／1.8 秒，完成 0／0.4／0.9／1.4 秒，以及減少動態效果下的四種狀態"
+        },
+        "rendered": "headless Chromium (Playwright 1.65.1, cached chromium_headless_shell-1243); animation frames captured with paused negative delays; no window shown"
+      },
+      "boards": [
+        {
+          "file": "agent-live.html (standalone, notes folder)",
+          "title": "v13 · Agent 工作中",
+          "states": [
+            "作品卡「工作中」：一道光沿卡片外框慢速繞行（2.4 秒一圈，強調色，只在外框，不動內容）；封面左上角 Agent 標籤（權杖頭像＋名稱＋步驟文字，步驟前三點輪流亮起）；新建中還沒有封面時用骨架取代佔位文字",
+            "多個 Agent：頭像疊放，名稱寫「Claude Code 等 2 個」，步驟取最新回報；同一個 Agent 處理多件作品時每張卡各自顯示",
+            "剛完成：外框亮綠一次後 1.2 秒淡出，標籤換成「✓ 已新建並上傳 6 張圖片」，8 秒後淡出回到閒置",
+            "需要你處理：提案待審（黃框＋「審閱提案」）、出錯（紅框＋「重試 2 張」），靜態不動，處理前一直保留",
+            "可能已停止：工作中超過 2 分鐘沒有任何動作或回報 → 停止動畫，虛線框＋「3 分鐘沒有回報」；再過 10 分鐘回到閒置（活動記錄保留）",
+            "閒置：不顯示任何標示",
+            "列表模式：左緣 3px 狀態條（工作中為上下流動的光、提案黃、出錯紅、完成綠閃一次）＋Agent 欄",
+            "側欄：「全部作品」與每個項目的計數前加「● 2」，表示目前有幾個 Agent 在這裡工作（呼吸點）；點開列出 Agent、件數、作品名，和「Agent 活動記錄 ›」",
+            "頁首：項目名旁「● 2 個 Agent 工作中」",
+            "編輯頁：分頁標籤前的呼吸點；頁首下方提示條「X 正在處理這件作品…」＋各 Agent 的步驟；只能提案的 Agent 註明不會直接改正文；圖片佔位上顯示哪個 Agent 在配圖",
+            "你同時編輯（Agent 可直接改正文時）：黃色提示「你的修改先留在這個視窗；它寫入後會請你對照合併，不會互相覆蓋」＋「看它改了什麼」",
+            "減少動態效果：外框改為靜態強調色、三點改為靜態、骨架不閃、呼吸點不動，用顏色、圖示和文字表達狀態"
+          ]
+        }
+      ],
+      "decisions": [
+        "動效只在外框繞行，不動卡片內容、不縮放、不發光：有質感但不搶眼，捲動大量卡片時也不會亂；用 transform／conic-gradient，不觸發版面重排。",
+        "Agent 身分用權杖頭像＋名稱放在封面左上角：一眼看出是誰，和作品狀態標籤（底部）分開。",
+        "步驟文字由 Agent 主動回報才顯示；沒有回報時只顯示「工作中」，不假造進度。",
+        "逾時：2 分鐘無動作轉「可能已停止」，10 分鐘回閒置，避免永遠轉圈。",
+        "需要你處理的狀態不做動畫：需要決定的事用靜態顏色和按鈕，動效只表示「正在進行」。",
+        "同時編輯時不鎖定正文：只能提案的 Agent 不會衝突；可直接修改的 Agent 走既有 base_revision／409，介面提示你的修改不會被覆蓋。"
+      ],
+      "dataSource": {
+        "recommendation": "Both: the server derives a baseline state from each token’s recent operations, and agents may report steps and completion through a new MCP tool. Implementation goes to qc-backend as QC-096.",
+        "derived": "From change_log per (token, work): any write/import/propose in the last 60 s → working; a proposal pending → needs_attention; a failed job → error; last activity 60 s–2 min ago with an open report → still working; 2–10 min with no activity → stale; then idle.",
+        "reported": "New MCP tool agent_status_report {work_id | work_ids, state: working|done|needs_attention|error, step?: short text (≤ 24 chars, shown as data), ttl_seconds?: default 120}; done shows for 8 s; reports expire at ttl so a crashed agent never spins forever.",
+        "delivery": "Server pushes agent.activity events over the existing change stream; GET /api/v1/agents/activity?work_ids=… for initial state; per-project and global counts for the sidebar.",
+        "privacy": "Step text is the agent’s own words; treat as data (no links, no markup), truncate, and never show tokens or file paths beyond the work."
+      },
+      "references": [
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-kaze-nondisruptive-browser/case.md",
+          "kind": "product",
+          "borrowed": "Name each background agent task and show its running state with a way to the result.",
+          "adaptation": "Each card names the agent and its step; the sidebar lists agents with their works and links to the activity log."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/bridge-background-agent-separate-cursor/case.md",
+          "kind": "concept",
+          "borrowed": "Show that an agent works in the background without interrupting the foreground; keep target and status visible.",
+          "adaptation": "The agent’s presence sits on the card edge and a small label, never taking focus; in the editor a bar names the agent and its step while the user keeps typing."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-017-waiting-states/case.md",
+          "kind": "concept",
+          "borrowed": "Pick skeleton, spinner or progress by task; never fake progress.",
+          "adaptation": "Skeleton for a cover that doesn’t exist yet, a calm border sweep for “working”, and no percentage unless the agent reports one."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/dashi-taskboard-agent-status-columns/case.md",
+          "kind": "product",
+          "borrowed": "Clear state definitions with last update time; agent “done” is not the same as verified.",
+          "adaptation": "Five states with explicit timeouts; 「需要你處理」 stays until the user acts."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/agent-notification-severity-routing/case.md",
+          "kind": "concept",
+          "borrowed": "Route by severity; not every progress update deserves attention.",
+          "adaptation": "Working and done are ambient (animation, fades); needs-attention and errors are persistent and actionable; nothing pops up."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-functional-icon-states/case.md",
+          "kind": "concept",
+          "borrowed": "State variants of icons plus text, checked at small sizes and with reduced motion.",
+          "adaptation": "Each state has its own icon (dots, check, inbox, warning, clock) and words, so reduced motion keeps every state readable."
+        }
+      ],
+      "motion": "DESIGN.md 動效 / QC-065: border sweep 2.4 s linear loop (an ambient indicator, not a transition); done ring fade 1.6 s ease-out; label fade fast after 8 s; dots 1.2 s; breathing dot 1.8 s; all via transform/opacity/conic-gradient angle; at most the visible cards animate; reduced motion and test mode turn every loop off.",
+      "verified": [
+        "Rendered eight screenshots with headless Chromium, including paused animation frames; checked by eye (fixed: popover covering the main card, list header columns)."
+      ],
+      "notVerified": [
+        "NOT_VERIFIED: canvas upload; three-language fit (繁中 only); performance with many animating cards (cap proposed, not measured).",
+        "Agents, steps and counts are sample data."
+      ],
+      "openQuestions": [
+        {
+          "q": "工作中的動效用「光繞外框」可以嗎？（替代：封面上方細進度條、卡片輕微呼吸）",
+          "recommendation": "光繞外框；不動內容，最安靜也最容易一眼看出。"
+        },
+        {
+          "q": "步驟文字要不要顯示？",
+          "recommendation": "要，但只在 Agent 主動回報時顯示，最多約 24 字。"
+        },
+        {
+          "q": "逾時門檻？",
+          "recommendation": "2 分鐘沒動作轉「可能已停止」，10 分鐘回閒置。"
+        },
+        {
+          "q": "「剛完成」停留多久？",
+          "recommendation": "8 秒後淡出。"
+        },
+        {
+          "q": "側欄要不要顯示 Agent 計數？",
+          "recommendation": "要，「全部作品」與項目旁顯示「● N」，點開看是誰。"
+        },
+        {
+          "q": "資料來源？",
+          "recommendation": "服務端推導＋Agent 主動回報（新 MCP 工具 agent_status_report，帶 TTL），交 qc-backend 做 QC-096。"
+        },
+        {
+          "q": "同時動畫的卡片上限？",
+          "recommendation": "只動畫畫面內的卡片；超過 12 張同時工作時改為靜態外框，避免耗電。"
+        }
+      ]
     }
   ]
 }
