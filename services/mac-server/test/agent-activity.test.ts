@@ -226,13 +226,44 @@ describe('POST /api/v1/agents/status (QC-096)', () => {
     const work = await s.client.works.create({ title: '完成' });
     await a.client.works.patch(work.id, { base_revision: work.current_revision_id, title: '完' });
     await settle();
-    await a.client.agents.report({ work_ids: [work.id], state: 'done', step: '忽略' });
+    await a.client.agents.report({
+      work_ids: [work.id],
+      state: 'done',
+      step: '✓ 已新建並上傳 6 張圖片',
+    });
     expect((await s.client.agents.activity()).items[0]).toMatchObject({
       state: 'done',
-      step: null,
+      reason: 'report',
+      step: '✓ 已新建並上傳 6 張圖片',
     });
     advance(DONE_HOLD_MS);
     // The edit before `done` no longer makes it working or stale.
+    expect((await s.client.agents.activity()).items).toEqual([]);
+  });
+
+  it('keeps a cleaned result step on error and needs_attention reports, never on derived states (QC-098)', async () => {
+    const { s, advance } = await start();
+    const a = agent(s, 'Result', ['import']);
+    const work = await s.client.works.create({ title: '結果' });
+    const other = await s.client.works.create({ title: '待處理' });
+    const failed = await a.client.agents.report({
+      work_ids: [work.id],
+      state: 'error',
+      step: '圖片下載失敗（2 張）見 https://x.example/log',
+      ttl_seconds: 60,
+    });
+    expect(failed.items[0]).toMatchObject({ state: 'error', step: '圖片下載失敗（2 張）見' });
+    const attention = await a.client.agents.report({
+      work_ids: [other.id],
+      state: 'needs_attention',
+      step: '請確認 **封面**',
+    });
+    expect(attention.items[0]).toMatchObject({ state: 'needs_attention', step: '請確認 封面' });
+    const noStep = await a.client.agents.report({ work_ids: [work.id], state: 'done' });
+    expect(noStep.items[0]).toMatchObject({ state: 'done', step: null });
+
+    // When the reports lapse, nothing derived carries a step.
+    advance(120_000);
     expect((await s.client.agents.activity()).items).toEqual([]);
   });
 

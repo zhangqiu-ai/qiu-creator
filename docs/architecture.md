@@ -1247,7 +1247,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 - `done` 只保留 8 秒。
 - 其他狀態保留 `ttl_seconds`（預設 120，上限 900）。working 回報過期後，時間從回報當下算起，所以 Agent 當掉時會轉 stale 或 idle，不會永遠是 working。
 - done、needs_attention、error 的回報表示前面的工作已經結束：之前的操作不再算 working 或 stale。
-- `step` 由服務清理：去掉控制字元與格式字元，去掉連結、Markdown 與 HTML 標記、檔案路徑，空白合併，截到 24 個字元（超過時以「…」結尾）。只有 working 回報會保留步驟。
+- `step` 由服務清理：去掉控制字元與格式字元，去掉連結、Markdown 與 HTML 標記、檔案路徑，空白合併，截到 24 個字元（超過時以「…」結尾）。每種回報的狀態都保留步驟：working 是正在做什麼，done、needs_attention、error 是一句結果，例如「已新建並上傳 6 張圖片」「圖片下載失敗（2 張）」（QC-098）。服務自己推導的狀態沒有步驟（`null`）。
 - 成功的回報不寫進權杖的活動記錄（Agent 可能回報很多次）；被拒絕的照常記錄。
 
 **權限**：權杖要有 `import`、`write`、`propose` 任一個。作品要存在、不在回收站，並在權杖的限定項目內（範圍外回 404，與 QC-089 一致）。

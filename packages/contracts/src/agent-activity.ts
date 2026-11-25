@@ -75,8 +75,9 @@ export const AgentActivitySchema = z.object({
   reason: AgentActivityReasonSchema,
   /**
    * The step the agent reported (≤ 24 characters, control characters, links
-   * and markup removed). Agent-written: show as plain text. Null unless a
-   * valid report has one.
+   * and markup removed): what it is doing while working, or a one-line result
+   * on done, needs_attention and error (QC-098). Agent-written: show as plain
+   * text. Null unless a valid report has one; derived states never have one.
    */
   step: z.string().nullable(),
   /** Last operation or report of this agent on this work. */

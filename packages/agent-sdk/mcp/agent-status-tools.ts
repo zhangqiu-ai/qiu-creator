@@ -19,7 +19,7 @@ export const AGENT_STATUS_TOOLS: readonly McpToolDef[] = [
     group: 'core',
     access: 'report',
     routes: ['POST /api/v1/agents/status'],
-    description: `Tell the user what you are doing on one or more works; it shows live on their cards. Report state "working" when you start (with a short step such as "整理段落", at most ${String(AGENT_STEP_MAX_CHARS)} characters, plain text only: links, markup and paths are removed), "done" when finished (shown for 8 seconds), "needs_attention" when the user must act, or "error". A report lasts ttl_seconds (default ${String(AGENT_REPORT_TTL_DEFAULT_SECONDS)}, at most ${String(AGENT_REPORT_TTL_MAX_SECONDS)}): report again before it ends while you keep working. Your edits, imports and proposals already show you as working; reporting adds the step and the end. Needs import, write or propose; only works you may touch.`,
+    description: `Tell the user what you are doing on one or more works; it shows live on their cards. \`step\` is one short line of plain text (at most ${String(AGENT_STEP_MAX_CHARS)} characters; links, markup and paths are removed). Report "working" when you start, with what you are doing as the step (e.g. "整理段落"); "done" when finished, with a one-line result as the step (e.g. "已新建並上傳 6 張圖片"; shown for 8 seconds); "error" when it failed, with what went wrong (e.g. "圖片下載失敗（2 張）"); or "needs_attention" when the user must act. A report lasts ttl_seconds (default ${String(AGENT_REPORT_TTL_DEFAULT_SECONDS)}, at most ${String(AGENT_REPORT_TTL_MAX_SECONDS)}): report again before it ends while you keep working. Your edits, imports and proposals already show you as working; reporting adds the step and the result. Needs import, write or propose; only works you may touch.`,
     inputSchema: {
       work_id: IdSchema.optional().describe('One work; or use work_ids'),
       work_ids: z
@@ -29,7 +29,11 @@ export const AGENT_STATUS_TOOLS: readonly McpToolDef[] = [
         .optional()
         .describe(`Several works (at most ${String(AGENT_STATUS_WORKS_MAX)})`),
       state: AgentReportStateSchema,
-      step: z.string().max(200).optional().describe('What you are doing now, very short'),
+      step: z
+        .string()
+        .max(200)
+        .optional()
+        .describe('Working: what you are doing now. Done or error: the result in one line.'),
       ttl_seconds: z.number().int().min(5).max(AGENT_REPORT_TTL_MAX_SECONDS).optional(),
     },
     run: async (client, args) => {
