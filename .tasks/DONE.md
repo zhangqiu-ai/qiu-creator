@@ -1,3 +1,9 @@
+## QC-100: QC-095～098 發版前檢查與升級
+
+**Priority:** P1 | **Assignee:** qc-test ＋ qc-release | **Tags:** M3 | **Done:** 2026-11-25
+
+發版前檢查（`docs/evidence/qc100-prerelease.md`）：45876bc 全套 1356／0、e2e 一般 63 passed／0 failed、動效 64 passed／0 failed；途中發現 MCP 斷線 exit 13，開 QC-101 修正後在 dc4272b 補驗，打包版 `agent_status_report` working／done、關 stdin 與 SIGTERM 皆 exit 0。qc-release 升級本機到 8d73900，備份 `20261125T162321945Z-manual`，schema 0022；總監複核 /health。帶權杖的真實 Agent 回報、新介面截圖 NOT_VERIFIED。
+
 ## QC-101: `creatorhub mcp` 在 client 關閉 stdin 後以 exit 13 結束
 
 **Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** M3 | **Done:** 2026-11-25

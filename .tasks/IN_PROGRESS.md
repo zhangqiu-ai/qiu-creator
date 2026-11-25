@@ -7,11 +7,3 @@ QC-004 的驗收本體，依賴 QC-030–032。實機安裝後：重開機自啟
 **Started:** 2026-11-19（使用者「Approve install」同意真實安裝；qc-release 安裝，qc-test 驗收。安裝時 `~/CreatorHub` 尚不存在，為全新安裝）
 
 **Status（2026-11-19）:** U0 備份通過；U2、U3 使用者豁免（未驗證）；U4 New API 真實呼叫通過，Gemini／Claude／GPT 使用者豁免（未驗證）。U1 已通過（2026-11-21 03:14 系統自行重開，服務開機後 119 秒自啟）。剩 U5 日常使用一輪。證據已合併到 main（`docs/evidence/qc033-*`）。此卡在開 QC-036 時被誤刪，2026-11-19 補回。
-
-## QC-100: QC-095～098 發版前檢查與升級
-
-**Priority:** P1 | **Assignee:** qc-test ＋ qc-release | **Tags:** M3
-
-使用者授權「做完直接發版」。qc-test 在乾淨 checkout 跑全套、兩種 e2e、打包版檢查；通過後 qc-release 備份並升級本機。
-
-**Started:** 2026-11-25
