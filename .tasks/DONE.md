@@ -1,3 +1,9 @@
+## QC-096: Agent 即時狀態（後端與 MCP）
+
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend | **Done:** 2026-11-25
+
+依（權杖, 作品）在記憶體推導 working／done／needs_attention／error／stale／idle（60 秒、2 分鐘、10 分鐘；needs_attention 由待審提案推導，重啟後仍在）；`POST /api/v1/agents/status`（MCP `agent_status_report`，import／write／propose 任一，step 清理至 24 字，TTL 預設 120 秒上限 900）；`GET /api/v1/agents/activity`（主權杖，含全域與項目計數）；SSE `agent.activity`（不寫 change_log）；api-client `client.agents`。合併後 lint、typecheck、format 通過；mac-server 562／0／562、agent-sdk 43／0／43、contracts 26／0／26、api-client 22／0／22。真 Agent 呼叫與 App 顯示 NOT_VERIFIED（後者由 QC-097）。
+
 ## QC-095: 原型：Agent 工作中的即時狀態與動效
 
 **Priority:** P1 | **Assignee:** qc-prototype | **Tags:** M3, prototype | **Done:** 2026-11-25

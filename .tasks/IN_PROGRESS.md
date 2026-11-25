@@ -8,14 +8,6 @@ QC-004 的驗收本體，依賴 QC-030–032。實機安裝後：重開機自啟
 
 **Status（2026-11-19）:** U0 備份通過；U2、U3 使用者豁免（未驗證）；U4 New API 真實呼叫通過，Gemini／Claude／GPT 使用者豁免（未驗證）。U1 已通過（2026-11-21 03:14 系統自行重開，服務開機後 119 秒自啟）。剩 U5 日常使用一輪。證據已合併到 main（`docs/evidence/qc033-*`）。此卡在開 QC-036 時被誤刪，2026-11-19 補回。
 
-## QC-096: Agent 即時狀態（後端與 MCP）
-
-**Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend
-
-依 QC-095 核准的原型。服務端依 Agent 權杖對作品的操作推導「工作中」狀態（最近操作時間加逾時），經 SSE 推送；新增讓 Agent 主動回報目前步驟與完成的路由與 MCP 工具（同步 `coverage.ts`）；作品列表與詳情帶目前的 Agent 狀態。
-
-**Started:** 2026-11-25（原型 PT-20261125-001 已核准）
-
 ## QC-097: Agent 即時狀態（介面與動效）
 
 **Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend
