@@ -8,10 +8,10 @@ QC-004 的驗收本體，依賴 QC-030–032。實機安裝後：重開機自啟
 
 **Status（2026-11-19）:** U0 備份通過；U2、U3 使用者豁免（未驗證）；U4 New API 真實呼叫通過，Gemini／Claude／GPT 使用者豁免（未驗證）。U1 已通過（2026-11-21 03:14 系統自行重開，服務開機後 119 秒自啟）。剩 U5 日常使用一輪。證據已合併到 main（`docs/evidence/qc033-*`）。此卡在開 QC-036 時被誤刪，2026-11-19 補回。
 
-## QC-097: Agent 即時狀態（介面與動效）
+## QC-100: QC-095～098 發版前檢查與升級
 
-**Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend
+**Priority:** P1 | **Assignee:** qc-test ＋ qc-release | **Tags:** M3
 
-依 QC-095 核准的原型與 QC-096 的 API，實作作品卡片、列表、編輯頁與側欄的 Agent 工作中動效與 Agent 名稱；支援減少動態效果；兩種 e2e 模式全綠。
+使用者授權「做完直接發版」。qc-test 在乾淨 checkout 跑全套、兩種 e2e、打包版檢查；通過後 qc-release 備份並升級本機。
 
-**Started:** 2026-11-25（先做介面與動效，用假資料；QC-096 契約到位後接上）
+**Started:** 2026-11-25

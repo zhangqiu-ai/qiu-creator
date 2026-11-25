@@ -1,3 +1,9 @@
+## QC-097: Agent 即時狀態（介面與動效）
+
+**Priority:** P1 | **Assignee:** qc-frontend | **Tags:** M3, frontend | **Done:** 2026-11-25
+
+依 PT-20261125-001 實作作品卡（外框光繞行、Agent 標籤、骨架、剛完成、提案待審、出錯、可能已停止）、列表狀態條與 Agent 欄、側欄與頁首「● N」彈出框、編輯頁提示條與同時打字提醒；接 QC-096 服務（初始 GET、SSE `agent.activity`、重連重抓）；只動畫畫面內且上限 12 件，減少動態效果與測試模式無循環。合併後 lint、typecheck、format 通過，mac 477／0／477、i18n 30／0／30；交付時全倉 1356／0、e2e 一般 63 passed／0 failed、動效 64 passed／0 failed。證據 `docs/evidence/qc097-agent-live.md`。編輯頁圖片佔位上的 Agent 步驟未做（開 QC-099）。
+
 ## QC-098: Agent 回報的 done／error 也保留步驟文字
 
 **Priority:** P1 | **Assignee:** qc-backend | **Tags:** M3, backend | **Done:** 2026-11-25

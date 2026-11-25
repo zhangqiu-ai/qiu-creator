@@ -1,5 +1,11 @@
 # Backlog
 
+## QC-099: Agent 回報帶位置：編輯頁圖片佔位上的步驟、就地重試
+
+**Priority:** P3 | **Assignee:** qc-backend ＋ qc-frontend | **Tags:** M3
+
+QC-097 未做原型 PT-20261125-001 的「圖片佔位上顯示哪個 Agent 在配圖」：`agent_status_report` 只有作品層級，沒有正文位置。評估讓回報帶區塊或佔位 id；出錯時帶 job id，讓卡片「重試」可以就地重試，而不是開匯入任務頁。
+
 ## QC-086: 公眾號正文支援公式、圖表與程式碼高亮
 
 **Priority:** P4 | **Assignee:** qc-frontend ＋ qc-prototype | **Tags:** M3, frontend
