@@ -162,8 +162,9 @@ export class AgentActivityService {
       const entry = this.entry(tokenId, workId);
       entry.report = {
         state: input.state,
-        // Steps describe work in progress; done/attention/error show their own label.
-        step: input.state === 'working' ? step : null,
+        // QC-098: every reported state keeps its step (PT-20261125-001 shows a
+        // result line on done and error too); derived states never have one.
+        step,
         at,
         until,
       };

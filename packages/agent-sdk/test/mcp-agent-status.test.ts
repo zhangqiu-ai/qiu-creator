@@ -88,10 +88,17 @@ describe('MCP over stdio: agent_status_report (QC-096)', () => {
     ]);
     expect(seen.counts.all).toEqual({ agents: 1, works: 2 });
 
-    const done = await call(c, { work_id: work.id, state: 'done', step: 'ignored' });
+    const done = await call(c, {
+      work_id: work.id,
+      state: 'done',
+      step: '✓ 已新建並上傳 6 張圖片 <a href="https://x.example">看</a>',
+    });
     expect(done.isError === true, text(done)).toBe(false);
     const after = await owner.agents.activity({ work_ids: [work.id] });
-    expect(after.items.map((i) => [i.state, i.step])).toEqual([['done', null]]);
+    // QC-098: done keeps its one-line result, cleaned like any step.
+    expect(after.items.map((i) => [i.state, i.step])).toEqual([
+      ['done', '✓ 已新建並上傳 6 張圖片 看'],
+    ]);
     expect(after.counts.all).toEqual({ agents: 1, works: 1 });
   });
 
