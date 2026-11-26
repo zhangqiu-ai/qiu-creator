@@ -51,6 +51,7 @@ import {
 } from './preferences.js';
 import { EventRelay } from './event-relay.js';
 import { PasteFiles } from './paste-files.js';
+import { permissionAllowed } from './permissions.js';
 import { performProxyRequest } from './proxy.js';
 import { readEventStream } from './sse.js';
 import { UploadManager, type UploadConnection } from './uploads.js';
@@ -463,8 +464,8 @@ function hardenSession(): void {
       responseHeaders: { ...details.responseHeaders, 'Content-Security-Policy': [csp] },
     });
   });
-  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => {
-    callback(false);
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback, details) => {
+    callback(permissionAllowed(permission, details.requestingUrl, devServerUrl));
   });
 }
 
@@ -485,7 +486,15 @@ function createWindow(): void {
       spellcheck: false,
       // e2e (QC-064): the window stays hidden, so keep it rendering and its timers and
       // animation frames running as if it were in front.
-      ...(backgroundRun ? { backgroundThrottling: false, paintWhenInitiallyHidden: true } : {}),
+      // QC-104: HTML fullscreen (a video's fullscreen button) then fills the hidden window
+      // instead of turning it into a macOS fullscreen window on the user's screen.
+      ...(backgroundRun
+        ? {
+            backgroundThrottling: false,
+            paintWhenInitiallyHidden: true,
+            disableHtmlFullscreenWindowResize: true,
+          }
+        : {}),
     },
   });
 

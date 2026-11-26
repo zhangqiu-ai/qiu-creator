@@ -6,6 +6,7 @@ import '@qiu-creator/markdown-editor-web/style.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App.js';
+import { installFullscreenEscape } from './fullscreen.js';
 import { restoreLanguage } from './i18n.js';
 import { restoreTheme } from './theme.js';
 import { applyMotionPreference } from './motion-mode.js';
@@ -14,6 +15,9 @@ import './styles.css';
 const tokens = document.createElement('style');
 tokens.textContent = buildCssVariables();
 document.head.prepend(tokens);
+
+// Esc always leaves a video's fullscreen first (QC-104).
+installFullscreenEscape();
 
 // The main process already applied the saved 外觀; pin it for the tokens too (QC-038).
 void restoreTheme();
