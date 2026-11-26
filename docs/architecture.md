@@ -1295,7 +1295,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 - 重啟後回到 idle（任務允許），待審提案仍由資料庫推導出 needs_attention。
 - 失敗匯入的錯誤狀態重啟後不會保留；匯入任務頁仍看得到失敗。
 
-## 作品文字字體（QC-103）
+## 作品文字字體（QC-103、QC-111）
 
 決策記錄 2026-11-26。程式在 `services/mac-server/src/works/text-script.ts`（轉換）與 `text-script-service.ts`（設定與套用），契約在 `packages/contracts/src/text-script.ts`。
 
@@ -1309,13 +1309,19 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 
 | 路由 | 轉換的欄位 |
 | --- | --- |
-| `POST /api/v1/works` | `title`、`markdown`、`description`、`tags` |
-| `PATCH /api/v1/works/:id` | 同上（`work_update_meta`、`work_update_body`） |
-| `POST /api/v1/works/:id/proposals` | `markdown`：轉換的是候選版本，仍要使用者採用 |
-| `PATCH /api/v1/works/:id/variants/:platform` | `title`、`tags`（平台正文不能寫入，跟著作品） |
-| `POST /api/v1/works/batch` 的 `add_tags` | 新增的標籤；`remove_tags` 不轉，要比對既有的字 |
+| `POST /api/v1/works` | 新作品：`title`、`markdown`、`description`、`tags` 整份轉換 |
+| `PATCH /api/v1/works/:id` | 只轉 Agent 改的部分，對照作品目前的內容（`work_update_meta`、`work_update_body`） |
+| `POST /api/v1/works/:id/proposals` | `markdown` 只轉改過的行，對照提案的 `base_revision`；轉換的是候選版本，仍要使用者採用 |
+| `PATCH /api/v1/works/:id/variants/:platform` | `title`、`tags` 只轉新的，對照平台目前顯示的值（平台正文不能寫入，跟著作品） |
+| `POST /api/v1/works/batch` 的 `add_tags` | 作品還沒有的標籤；`remove_tags` 不轉，要比對既有的字 |
 
 - 主權杖（App）的寫入、既有作品一律不轉，也沒有批次轉換。
+- **只轉 Agent 新增或修改的文字（QC-111）。** Agent 修改既有作品時常常送整份正文或整組標籤，裡面大多是使用者原本的字，不能跟著轉：
+  - 正文與描述：粒度是**行**（`text.split('\n')`），和提案拆 hunk 用的是同一個行級 diff（domain 的 `lineChanges`）。先把 Agent 的整份文字轉一次，讓程式碼區塊、front matter 這些上下文判斷正確；再只讓 diff 標為新增或修改的行採用轉換後的樣子，其他行逐字保留。因此提案不會多出 Agent 沒改的 hunk。Markdown 的段落通常就是一行，一段裡改一個字，整段（那一行）會轉換。
+  - 標題：和目前的標題相同就不轉；不同時整個標題轉換。
+  - 標籤：作品（或平台）已有的標籤不轉，只轉新加的。
+  - 對照的基準：`PATCH` 是作品目前的內容（`base_revision` 必須是目前版本，否則 409）；提案是它的 `base_revision` 那一版；平台版本是平台目前顯示的標題和標籤（跟著作品時就是作品的）。
+  - 萬一轉換改變了行數（OpenCC 不會增減換行），那次就整份不轉，寧可不轉也不動使用者的行。
 - 回應裡有 `script_conversion: { script, fields }` 表示服務改了哪些欄位；沒有改動就沒有這個欄位。冪等重送回傳第一次的結果，包含 `script_conversion`。提案事後再讀（`GET /proposals/:id`）不帶這個欄位，因為存下來的就是轉換後的文字。
 - OpenCC（`opencc-js`）：簡體用 `tw → cn`（臺灣異體與詞彙轉簡體），繁體用 `cn → tw`（只轉字和臺灣異體，不換詞彙，例如「软件」→「軟件」而不是「軟體」），保留 Agent 自己的用詞。目標字體的文字轉換後不變。
 - Markdown 只轉人讀的文字：用編輯器同一套 mdast／GFM／front matter 解析，只改文字節點與圖片 alt。程式碼區塊、行內程式碼、HTML、連結與圖片的網址和 title、參考定義、自動連結都不動。front matter 逐行轉換值、不轉鍵名；值看起來是網址、路徑或檔名（沒有空白，且有協定、`/` 或副檔名）就不動。

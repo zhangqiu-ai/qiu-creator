@@ -40,7 +40,7 @@ export const USER_DATA_NOTE =
  * Chinese text agents send to the work's script; the result says so.
  */
 export const SCRIPT_NOTE =
-  "Write Chinese in the work's script (server_status text_script: its projects' override, else the default, Simplified unless the user changed it); the server converts what you send to it and script_conversion in the result lists the fields it changed.";
+  "Write Chinese in the work's script (server_status text_script: its projects' override, else the default, Simplified unless the user changed it); the server converts new or changed text you send to it (the user's existing lines, title and tags stay as they are) and script_conversion in the result lists the fields it changed.";
 
 export interface McpToolDef {
   name: string;

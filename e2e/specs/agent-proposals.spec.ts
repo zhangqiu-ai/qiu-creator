@@ -130,8 +130,11 @@ test('Agent 提案：收件匣、部分採用、重疊不能採用與三方對�
       page.locator('[data-toast]').filter({ hasText: '已採用 Claude Code 的提案' }),
     ).toBeVisible();
     const after = await c.works.get(kyoto.id);
-    expect(after.markdown).toContain('150 日圓');
-    expect(after.markdown).toContain('清水寺門票 500 日圓');
+    // QC-103/QC-111: the lines the agent changed are in the default script
+    // (zh-Hans); every line it did not change is the user's, word for word.
+    expect(after.markdown).toContain('约 5 分钟、150 日圆');
+    expect(after.markdown).toContain('清水寺门票 500 日圆');
+    expect(after.markdown).toContain('# 京都紅葉季七日慢遊路線\n');
     // The change left out stays as it was.
     expect(after.markdown).toContain('竹林在往裡走');
     const revs = await c.works.revisions(kyoto.id);
@@ -155,7 +158,7 @@ test('Agent 提案：收件匣、部分採用、重疊不能採用與三方對�
     const dialog = page.getByRole('dialog', { name: /三方對照/ });
     await expect(dialog.getByText('你現在的版本', { exact: false })).toBeVisible();
     await expect(dialog).toContainText('最後才買設備。');
-    await expect(dialog).toContainText('歡迎留言告訴我。');
+    await expect(dialog).toContainText('欢迎留言告诉我。');
     await shot(page, 'three-way');
     await dialog.getByRole('button', { name: '不採用重疊的 1 處' }).click();
     await expect(dialog).toHaveCount(0);
@@ -203,7 +206,9 @@ test('Agent 提案：收件匣、部分採用、重疊不能採用與三方對�
     await expect(content(page).locator('[data-proposal-hit]')).toContainText('竹林在往裡走');
     await shot(page, 'editor-proposal-tab');
     await editorSide(page).getByRole('button', { name: '採用', exact: true }).click();
-    await expect(content(page)).toContainText('竹林再往裡走');
+    // The agent's changed line, in zh-Hans (QC-103/QC-111).
+    await expect(content(page)).toContainText('竹林再往里走');
+    await expect(content(page)).toContainText('京都紅葉季七日慢遊路線');
     // No pending proposals left: the tab goes away.
     await expect(tab).toHaveCount(0);
     await showSideTab(page, '歷史');
@@ -338,6 +343,10 @@ test('項目設定：描述、規則與試算；Agent 歸入的作品卡標示�
   const { page, backend } = desktop;
   await page.setViewportSize({ width: 1440, height: 900 });
   const c = backend.client;
+  // QC-103/QC-111: agents here create works with Traditional titles, like
+  // the user's own data in these screens; with the global 作品文字字體 set
+  // to zh-Hant they stay as written (conversion has its own tests).
+  await c.settings.setTextScript({ script: 'zh-Hant' });
   const kyoto = await c.projects.create({ name: '京都旅行' });
   await c.works.create({
     title: '京都散步路線',

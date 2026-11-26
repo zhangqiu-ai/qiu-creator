@@ -52,7 +52,7 @@ export function textScriptInstruction(textScript: SessionTextScript | null | und
                 .map((p) => `${JSON.stringify(p.name)} → ${p.script}`)
                 .join(', ')})`
         }`;
-  return `Write the text of works (titles, Markdown, descriptions, tags, platform titles and tags) in ${target}. ${TEXT_SCRIPT_RULE} The server converts Chinese text you send to that script with OpenCC (code, URLs and paths are left alone) and says so in script_conversion.`;
+  return `Write the text of works (titles, Markdown, descriptions, tags, platform titles and tags) in ${target}. ${TEXT_SCRIPT_RULE} The server converts Chinese text you add or change to that script with OpenCC (the user's existing text, code, URLs and paths are left alone) and says so in script_conversion.`;
 }
 
 /** `works,assets` → toolsets; throws on unknown names. Empty or absent = all. */
