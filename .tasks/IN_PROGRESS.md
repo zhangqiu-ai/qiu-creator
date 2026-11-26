@@ -6,14 +6,6 @@
 
 **Started:** 2026-11-26
 
-## QC-105: 素材檢視改為內容優先（原型）
-
-**Priority:** P2 | **Assignee:** qc-prototype | **Tags:** prototype
-
-使用者 2026-11-26 要求：點選素材時不要用右側側欄顯示資訊，要突出內容本身，資訊放在次要位置、視覺上淡化。這是新的互動，要先做原型給使用者核准，核准後再開實作任務。
-
-**Started:** 2026-11-26
-
 ## QC-103: Agent 寫入作品的文字統一簡繁字體
 
 **Priority:** P2 | **Assignee:** qc-backend | **Tags:** backend

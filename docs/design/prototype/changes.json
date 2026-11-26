@@ -3523,7 +3523,7 @@
       "id": "PT-20261126-001",
       "title": "素材檢視改為內容優先（三個方案比較：燈箱、圖庫檢視、網格內展開）",
       "date": "2026-11-26",
-      "status": "pending_user",
+      "status": "approved",
       "model": "claude-opus-5-5",
       "session": "qc-prototype",
       "requestedBy": "使用者 via 開發總監",
@@ -3640,7 +3640,10 @@
           "q": "多選時原本的批次側欄（MultiInspector）怎麼辦？",
           "recommendation": "取消，批次動作移到頁首動作列。"
         }
-      ]
+      ],
+      "approvedBy": "user",
+      "approvedAt": "2026-11-26",
+      "approval": "方案 B 圖庫檢視；七個問題全部照推薦（「B 圖庫檢視」「全部照推薦」）"
     }
   ]
 }

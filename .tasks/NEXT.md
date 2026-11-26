@@ -1,5 +1,11 @@
 # Next
 
+## QC-108: 素材檢視實作（方案 B 圖庫檢視）
+
+**Priority:** P2 | **Assignee:** qc-frontend | **Tags:** frontend
+
+照已核准原型 PT-20261126-001 與 `docs/decisions.md` 2026-11-26 實作：取消素材庫常駐側欄，單擊進入主區圖庫檢視，資訊卡按需浮出，底部縮圖條，多選動作移到頁首。圖片、視頻、Markdown、音訊四種內容都要涵蓋。等 QC-104（視頻全屏）合併後開工。
+
 ## QC-106: 項目內作品分組／系列（原型）
 
 **Priority:** P2 | **Assignee:** qc-prototype | **Tags:** prototype

@@ -1,3 +1,11 @@
+## QC-105: 素材檢視改為內容優先（原型）
+
+**Priority:** P2 | **Assignee:** qc-prototype | **Tags:** prototype
+
+**Completed:** 2026-11-26（266e9b9）
+
+原型 PT-20261126-001 給出燈箱、圖庫檢視、網格內展開三個方案，使用者核准方案 B 與全部推薦，決策見 `docs/decisions.md`。實作開為 QC-108。
+
 ## QC-102: Agent 掛到貼圖／視頻作品的附件，編輯頁看不到
 
 **Priority:** P1 | **Assignee:** qc-bugfix | **Tags:** backend, frontend
