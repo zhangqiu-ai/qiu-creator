@@ -1,5 +1,9 @@
 # Work Log
 
+## 2026-11-26 · QC-106、QC-108、QC-110 開工
+
+- 分組原型與素材檢視實作開工；QC-110 發版前檢查交 qc-test，通過後 qc-release 升級。
+
 ## 2026-11-26 · QC-103、QC-104 完成
 
 - 簡繁轉換與視頻全屏合併到 main（與 QC-102 的 `server.ts`、`write-tools.ts` 衝突由總監解開）；設定介面開為 QC-109。發版前請 qc-test 在 main 跑兩種模式全套 e2e。
