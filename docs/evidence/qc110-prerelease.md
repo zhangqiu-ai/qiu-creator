@@ -1,4 +1,148 @@
-# QC-110 發版前檢查：QC-102、QC-103、QC-104
+# QC-110 發版前檢查：QC-102、QC-103、QC-104（含 QC-111 修正後重驗）
+
+- 執行者：qc-test。日期：2026-11-26。
+- 機器：Mac17,4（Apple M5，10 核），macOS 27.0.1。
+- 隔離：
+  - 服務都用臨時 `CREATORHUB_HOME`、臨時 HOME 和臨時埠 48951。
+  - Agent 權杖是新建的測試權杖。
+  - 沒有碰真實的 `~/CreatorHub`、`/Applications`、launchctl，也沒有連 7420 服務。
+  - 沒有呼叫任何第三方 API。
+- 共兩輪：
+  - 第一輪在 `7fc7ffb`，判定不能發版：Agent 的提案和修改會連同使用者原本的繁體文字一起轉換。總監開了 QC-111。原始紀錄留在本文最後一節。
+  - 第二輪在 `a8df1e9`，已含 QC-111、QC-108、QC-109。
+
+**結論：可以發版（`a8df1e9`）。**
+
+- 閘門都通過。單元測試 1439／0／1439。
+- 整套 e2e 一般模式 67 passed／0 failed／10 skipped；`QC_E2E_MOTION=on` 68 passed／0 failed／9 skipped。
+- 用建置產物跑 `creatorhub mcp`（stdio），10 項情境全部符合預期，包括 QC-111：
+  - 繁體原文上的局部提案只有 1 處變更。
+  - 局部 PATCH 只轉換 Agent 改的行和新加的 tag。
+- schema 是 `0023`。
+
+## Plan
+
+1. 在 `test/qc110-prerelease` 上 merge `origin/main`（`a8df1e9`），沒有衝突，merge commit 是 `a3b6d5b`。`pnpm install --frozen-lockfile`。
+2. 持 `qc-fullsuite.lock`，跑 lint、typecheck、format 和逐套件單元測試。負載曾高過 15 的套件單獨重跑。
+3. 持 `qc-e2e.lock`，在背景跑整套 e2e：一般模式和 `QC_E2E_MOTION=on` 各一次。
+4. 用 `services/mac-server` 的 `build` 建出安裝版目錄結構，只帶 `PATH=/usr/bin:/bin` 啟動。用 Agent 權杖跑真的 `bin/creatorhub mcp`，走完第一輪的 9 項情境，加上 QC-111 的第 10 項。
+5. 讀 QC-108 和 QC-109 的 e2e，確認有涵蓋。
+
+## 1. 原始碼閘門（第二輪）
+
+| 項目 | 結果 |
+| --- | --- |
+| 根目錄 `pnpm lint`（`eslint .`，含 `e2e/`） | 通過 |
+| `pnpm -r typecheck`＋`tsc -p e2e/tsconfig.json --noEmit` | 通過 |
+| `pnpm format:check` | 通過 |
+
+單元測試一次跑一個套件：
+
+| 套件 | 檔案 | passed／failed／total |
+| --- | --- | --- |
+| @qiu-creator/mac-server | 48 | 600／0／600 |
+| @qiu-creator/mac | 60 | 504／0／504 |
+| @qiu-creator/markdown-editor-web | 6 | 62／0／62 |
+| @qiu-creator/domain | 5 | 58／0／58 |
+| @qiu-creator/agent-sdk | 8 | 54／0／54 |
+| @qiu-creator/installer | 2 | 42／0／42 |
+| @qiu-creator/i18n | 3 | 30／0／30 |
+| @qiu-creator/platform-preview | 4 | 27／0／27 |
+| @qiu-creator/contracts | 4 | 26／0／26 |
+| @qiu-creator/api-client | 2 | 22／0／22 |
+| @qiu-creator/design-tokens | 1 | 6／0／6 |
+| **合計** | 143 | **1439／0／1439** |
+
+- 逐套件那一輪開始時負載 3.2。最後一個套件 mac-server 跑完時，1 分鐘負載升到 37.5。當時看不到其他會話在跑測試，應該是 vitest worker 本身造成的。
+- 依「負載 15 以上的結果不算數」，mac-server 等負載回落後持鎖單獨重跑：600／0／600。過程中每 5 秒取一次 1 分鐘負載，最高 13.9。上表採用重跑的結果。
+
+## 2. 整套 e2e（第二輪，背景模式，持 `qc-e2e.lock`）
+
+先跑 `pnpm --filter @qiu-creator/mac build`（exit 0），再跑 `playwright test --config=e2e/playwright.config.ts`。共 77 個測試。
+
+| 模式 | passed | failed | skipped | 時間 | 負載（開始 → 結束，1 分鐘） |
+| --- | --- | --- | --- | --- | --- |
+| 一般 | 67 | 0 | 10 | 3.3m | 8.9 → 2.6 |
+| `QC_E2E_MOTION=on` | 68 | 0 | 9 | 4.7m | 2.6 → 2.6 |
+
+與這次檢查有關的 spec，兩種模式都通過：
+
+- QC-102：`agent-attached-media.spec.ts:24`。
+- QC-103／QC-111：
+  - `agent-proposals.spec.ts:62`：Agent 改的行是簡體，使用者的標題 `# 京都紅葉季七日慢遊路線` 原樣保留，沒有勾選採用的那一處也不變。
+  - `agent-proposals.spec.ts:341`。
+- QC-104：`video-fullscreen.spec.ts:35`。
+- QC-108：`asset-viewer.spec.ts:81`。
+- QC-109：`text-script.spec.ts:23`。
+
+QC-111 改了 e2e。我核對過 diff，沒有放寬斷言：
+
+- `agent-attached-media` 和項目設定那支測試，把全域字體設成 `zh-Hant`，讓 Agent 寫的繁體維持原樣；轉換本身另有單元測試。
+- 提案那支改成期望 Agent 改的行是簡體，並新增一個斷言：使用者的標題逐字不變。
+
+## 3. 建置產物＋`creatorhub mcp` 端到端情境（第二輪）
+
+### 環境
+
+- 建置產物的 build-info 是 `a3b6d5b`。它的內容等於 `a8df1e9` 再加上本證據檔，產品程式碼相同。
+- 用 `env -i PATH=/usr/bin:/bin` 帶臨時 HOME 和 `CREATORHUB_HOME`，以 `bin/node server.mjs` 啟動。
+- `bin/creatorhub mcp` 只帶 `CREATORHUB_URL`、`CREATORHUB_TOKEN`、`PATH`、`HOME`。
+- 腳本和輸出放在共用筆記資料夾的 `qc110-prerelease/`（`qc110_agent.py`、`scenario-output-round2.json`），不進倉庫。
+- 第一次跑在第 10 項失敗，原因是我的腳本把 `work_propose_edit` 的參數名寫成 `work_id`（應為 `id`），是腳本錯誤。修正後清空資料目錄，重跑全部 10 項。
+
+### 結果
+
+| # | 情境 | 實際 | 判定 |
+| --- | --- | --- | --- |
+| 1 | `initialize`、`tools/list`、`server_status` | 40 支工具；instructions 寫明目標字體；`text_script.default = zh-Hans` | 通過 |
+| 2 | 貼圖作品：用 `asset_upload_file` 傳紅葉和竹林兩張圖，先掛紅葉，再把竹林掛在 `position: 0` | `media.images` 依序是竹林、紅葉，都是 present；磁碟上 `source.md` 的 front matter 是 `images: [assets/竹林.png, assets/紅葉.png]`，`assets/` 裡有兩個檔案 | 通過 |
+| 3 | 視頻作品：掛 `walk.webm`（role video）和 `封面.png`（role cover） | `media.video` 是 `assets/walk.webm`（present），`media.cover` 是 `assets/封面.png` | 通過 |
+| 4 | Agent 用繁體建作品（含 URL 和程式碼區塊） | 標題 `岚山竹林与渡月桥`，tags 是 `旅游`、`摄影`；`script_conversion = {zh-Hans, [title, markdown, tags]}`；URL 和程式碼區塊原樣保留 | 通過 |
+| 5 | Agent 權杖 `PUT /settings/text-script` | 403 | 通過 |
+| 6 | 主權杖改成 `zh-Hant` 之後，Agent 用簡體建作品 | `簡體標題測試`，正文是 `這裡的風景讓人難忘，後來我們發現了一家麵館。`，tags 是 `旅遊`；`server_status` 回報 `zh-Hant` | 通過 |
+| 7 | 改回 `zh-Hans`，主權杖用繁體建作品 | 201；繁體原樣保留，沒有 `script_conversion` | 通過 |
+| 8 | 項目 `text_script = zh-Hant` 覆寫全域的 `zh-Hans` | `臺北簡體稿`，`script_conversion = {zh-Hant, [title, markdown]}` | 通過 |
+| 9 | 結束連線 | 關掉 stdin 後 exit 0，stderr 是空的 | 通過 |
+| 10a | **QC-111**：主權杖建繁體文章，tags 是 `攝影`、`旅遊`。Agent 用 `work_propose_edit` 送整份 Markdown，只改最後一行 | 只有 **1 個 hunk**：`伏見稻荷大社免門票。` → `伏见稻荷大社免门票，清水寺门票 500 日圆。`；標題和第一段逐字保留繁體；`script_conversion = {zh-Hans, [markdown]}` | 通過 |
+| 10b | **QC-111**：允許直接修改正文的 Agent 權杖用 `PATCH /works/:id`（MCP `work_update_body` 走的同一條路由）送整份 Markdown：改最後一行、加一行 `回程在渡月橋買了一杯熱茶。`；tags 送 `攝影`、`旅遊`、`红叶` | 200。存下來的標題和第一段仍是繁體；改的那一行和新加的一行轉成簡體（`回程在渡月桥买了一杯热茶。`）；舊 tags `攝影`、`旅遊` 不變，新 tag 是 `红叶` | 通過 |
+
+- schema 最新一筆是 `0023 project_text_script`。
+- 服務日誌沒有 error。
+
+## 4. QC-108、QC-109 的 e2e 涵蓋
+
+- QC-108 素材檢視，`asset-viewer.spec.ts`。12 個 step 涵蓋：
+  - 網格佔滿寬度，視頻卡片有縮圖。
+  - 單擊進入檢視，有資訊卡和 I 鍵。
+  - ← → 在頭尾停住，可以點縮圖條切換。
+  - Esc 回網格，保留捲動位置和焦點。
+  - 音訊、視頻、Markdown、圖片四種內容，以及各自的空白鍵行為。
+  - 深色模式。
+  - 檢視中刪除；回收站也走同一個檢視。
+  - 另外 `asset-lightbox`、`assets`、`video-fullscreen` 都有配合修改。
+- QC-109 字體設定，`text-script.spec.ts`：
+  - 設定頁預設簡體，選繁體立即儲存。
+  - 項目設定：跟隨全域 → 簡體 → 跟隨全域，按儲存才寫入。
+  - 深色截圖。
+- 看到的缺口（不擋發版）：
+  - QC-109 的 e2e 只驗證設定被存下，沒有走「在介面改設定 → Agent 寫入 → 結果跟著改」的整條路徑。
+    - 服務端行為由 mac-server 單元測試和本文第 3 節 #6、#8 補上，所以只缺介面到服務這一段的串接。
+  - QC-108 的 spec 沒有涵蓋 PDF 等其他素材類型在檢視中的呈現。我沒有核對 QC-108 的範圍是否包含這些類型：NOT_VERIFIED。
+
+## 5. 觀察（不擋發版）
+
+- 簡轉繁用 OpenCC 台灣標準，「台北」會轉成「臺北」。這是字表的正常行為。
+- 素材檔名（例如 `紅葉.png`）和 front matter 的路徑不轉換，符合設計。
+
+## 6. 收尾
+
+- 臨時服務都已停，埠 48951 已釋放。臨時資料目錄已刪。
+- `qc-fullsuite.lock` 和 `qc-e2e.lock` 都已釋放。
+- worktree 和分支在總監合併後刪除。
+
+## 第一輪（`7fc7ffb`，證據提交 `a057917`）
+
+以下是第一輪的原始紀錄，保留不改。當時的缺陷已由 QC-111（`ac689ca`）修正，第二輪重驗通過。
 
 - 日期：2026-11-26。執行者：qc-test。
 - 版本：`7fc7ffb`。乾淨 checkout `qiu-creator-qc110`，先跑 `pnpm install --frozen-lockfile`。
@@ -20,14 +164,14 @@
 - 用建置產物跑 `creatorhub mcp`（stdio），總監指定的情境（第 3 節 #1～#9）都符合 QC-102 和 QC-103 的規格。
 - schema 是 `0023`。
 
-## Plan
+### Plan
 
 1. 從 `origin/main` 開 worktree，持 `qc-fullsuite.lock` 跑 lint、typecheck、format 和逐套件單元測試。
 2. 持 `qc-e2e.lock`，在背景跑整套 e2e：一般模式和 `QC_E2E_MOTION=on` 各一次。
 3. 用 `services/mac-server` 的 `build` 建出安裝版目錄結構（含 `bin/node` 和 `bin/creatorhub`），只帶 `PATH=/usr/bin:/bin` 啟動。
 4. 用 Agent 權杖跑真的 `creatorhub mcp`，用 JSON-RPC 走完 QC-102 和 QC-103 的情境，再核對磁碟上的 `source.md` 和 schema。
 
-## 1. 原始碼閘門
+### 1. 原始碼閘門
 
 | 項目 | 結果 |
 | --- | --- |
@@ -52,7 +196,7 @@
 | @qiu-creator/design-tokens | 1 | 6／0／6 |
 | **合計** | 139 | **1402／0／1402** |
 
-## 2. 整套 e2e（背景模式，持 `qc-e2e.lock`）
+### 2. 整套 e2e（背景模式，持 `qc-e2e.lock`）
 
 先跑 `pnpm --filter @qiu-creator/mac build`（exit 0），再跑 `playwright test --config=e2e/playwright.config.ts`。
 
@@ -81,9 +225,9 @@ QC-104 的 `video-fullscreen.spec.ts:35` 在兩種模式都通過：
 
 QC-102 的 spec 在拍第一張截圖之前就失敗了，所以這次沒有截圖。
 
-## 3. 建置產物＋`creatorhub mcp` 端到端情境
+### 3. 建置產物＋`creatorhub mcp` 端到端情境
 
-### 環境
+#### 環境
 
 - 用 `pnpm build --out <tmpHOME>/Library/Application Support/qiu-creator/server` 建置。
   - `server.mjs` 裡有 OpenCC 轉換器，字表在建置產物內。
@@ -92,7 +236,7 @@ QC-102 的 spec 在拍第一張截圖之前就失敗了，所以這次沒有截�
 - `bin/creatorhub mcp` 只帶 `CREATORHUB_URL`、`CREATORHUB_TOKEN`、`PATH`、`HOME`。
 - 腳本和完整輸出放在共用筆記資料夾的 `qc110-prerelease/`（`qc110_agent.py`、`scenario-output.json`），不進倉庫。
 
-### 結果
+#### 結果
 
 | # | 情境 | 預期 | 實際 | 判定 |
 | --- | --- | --- | --- | --- |
@@ -110,9 +254,9 @@ QC-102 的 spec 在拍第一張截圖之前就失敗了，所以這次沒有截�
 - 資料庫裡 `schema_migrations` 最新一筆是 `0023 project_text_script`。
 - `app_settings` 的 `work_text_script` 最後是 `zh-Hans`。
 
-## 4. 缺陷：Agent 提案或修改時，使用者原本的繁體文字也被轉換（擋發版）
+### 4. 缺陷：Agent 提案或修改時，使用者原本的繁體文字也被轉換（擋發版）
 
-### 重現
+#### 重現
 
 在建置產物上用臨時服務重現。腳本和輸出放在筆記資料夾的 `qc110-prerelease/proposal-repro.json`。
 
@@ -129,7 +273,7 @@ QC-102 的 spec 在拍第一張截圖之前就失敗了，所以這次沒有截�
 
 3. Agent 權杖（`propose`）用 `POST /works/:id/proposals` 送出整份 Markdown，只改最後一行，改成 `伏見稻荷大社免門票，清水寺門票 500 日圓。`。
 
-### 結果
+#### 結果
 
 - 201，`script_conversion = {zh-Hans, [markdown]}`。
 - **3 個 hunks**：
@@ -138,7 +282,7 @@ QC-102 的 spec 在拍第一張截圖之前就失敗了，所以這次沒有截�
   - 最後一行也是簡體。
 - 使用者如果按「全部採用」，自己的繁體原文會整篇變成簡體。
 
-### 預期
+#### 預期
 
 規格在 `packages/contracts/src/text-script.ts` 和 ba80289 的提交說明裡寫明：
 
@@ -146,7 +290,7 @@ QC-102 的 spec 在拍第一張截圖之前就失敗了，所以這次沒有截�
 
 所以只有 Agent 新寫的文字該轉換，使用者沒動過的行不該出現在 diff 裡。
 
-### 根因
+#### 根因
 
 - `TextScriptService.forAgent`（`services/mac-server/src/works/text-script-service.ts:117`）對 Agent 送來的整個欄位做轉換，不分哪些是原本就有的內容。
 - 下面這些端點都要求或常見是「送整份」：
@@ -157,19 +301,19 @@ QC-102 的 spec 在拍第一張截圖之前就失敗了，所以這次沒有截�
   - 對「允許直接修改正文」的權杖來說，這會在沒經過 diff 確認的情況下直接改寫原文。這違反 AGENTS.md「嚴禁 AI 直接覆蓋使用者原文」的精神。雖然有快照可以恢復，但使用者不會預期這種改動。
 - `PATCH` 和 variants 的部分是讀程式碼得出的推論，沒有實際跑：**NOT_VERIFIED**。提案的部分已經實測。
 
-### 建議方向（給修 BUG 的會話參考，不是本次範圍）
+#### 建議方向（給修 BUG 的會話參考，不是本次範圍）
 
 - 只轉換相對於 base（目前版本）新增或修改的部分。例如對 base 和 Agent 文字做行或詞級 diff，只轉換新增的片段；tags 只轉換新加的。
 - 或者：作品既有內容的字體和目標不同時，不轉換，改成在回應裡提示。
 - 三支 e2e 也要改成「Agent 寫入時預期被轉換」，或在測試裡用主權杖建作品。如何調整由修正的會話決定，不得放寬斷言。
 
-## 5. 觀察（不擋發版）
+### 5. 觀察（不擋發版）
 
 - OpenCC 的簡轉繁用台灣標準，會把「台北」轉成「臺北」。這是 OpenCC 字表的正常行為，不是缺陷。使用者若偏好「台」，要另開需求。
 - 貼圖作品的 description 是 Agent 傳的簡體，原樣存下。作品檔名（例如 `紅葉.png`）不會轉換，符合「路徑不轉」的設計。
 - 我寫的跑測腳本有一行對根目錄的 `qiu-creator` 套件呼叫 `pnpm test`，因為環境沒有 `pnpm` 指令而失敗。那只是遞迴包裝，不算測試，上表也沒有計入。各套件都另外單獨跑過。
 
-## 6. 收尾
+### 6. 收尾
 
 - 臨時服務已停，埠 48951 已釋放。
 - `qc-fullsuite.lock` 和 `qc-e2e.lock` 都已釋放。
