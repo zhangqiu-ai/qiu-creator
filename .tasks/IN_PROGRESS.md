@@ -1,8 +1,16 @@
+## QC-111: 簡繁轉換誤轉使用者原文（QC-103 缺陷，擋 QC-110 發版）
+
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** backend
+
+QC-110 發現：`TextScriptService.forAgent` 把 Agent 送來的整份文字都轉換，沒有區分使用者原有的文字和 Agent 新寫的文字。Agent 對繁體文章只改一行的提案，會把標題和其他段落也改成簡體；`PATCH /works/:id`（`work_update_body`、`work_update_meta` 整份正文與整份標籤）和平台版本同樣有風險，違反「使用者自己的文字不轉」。應只轉 Agent 相對目前版本新增或修改的文字，以及新增的標籤。e2e 有 3 個失敗：`agent-proposals.spec.ts:62` 是這個缺陷；`agent-attached-media.spec.ts:24`、`agent-proposals.spec.ts:336` 是 Agent 新建作品用繁體標題、照新規則本來就該轉成簡體，屬行為變更，需要更新測試的設定或預期，並寫明理由。
+
+**Started:** 2026-11-26
+
 ## QC-110: 發版前檢查與升級（QC-102～104）
 
 **Priority:** P1 | **Assignee:** qc-test, qc-release | **Tags:** M3
 
-qc-test 在 main（66068e9 之後）跑一般與 `QC_E2E_MOTION=on` 兩種模式全套 e2e，加上 Agent 經 MCP 建貼圖／視頻作品並掛附件、繁體文字被轉成簡體的端到端檢查（臨時資料目錄）。通過後 qc-release 升級本機安裝（含 migration 0023，升級前備份），總監複核 /health。
+qc-test 在 main（66068e9 之後）跑一般與 `QC_E2E_MOTION=on` 兩種模式全套 e2e，加上 Agent 經 MCP 建貼圖／視頻作品並掛附件、繁體文字被轉成簡體的端到端檢查（臨時資料目錄）。第一輪（a057917）不可發版：QC-103 誤轉原文，開 QC-111；修好後重跑。通過後 qc-release 升級本機安裝（含 migration 0023，升級前備份），總監複核 /health。
 
 **Started:** 2026-11-26
 
