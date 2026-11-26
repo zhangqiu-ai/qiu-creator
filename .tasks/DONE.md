@@ -1,3 +1,11 @@
+## QC-110: 發版前檢查與升級（QC-102～104、108、109、111）
+
+**Priority:** P1 | **Assignee:** qc-test, qc-release | **Tags:** M3
+
+**Completed:** 2026-11-26（f9def4d、b472fcc）
+
+第一輪（a057917）擋下 QC-103 誤轉原文，開 QC-111。重跑於 a8df1e9：unit 1439 passed；e2e 一般 67、動效兩種模式皆 0 failed；真實 `creatorhub mcp` 10 個情境全過。使用者授權「做完直接發版」，qc-release 升級本機到 4501a9f，schema 0023，備份 `20261126T162622745Z-manual`；總監複核 /health 為 4501a9f、err.log 0 位元組。已受 QC-102 影響的兩個真實作品仍需重新掛附件。
+
 ## QC-109: 作品文字字體設定介面
 
 **Priority:** P3 | **Assignee:** qc-frontend | **Tags:** frontend
