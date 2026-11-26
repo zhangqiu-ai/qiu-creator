@@ -33,6 +33,7 @@ import { projectColor } from './projects-store.js';
 import { ProjectsContext } from './ProjectTags.js';
 import { Avatar } from './ProposalView.js';
 import { useToast } from './toasts.js';
+import { TextScriptSection } from './TextScriptSetting.js';
 import './agents-settings.css';
 
 type Notice = { text: string; tone: 'ok' | 'bad' } | null;
@@ -164,6 +165,13 @@ export function AgentsSettings({ client }: { client: CreatorHubClient }) {
           </button>
         </div>
       </header>
+
+      <TextScriptSection
+        client={client}
+        onSaved={(text) => {
+          setNotice({ text, tone: 'ok' });
+        }}
+      />
 
       <div className="ag__cols">
         <section className="ag__list" aria-label={t('agents.tokensLabel')}>

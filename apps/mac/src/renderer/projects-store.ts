@@ -5,6 +5,7 @@ import {
   type ProjectRules,
   type ProjectSummary,
   type RulesPreviewResponse,
+  type TextScript,
 } from '@qiu-creator/contracts';
 import type { MessageKey } from '@qiu-creator/i18n';
 
@@ -181,6 +182,8 @@ export class ProjectsStore {
       /** QC-092: what the project is about, and the rules that put works in it. */
       description?: string;
       rules?: ProjectRules;
+      /** QC-109: script for agent text in its works; null follows the global setting. */
+      text_script?: TextScript | null;
     },
   ): Promise<Project | null> {
     try {
@@ -195,6 +198,11 @@ export class ProjectsStore {
       if (err instanceof ApiError && err.status === 409) return null;
       throw err;
     }
+  }
+
+  /** The global 作品文字字體 (QC-109), for 「跟隨全域（簡體）」 in 項目設定. */
+  async globalTextScript(): Promise<TextScript> {
+    return (await this.client.settings.textScript()).script;
   }
 
   /** Try rules on the latest works without saving them (QC-092). */
