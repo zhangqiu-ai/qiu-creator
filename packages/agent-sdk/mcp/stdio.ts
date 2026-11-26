@@ -13,7 +13,12 @@ export async function serveMcpStdio(options: {
   toolsets: readonly Toolset[];
   version?: string;
 }): Promise<void> {
-  const server = createCreatorHubMcpServer(options);
+  // QC-103: name the script to write in; the server still works without it.
+  const textScript = await options.client.session().then(
+    (s) => s.text_script,
+    () => null,
+  );
+  const server = createCreatorHubMcpServer({ ...options, textScript });
   const transport = new StdioServerTransport();
   let reject: (error: Error) => void = () => undefined;
   const closed = new Promise<void>((resolve, rejectClosed) => {

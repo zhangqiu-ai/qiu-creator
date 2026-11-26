@@ -57,6 +57,11 @@ export const MCP_EXCLUDED: Readonly<Record<string, string>> = {
     "owner only: 保留 turns an agent or rule assignment into the user's own (使用者確認)",
   'DELETE /api/v1/works/:id/projects/:projectId':
     'owner only: 復原歸入 undoes an agent or rule assignment (使用者確認); agents use works_assign_projects',
+  // QC-103: 作品文字字體. Agents read it through server_status (session text_script).
+  'GET /api/v1/settings/text-script':
+    'server_status reports text_script (default and project overrides) from GET /api/v1/session',
+  'PUT /api/v1/settings/text-script':
+    "owner only: which script works are written in is the user's setting (使用者設定)",
   'POST /api/v1/assets/uploads':
     'single-request upload for the app; asset_upload_file always uses the resumable tus path',
   // External folder mounts are the owner's (docs/mcp-plan.md §4).

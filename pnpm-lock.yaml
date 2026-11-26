@@ -501,6 +501,9 @@ importers:
       openai:
         specifier: ^7.57.0
         version: 7.57.0(google-auth-library@10.9.1(supports-color@7.2.0))(undici@8.12.4)(ws@8.23.0)(zod@4.6.7)
+      opencc-js:
+        specifier: ^1.4.2
+        version: 1.4.2
       sharp:
         specifier: ^0.35.5
         version: 0.35.5(@types/node@24.19.2)

@@ -79,6 +79,7 @@ import { createMountsApi, type CreatorHubMountsApi } from './mounts.js';
 import { createProjectsApi, type CreatorHubProjectsApi } from './projects.js';
 import { createProposalsApi, type CreatorHubProposalsApi } from './proposals.js';
 import { createAgentsApi, type CreatorHubAgentsApi } from './agents.js';
+import { createSettingsApi, type CreatorHubSettingsApi } from './settings.js';
 export type { CreatorHubProjectsApi } from './projects.js';
 import { createVariantsApi, type CreatorHubVariantsApi } from './variants.js';
 import { createAiApi, type CreatorHubAiApi } from './ai.js';
@@ -95,6 +96,7 @@ export {
 export type { CreatorHubVariantsApi, VariantWriteOptions } from './variants.js';
 export type { CreatorHubProposalsApi } from './proposals.js';
 export type { CreatorHubAgentsApi } from './agents.js';
+export type { CreatorHubSettingsApi } from './settings.js';
 export type { CreatorHubMountsApi } from './mounts.js';
 
 export {
@@ -268,6 +270,8 @@ export interface CreatorHubClient {
   proposals: CreatorHubProposalsApi;
   /** Agent live status (QC-096). */
   agents: CreatorHubAgentsApi;
+  /** QC-103: settings stored on the Mac. */
+  settings: CreatorHubSettingsApi;
   /** Platform variants: 小紅書, 公眾號, 抖音, 視頻號 (QC-009). */
   variants: CreatorHubVariantsApi;
   /** AI providers, Keychain keys, consent, jobs and usage (QC-021). Owner token only. */
@@ -323,6 +327,7 @@ export function createClient(options: CreatorHubClientOptions): CreatorHubClient
     projects: createProjectsApi(ctx),
     proposals: createProposalsApi(ctx),
     agents: createAgentsApi(ctx),
+    settings: createSettingsApi(ctx),
     variants: createVariantsApi(ctx),
     ai: createAiApi(ctx),
     backups: createBackupsApi(ctx),

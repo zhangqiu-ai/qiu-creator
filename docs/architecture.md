@@ -1288,7 +1288,39 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 - 重啟後回到 idle（任務允許），待審提案仍由資料庫推導出 needs_attention。
 - 失敗匯入的錯誤狀態重啟後不會保留；匯入任務頁仍看得到失敗。
 
-## MCP（QC-087～QC-089、QC-092、QC-096）
+## 作品文字字體（QC-103）
+
+決策記錄 2026-11-26。程式在 `services/mac-server/src/works/text-script.ts`（轉換）與 `text-script-service.ts`（設定與套用），契約在 `packages/contracts/src/text-script.ts`。
+
+**設定：**
+
+- 全域：`zh-Hans`（預設）或 `zh-Hant`，存在 `app_settings` 的 `work_text_script`，不需要 migration。`GET /api/v1/settings/text-script` 任何有 read 的權杖都能讀，`PUT` 只限主權杖。`updated_at` 為 null 表示還是預設值。
+- 項目覆寫：`projects.text_script`（migration `0023`，只加一欄，可為 NULL；回滾 SQL 是 `PROJECT_TEXT_SCRIPT_ROLLBACK_SQL`）。`POST`／`PATCH /api/v1/projects…` 的 `text_script` 只限主權杖，Agent 權杖帶這個欄位回 403 `forbidden`；`null` 表示跟全域。MCP 的 `project_create`、`project_update` 不提供這個欄位。
+- 作品的目標字體：作品所在項目中有覆寫的，如果覆寫一致就用它；沒有項目、都沒覆寫，或覆寫互相不同，用全域設定。已刪除的項目不算。新建作品時，項目是 `project_ids` 加上 `auto_assign` 自動歸入的項目。
+
+**轉換（只限 Agent 權杖的寫入）：**
+
+| 路由 | 轉換的欄位 |
+| --- | --- |
+| `POST /api/v1/works` | `title`、`markdown`、`description`、`tags` |
+| `PATCH /api/v1/works/:id` | 同上（`work_update_meta`、`work_update_body`） |
+| `POST /api/v1/works/:id/proposals` | `markdown`：轉換的是候選版本，仍要使用者採用 |
+| `PATCH /api/v1/works/:id/variants/:platform` | `title`、`tags`（平台正文不能寫入，跟著作品） |
+| `POST /api/v1/works/batch` 的 `add_tags` | 新增的標籤；`remove_tags` 不轉，要比對既有的字 |
+
+- 主權杖（App）的寫入、既有作品一律不轉，也沒有批次轉換。
+- 回應裡有 `script_conversion: { script, fields }` 表示服務改了哪些欄位；沒有改動就沒有這個欄位。冪等重送回傳第一次的結果，包含 `script_conversion`。提案事後再讀（`GET /proposals/:id`）不帶這個欄位，因為存下來的就是轉換後的文字。
+- OpenCC（`opencc-js`）：簡體用 `tw → cn`（臺灣異體與詞彙轉簡體），繁體用 `cn → tw`（只轉字和臺灣異體，不換詞彙，例如「软件」→「軟件」而不是「軟體」），保留 Agent 自己的用詞。目標字體的文字轉換後不變。
+- Markdown 只轉人讀的文字：用編輯器同一套 mdast／GFM／front matter 解析，只改文字節點與圖片 alt。程式碼區塊、行內程式碼、HTML、連結與圖片的網址和 title、參考定義、自動連結都不動。front matter 逐行轉換值、不轉鍵名；值看起來是網址、路徑或檔名（沒有空白，且有協定、`/` 或副檔名）就不動。
+- 轉換後兩個標籤變成同一個字時合併（例如「發」「髮」都成「发」）。
+
+**告知 Agent：**
+
+- `GET /api/v1/session` 的 `text_script`：`default` 與權杖看得到的覆寫項目（受權杖的項目限定）。MCP `server_status` 另外加上規則說明 `rule`。
+- `creatorhub mcp` 啟動時讀一次 session，伺服器 `instructions` 寫出目標字體（例如 Simplified Chinese (zh-Hans)，以及覆寫的項目）；讀不到時改說「看 server_status」。
+- `work_create`、`work_propose_edit`、`work_update_body`、`work_update_meta`、`variant_update` 的說明都加了一句 `SCRIPT_NOTE`。
+
+## MCP（QC-087～QC-089、QC-092、QC-096、QC-103）
 
 設計與任務拆分見 [MCP 規劃](mcp-plan.md)。`creatorhub mcp` 是由 Agent（Claude Code、Codex、Claude Desktop）在本機啟動的 stdio MCP 伺服器，程式在 `packages/agent-sdk/mcp/`。
 
@@ -1384,6 +1416,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
   - QC-092：歸屬的「保留」與「復原歸入」只限主權杖（使用者確認）。
   - QC-092 的其他變更：`work_get` 會帶出作品的項目與歸入來源；`work_create` 支援 `auto_assign`；`project_create` 與 `project_update` 可以設定 `description` 和 `rules`。
   - QC-096：`GET /api/v1/agents/activity` 是 App 看所有 Agent 的即時狀態，只限主權杖；Agent 用 `agent_status_report` 回報自己的狀態。
+  - QC-103：`GET /api/v1/settings/text-script` 由 `server_status`（session 的 `text_script`）提供；`PUT` 只限主權杖，字體是使用者的設定。
 - `MCP_PENDING`：路由先上線、工具隨後補上時使用，須寫明由哪個任務補上。QC-088 起清空，測試也斷言它是空的。
 
 兩個相關測試：

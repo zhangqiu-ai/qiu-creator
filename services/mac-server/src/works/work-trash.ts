@@ -9,6 +9,7 @@ import {
   type DeleteWorkRequest,
   type DeleteWorkResponse,
   type PurgedWork,
+  type ScriptConversion,
   type WorkDetail,
   type WorkListItem,
   type WorkRemoval,
@@ -20,6 +21,7 @@ import type { Layout } from '../layout.js';
 import { defaultSystemTrash, type SystemTrash } from '../assets/system-trash.js';
 import { TRASH_FAILED_MESSAGE } from '../assets/asset-library.js';
 import type { WorkComposer } from './work-composer.js';
+import type { TextScriptService } from './text-script-service.js';
 import type { WorkService, WorkTrashTarget } from './work-service.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -30,6 +32,8 @@ export interface WorkTrashOptions {
   /** How often to look for works deleted more than 30 days ago (default 1 hour). */
   purgeCheckMs?: number;
   onError?: (err: unknown) => void;
+  /** QC-103: converts tags agent tokens add to the work's script. */
+  textScripts?: TextScriptService;
 }
 
 type PurgeReason = 'manual' | 'empty' | 'expired';
@@ -169,7 +173,13 @@ export class WorkTrash {
     const results: BatchWorkResult[] = [];
     for (const item of request.items) {
       try {
-        results.push({ id: item.id, ok: true, work: await this.batchItem(request, item) });
+        const done = await this.batchItem(request, item);
+        results.push({
+          id: item.id,
+          ok: true,
+          work: done.work,
+          ...(done.conversion === undefined ? {} : { script_conversion: done.conversion }),
+        });
       } catch (err) {
         results.push({ id: item.id, ok: false, error: itemError(err) });
         if (!(err instanceof ServiceError)) this.options.onError?.(err);
@@ -182,11 +192,13 @@ export class WorkTrash {
   private async batchItem(
     request: BatchRequest,
     item: { id: string; base_revision: string },
-  ): Promise<WorkListItem> {
-    if (request.action === 'trash') return (await this.trash(item.id, item.base_revision)).work;
+  ): Promise<{ work: WorkListItem; conversion?: ScriptConversion | undefined }> {
+    if (request.action === 'trash') {
+      return { work: (await this.trash(item.id, item.base_revision)).work };
+    }
     if (request.action === 'restore') {
       this.restore(item.id, item.base_revision);
-      return this.works.listItemById(item.id);
+      return { work: this.works.listItemById(item.id) };
     }
     // Status and tags: the revision check and 409 `work_in_trash` apply even
     // when nothing would change.
@@ -199,11 +211,19 @@ export class WorkTrash {
           status: request.status,
         });
       }
-      return this.works.listItemById(item.id);
+      return { work: this.works.listItemById(item.id) };
     }
+    // QC-103: tags an agent adds are converted to the work's script; tags to
+    // remove must match what is stored, so they are not.
+    const scripts = this.options.textScripts;
+    const added =
+      request.action === 'add_tags' && scripts !== undefined
+        ? scripts.forAgent({ tags: request.tags }, () => scripts.forWork(item.id))
+        : { value: { tags: request.tags }, conversion: undefined };
+    const addTags = added.value.tags;
     const next =
       request.action === 'add_tags'
-        ? [...new Set([...current.tags, ...request.tags])]
+        ? [...new Set([...current.tags, ...addTags])]
         : current.tags.filter((t) => !request.tags.includes(t));
     if (next.length > 64) {
       throw new ServiceError(400, 'validation_error', 'a work can have at most 64 tags');
@@ -211,7 +231,7 @@ export class WorkTrash {
     if (JSON.stringify(next) !== JSON.stringify(current.tags)) {
       await this.composer.patch(item.id, { base_revision: item.base_revision, tags: next });
     }
-    return this.works.listItemById(item.id);
+    return { work: this.works.listItemById(item.id), conversion: added.conversion };
   }
 
   // ---- Internals ------------------------------------------------------------------

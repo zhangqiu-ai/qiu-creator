@@ -65,7 +65,7 @@ describe('SQLite backups (QC-030)', () => {
     const { h, dir, client } = await host();
     await client.works.create({ title: '第一篇', markdown: '# 一\n' });
     const a = await client.backups.create();
-    expect(a).toMatchObject({ kind: 'manual', integrity: 'ok', schema_version: '0022' });
+    expect(a).toMatchObject({ kind: 'manual', integrity: 'ok', schema_version: '0023' });
     expect(a.size_bytes).toBeGreaterThan(0);
     const b = await client.backups.create();
     const list = await client.backups.list();

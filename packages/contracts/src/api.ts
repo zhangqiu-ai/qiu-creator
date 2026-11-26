@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AutoAssignmentSchema } from './project-rules.js';
+import { ScriptConversionSchema } from './text-script.js';
 import {
   IdSchema,
   RevisionSchema,
@@ -247,6 +248,8 @@ export const WorkDetailSchema = WorkSchema.extend({
   media: WorkMediaSchema.nullable().optional(),
   /** Only on create with `auto_assign` (QC-092): projects assigned and suggested, with reasons. */
   auto_assignment: AutoAssignmentSchema.optional(),
+  /** Only on writes by agent tokens that changed their text's script (QC-103). */
+  script_conversion: ScriptConversionSchema.optional(),
 });
 export type WorkDetail = z.infer<typeof WorkDetailSchema>;
 

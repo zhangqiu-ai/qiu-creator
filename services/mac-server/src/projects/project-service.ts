@@ -19,6 +19,7 @@ import {
 } from '@qiu-creator/contracts';
 import { checkRevision, resolveBaseRevision } from '@qiu-creator/domain';
 import { PROJECT_ASSETS_SQL } from '../assets/asset-service.js';
+import { currentPrincipal } from '../auth/actor-context.js';
 import { currentProjectLimit } from '../auth/project-scope.js';
 import type { Db } from '../db/database.js';
 import { notFound, ServiceError } from '../errors.js';
@@ -42,6 +43,7 @@ interface ProjectRow {
   work_count: number;
   description: string;
   rules: string;
+  text_script: string | null;
 }
 
 export interface ProjectServiceOptions {
@@ -102,6 +104,7 @@ export class ProjectService {
 
   create(input: CreateProjectRequest): Project {
     const req = CreateProjectRequestSchema.parse(input);
+    if (req.text_script !== undefined && req.text_script !== null) ownerOnlyTextScript();
     const id = randomUUID();
     const now = this.stamp();
     this.db.transaction(() => {
@@ -113,8 +116,8 @@ export class ProjectService {
       this.db
         .prepare(
           `INSERT INTO projects (id, name, color, sort_order, revision, created_at, updated_at,
-             description, rules)
-           VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)`,
+             description, rules, text_script)
+           VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -125,6 +128,7 @@ export class ProjectService {
           now,
           req.description ?? '',
           JSON.stringify(req.rules ?? {}),
+          req.text_script ?? null,
         );
       this.feed?.record('project', id, 'project.created', {});
     })();
@@ -133,6 +137,7 @@ export class ProjectService {
 
   patch(id: string, input: PatchProjectRequest, ifMatch: string | undefined): Project {
     const body = PatchProjectRequestSchema.parse(input);
+    if (body.text_script !== undefined) ownerOnlyTextScript();
     return this.db.transaction(() => {
       const row = this.liveRow(id);
       this.checkBase(row, body.base_revision, ifMatch);
@@ -161,6 +166,11 @@ export class ProjectService {
           values.push(rules);
           fields.push('rules');
         }
+      }
+      if (body.text_script !== undefined && body.text_script !== row.text_script) {
+        sets.push('text_script = ?');
+        values.push(body.text_script);
+        fields.push('text_script');
       }
       if (body.archived !== undefined && body.archived !== (row.archived_at !== null)) {
         sets.push('archived_at = ?');
@@ -538,5 +548,18 @@ function toProject(row: ProjectRow): Project {
     updated_at: row.updated_at,
     description: row.description,
     rules: parseRules(row.rules),
+    text_script:
+      row.text_script === 'zh-Hans' || row.text_script === 'zh-Hant' ? row.text_script : null,
   };
+}
+
+/** QC-103: which script agents write in is the owner's choice, never an agent's. */
+function ownerOnlyTextScript(): void {
+  if (currentPrincipal()?.kind === 'agent') {
+    throw new ServiceError(
+      403,
+      'forbidden',
+      "text_script is the owner's setting; agent tokens cannot change it",
+    );
+  }
 }

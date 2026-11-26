@@ -36,6 +36,7 @@ describe('GET /api/v1/session (QC-087)', () => {
         source: 'source',
         server_url: s.baseUrl,
       },
+      text_script: { default: 'zh-Hans', projects: [] },
     });
     for (const scopes of [['read'], ['import'], ['write']] as const) {
       const t = s.tokens.create({ name: `agent-${scopes[0]}`, scopes: [...scopes] });
@@ -47,6 +48,7 @@ describe('GET /api/v1/session (QC-087)', () => {
         allow_direct_body_edit: false,
         project_ids: null,
         cli: null,
+        text_script: { default: 'zh-Hans', projects: [] },
       });
     }
     const res = await fetch(`${s.baseUrl}/api/v1/session`);

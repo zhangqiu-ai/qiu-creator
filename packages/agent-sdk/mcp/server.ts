@@ -1,5 +1,5 @@
 import type { CreatorHubClient } from '@qiu-creator/api-client';
-import { PlatformSchema } from '@qiu-creator/contracts';
+import { PlatformSchema, type SessionTextScript, type TextScript } from '@qiu-creator/contracts';
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import {
@@ -24,6 +24,35 @@ export interface CreatorHubMcpOptions {
   toolsets?: readonly Toolset[];
   /** Reported to the MCP client. */
   version?: string;
+  /**
+   * QC-103: the token's script setting, read from the session at start, so
+   * the instructions name it; null or absent when it could not be read.
+   */
+  textScript?: SessionTextScript | null;
+}
+
+const SCRIPT_NAMES: Record<TextScript, string> = {
+  'zh-Hans': 'Simplified Chinese (zh-Hans)',
+  'zh-Hant': 'Traditional Chinese (zh-Hant)',
+};
+
+/** How text_script is resolved, for the instructions and server_status. */
+export const TEXT_SCRIPT_RULE =
+  'A work in projects uses their override when those that override agree; otherwise (no project, no override, or different overrides) the default applies.';
+
+/** The instructions' sentence on which script to write works in (QC-103). */
+export function textScriptInstruction(textScript: SessionTextScript | null | undefined): string {
+  const target =
+    textScript === null || textScript === undefined
+      ? 'the script server_status reports in text_script (Simplified Chinese, zh-Hans, unless the user changed it)'
+      : `${SCRIPT_NAMES[textScript.default]}${
+          textScript.projects.length === 0
+            ? ''
+            : ` (projects that override it: ${textScript.projects
+                .map((p) => `${JSON.stringify(p.name)} → ${p.script}`)
+                .join(', ')})`
+        }`;
+  return `Write the text of works (titles, Markdown, descriptions, tags, platform titles and tags) in ${target}. ${TEXT_SCRIPT_RULE} The server converts Chinese text you send to that script with OpenCC (code, URLs and paths are left alone) and says so in script_conversion.`;
 }
 
 /** `works,assets` → toolsets; throws on unknown names. Empty or absent = all. */
@@ -74,6 +103,7 @@ export function createCreatorHubMcpServer(options: CreatorHubMcpOptions): McpSer
         'Call server_status first to see which tools this token may use.',
         'Edits need the base_revision you read; on 409 read again, merge, and retry with details.current_revision. Create and import calls take an idempotency_key: reuse it only to retry the same request.',
         'To change the text of a work (its Markdown or description), use work_propose_edit: the user accepts or discards each change. Only tokens the user allowed to edit text directly may use work_update_body.',
+        textScriptInstruction(options.textScript),
         USER_DATA_NOTE,
       ].join(' '),
     },
@@ -97,10 +127,20 @@ export function createCreatorHubMcpServer(options: CreatorHubMcpOptions): McpSer
           if (def.name !== 'server_status') return toResult(value);
           // Add which enabled tools this token may call.
           const status = value as {
-            token: { kind: string; scopes: readonly string[]; allow_direct_body_edit: boolean };
+            token: {
+              kind: string;
+              scopes: readonly string[];
+              allow_direct_body_edit: boolean;
+              text_script?: SessionTextScript | null;
+            };
           };
           return toResult({
             ...status,
+            // QC-103: which script to write works in, and how it is chosen.
+            text_script:
+              status.token.text_script === undefined || status.token.text_script === null
+                ? null
+                : { ...status.token.text_script, rule: TEXT_SCRIPT_RULE },
             toolsets,
             tools: tools.map((t) => ({
               name: t.name,

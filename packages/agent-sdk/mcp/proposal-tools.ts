@@ -4,7 +4,14 @@ import {
   ListProposalsQuerySchema,
   PatchWorkRequestSchema,
 } from '@qiu-creator/contracts';
-import { id, tool, ToolInputError, USER_DATA_NOTE, type McpToolDef } from './define.js';
+import {
+  id,
+  SCRIPT_NOTE,
+  tool,
+  ToolInputError,
+  USER_DATA_NOTE,
+  type McpToolDef,
+} from './define.js';
 
 /**
  * Changing a work's text (QC-089). Agents propose; the user accepts all or
@@ -17,8 +24,7 @@ export const PROPOSAL_TOOLS: readonly McpToolDef[] = [
     group: 'works',
     access: 'propose',
     routes: ['POST /api/v1/works/:id/proposals'],
-    description:
-      'Propose a new text for a work: send the whole edited Markdown and the current_revision_id you edited (work_get). Nothing changes until the user accepts all or some of your changes in CreatorHub; they may also discard it. Explain briefly in note what you changed and why. Reuse the same idempotency_key when retrying.',
+    description: `Propose a new text for a work: send the whole edited Markdown and the current_revision_id you edited (work_get). Nothing changes until the user accepts all or some of your changes in CreatorHub; they may also discard it. Explain briefly in note what you changed and why. Reuse the same idempotency_key when retrying. ${SCRIPT_NOTE}`,
     inputSchema: {
       id: id('work'),
       base_revision: CreateProposalRequestSchema.shape.base_revision.describe(
@@ -65,8 +71,7 @@ export const PROPOSAL_TOOLS: readonly McpToolDef[] = [
     access: 'write',
     routes: ['PATCH /api/v1/works/:id'],
     directBodyEdit: true,
-    description:
-      "Write a work's text directly. Only for tokens the user explicitly allowed to (allow_direct_body_edit, see server_status); otherwise 403 direct_edit_not_allowed — use work_propose_edit. base_revision is required (409 if the work changed); the previous revision stays as a snapshot the user can restore in one click, and the new revision names this agent. Give markdown for articles or description for image and video works.",
+    description: `Write a work's text directly. Only for tokens the user explicitly allowed to (allow_direct_body_edit, see server_status); otherwise 403 direct_edit_not_allowed — use work_propose_edit. base_revision is required (409 if the work changed); the previous revision stays as a snapshot the user can restore in one click, and the new revision names this agent. Give markdown for articles or description for image and video works. ${SCRIPT_NOTE}`,
     inputSchema: {
       id: id('work'),
       base_revision: id('revision').describe('The current_revision_id you read.'),

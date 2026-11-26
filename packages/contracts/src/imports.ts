@@ -7,6 +7,7 @@ import {
   TimestampSchema,
   WorkAssetRoleSchema,
 } from './entities.js';
+import { SessionTextScriptSchema } from './text-script.js';
 
 /** Header carrying the client's idempotency key on POST /works and POST /imports/urls. */
 export const IDEMPOTENCY_KEY_HEADER = 'idempotency-key';
@@ -123,6 +124,8 @@ export const SessionResponseSchema = z.object({
   project_ids: z.array(IdSchema).nullable().default(null),
   /** QC-094: the CLI on this Mac; owner token only (null for agents, or when not found). */
   cli: SessionCliSchema.nullable().default(null),
+  /** QC-103: the script agents should write works in; null from older servers. */
+  text_script: SessionTextScriptSchema.nullable().default(null),
 });
 export type SessionResponse = z.infer<typeof SessionResponseSchema>;
 

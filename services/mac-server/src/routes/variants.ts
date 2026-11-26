@@ -17,6 +17,7 @@ import { resolveBaseRevision } from '@qiu-creator/domain';
 import { z } from 'zod';
 import type { App } from '../http/app-type.js';
 import type { VariantService } from '../variants/variant-service.js';
+import { withConversion, type TextScriptService } from '../works/text-script-service.js';
 
 const errorResponses = {
   400: ErrorResponseSchema,
@@ -32,7 +33,11 @@ const etag = (revision: number): string => `"${String(revision)}"`;
 const DEPRECATED =
   'Deprecated (QC-084): variants are overrides and the body follows the work, so nothing needs generating. Kept for older clients.';
 
-export function registerVariantRoutes(app: App, variants: VariantService): void {
+export function registerVariantRoutes(
+  app: App,
+  variants: VariantService,
+  textScripts: TextScriptService,
+): void {
   /** Effective base from body and If-Match, compared as strings against the current revision. */
   const base = (
     workId: string,
@@ -104,14 +109,16 @@ export function registerVariantRoutes(app: App, variants: VariantService): void 
     async (req, reply) => {
       const { id, platform } = req.params;
       const { base_revision: bodyBase, ...change } = req.body;
+      // QC-103: an agent's platform title and tags go in the work's script.
+      const { value, conversion } = textScripts.forAgent(change, () => textScripts.forWork(id));
       const v = await variants.patch(
         id,
         platform,
         base(id, platform, bodyBase, req.headers['if-match']),
-        change,
+        value,
       );
       reply.header('etag', etag(v.revision));
-      return v;
+      return { ...v, ...withConversion(conversion) };
     },
   );
 

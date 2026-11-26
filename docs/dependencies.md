@@ -79,7 +79,7 @@
 | @tus/file-store | ^2.1.2 | MIT | mac-server | tus 上傳暫存（`data/uploads/`） | — |
 | file-type | ^22.3.0 | MIT | mac-server | magic bytes 類型判斷 | libmagic |
 | sharp | ^0.35.5 | Apache-2.0（libvips：LGPL-3.0） | mac-server | 圖片縮圖與尺寸 | sips、jimp |
-| opencc-js | ^1.4.2 | MIT（字表 Apache-2.0，來自 OpenCC） | domain（mac-server 與 Mac App 共用） | 搜尋比對的繁轉簡逐字字表：只載入 `dict/TSCharacters`（約 29 KB），不載入詞組表與轉換器（QC-068） | 自帶字表檔（需自行更新）；不做簡繁互通 |
+| opencc-js | ^1.4.2 | MIT（字表 Apache-2.0，來自 OpenCC） | domain（mac-server 與 Mac App 共用）；mac-server（QC-103） | 搜尋比對的繁轉簡逐字字表：domain 只載入 `dict/TSCharacters`（約 29 KB），不載入詞組表與轉換器（QC-068）。QC-103：mac-server 直接依賴，把 Agent 寫入作品的文字轉成目標字體，載入 `opencc-js/t2cn`（`tw → cn`，約 107 KB）與 `opencc-js/cn2t`（`cn → tw`，含簡轉繁詞組表，約 1.1 MB），第一次轉換時才建立轉換器；只進服務的建置產物，不進 Mac App | 自帶字表檔（需自行更新）；`opencc`（npm，原生 C++ 綁定，要編譯，Electron 與服務都多一個原生模組）；`chinese-conv`／`chinese-s2t`（只有逐字表，簡轉繁的一對多字常錯）。選 opencc-js：已是現有依賴、純 JS、與 OpenCC 同一份字表 |
 | pinyin-pro | ^3.29.5 | MIT | domain（mac-server 與 Mac App 共用） | 搜尋的拼音比對（QC-079）：逐字取所有讀音（多音字全收、不帶聲調），支援全拼、首字母、混用；安裝約 1.1 MB；與 OpenCC 字表一起打包後，搜尋模組 minify 約 501 KB、gzip 約 163 KB | 自帶拼音字表（需自行維護）；`tiny-pinyin`（不支援多音字）；不做拼音搜尋 |
 | chokidar | ^6.0.0 | MIT | mac-server | 外部資料夾監控 | fs.watch、@parcel/watcher |
 | @anthropic-ai/sdk | ^1.9.0 | MIT | mac-server | Claude（Messages API）adapter（QC-021） | 自寫 fetch（官方建議用 SDK；型別與錯誤類別省工） |

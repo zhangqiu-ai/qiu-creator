@@ -10,6 +10,7 @@ import { currentProjectLimit, type ProjectScope } from '../auth/project-scope.js
 import { requirePrincipal } from '../auth/token-service.js';
 import type { ChangeFeed } from '../events/change-feed.js';
 import type { App } from '../http/app-type.js';
+import type { TextScriptService } from '../works/text-script-service.js';
 
 const errors = { 401: ErrorResponseSchema, 403: ErrorResponseSchema };
 
@@ -34,13 +35,14 @@ export function registerSessionRoutes(
   feed: ChangeFeed,
   scope: ProjectScope,
   cli: CliLocation | null,
+  textScripts: TextScriptService,
 ): void {
   app.get(
     '/api/v1/session',
     {
       schema: {
         description:
-          'The calling token: owner or agent, its name, scopes (`read`, `import`, `write`, `propose`), whether it may edit text directly, and the projects it is limited to. Any token may read its own session. The owner also gets `cli`: how to start the `creatorhub` CLI on this Mac (for the MCP config).',
+          'The calling token: owner or agent, its name, scopes (`read`, `import`, `write`, `propose`), whether it may edit text directly, and the projects it is limited to. Any token may read its own session. The owner also gets `cli`: how to start the `creatorhub` CLI on this Mac (for the MCP config). `text_script` (QC-103): the script works are written in (global default and project overrides this token may see); text agents send is converted to it.',
         response: { 200: SessionResponseSchema, ...errors },
       },
     },
@@ -62,6 +64,7 @@ export function registerSessionRoutes(
                 server_url: `http://127.0.0.1:${String(req.socket.localPort)}`,
               }
             : null,
+        text_script: textScripts.session(currentProjectLimit()),
       };
     },
   );

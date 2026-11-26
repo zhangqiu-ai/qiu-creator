@@ -663,6 +663,18 @@ export const migrations: readonly Migration[] = [
       ALTER TABLE work_projects ADD COLUMN reasons TEXT NOT NULL DEFAULT '[]';
     `,
   },
+  {
+    id: '0023',
+    name: 'project_text_script',
+    sql: /* sql */ `
+      -- QC-103: a project's script for text agents write into its works
+      -- ('zh-Hans' or 'zh-Hant'); NULL follows the global setting, which
+      -- lives in app_settings ('work_text_script'). Column only; see
+      -- PROJECT_TEXT_SCRIPT_ROLLBACK_SQL.
+      ALTER TABLE projects ADD COLUMN text_script TEXT
+        CHECK (text_script IS NULL OR text_script IN ('zh-Hans','zh-Hant'));
+    `,
+  },
 ];
 
 /**
@@ -807,4 +819,14 @@ export const PROJECT_RULES_ROLLBACK_SQL = /* sql */ `
   ALTER TABLE projects DROP COLUMN rules;
   ALTER TABLE projects DROP COLUMN description;
   DELETE FROM schema_migrations WHERE id = '0022';
+`;
+
+/**
+ * Undoes `0023_project_text_script` so an older build can open the database
+ * again (QC-103): project overrides go; the global setting stays in
+ * app_settings, where older builds ignore it. No work text changes.
+ */
+export const PROJECT_TEXT_SCRIPT_ROLLBACK_SQL = /* sql */ `
+  ALTER TABLE projects DROP COLUMN text_script;
+  DELETE FROM schema_migrations WHERE id = '0023';
 `;

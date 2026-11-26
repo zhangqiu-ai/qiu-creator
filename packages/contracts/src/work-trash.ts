@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ErrorCodeSchema, WorkListItemSchema } from './api.js';
 import { ASSET_TRASH_RETENTION_DAYS } from './assets.js';
 import { IdSchema, TagSchema, WorkSchema, WorkStatusSchema } from './entities.js';
+import { ScriptConversionSchema } from './text-script.js';
 
 /**
  * Works in 回收站 (QC-051), like assets (QC-037):
@@ -83,7 +84,13 @@ export type BatchWorksAction = BatchWorksRequest['action'];
 
 export const BatchWorkResultSchema = z.discriminatedUnion('ok', [
   /** Status and tag changes are new revisions, like PATCH; take `current_revision_id` from `work`. */
-  z.object({ id: IdSchema, ok: z.literal(true), work: WorkListItemSchema }),
+  z.object({
+    id: IdSchema,
+    ok: z.literal(true),
+    work: WorkListItemSchema,
+    /** `add_tags` by an agent token whose tags were converted to the work's script (QC-103). */
+    script_conversion: ScriptConversionSchema.optional(),
+  }),
   z.object({
     id: IdSchema,
     ok: z.literal(false),

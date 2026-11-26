@@ -101,6 +101,8 @@ import { MountService, type MountServiceOptions } from './mounts/mount-service.j
 import { ImportService, type DownloadSettings } from './imports/import-service.js';
 import { WorkService } from './works/work-service.js';
 import { WorkTrash, type WorkTrashOptions } from './works/work-trash.js';
+import { TextScriptService, withConversion } from './works/text-script-service.js';
+import { registerSettingsRoutes } from './routes/settings.js';
 import { registerWorkTrashRoutes } from './routes/work-trash.js';
 import { ProjectService, type ProjectServiceOptions } from './projects/project-service.js';
 import { registerProjectRoutes } from './routes/projects.js';
@@ -317,7 +319,11 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     tokens,
     options.download,
   );
-  const workTrash = new WorkTrash(db, layout, works, composer, feed, options.workTrash);
+  const textScripts = new TextScriptService(db);
+  const workTrash = new WorkTrash(db, layout, works, composer, feed, {
+    ...options.workTrash,
+    textScripts,
+  });
   const projects = new ProjectService(db, works, feed, options.projects);
   const projectRules = new ProjectRuleService(db, works);
   const assetLibrary = new AssetLibrary(db, layout, assets, feed, {
@@ -541,7 +547,16 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
         () => {
           // QC-092: auto_assign scores the new content against project rules
           // (only the token's projects) and adds every project ≥ 0.8.
-          if (!req.body.auto_assign) return { statusCode: 201, body: works.create(req.body) };
+          if (!req.body.auto_assign) {
+            // QC-103: an agent's text goes in the script of the work's projects.
+            const { value, conversion } = textScripts.forAgent(req.body, () =>
+              textScripts.forProjects(req.body.project_ids),
+            );
+            return {
+              statusCode: 201,
+              body: { ...works.create(value), ...withConversion(conversion) },
+            };
+          }
           const auto = projectRules.autoAssignment({
             title: req.body.title,
             markdown: req.body.markdown === '' ? (req.body.description ?? '') : req.body.markdown,
@@ -563,8 +578,17 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
               },
             );
           }
-          const work = works.create(req.body, { autoAssigned: auto.assigned });
-          return { statusCode: 201, body: { ...work, auto_assignment: auto } };
+          const { value, conversion } = textScripts.forAgent(req.body, () =>
+            textScripts.forProjects([
+              ...req.body.project_ids,
+              ...auto.assigned.map((m) => m.project_id),
+            ]),
+          );
+          const work = works.create(value, { autoAssigned: auto.assigned });
+          return {
+            statusCode: 201,
+            body: { ...work, auto_assignment: auto, ...withConversion(conversion) },
+          };
         },
       );
       const work = WorkDetailSchema.parse(result.body);
@@ -662,9 +686,13 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     async (req, reply) => {
       // Articles go straight to WorkService.patch; image and video works are
       // composed from their front matter (QC-045/046).
-      const work = await composer.patch(req.params.id, req.body, req.headers['if-match']);
+      // QC-103: an agent's title, tags and text go in the work's script.
+      const { value, conversion } = textScripts.forAgent(req.body, () =>
+        textScripts.forWork(req.params.id),
+      );
+      const work = await composer.patch(req.params.id, value, req.headers['if-match']);
       reply.header('etag', revisionEtag(work.current_revision_id));
-      return work;
+      return { ...work, ...withConversion(conversion) };
     },
   );
 
@@ -745,13 +773,20 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     scope,
     options.agentActivity?.now ?? Date.now,
   );
-  registerSessionRoutes(app, feed, scope, options.cli === undefined ? locateCli() : options.cli);
+  registerSessionRoutes(
+    app,
+    feed,
+    scope,
+    options.cli === undefined ? locateCli() : options.cli,
+    textScripts,
+  );
+  registerSettingsRoutes(app, textScripts);
   registerImportRoutes(app, imports, idempotency);
   registerTokenRoutes(app, tokens, activity);
-  registerProposalRoutes(app, proposals, idempotency);
+  registerProposalRoutes(app, proposals, idempotency, textScripts);
   registerMountRoutes(app, mounts);
   registerMediaRoutes(app, media, assets, signer, tokens, workLinks, works);
-  registerVariantRoutes(app, variants);
+  registerVariantRoutes(app, variants, textScripts);
   registerAiRoutes(app, ai, idempotency, (job, principalId) =>
     images.decorate(job, (pathname) => {
       const expiresAt = signer.expiry();
