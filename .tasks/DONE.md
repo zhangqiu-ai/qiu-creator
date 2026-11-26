@@ -1,3 +1,19 @@
+## QC-104: 素材庫視頻無法全屏播放
+
+**Priority:** P2 | **Assignee:** qc-frontend | **Tags:** frontend
+
+**Completed:** 2026-11-26（c132d35）
+
+根因：`hardenSession()` 拒絕所有權限請求，連 `fullscreen` 也拒，原生播放器的全屏鈕失效。改為只對 App 自己的畫面允許 `fullscreen`，其餘權限照舊拒絕；Esc 先退全屏、焦點回播放器。e2e 涵蓋素材庫、素材檢視、視頻作品編輯頁。平台預覽的手機框只顯示封面、沒有播放器。視頻素材卡沒有縮圖是另一處程式，併入 QC-108。真實 App 進入 macOS 全螢幕 NOT_VERIFIED。
+
+## QC-103: Agent 寫入作品的文字統一簡繁字體
+
+**Priority:** P2 | **Assignee:** qc-backend | **Tags:** backend
+
+**Completed:** 2026-11-26（ba80289）
+
+全域設定 `work_text_script`（預設 `zh-Hans`，`GET/PUT /api/v1/settings/text-script`，只限主權杖），項目欄位 `text_script` 可覆寫（migration 0023 只加一欄）。Agent 權杖的作品新建、修改、提案候選、平台版本、批次加標籤，用 opencc-js 1.4.2 轉字體，只轉字不換詞；Markdown 的程式碼、HTML、網址不動；回應帶 `script_conversion`。session、`server_status`、MCP instructions 與五個工具說明告知目標字體；多個項目覆寫不一致時用全域。測試：mac-server 592、agent-sdk 54 passed（合併後）。設定介面另開 QC-109。
+
 ## QC-105: 素材檢視改為內容優先（原型）
 
 **Priority:** P2 | **Assignee:** qc-prototype | **Tags:** prototype

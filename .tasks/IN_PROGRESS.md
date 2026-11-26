@@ -1,19 +1,3 @@
-## QC-104: 素材庫視頻無法全屏播放
-
-**Priority:** P2 | **Assignee:** qc-frontend | **Tags:** frontend
-
-使用者 2026-11-26 回報：素材庫選中視頻後，右側預覽播放器的全屏按鈕點了沒有反應。修好後素材庫、作品編輯頁和平台預覽裡的視頻都要能全屏，按 Esc 能退出。同時注意到素材卡上的視頻沒有縮圖（只有圖示），屬於同一處的話一併修好，不是的話寫在報告裡。
-
-**Started:** 2026-11-26
-
-## QC-103: Agent 寫入作品的文字統一簡繁字體
-
-**Priority:** P2 | **Assignee:** qc-backend | **Tags:** backend
-
-使用者 2026-11-26 反映 Agent 建的作品有時繁體、有時簡體。決策見 `docs/decisions.md` 2026-11-26：預設簡體，全域設定可改繁體，項目可覆寫；MCP 說明與 `server_status` 告知目標字體；Agent 權杖寫入的標題、正文、描述、標籤、平台版本文字由服務端用 OpenCC 轉換並在回應註明；使用者自己的文字與既有作品不動。設定頁與項目設定的介面另開任務給 qc-frontend。
-
-**Started:** 2026-11-26
-
 ## QC-033: Mac 生產可用實機驗收
 
 **Priority:** P1 | **Assignee:** qc-test | **Tags:** M3
