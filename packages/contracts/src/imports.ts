@@ -37,7 +37,11 @@ export const ImportUrlRequestSchema = z.object({
   url: z.url({ protocol: /^https?$/ }).max(4096),
   /** File name to store; defaults to Content-Disposition or the URL path. */
   filename: z.string().trim().min(1).max(255).optional(),
-  /** Optionally link the imported asset to this work. */
+  /**
+   * Optionally link the imported asset to this work. For image and video works
+   * the file also goes into the front matter, which needs the `write` scope
+   * (QC-102).
+   */
   work_id: IdSchema.optional(),
   role: WorkAssetRoleSchema.optional(),
 });

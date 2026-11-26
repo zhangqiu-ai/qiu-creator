@@ -218,6 +218,120 @@ describe('MCP scenario: an agent builds a post', () => {
   });
 });
 
+describe('MCP scenario: an agent builds an image post and a video (QC-102)', () => {
+  const mp4 = Buffer.concat([
+    Buffer.from([0, 0, 0, 24]),
+    Buffer.from('ftypisom'),
+    Buffer.from([0, 0, 2, 0]),
+    Buffer.from('isomiso2'),
+    Buffer.alloc(128, 3),
+  ]);
+
+  async function upload(c: Client, name: string, data: Buffer): Promise<string> {
+    const local = path.join(files, name);
+    fs.writeFileSync(local, data);
+    return (await ok<UploadAssetResponse>(c, 'asset_upload_file', { path: local })).asset.id;
+  }
+
+  const get = (c: Client, id: string) =>
+    ok<{ work: WorkDetail; assets: { role: string; asset: { id: string } }[] }>(c, 'work_get', {
+      id,
+    });
+
+  it('shows the attached images, video and covers on the works', async () => {
+    const c = await agent();
+
+    const post = await ok<WorkDetail>(c, 'work_create', {
+      title: '嵐山貼圖',
+      type: 'image',
+      description: '楓葉。',
+      idempotency_key: 'qc102-post-0001',
+    });
+    const pics: string[] = [];
+    for (const n of [1, 2, 3, 4]) pics.push(await upload(c, `p${String(n)}.png`, png(n)));
+    const [first = '', second = '', third = '', fourth = ''] = pics;
+    for (const asset_id of [second, third, fourth]) {
+      await ok(c, 'work_attach_asset', { work_id: post.id, asset_id, role: 'body' });
+    }
+    await ok(c, 'work_attach_asset', {
+      work_id: post.id,
+      asset_id: first,
+      role: 'body',
+      position: 0,
+    });
+    await ok(c, 'work_attach_asset', { work_id: post.id, asset_id: third, role: 'cover' });
+
+    const seen = await get(c, post.id);
+    expect(seen.work.media?.images.map((i) => [i.asset_id, i.status])).toEqual(
+      pics.map((id) => [id, 'present']),
+    );
+    expect(seen.work.media?.cover).toMatchObject({ kind: 'image', item: { asset_id: third } });
+    expect(seen.work.description).toBe('楓葉。');
+    expect(seen.assets.map((a) => [a.role, a.asset.id])).toEqual([
+      ...pics.map((id) => ['body', id]),
+      ['cover', third],
+    ]);
+
+    const reversed = [...pics].reverse();
+    await ok(c, 'work_reorder_assets', { work_id: post.id, role: 'body', asset_ids: reversed });
+    await ok(c, 'work_detach_asset', { work_id: post.id, asset_id: fourth, role: 'body' });
+    expect((await get(c, post.id)).work.media?.images.map((i) => i.asset_id)).toEqual([
+      third,
+      second,
+      first,
+    ]);
+
+    const film = await ok<WorkDetail>(c, 'work_create', {
+      title: '嵐山短片',
+      type: 'video',
+      idempotency_key: 'qc102-film-0001',
+    });
+    const clip = await upload(c, 'clip.mp4', mp4);
+    const poster = await upload(c, 'poster.png', png(9));
+    await ok(c, 'work_attach_asset', { work_id: film.id, asset_id: clip, role: 'video' });
+    await ok(c, 'work_attach_asset', { work_id: film.id, asset_id: poster, role: 'cover' });
+
+    const made = (await get(c, film.id)).work;
+    expect(made.media?.video).toMatchObject({ asset_id: clip, status: 'present' });
+    expect(made.media?.cover).toMatchObject({ kind: 'image', item: { asset_id: poster } });
+    for (const platform of ['douyin', 'wechat_channels']) {
+      const variant = await ok<{ cover: unknown }>(c, 'variant_get', { id: film.id, platform });
+      expect(variant.cover).toEqual({ asset_id: poster });
+    }
+
+    const cards = await ok<{ items: { id: string; thumbnail: { asset_id: string } | null }[] }>(
+      c,
+      'works_search',
+      {},
+    );
+    expect(Object.fromEntries(cards.items.map((w) => [w.id, w.thumbnail?.asset_id]))).toEqual({
+      [post.id]: third,
+      [film.id]: poster,
+    });
+  });
+
+  it('says what a work cannot take instead of linking something invisible', async () => {
+    const c = await agent();
+    const film = await owner.works.create({ title: '短片', type: 'video' });
+    const pic = await upload(c, 'a.png', png(1));
+    const body = await fails(c, 'work_attach_asset', {
+      work_id: film.id,
+      asset_id: pic,
+      role: 'body',
+    });
+    expect(body).toMatchObject({ status: 400, details: { allowed: ['video', 'cover'] } });
+    const copy = await call(c, 'work_attach_asset', {
+      work_id: film.id,
+      asset_id: pic,
+      role: 'cover',
+      copy_into_work: true,
+    });
+    expect(copy.isError).toBe(true);
+    expect(copy.text).toContain('leave it out');
+    expect((await owner.workAssets.list(film.id)).items).toEqual([]);
+  });
+});
+
 describe('MCP scenario: edits, conflicts and history', () => {
   it('updates metadata with base_revision; a stale base gets 409 with the revision to retry with', async () => {
     const c = await agent();

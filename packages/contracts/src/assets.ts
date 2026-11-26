@@ -124,6 +124,11 @@ export type WorkAssetItem = z.infer<typeof WorkAssetItemSchema>;
 export const WorkAssetListResponseSchema = z.object({ items: z.array(WorkAssetItemSchema) });
 export type WorkAssetListResponse = z.infer<typeof WorkAssetListResponseSchema>;
 
+/**
+ * Image works take `body` (their images) and `cover`, video works `video` and
+ * `cover`, and the file is written into the work's front matter (QC-102).
+ * Articles record the link only.
+ */
 export const LinkWorkAssetRequestSchema = z.object({
   asset_id: IdSchema,
   role: WorkAssetRoleSchema,

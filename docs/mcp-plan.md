@@ -65,7 +65,7 @@ mac-server 127.0.0.1:7420 ← 唯一權威，權限、409、冪等全在這裡
 | 作品 | `work_trash`／`work_restore`／`works_batch` | write |
 | 素材 | `assets_search`、`asset_get` | read |
 | 素材 | `asset_upload_file`（本機路徑）、`asset_import_url`、`job_get`／`job_wait` | import |
-| 素材 | `work_attach_asset`、`work_detach_asset`、`work_reorder_assets` | write |
+| 素材 | `work_attach_asset`、`work_detach_asset`、`work_reorder_assets`（貼圖與視頻作品寫進 front matter，App 立即看得到；文章只記關聯，見[架構](architecture.md)「把素材掛到作品」，QC-102） | write |
 | 項目 | `projects_list`、`project_get`（含摘要） | read |
 | 項目 | `project_create`／`project_update`、`works_assign_projects` | write |
 | 項目 | `projects_suggest`（依內容建議歸屬，見第 5 節） | read |

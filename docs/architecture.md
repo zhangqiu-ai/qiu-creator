@@ -151,7 +151,7 @@ $CREATORHUB_HOME（預設 ~/CreatorHub；開發與測試一律用臨時目錄）
   backups/                     # SQLite 備份（QC-030）：<id>.sqlite 與 <id>.json（類型、時間、大小、完整性、schema 版本）
 ```
 
-素材獨立於作品存放：同一個檔案可以同時是 A 作品的封面、B 作品的正文圖，關聯記在 `work_assets`。
+素材獨立於作品存放：同一個檔案可以同時是 A 作品的封面、B 作品的正文圖，關聯記在 `work_assets`。貼圖與視頻作品實際顯示哪些檔案，以原稿的 front matter 為準（見「把素材掛到作品」，QC-102）。
 
 SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁碟檔案。資料庫裡的路徑都相對於 `CREATORHUB_HOME`。
 
@@ -250,7 +250,7 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | PUT | `/api/v1/works/:id/thumbnail-frame?version=&source=&time_seconds=` | App 上傳截取的視頻幀（JPEG／PNG／WebP，≤ 2 MiB，伺服器實際解碼驗證），存成卡片圖快取；需要 `write`（QC-061） |
 | GET | `/media/v1/works/:id/thumbnail?exp&p&sig&v` | 卡片圖的簽名網址（列表的 `card_image.url`），不需 Authorization（QC-061） |
 | GET | `/api/v1/works/:id/media` | 解析 Markdown 引用的圖片／影音，回每項狀態與簽名網址；外部作品的引用登記成素材 |
-| POST | `/api/v1/works/:id/media/attach` | 把素材複製進託管作品的 `assets/`、連結到作品，回 `src` 給 `![](src)` 用（QC-039）；不寫 Markdown；外部作品回 409 `attach_external_unsupported` |
+| POST | `/api/v1/works/:id/media/attach` | 把素材複製進託管作品的 `assets/`、連結到作品，回 `src` 給 `![](src)` 用（QC-039）；文章不寫 Markdown；貼圖與視頻作品同時寫進 front matter（QC-102）；外部作品回 409 `attach_external_unsupported` |
 | GET | `/api/v1/works/:id/files/*` | 以 Bearer 讀作品內的媒體檔，支援 Range（規則同簽名路由） |
 | POST | `/api/v1/media/signed-urls` | 為素材（`stream`／`thumbnail`）簽發短期網址 |
 | GET | `/media/v1/works/:id/files/*?exp&p&sig` | 簽名媒體檔，不需 Authorization，支援 Range |
@@ -270,9 +270,9 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
 | GET | `/api/v1/assets/:id/thumbnail` | WebP 縮圖；`cache/` 被刪時即時重建 |
 | GET | `/api/v1/assets/:id/works` | 反查使用此素材的作品：作品 id、標題、用途、位置，依作品更新時間新到舊；不含回收站中的作品（QC-053） |
 | GET | `/api/v1/works/:id/assets` | 作品的素材，依用途與順序 |
-| POST | `/api/v1/works/:id/assets` | 關聯素材（`cover`／`body`／`video`，可指定位置；重複關聯即移動） |
-| DELETE | `/api/v1/works/:id/assets/:assetId?role=` | 移除關聯，順序自動補齊 |
-| PUT | `/api/v1/works/:id/assets/order` | 重排某個用途的全部素材 |
+| POST | `/api/v1/works/:id/assets` | 關聯素材（`cover`／`body`／`video`，可指定位置；重複關聯即移動）。貼圖與視頻作品寫進 front matter（QC-102） |
+| DELETE | `/api/v1/works/:id/assets/:assetId?role=` | 移除關聯，順序自動補齊；貼圖與視頻作品同時從 front matter 移除 |
+| PUT | `/api/v1/works/:id/assets/order` | 重排某個用途的全部素材；貼圖作品的 `body` 即 front matter 的圖片順序 |
 | GET | `/api/v1/works/:id/variants` | 四個平台的解析結果（`VariantView`，依小紅書、公眾號、抖音、視頻號排序），沒有覆寫的平台也列出（QC-084） |
 | POST | `/api/v1/works/:id/variants` | **已棄用（QC-084）**：為沒有資料列的平台建立「全部跟隨」的列；已有的列在 `skipped` |
 | GET | `/api/v1/works/:id/variants/:platform` | 單一平台解析結果：各欄位與 `*_source`、推導出的正文、`warnings`、`revision`（還沒有覆寫時為 0），回 `ETag: "<revision>"` |
@@ -520,6 +520,28 @@ tags:
 - 草稿取自 front matter：標題、描述、標籤、圖片與封面（含視頻幀）。
 - `inherit: true` 時，讀取到的標題、正文與標籤就是作品目前的共用文案，作品改了會跟著變，不必寫新版本。版本自己的文字保留，關掉沿用時恢復。
 - 公眾號貼圖的圖片參考上限是 20 張（`PLATFORM_LIMITS.wechat_mp.imagePostImagesMax`），只提示。
+
+### 把素材掛到作品（QC-102）
+
+貼圖與視頻作品的編輯頁、作品卡和平台預覽只讀 front matter，所以每一條「把素材掛到作品」的路都要寫它（`WorkAssetLinks`）：
+
+| 路徑 | 貼圖作品 | 視頻作品 |
+| --- | --- | --- |
+| `POST /works/:id/assets` `role: body` | 加進 `images`；`position` 是從 0 起的位置，省略時放最後，重複掛載即移動 | 400 |
+| `role: video` | 400 | 設為 `video`（取代原本的） |
+| `role: cover` | 設為 `cover`（不加進 `images`） | 設為 `cover` 圖片；抖音與視頻號沿用 |
+| `DELETE …/assets/:assetId?role=` | 從 `images` 移除時，若它是封面，封面回到第一張圖；`cover` 只清封面 | 清 `video` 或 `cover` |
+| `PUT …/assets/order` | `role: body` 重排 `images`，要列出作品顯示的每個素材各一次 | 單一檔案，順序不變 |
+| `POST …/media/attach` | 圖片加到 `images` 最後；視頻回 400 | 視頻設為 `video`；圖片回 400（沒有指定用途） |
+| `POST /imports/urls` 帶 `work_id` | 需要 `write`；沒給 `role` 時圖片進 `images` | 需要 `write`；沒給 `role` 時視頻設為 `video`，圖片只在沒有封面時成為封面，否則任務失敗（素材已在素材庫） |
+
+- 檔案類型不符回 400 `validation_error`（`details.allowed` 列出可用的用途）；素材在回收站回 409 `asset_in_trash`；front matter 壞掉回 409 `front_matter_invalid`。這些情況檔案與關聯都不動。
+- 寫入前先把檔案複製進 `assets/`（外部作品只收自己資料夾裡的檔案），再把改動套到**當下**的版本上並提交，中間沒有 `await`，所以不會蓋掉別人的修改。每次改動是一個可恢復的版本，Agent 發起的標明是哪個 Agent；沒有實際變化時不產生版本。
+- 描述（正文）不會被改。Agent 只需要 `write`（與 `PATCH` 的 `images`／`cover`／`video_asset_id` 相同），不需要「允許直接修改正文」。URL 匯入原本只要 `import`，改檔的情況另外要求 `write`（權杖在任務完成前被撤銷時不寫）。
+- 掛載後 `work_assets` 對應用途的列跟著 front matter 更新。App 用 `PATCH` 改檔時不回頭清理舊的列，所以 `GET …/assets` 可能多出已移出作品的素材；以 `GET /works/:id` 的 `media` 為準。
+- 文章照舊：只記關聯，不寫 Markdown。
+
+QC-102 之前掛上去的素材只在 `work_assets`，不會自動出現；沒有遷移。用同一個請求再掛一次就會寫進 front matter。
 
 ## 版本恢復（QC-010）
 
@@ -1302,7 +1324,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 | `jobs_list` | `GET /api/v1/jobs` | read |
 | `job_get`、`job_wait` | `GET /api/v1/jobs/:id`（`job_wait` 最多等 300 秒，逾時回 `timed_out: true`） | read 或自己建立的 import |
 | `job_retry` | `POST /api/v1/jobs/:id/retry` | import |
-| `work_attach_asset` | `POST /api/v1/works/:id/assets`；`copy_into_work` 時 `POST …/media/attach` | write |
+| `work_attach_asset` | `POST /api/v1/works/:id/assets`；`copy_into_work`（只用於文章正文圖）時 `POST …/media/attach`。貼圖與視頻作品會寫進 front matter（QC-102） | write |
 | `work_detach_asset`、`work_reorder_assets` | `DELETE …/assets/:assetId`、`PUT …/assets/order` | write |
 | `work_update_meta` | `PATCH /api/v1/works/:id`，只收 `title`、`tags`、`status`，`base_revision` 必填 | write |
 | `work_trash`、`work_restore`、`works_batch` | `DELETE /api/v1/works/:id`、`POST …/restore`、`POST /api/v1/works/batch` | write |
@@ -1438,7 +1460,7 @@ Claude Desktop（`~/Library/Application Support/Claude/claude_desktop_config.jso
 7. **逾時**：連線 10 秒、無資料 60 秒、整體 30 分鐘。
 8. 不送 cookie 或任何憑證，要求 `Accept-Encoding: identity`，讓位元組數就是實際大小。
 
-下載完成後走與上傳相同的 `AssetService.ingest`：magic bytes、各類型大小上限、sha256 去重、縮圖或 ffprobe 任務。指定 `work_id` 時會自動關聯（`role` 預設依類型：視頻為 `video`，其他為 `body`）。
+下載完成後走與上傳相同的 `AssetService.ingest`：magic bytes、各類型大小上限、sha256 去重、縮圖或 ffprobe 任務。指定 `work_id` 時會自動關聯（`role` 預設依類型：視頻為 `video`，其他為 `body`）；貼圖與視頻作品照「把素材掛到作品」寫進 front matter，Agent 另需 `write`（QC-102）。
 
 **失敗與重試**：網路錯誤、逾時、5xx、408、429 視為暫時性錯誤，由佇列以指數退避自動重試（共 3 次）；SSRF 封鎖、4xx、類型或大小不符視為永久錯誤，立即標成 `failed`，並記錄 `error_code`（見 contracts 的 `ImportErrorCodeSchema`）。失敗的任務可用 `POST /api/v1/jobs/:id/retry` 手動重跑，`retry_count` 加 1。匯入任務的狀態變化以 `job.*` 事件（`data.type = "import"`）推送到 SSE。
 

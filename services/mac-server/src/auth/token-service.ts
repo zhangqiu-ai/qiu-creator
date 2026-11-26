@@ -132,6 +132,16 @@ export class TokenService {
     return agentPrincipal(toToken(row));
   }
 
+  /** The principal behind a principal id; `null` once an agent token is revoked. */
+  activeById(id: string): Principal | null {
+    if (id === OWNER.id) return OWNER;
+    const row = this.db
+      .prepare<[string], TokenRow>('SELECT * FROM api_tokens WHERE id = ?')
+      .get(id);
+    if (!row || row.revoked_at !== null) return null;
+    return agentPrincipal(toToken(row));
+  }
+
   /**
    * The principal behind a principal id, if it is still allowed to read
    * (signed media URLs re-check this on every request). `null` once an agent

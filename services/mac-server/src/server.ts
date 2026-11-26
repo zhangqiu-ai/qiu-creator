@@ -66,6 +66,7 @@ import { AgentActivityService, type AgentActivityOptions } from './agents/agent-
 import { registerImportRoutes, registerTokenRoutes } from './routes/imports.js';
 import { registerMediaRoutes } from './routes/media.js';
 import { WorkMediaAttacher } from './media/attach.js';
+import { WorkAssetLinks } from './works/work-asset-links.js';
 import { WorkComposer } from './works/work-composer.js';
 import { registerMountRoutes } from './routes/mounts.js';
 import { registerAiRoutes } from './routes/ai.js';
@@ -291,7 +292,6 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
         ? resolveFfprobe(process.env['CREATORHUB_FFPROBE'])
         : options.ffprobe,
   });
-  const imports = new ImportService(db, layout, assets, jobs, feed, options.download);
   const mounts = new MountService(db, layout, works, jobs, options.mounts);
   const signer = new MediaUrlSigner(
     loadOrCreateSigningKey(path.join(layout.home, 'data', 'media-signing.key')),
@@ -306,6 +306,17 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   const proposals = new ProposalService(db, works, scope, feed, options.proposals);
   const attacher = new WorkMediaAttacher(layout, works, assets);
   const composer = new WorkComposer(db, works, attacher, assets);
+  const workLinks = new WorkAssetLinks(works, assets, composer, attacher);
+  const imports = new ImportService(
+    db,
+    layout,
+    assets,
+    jobs,
+    feed,
+    workLinks,
+    tokens,
+    options.download,
+  );
   const workTrash = new WorkTrash(db, layout, works, composer, feed, options.workTrash);
   const projects = new ProjectService(db, works, feed, options.projects);
   const projectRules = new ProjectRuleService(db, works);
@@ -719,7 +730,9 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     (req, reply) => sendRanged(req, reply, assets.streamTarget(req.params.id)),
   );
 
-  registerAssetRoutes(app, assets, layout, { tusIdleTimeoutMs: options.tusIdleTimeoutMs });
+  registerAssetRoutes(app, assets, layout, workLinks, {
+    tusIdleTimeoutMs: options.tusIdleTimeoutMs,
+  });
   registerAssetLibraryRoutes(app, assetLibrary);
   registerWorkTrashRoutes(app, workTrash, works, idempotency);
   registerProjectRoutes(app, projects, projectRules);
@@ -737,7 +750,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerTokenRoutes(app, tokens, activity);
   registerProposalRoutes(app, proposals, idempotency);
   registerMountRoutes(app, mounts);
-  registerMediaRoutes(app, media, assets, signer, tokens, attacher, works);
+  registerMediaRoutes(app, media, assets, signer, tokens, workLinks, works);
   registerVariantRoutes(app, variants);
   registerAiRoutes(app, ai, idempotency, (job, principalId) =>
     images.decorate(job, (pathname) => {

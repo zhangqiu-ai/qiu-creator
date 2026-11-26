@@ -82,7 +82,7 @@ export const WRITE_TOOLS: readonly McpToolDef[] = [
     access: 'import',
     routes: ['POST /api/v1/works'],
     description:
-      'Create a work in the library: an article (Markdown), an image post or a video (type image/video; their text goes in description). Put it in projects with project_ids, or set auto_assign=true to also add it to every project whose rules score it ≥ 0.8 (auto_assignment in the result lists them and 0.5–0.8 suggestions, with reasons; check projects_suggest first if unsure). Retrying with the same idempotency_key returns the work created the first time instead of a duplicate. Returns the work with current_revision_id (the base_revision for later edits).',
+      'Create a work in the library: an article (Markdown), an image post or a video (type image/video; their text goes in description). Put it in projects with project_ids, or set auto_assign=true to also add it to every project whose rules score it ≥ 0.8 (auto_assignment in the result lists them and 0.5–0.8 suggestions, with reasons; check projects_suggest first if unsure). Image and video works start without files: upload or import them, then put them on the work with work_attach_asset. Retrying with the same idempotency_key returns the work created the first time instead of a duplicate. Returns the work with current_revision_id (the base_revision for later edits).',
     inputSchema: { ...CreateWorkRequestSchema.shape, idempotency_key: idempotencyKey },
     run: async (client, { idempotency_key, ...input }) =>
       client.works.create(
@@ -207,7 +207,7 @@ export const WRITE_TOOLS: readonly McpToolDef[] = [
     access: 'import',
     routes: ['POST /api/v1/imports/urls'],
     description:
-      'Download a public http(s) URL into the asset library as a background job (private and local addresses are refused; size, time and content type are limited). Optionally link it to a work (work_id, role). Returns the job: follow it with job_wait. Retry with the same idempotency_key.',
+      'Download a public http(s) URL into the asset library as a background job (private and local addresses are refused; size, time and content type are limited). Optionally put it on a work (work_id, role) as work_attach_asset does. On an image or video work this needs the write permission; without a role an image joins an image post, a video becomes a video work’s video, and an image becomes a video work’s cover only if it has none. Returns the job: follow it with job_wait. Retry with the same idempotency_key.',
     inputSchema: { ...ImportUrlRequestSchema.shape, idempotency_key: idempotencyKey },
     run: (client, { idempotency_key, ...input }) =>
       client.imports.url(input, { idempotencyKey: idempotency_key }),
@@ -266,15 +266,22 @@ export const WRITE_TOOLS: readonly McpToolDef[] = [
     access: 'write',
     routes: ['POST /api/v1/works/:id/assets', 'POST /api/v1/works/:id/media/attach'],
     description:
-      "Link a library asset to a work as cover, body (images) or video, optionally at a position. With copy_into_work=true (body images of articles), the file is also copied into the work's own folder and the response gives the src to reference from Markdown; works in linked external folders cannot take copies. Does not edit the text.",
+      "Put a library asset on a work. Image works: role body adds it to the post's images (position = place from 0, default the end; attaching it again moves it), role cover sets the cover. Video works: role video sets the video, role cover sets the cover image (抖音 and 視頻號 follow it). Other roles are refused. For image and video works the file is copied into the work and written into its front matter, so the app shows it; that is a new revision, so read the work again before your next edit. Works in linked external folders only take files already in their own folder. Articles: this never changes the text. role cover sets the cover of the platform versions and body adds an image to them; to show an image in the article, use copy_into_work=true (role body) and put the returned src into the text with work_propose_edit.",
     inputSchema: {
       work_id: id('work'),
       ...LinkWorkAssetRequestSchema.shape,
-      copy_into_work: z.boolean().default(false),
+      copy_into_work: z
+        .boolean()
+        .default(false)
+        .describe('articles only; image and video works copy the file by themselves'),
     },
     run: async (client, { work_id, copy_into_work, ...link }) => {
       if (!copy_into_work) return client.workAssets.link(work_id, link);
-      if (link.role !== 'body') throw new ToolInputError('copy_into_work is for body images');
+      if (link.role !== 'body' || link.position !== undefined) {
+        throw new ToolInputError(
+          'copy_into_work is for body images of articles and takes no position; leave it out for image and video works',
+        );
+      }
       return client.works.attachMedia(work_id, link.asset_id);
     },
   }),
@@ -284,7 +291,7 @@ export const WRITE_TOOLS: readonly McpToolDef[] = [
     access: 'write',
     routes: ['DELETE /api/v1/works/:id/assets/:assetId'],
     description:
-      'Unlink an asset from a work for one role. The asset stays in the library; Markdown that references its file is not changed.',
+      "Take an asset off a work for one role. For image and video works it also leaves the front matter (a new revision; removing the cover image from body resets the cover to the first image). The asset stays in the library; an article's text that references its file is not changed.",
     inputSchema: { work_id: id('work'), asset_id: id('asset'), role: WorkAssetRoleSchema },
     run: (client, args) => client.workAssets.unlink(args.work_id, args.asset_id, args.role),
   }),
@@ -294,7 +301,7 @@ export const WRITE_TOOLS: readonly McpToolDef[] = [
     access: 'write',
     routes: ['PUT /api/v1/works/:id/assets/order'],
     description:
-      "Set the order of a work's assets for one role (all of that role's asset ids, in order).",
+      "Set the order of a work's assets for one role (all of that role's asset ids, in order). For image works, role body reorders the post's images: send every asset_id in work.media.images (work_get) in the new order; it is saved as a new revision.",
     inputSchema: { work_id: id('work'), ...ReorderWorkAssetsRequestSchema.shape },
     run: (client, { work_id, ...order }) => client.workAssets.reorder(work_id, order),
   }),

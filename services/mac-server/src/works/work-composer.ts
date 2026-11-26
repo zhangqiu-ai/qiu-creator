@@ -113,7 +113,7 @@ export class WorkComposer {
         tags ??= front?.tags;
       } else {
         const resolve = (assetId: string, kind: 'image' | 'video') =>
-          this.resolve(state, assetId, kind, copied, mediaIndex);
+          this.resolveFile(state, assetId, kind, copied, mediaIndex);
         const images =
           body.images === undefined
             ? undefined
@@ -174,13 +174,17 @@ export class WorkComposer {
     }
   }
 
-  /** Front-matter path for an asset, copying it into a managed work when needed. */
-  private async resolve(
+  /**
+   * Front-matter path for an asset, copying it into a managed work when needed.
+   * A file this call creates is added to `copied`, its path to `mediaIndex`.
+   */
+  async resolveFile(
     state: TypedWorkState,
     assetId: string,
     kind: 'image' | 'video',
     copied: string[],
     mediaIndex: Record<string, string>,
+    options: { link?: boolean } = {},
   ): Promise<string> {
     const asset = this.assets.get(assetId); // 404 for an unknown asset
     if (asset.kind !== kind) {
@@ -196,7 +200,7 @@ export class WorkComposer {
     }
     const loc = state.location;
     if (loc.storage_mode === 'external') return externalPath(loc, asset);
-    const res = await this.attacher.attach(loc.id, assetId);
+    const res = await this.attacher.attach(loc.id, assetId, options);
     if (res.copied) {
       const located = this.works.locateMedia(state, res.src);
       if (located !== null) copied.push(path.join(located.root, located.rel));

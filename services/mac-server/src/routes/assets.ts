@@ -30,6 +30,7 @@ import { errorBody, type App } from '../http/app-type.js';
 import type { Layout } from '../layout.js';
 import { THUMBNAIL_MIME } from '../media/thumbnails.js';
 import { maxUploadBytes } from '../media/detect.js';
+import type { WorkAssetLinks } from '../works/work-asset-links.js';
 
 const errorResponses = {
   400: ErrorResponseSchema,
@@ -95,6 +96,7 @@ export function registerAssetRoutes(
   app: App,
   assets: AssetService,
   layout: Layout,
+  links: WorkAssetLinks,
   options: AssetRouteOptions = {},
 ): void {
   const tusIdleTimeoutMs = options.tusIdleTimeoutMs ?? DEFAULT_TUS_IDLE_TIMEOUT_MS;
@@ -293,15 +295,13 @@ export function registerAssetRoutes(
     {
       schema: {
         description:
-          'Link an asset to a work as cover, body or video. Linking an existing pair moves it to `position`.',
+          "Link an asset to a work as cover, body or video. Linking an existing pair moves it to `position`. Image works take `body` (their images) and `cover`, video works `video` and `cover` (400 otherwise, or for the wrong kind of file): the file is copied into the work and written into its front matter as a new revision, so it shows in the work (409 `front_matter_invalid`; external works only take files of their own folder, 409 `attach_external_unsupported`). An article's text is never written.",
         params: WorkIdParamsSchema,
         body: LinkWorkAssetRequestSchema,
-        response: { 200: WorkAssetListResponseSchema, ...errorResponses },
+        response: { 200: WorkAssetListResponseSchema, 409: ErrorResponseSchema, ...errorResponses },
       },
     },
-    (req) => ({
-      items: assets.link(req.params.id, req.body.asset_id, req.body.role, req.body.position),
-    }),
+    async (req) => ({ items: await links.link(req.params.id, req.body) }),
   );
 
   app.delete(
@@ -310,10 +310,10 @@ export function registerAssetRoutes(
       schema: {
         params: WorkAssetParamsSchema,
         querystring: WorkAssetRoleQuerySchema,
-        response: { 200: WorkAssetListResponseSchema, ...errorResponses },
+        response: { 200: WorkAssetListResponseSchema, 409: ErrorResponseSchema, ...errorResponses },
       },
     },
-    (req) => ({ items: assets.unlink(req.params.id, req.params.assetId, req.query.role) }),
+    (req) => ({ items: links.unlink(req.params.id, req.params.assetId, req.query.role) }),
   );
 
   app.put(
@@ -322,9 +322,9 @@ export function registerAssetRoutes(
       schema: {
         params: WorkIdParamsSchema,
         body: ReorderWorkAssetsRequestSchema,
-        response: { 200: WorkAssetListResponseSchema, ...errorResponses },
+        response: { 200: WorkAssetListResponseSchema, 409: ErrorResponseSchema, ...errorResponses },
       },
     },
-    (req) => ({ items: assets.reorder(req.params.id, req.body.role, req.body.asset_ids) }),
+    (req) => ({ items: links.reorder(req.params.id, req.body) }),
   );
 }
