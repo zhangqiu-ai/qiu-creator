@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { ASSET_TEXT_MAX_BYTES, type AssetText } from '../shared/bridge.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -49,4 +50,57 @@ export function abbreviateHome(filePath: string, homedir: string): string {
   if (rel === '') return '~';
   if (rel.startsWith('..') || path.isAbsolute(rel)) return filePath;
   return `~/${rel}`;
+}
+
+/**
+ * Read the start of a text asset for the 素材庫 reader (QC-108): at most
+ * `maxBytes`, asked for with a byte range and cut off there in case the
+ * service sends more. The id must be an asset id; null when it is not or the
+ * file cannot be read.
+ */
+export async function readAssetText(
+  doFetch: typeof fetch,
+  conn: { baseUrl: string; token: string },
+  assetId: unknown,
+  maxBytes: number = ASSET_TEXT_MAX_BYTES,
+): Promise<AssetText | null> {
+  if (typeof assetId !== 'string' || !UUID.test(assetId)) return null;
+  let res: Response;
+  try {
+    res = await doFetch(`${conn.baseUrl}/api/v1/assets/${assetId.toLowerCase()}/stream`, {
+      headers: { authorization: `Bearer ${conn.token}`, range: `bytes=0-${String(maxBytes)}` },
+      redirect: 'error',
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    return null;
+  }
+  if (!res.ok || res.body === null) return null;
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (size <= maxBytes) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      size += value.byteLength;
+    }
+  } catch {
+    return null;
+  } finally {
+    void reader.cancel().catch(() => undefined);
+  }
+  const bytes = new Uint8Array(size);
+  let at = 0;
+  for (const c of chunks) {
+    bytes.set(c, at);
+    at += c.byteLength;
+  }
+  const truncated = size > maxBytes;
+  // A cut may split the last character; the decoder's streaming mode drops that partial one.
+  const text = new TextDecoder('utf-8').decode(bytes.subarray(0, Math.min(size, maxBytes)), {
+    stream: truncated,
+  });
+  return { text, truncated };
 }

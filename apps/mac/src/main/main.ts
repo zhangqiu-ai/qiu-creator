@@ -21,6 +21,7 @@ import {
 import { isLanguagePreference } from '@qiu-creator/i18n';
 import {
   ASSET_SCHEME,
+  ASSET_TEXT_MAX_BYTES,
   IPC,
   type AppInfo,
   type MotionPreference,
@@ -37,7 +38,13 @@ import {
   isAppUrl,
   rendererOrigin,
 } from './app-protocol.js';
-import { abbreviateHome, assetServicePath, forwardableRange, resolveInsideHome } from './assets.js';
+import {
+  abbreviateHome,
+  assetServicePath,
+  forwardableRange,
+  readAssetText,
+  resolveInsideHome,
+} from './assets.js';
 import { readConnection, resolveConfig } from './config.js';
 import { cardFrameRequest } from './card-frame.js';
 import { contentSecurityPolicy } from './csp.js';
@@ -384,8 +391,15 @@ function registerIpc(): void {
     if (parsed === null) throw new Error('invalid tabs');
     writePreferences(preferencesFile(), { ...readPreferences(preferencesFile()), tabs: parsed });
   });
+  handle(IPC.assetText, (assetId) => {
+    const conn = connection();
+    return conn === null ? null : readAssetText(fetch, conn, assetId);
+  });
   handle(IPC.copyText, async (text) => {
-    if (typeof text !== 'string' || text.length > 10_000) throw new Error('invalid text');
+    // Up to a whole Markdown asset the reader shows (QC-108).
+    if (typeof text !== 'string' || text.length > ASSET_TEXT_MAX_BYTES) {
+      throw new Error('invalid text');
+    }
     await clipboard.writeText(text);
   });
 }

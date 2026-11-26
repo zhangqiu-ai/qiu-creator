@@ -6,8 +6,8 @@ import { pngBytes } from '../../services/mac-server/test/fixtures.js';
 import { test } from '../fixtures/desktop.js';
 
 /*
- * QC-077 素材庫大圖預覽 (Quick Look): open with double-click, space or the
- * inspector picture; close with Esc, space or the backdrop; ← → move; zoom with
+ * QC-077 素材庫大圖預覽 (Quick Look): open with space on a card, or space in
+ * the gallery view (QC-108: a click now shows the asset there); close with Esc, space or the backdrop; ← → move; zoom with
  * ⌘= ⌘- ⌘0 and double-click; drag pans; video plays; focus returns to the card.
  * Runs with motion off (default) and with QC_E2E_MOTION=on (it then grows from
  * the thumbnail). QC077_SHOTS=<dir> saves screenshots.
@@ -42,12 +42,18 @@ test('素材庫大圖預覽：開啟、關閉、切換、縮放、平移、視�
     .getByRole('button', { name: '素材庫', exact: true })
     .click();
   const tile = (name: string) => page.locator('.atile', { hasText: name });
+  /** Space on a card: the full-window preview straight from the grid. */
+  const quickLook = async (name: string) => {
+    await tile(name).focus();
+    await page.keyboard.press(' ');
+  };
+  const gallery = page.getByRole('region', { name: /^素材檢視：/ });
   await expect(tile('big.png')).toBeVisible();
   await expect(tile('clip.webm')).toBeVisible();
   const viewer = page.getByRole('dialog', { name: /大圖預覽/ });
 
   await test.step('雙擊開啟；先縮圖後原圖；Esc 關閉且焦點回到卡片', async () => {
-    await tile('big.png').dblclick();
+    await quickLook('big.png');
     await expect(viewer).toBeVisible();
     await expect(viewer).toContainText('big.png');
     await expect(viewer).toContainText('2400 × 1600');
@@ -59,28 +65,34 @@ test('素材庫大圖預覽：開啟、關閉、切換、縮放、平移、視�
     await expect(tile('big.png')).toBeFocused();
   });
 
-  await test.step('空白鍵開啟與關閉；點遮罩關閉；詳情預覽圖點擊開啟', async () => {
-    await tile('small.png').click();
-    await page.keyboard.press(' ');
+  await test.step('空白鍵開啟與關閉；點遮罩關閉；圖庫檢視中空白鍵開啟', async () => {
+    await quickLook('small.png');
     await expect(viewer).toBeVisible();
     await page.keyboard.press(' ');
     await expect(viewer).toHaveCount(0);
     await expect(tile('small.png')).toBeFocused();
 
-    await tile('small.png').dblclick();
+    await quickLook('small.png');
     await expect(viewer).toBeVisible();
     await page.mouse.click(30, 700); // the backdrop, away from the picture
     await expect(viewer).toHaveCount(0);
 
-    await page.locator('.viewer__preview--image img').click();
+    // QC-108: a click shows the picture in the gallery view; space there opens this preview.
+    await tile('small.png').click();
+    await expect(gallery).toBeVisible();
+    await page.keyboard.press(' ');
     await expect(viewer).toBeVisible();
     await expect(viewer).toContainText('small.png');
     await page.keyboard.press('Escape');
     await expect(viewer).toHaveCount(0);
+    // Esc closed only the preview; the gallery view is still there, then Esc leaves it.
+    await expect(gallery).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(gallery).toHaveCount(0);
   });
 
   await test.step('←→ 切換同一篩選下的素材，在頭尾停住', async () => {
-    await tile('big.png').dblclick();
+    await quickLook('big.png');
     await expect(viewer).toBeVisible();
     const pos = viewer.locator('.lightbox__pos');
     const first = Number(((await pos.textContent()) ?? '').split(' / ')[0]);
@@ -96,7 +108,7 @@ test('素材庫大圖預覽：開啟、關閉、切換、縮放、平移、視�
   });
 
   await test.step('縮放：⌘= ⌘- ⌘0、雙擊在適應與 100% 間切換、拖曳平移', async () => {
-    await tile('big.png').dblclick();
+    await quickLook('big.png');
     await expect(viewer.locator('img[data-original="true"]')).toBeVisible({ timeout: 10_000 });
     const fig = viewer.locator('.lightbox__figure');
     // With motion on the picture grows from its thumbnail first: measure once it has landed.
@@ -135,7 +147,7 @@ test('素材庫大圖預覽：開啟、關閉、切換、縮放、平移、視�
   });
 
   await test.step('視頻在預覽中播放', async () => {
-    await tile('clip.webm').dblclick();
+    await quickLook('clip.webm');
     await expect(viewer.locator('video')).toBeVisible();
     await expect
       .poll(() =>
@@ -151,7 +163,7 @@ test('素材庫大圖預覽：開啟、關閉、切換、縮放、平移、視�
 
   await test.step('減少動態效果：仍可開啟與關閉', async () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await tile('small.png').dblclick();
+    await quickLook('small.png');
     await expect(viewer).toBeVisible();
     await shot(page, '04-reduced-motion');
     await page.keyboard.press('Escape');
