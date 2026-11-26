@@ -466,3 +466,17 @@
   display: flex;
   gap: 8px;
 }
+
+/* 作品文字字體 (QC-109) */
+.ag-script__default {
+  margin-left: 8px;
+  font-weight: 400;
+  font-size: 12px;
+}
+.pj-script__seg {
+  align-self: flex-start;
+}
+.pj-script__note {
+  margin: 0;
+  font-size: 12px;
+}

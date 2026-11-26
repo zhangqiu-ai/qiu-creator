@@ -1,4 +1,4 @@
-import type { Project, ProjectRules, RulesPreviewItem } from '@qiu-creator/contracts';
+import type { Project, ProjectRules, RulesPreviewItem, TextScript } from '@qiu-creator/contracts';
 import { useEffect, useId, useState } from 'react';
 import { Dialog } from './Dialog.js';
 import { t } from './i18n.js';
@@ -15,6 +15,14 @@ import {
   type RuleField,
 } from './project-rules-ui.js';
 import type { ProjectsStore } from './projects-store.js';
+import { radioKeys } from './radio-keys.js';
+import {
+  choiceLabel,
+  choiceOf,
+  PROJECT_SCRIPT_CHOICES,
+  valueOf,
+  type ProjectScriptChoice,
+} from './text-script-ui.js';
 import './agents-settings.css';
 
 const FIELD_ICON: Readonly<Record<RuleField, IconName>> = {
@@ -31,8 +39,9 @@ const PREVIEW_DELAY_MS = 350;
  * 項目設定 (QC-091 on the QC-092 API, PT-20261124-001): the description
  * agents read, and the rules — keywords, tags, source folders, source
  * domains — with a trial on the latest 20 works beside them (score, why,
- * and whether it would join on its own or only be suggested). Nothing is
- * saved until 儲存; the trial never saves.
+ * and whether it would join on its own or only be suggested). QC-109 adds
+ * 作品文字字體: follow the global setting, 簡體 or 繁體. Nothing is saved
+ * until 儲存; the trial never saves.
  */
 export function ProjectRulesDialog({
   store,
@@ -51,7 +60,26 @@ export function ProjectRulesDialog({
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<RulesPreviewItem[] | null>(null);
   const [previewFailed, setPreviewFailed] = useState(false);
+  const [script, setScript] = useState<ProjectScriptChoice>(choiceOf(project.text_script));
+  const [globalScript, setGlobalScript] = useState<TextScript | null>(null);
   const descId = useId();
+  const scriptId = useId();
+
+  // 「跟隨全域」 names the global script once it is known.
+  useEffect(() => {
+    let alive = true;
+    store
+      .globalTextScript()
+      .then((g) => {
+        if (alive) setGlobalScript(g);
+      })
+      .catch(() => {
+        // The choice still works; it just reads 「跟隨全域」 without the name.
+      });
+    return () => {
+      alive = false;
+    };
+  }, [store]);
 
   useEffect(() => {
     let alive = true;
@@ -78,7 +106,12 @@ export function ProjectRulesDialog({
     setBusy(true);
     setError(null);
     store
-      .patch(project, { description: description.trim(), rules })
+      .patch(project, {
+        description: description.trim(),
+        rules,
+        // Sent only when changed, so an older server without the field is not asked for it.
+        ...(script === choiceOf(project.text_script) ? {} : { text_script: valueOf(script) }),
+      })
       .then((next) => {
         if (next === null) {
           setBusy(false);
@@ -87,6 +120,7 @@ export function ProjectRulesDialog({
           if (fresh !== null) {
             setDescription(fresh.description ?? '');
             setRules(fresh.rules ?? EMPTY_RULES);
+            setScript(choiceOf(fresh.text_script));
           }
           return;
         }
@@ -136,6 +170,44 @@ export function ProjectRulesDialog({
                 setDescription(e.target.value);
               }}
             />
+          </div>
+          <div className="field">
+            <div className="pj-rules__label">
+              <span id={scriptId} className="field__label">
+                {t('agents.scriptTitle')}
+              </span>
+            </div>
+            <div
+              className="seg pj-script__seg"
+              role="radiogroup"
+              aria-labelledby={scriptId}
+              aria-describedby={`${scriptId}-note`}
+            >
+              {PROJECT_SCRIPT_CHOICES.map((choice, i) => {
+                const checked = script === choice;
+                return (
+                  <button
+                    key={choice}
+                    type="button"
+                    role="radio"
+                    aria-checked={checked}
+                    aria-pressed={checked}
+                    tabIndex={checked ? 0 : -1}
+                    onClick={() => {
+                      setScript(choice);
+                    }}
+                    onKeyDown={(e) => {
+                      radioKeys(e, PROJECT_SCRIPT_CHOICES, i, setScript);
+                    }}
+                  >
+                    {choiceLabel(choice, globalScript)}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="faint pj-script__note" id={`${scriptId}-note`}>
+              {t('agents.scriptNote')}
+            </p>
           </div>
           {RULE_FIELDS.map((field) => (
             <RuleList
