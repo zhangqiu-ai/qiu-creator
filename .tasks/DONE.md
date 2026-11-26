@@ -1,3 +1,11 @@
+## QC-111: 簡繁轉換誤轉使用者原文（QC-103 缺陷）
+
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** backend
+
+**Completed:** 2026-11-26（ac689ca）
+
+Agent 修改既有作品時只轉相對於基準（PATCH 對目前內容、提案對 base_revision、平台版本對目前顯示）新增或修改的行；用與提案 hunk 相同的行級 diff，未改的行逐字保留。標題沒變不轉，標籤只轉新加的。代價：同一段改一個字整段會轉。e2e：兩支與字體無關的測試設 zh-Hant；`agent-proposals.spec.ts:62` 改為 Agent 改的行應為簡體，並加斷言使用者標題逐字不變。測試：unit 1410 passed；e2e 一般 65、動效 66 passed，皆 0 failed。
+
 ## QC-108: 素材檢視實作（方案 B 圖庫檢視）
 
 **Priority:** P2 | **Assignee:** qc-frontend | **Tags:** frontend
