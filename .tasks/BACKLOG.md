@@ -1,5 +1,11 @@
 # Backlog
 
+## QC-112: 素材檢視補齊原型細節
+
+**Priority:** P4 | **Assignee:** qc-frontend | **Tags:** frontend, backend
+
+QC-108 與已核准原型的差異：視頻 ±15 秒與進度條懸停縮圖、音訊大波形（需要後端波形峰值端點）、返回網格的縮回動畫。服務端目前只為圖片產生縮圖，視頻縮圖在 App 端擷取，數百支視頻時的 CPU 負擔未驗證。
+
 ## QC-107: 素材庫「引用」在 App 編輯後可能不準
 
 **Priority:** P3 | **Assignee:** qc-bugfix | **Tags:** backend

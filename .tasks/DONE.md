@@ -1,3 +1,11 @@
+## QC-108: 素材檢視實作（方案 B 圖庫檢視）
+
+**Priority:** P2 | **Assignee:** qc-frontend | **Tags:** frontend
+
+**Completed:** 2026-11-26（e74a942）
+
+素材庫取消右側常駐側欄與多選批次側欄；單擊在主區開 `AssetViewer`（工具列、淡化資訊行、84px 縮圖條、按 I 浮出的資訊卡），← → 切換、Esc 回網格並保留捲動與焦點、F 全屏、空白鍵播放或開 QC-077 燈箱；Markdown 排版閱讀與原文切換；多選改為頁首「已選 N」動作列；回收站共用檢視。視頻素材卡改為在 App 端擷取一格當縮圖。與原型的差異：視頻與音訊用原生控制（無 ±15 秒、進度條懸停縮圖、大波形），返回網格沒有縮回動畫，記為 QC-112。測試：desktop 500 passed；e2e 一般 63、動效 64 passed，失敗只有 QC-111 的 3 個已知項。真實 macOS 全螢幕、動效錄影、英文與簡中版面 NOT_VERIFIED。
+
 ## QC-104: 素材庫視頻無法全屏播放
 
 **Priority:** P2 | **Assignee:** qc-frontend | **Tags:** frontend
