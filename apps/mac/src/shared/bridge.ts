@@ -125,6 +125,12 @@ export interface CreatorHubBridge {
   pickFolder: () => Promise<string | null>;
   reveal: (target: RevealTarget) => Promise<boolean>;
   copyText: (text: string) => Promise<void>;
+  /**
+   * The text of a Markdown or text asset for the 素材庫 reader (QC-108): the
+   * main process reads at most `ASSET_TEXT_MAX_BYTES` with the token; null when
+   * it cannot be read.
+   */
+  assetText: (assetId: string) => Promise<AssetText | null>;
   /** The saved theme choice (applied by the main process before the window paints). */
   getTheme: () => Promise<ThemeSource>;
   /** Save and apply a theme choice to every window. */
@@ -178,6 +184,15 @@ export const TAB_COMMANDS: readonly TabCommand[] = [
   'side-assets',
 ];
 
+/** Most of a text asset the reader shows (QC-108); a longer file shows its start with a note. */
+export const ASSET_TEXT_MAX_BYTES = 1024 * 1024;
+
+export interface AssetText {
+  text: string;
+  /** The file is longer than `ASSET_TEXT_MAX_BYTES`; `text` is its start. */
+  truncated: boolean;
+}
+
 /** 設定 → 外觀 → 語言 (QC-042): the choice, and what it resolves to right now. */
 export interface LanguageState {
   preference: LanguagePreference;
@@ -212,6 +227,7 @@ export const IPC = {
   pickFolder: 'creatorhub:pick-folder',
   reveal: 'creatorhub:reveal',
   copyText: 'creatorhub:copy-text',
+  assetText: 'creatorhub:asset-text',
   getTheme: 'creatorhub:get-theme',
   setTheme: 'creatorhub:set-theme',
   getLanguage: 'creatorhub:get-language',

@@ -1,0 +1,405 @@
+/* ---- 素材庫 圖庫檢視 (QC-108, PT-20261126-001 方案 B) ---- */
+
+/* The view covers the page (header and grid) inside the main area; the grid
+   stays rendered underneath, so going back keeps its scroll position. */
+.aview {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--qc-bg);
+  outline: none;
+}
+
+.aview__bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 16px 0 20px;
+  border-bottom: 1px solid var(--qc-line);
+}
+.aview__back {
+  gap: 4px;
+  margin-left: -8px;
+  color: var(--qc-ink2);
+}
+.aview__pos {
+  color: var(--qc-ink3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.aview__tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.aview__tools .btn[aria-pressed='true'] {
+  background: var(--qc-accent-soft);
+  color: var(--qc-accent);
+}
+
+.aview__stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  padding: 8px 20px 0;
+  background: color-mix(in srgb, var(--qc-sunken) 70%, var(--qc-bg));
+}
+.aview__view {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Picture: fitted, never cropped; zooms like the full-window preview. */
+.aview__zoom {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.aview__figure {
+  flex: none;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: var(--qc-shadow-card);
+  cursor: zoom-in;
+  touch-action: none;
+}
+.aview__figure--zoomed {
+  cursor: grab;
+}
+.aview__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+
+/* Video: as large as the stage allows, with the full player controls. */
+.aview__video {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #000;
+}
+
+/* Audio: a card with the player across it. */
+.aview__sound {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: min(720px, 100%);
+  padding: 32px;
+  border-radius: var(--qc-radius-panel);
+  background: var(--qc-surface);
+  box-shadow: var(--qc-shadow-card);
+}
+.aview__sound-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 16px;
+  background: var(--qc-accent-soft);
+  color: var(--qc-accent);
+}
+.aview__sound-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+.aview__audio {
+  width: 100%;
+}
+
+/* Markdown: a reading column. */
+.aview__view--markdown {
+  align-items: stretch;
+  overflow: auto;
+}
+.aview__doc {
+  box-sizing: border-box;
+  width: min(680px, 100%);
+  margin: 16px auto;
+  align-self: flex-start;
+  padding: 40px 48px;
+  border-radius: var(--qc-radius-panel);
+  background: var(--qc-surface);
+  box-shadow: var(--qc-shadow-card);
+}
+.aview__doc-note {
+  margin: 0 0 16px;
+  color: var(--qc-warn);
+  font-size: 12px;
+}
+.aview__raw {
+  margin: 0;
+  font-family: var(--qc-font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.md-read {
+  font-size: 15px;
+  line-height: 1.85;
+  color: var(--qc-ink);
+  overflow-wrap: anywhere;
+}
+.md-read > :first-child {
+  margin-top: 0;
+}
+.md-read h1 {
+  font-size: 22px;
+  line-height: 1.4;
+  margin: 0 0 12px;
+}
+.md-read h2 {
+  font-size: 17px;
+  margin: 28px 0 8px;
+}
+.md-read h3,
+.md-read h4,
+.md-read h5,
+.md-read h6 {
+  font-size: 15px;
+  margin: 22px 0 6px;
+}
+.md-read p {
+  margin: 0 0 14px;
+}
+.md-read blockquote {
+  margin: 0 0 14px;
+  padding: 2px 0 2px 14px;
+  border-left: 3px solid var(--qc-line);
+  color: var(--qc-ink2);
+}
+.md-read ul,
+.md-read ol {
+  margin: 0 0 14px;
+  padding-left: 20px;
+}
+.md-read code {
+  font-family: var(--qc-font-mono);
+  font-size: 0.9em;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--qc-sunken);
+}
+.md-read pre {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: var(--qc-radius-control);
+  background: var(--qc-sunken);
+  overflow: auto;
+}
+.md-read pre code {
+  padding: 0;
+  background: transparent;
+}
+.md-read hr {
+  margin: 20px 0;
+  border: 0;
+  border-top: 1px solid var(--qc-line);
+}
+.md-read table {
+  margin: 0 0 14px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.md-read td {
+  padding: 4px 10px;
+  border: 1px solid var(--qc-line);
+}
+.md-read__link {
+  color: var(--qc-accent);
+}
+.md-read__img {
+  color: var(--qc-ink3);
+}
+
+.aview__other {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--qc-ink3);
+}
+
+/* One faint line of facts; back to full contrast on hover. */
+.aview__line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 36px;
+  padding: 0 20px;
+  font-size: 12px;
+  color: var(--qc-ink3);
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0.8;
+  transition: opacity var(--qc-motion-hover);
+}
+.aview__line:hover {
+  opacity: 1;
+}
+.aview__name {
+  color: var(--qc-ink2);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.aview__sep::before {
+  content: '·';
+  margin-right: 8px;
+  color: var(--qc-line);
+}
+.aview__hint {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The strip of neighbours. */
+.aview__strip {
+  flex: none;
+  height: 84px;
+  border-top: 1px solid var(--qc-line);
+}
+.aview__strip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+  padding: 0 20px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-padding-inline: 20px;
+  scrollbar-width: thin;
+}
+.aview__frame {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--qc-line);
+  border-radius: 7px;
+  background: var(--qc-sunken);
+  color: var(--qc-ink3);
+  cursor: pointer;
+}
+.aview__frame:hover {
+  border-color: var(--qc-ink3);
+}
+.aview__frame[aria-current='true'] {
+  border: 2px solid var(--qc-accent);
+  box-shadow: 0 0 0 2px var(--qc-accent-soft);
+}
+
+/* The info card floats over the content and never pushes it. */
+.aview__card {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 2;
+  width: 320px;
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-radius-panel);
+  background: var(--qc-surface);
+  box-shadow: var(--qc-shadow-dialog);
+}
+.aview__card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px 16px;
+}
+.aview__card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.aview__card-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.aview__autosave {
+  margin-left: auto;
+  font-size: 12px;
+}
+.aview__name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.aview__name-row .input {
+  flex: 1;
+}
+.aview__area {
+  height: 64px;
+  padding: 8px 10px;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.5;
+}
+
+/* 已選 N 個 (multi-select): the page header becomes the action bar. */
+/* It stays at the top while the grid scrolls, so the actions are always in reach. */
+.page__header--picking {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: linear-gradient(var(--qc-accent-soft), var(--qc-accent-soft)), var(--qc-bg);
+}
+.batchbar__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--qc-ink3);
+  font-size: 12px;
+}
+
+/* Markdown in the full-window preview. */
+.lightbox__doc {
+  box-sizing: border-box;
+  width: min(760px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 40px 56px;
+  border-radius: var(--qc-radius-panel);
+  background: var(--qc-surface);
+}
+.lightbox__doc .aview__doc {
+  margin: 0;
+  padding: 0;
+  box-shadow: none;
+  width: auto;
+}

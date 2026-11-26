@@ -6,7 +6,7 @@ import { test } from '../fixtures/desktop.js';
 /*
  * QC-104 視頻全屏: the native `<video controls>` fullscreen button did nothing
  * because the main process denied every web permission, `fullscreen` included.
- * Each player (素材庫 inspector, 素材庫大圖預覽, 視頻作品編輯頁) now enters HTML
+ * Each player (素材庫 gallery view, 素材庫大圖預覽, 視頻作品編輯頁) now enters HTML
  * fullscreen and Esc leaves it. The e2e window stays hidden, so fullscreen fills
  * that window (`disableHtmlFullscreenWindowResize` in background runs) instead of
  * a macOS fullscreen Space; the real Space switch is checked by hand.
@@ -43,15 +43,27 @@ test('視頻全屏：素材庫、大圖預覽、視頻作品；Esc 退出', asyn
   const tile = page.locator('.atile', { hasText: 'clip.webm' });
   await expect(tile).toBeVisible();
 
-  await test.step('素材庫右側預覽的視頻可全屏，Esc 退出', async () => {
+  await test.step('素材庫圖庫檢視的視頻可全屏（F 鍵），Esc 退出全屏但留在檢視', async () => {
     await tile.click();
-    await enterFullscreen(page, page.locator('video.viewer__media'), 'viewer__media');
+    const gallery = page.getByRole('region', { name: /^素材檢視：/ });
+    const video = gallery.locator('video.aview__video');
+    await enterFullscreen(page, video, 'aview__content aview__video');
     await escapeFullscreen(page);
+    await expect(gallery).toBeVisible();
+    // F (QC-108 keys table) asks for full screen too.
+    await gallery.focus();
+    await page.keyboard.press('f');
+    await expect.poll(() => fullscreenClass(page)).toBe('aview__content aview__video');
+    await escapeFullscreen(page);
+    await expect(gallery).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(gallery).toHaveCount(0);
   });
 
   await test.step('大圖預覽的視頻可全屏；Esc 只退出全屏，再按一次才關預覽', async () => {
     const viewer = page.getByRole('dialog', { name: /大圖預覽/ });
-    await tile.dblclick();
+    await tile.focus();
+    await page.keyboard.press(' ');
     await enterFullscreen(page, viewer.locator('video'), 'lightbox__video');
     await escapeFullscreen(page);
     // Focus comes back to the 大圖預覽 (not the page body), so the next Esc reaches it.

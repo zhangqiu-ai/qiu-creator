@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'ele
 import {
   IPC,
   type AppInfo,
+  type AssetText,
   type ConnectionInfo,
   type CreatorHubBridge,
   type EventStreamStatus,
@@ -80,6 +81,7 @@ const bridge: CreatorHubBridge = {
   pickFolder: () => ipcRenderer.invoke(IPC.pickFolder) as Promise<string | null>,
   reveal: (target: RevealTarget) => ipcRenderer.invoke(IPC.reveal, target) as Promise<boolean>,
   copyText: (text) => ipcRenderer.invoke(IPC.copyText, text) as Promise<void>,
+  assetText: (assetId) => ipcRenderer.invoke(IPC.assetText, assetId) as Promise<AssetText | null>,
   getTheme: () => ipcRenderer.invoke(IPC.getTheme) as Promise<ThemeSource>,
   setTheme: (theme) => ipcRenderer.invoke(IPC.setTheme, theme) as Promise<void>,
   getLanguage: () => ipcRenderer.invoke(IPC.getLanguage) as Promise<LanguageState>,
