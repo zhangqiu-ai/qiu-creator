@@ -3518,6 +3518,129 @@
           "recommendation": "只動畫畫面內的卡片；超過 12 張同時工作時改為靜態外框，避免耗電。"
         }
       ]
+    },
+    {
+      "id": "PT-20261126-001",
+      "title": "素材檢視改為內容優先（三個方案比較：燈箱、圖庫檢視、網格內展開）",
+      "date": "2026-11-26",
+      "status": "pending_user",
+      "model": "claude-opus-5-5",
+      "session": "qc-prototype",
+      "requestedBy": "使用者 via 開發總監",
+      "userRequest": "單擊素材的時候不要用側邊欄來顯示信息，應該優先突出內容，信息是次要的要淡化。（2026-11-26，QC-105）",
+      "tasks": ["QC-105"],
+      "relatedTasks": ["QC-077", "QC-104"],
+      "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "canvasVersion": "NOT_PUBLISHED: this session cannot reach the canvas. Standalone prototype: /Users/feature/Library/Application Support/Claude/side-session-notes/local_2cc861c6-129e-4a37-abb5-5c6b43cd2ede/pt-20261126-001/viewer.html (?v=now|a|b|c|keys, &k=image|video|md|audio, &info=1, &grid=1, &multi=1, &dark=1).",
+      "screenshots": {
+        "dir": "docs/evidence/qc105-prototype/",
+        "files": {
+          "00-now.png": "現況：單擊後右側常駐側欄，預覽只佔上方一小塊，下方是一長串欄位",
+          "a-image.png": "方案 A 燈箱：單擊直接開全視窗深色檢視，蓋住素材庫；頂部淡化名稱與 3 個動作，底部淡化一行資訊",
+          "a-video.png": "方案 A：視頻在燈箱中放大，完整播放控制",
+          "a-info.png": "方案 A：按 I 浮出半透明資訊卡（編輯欄位）",
+          "b-grid.png": "方案 B 素材庫（單擊前）：網格佔滿寬度，不再預留側欄",
+          "b-image.png": "方案 B 圖庫檢視（推薦）：單擊後內容佔滿主區，下方淡化一行資訊，底部縮圖條；頂部只有返回、序號、資訊、訪達、刪除",
+          "b-video.png": "方案 B：視頻大尺寸，完整控制（播放、±15 秒、進度與懸停縮圖、音量、速度、子母畫面、全螢幕）",
+          "b-markdown.png": "方案 B：Markdown 排版閱讀",
+          "b-audio.png": "方案 B：音訊大波形、播放頭與完整控制",
+          "b-info.png": "方案 B：按 I 或「資訊」浮出資訊卡（名稱、標籤、替代文字、備註、用在、檔案資訊），內容不變形",
+          "b-multi.png": "方案 B：⌘ 點選多選，批次動作移到頁首，不出現側欄",
+          "b-video-dark.png": "方案 B 深色：視頻",
+          "b-audio-dark-info.png": "方案 B 深色：音訊＋資訊卡",
+          "c-image.png": "方案 C 網格內展開：單擊在該列下方展開大預覽，箭頭指向原卡片",
+          "c-video.png": "方案 C：視頻在展開區播放",
+          "keys.png": "既有操作對應表（單擊、⌘ 多選、空白鍵、←→、I、F、⌘⌫、Esc、外部掛載、回收站）"
+        },
+        "rendered": "headless Chromium (Playwright 1.65.1, cached chromium_headless_shell-1243); no window shown"
+      },
+      "boards": [
+        {
+          "file": "viewer.html (standalone, notes folder)",
+          "title": "v14 · 素材檢視（內容優先）",
+          "states": [
+            "現況對照：右側常駐側欄",
+            "方案 A 燈箱：單擊＝空白鍵＝開 QC-077 燈箱；檢視時整個視窗是內容，資訊淡化在底部一行；I 浮出半透明資訊卡；← → 切換；Esc 回素材庫並把焦點還給原卡片",
+            "方案 B 圖庫檢視（推薦）：單擊進入主區內的檢視；側欄導覽保留，素材庫頁首換成精簡工具列（‹ 素材庫、序號、資訊、在訪達中顯示、移到回收站、更多）；內容佔滿舞台；下方一行淡化資訊（名稱、尺寸或字數、時長、大小、引用數、標籤，滑過才恢復全對比）；底部縮圖條可點可捲；Esc 或 ‹ 回網格並保留捲動位置",
+            "方案 C 網格內展開：單擊在該列下方展開 440px 高的預覽區，箭頭指向原卡片；← → 換素材、↑ ↓ 換列；資訊一行加動作在預覽下方",
+            "四種內容：圖片（等比放大，不裁切）；視頻（大尺寸，播放／暫停、±15 秒、進度條與懸停縮圖、音量、速度、子母畫面、全螢幕）；Markdown（排版閱讀，680px 版心）；音訊（大波形、播放頭、±15 秒、速度、音量）",
+            "資訊卡（三方案共用）：名稱、標籤、替代文字（只限圖片）、備註、用在哪些作品（可點）、檔案資訊（摺疊）；自動儲存；I 或按鈕開關；浮在內容上方，不推擠內容",
+            "多選：⌘ 點選不開檢視；頁首變成「已選 N 個」動作列（加標籤、在訪達中顯示、移到回收站、取消選取），原本的 MultiInspector 側欄取消",
+            "深色兩張；燈箱在淺色主題下也用深底（看圖慣例）"
+          ]
+        }
+      ],
+      "decisions": [
+        "取消常駐側欄：資訊預設只剩一行淡化說明，編輯欄位收進按需浮出的資訊卡。",
+        "在訪達中顯示、移到回收站是對素材的動作，放在工具列；不和編輯欄位混在一起。",
+        "三個方案都保留既有操作：⌘ 多選、⌘⌫ 刪除與 ⌘Z 復原、空白鍵 Quick Look（QC-077）、外部掛載素材的「移出素材庫」對話框、回收站的「還原／永久刪除」。",
+        "檢視中刪除後自動跳到下一個素材，不跳回網格。",
+        "視頻全螢幕按鈕與 F 鍵只在原型中標出位置，實作歸 QC-104。"
+      ],
+      "motion": "DESIGN.md 動效 / QC-065: entering B/A grows the content from the tile rect (reuses QC-077 expandFrom), moderate/out; leaving reverses with base/in; info card fades in with a short translate (panel offset 24px), base/out; reduced motion fades only.",
+      "references": [
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/spatial-canvas-focus-overview/case.md",
+          "kind": "concept",
+          "borrowed": "Focus state gives one item the reading space (text card, video) and a clear way back to the overview that keeps positions.",
+          "adaptation": "Option B: clicking a tile focuses it in the main area and Esc returns to the grid at the same scroll position; the bottom strip keeps neighbours in view. Concept card, not validated in production."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/katya-icon-portfolio-appearance-detail/case.md",
+          "kind": "concept",
+          "borrowed": "Detail view enlarges the item while the grid stays behind, with previous/next controls.",
+          "adaptation": "We take the large preview and prev/next, but not its permanent right column: the user asked for no sidebar, so fields float in an on-demand card instead."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/share-days-card-template-preview/case.md",
+          "kind": "concept",
+          "borrowed": "Large preview on top with a thumbnail row beneath for picking the next item.",
+          "adaptation": "Option B bottom filmstrip; ← → and clicks both move through it."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kami-content-first-document-hierarchy/case.md",
+          "kind": "product",
+          "borrowed": "Keep hierarchy through type size, spacing and faint separators instead of boxes and decoration.",
+          "adaptation": "The info line uses ink3 at reduced opacity with dot separators and returns to full contrast on hover; the Markdown view uses the same restrained reading layout."
+        }
+      ],
+      "verified": [
+        "Rendered 16 screenshots with headless Chromium and checked each by eye (fixed: lightbox backdrop letting the grid show through, missing segmented-control and inspector styles, prototype tag covering the lightbox caption)."
+      ],
+      "notVerified": [
+        "NOT_VERIFIED: canvas upload; three-language fit (繁中 only); transitions are described, not animated in the prototype; zoom and pan inside B reuse QC-077 and are not redrawn.",
+        "Assets, names and artwork are synthetic."
+      ],
+      "openQuestions": [
+        {
+          "q": "單擊素材要進到哪一層？A 燈箱（全視窗，蓋住素材庫）、B 圖庫檢視（主區內，保留側欄導覽與縮圖條）、C 網格內展開",
+          "recommendation": "B。內容幾乎和燈箱一樣大，但不離開素材庫，← → 和縮圖條讓整理一批素材很順；空白鍵仍可開全視窗燈箱。"
+        },
+        {
+          "q": "資訊卡要不要記住上次開關？",
+          "recommendation": "不記住，每次進檢視都收起；需要時按 I。內容優先是預設。"
+        },
+        {
+          "q": "底部縮圖條要不要？",
+          "recommendation": "要，84px 高；它也是目前位置的提示。"
+        },
+        {
+          "q": "檢視中的空白鍵做什麼？",
+          "recommendation": "視頻／音訊：播放暫停；圖片／Markdown：開全視窗燈箱（QC-077）。"
+        },
+        {
+          "q": "檢視中圖片能不能縮放？",
+          "recommendation": "可以，沿用 QC-077 的捏合、⌘＋／⌘－／⌘0 與雙擊切換「適合／100%」。"
+        },
+        {
+          "q": "Markdown 素材只排版閱讀，還是也能切原始文字？",
+          "recommendation": "預設排版閱讀，「更多」選單提供「顯示原始文字」與「複製文字」；不在這裡編輯。"
+        },
+        {
+          "q": "多選時原本的批次側欄（MultiInspector）怎麼辦？",
+          "recommendation": "取消，批次動作移到頁首動作列。"
+        }
+      ]
     }
   ]
 }
