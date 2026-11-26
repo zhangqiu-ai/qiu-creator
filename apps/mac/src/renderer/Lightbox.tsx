@@ -54,6 +54,7 @@ export function Lightbox({
   onIndex,
   onClose,
   extra,
+  content,
 }: {
   items: readonly LightboxItem[];
   index: number;
@@ -62,6 +63,8 @@ export function Lightbox({
   onClose: () => void;
   /** Extra controls for the current item (「在 Finder 顯示」 for files that cannot be shown). */
   extra?: (item: LightboxItem) => ReactNode;
+  /** What to show for an item that is not a picture or player (a Markdown asset's text, QC-108); null for the icon. */
+  content?: (item: LightboxItem) => ReactNode;
 }) {
   const item = items[index];
   const root = useRef<HTMLDivElement>(null);
@@ -339,6 +342,8 @@ export function Lightbox({
             autoPlay
             aria-label={item.name}
           />
+        ) : content !== undefined && item.kind === 'other' && content(item) != null ? (
+          <div className="lightbox__doc">{content(item)}</div>
         ) : (
           <div className="lightbox__other">
             <Icon name={item.icon} size={48} />

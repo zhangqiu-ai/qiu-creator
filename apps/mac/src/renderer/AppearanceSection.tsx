@@ -1,8 +1,8 @@
 import { palettes, type ColorScheme } from '@qiu-creator/design-tokens';
-import type { KeyboardEvent } from 'react';
 import type { ThemeSource } from '../shared/bridge.js';
 import { htmlLang, LOCALE_NAMES, type LanguagePreference } from '@qiu-creator/i18n';
 import { t } from './i18n.js';
+import { radioKeys } from './radio-keys.js';
 import { LANGUAGE_OPTIONS, THEME_OPTIONS, useLanguage, useTheme } from './theme.js';
 
 /** A miniature window in the scheme's real token colours. */
@@ -16,28 +16,6 @@ function Mini({ scheme }: { scheme: ColorScheme }) {
       <span className="theme-mini__accent" style={{ background: p.accent }} />
     </span>
   );
-}
-
-/** Arrow keys move the choice within a radio group, like native segmented radios. */
-function radioKeys<T>(
-  e: KeyboardEvent<HTMLButtonElement>,
-  options: readonly T[],
-  index: number,
-  pick: (value: T) => void,
-): void {
-  const step =
-    e.key === 'ArrowRight' || e.key === 'ArrowDown'
-      ? 1
-      : e.key === 'ArrowLeft' || e.key === 'ArrowUp'
-        ? -1
-        : 0;
-  if (step === 0) return;
-  e.preventDefault();
-  const at = (index + step + options.length) % options.length;
-  const next = options[at];
-  if (next === undefined) return;
-  pick(next);
-  e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[at]?.focus();
 }
 
 /**

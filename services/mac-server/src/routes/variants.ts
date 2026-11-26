@@ -109,8 +109,15 @@ export function registerVariantRoutes(
     async (req, reply) => {
       const { id, platform } = req.params;
       const { base_revision: bodyBase, ...change } = req.body;
-      // QC-103: an agent's platform title and tags go in the work's script.
-      const { value, conversion } = textScripts.forAgent(change, () => textScripts.forWork(id));
+      // QC-103: an agent's platform title and tags go in the work's script;
+      // QC-111: only a new title and new tags, compared with what the
+      // platform shows now.
+      const shown = req.principal?.kind === 'agent' ? await variants.get(id, platform) : null;
+      const { value, conversion } = textScripts.forAgent(
+        change,
+        () => textScripts.forWork(id),
+        () => ({ title: shown?.title, tags: shown?.tags }),
+      );
       const v = await variants.patch(
         id,
         platform,

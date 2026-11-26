@@ -95,9 +95,16 @@ renderer（React，sandbox，無 Node）
     - 路徑一律檢查不離開 `library/works/<id>/assets/`；同一作品的 attach 依序執行。
   - **外部作品**：不寫進使用者自己的資料夾，插入入口停用並說明。
   - **圖片顯示**：`WorkMediaResolver` 在不認得某個 `src` 時，先存檔再重新讀取；快取剛失效時也一樣。存檔後不沿用存檔前就開始的讀取。
+- **素材檢視（QC-108，PT-20261126-001 方案 B 圖庫檢視）。** 取代 QC-037 的右側常駐檢視器與多選側欄。
+  - **進出**：單擊素材在主區內顯示（`AssetViewer.tsx`，蓋在網格上；網格不卸載，回去時捲動位置不變，焦點回到原卡片）。⌘ 點選只多選，不開檢視；多選時頁首變成「已選 N」動作列（加標籤、在 Finder 顯示、移到回收站、取消選取），捲動時固定在上方。回收站點名稱也進同一個檢視，工具換成「恢復」「永久刪除」。
+  - **版面**：精簡工具列（‹ 素材庫、序號、資訊、在 Finder 顯示、移到回收站、更多）；內容佔滿舞台；下方一行淡化資訊（名稱、尺寸或字數、時長、大小、用在幾個作品、標籤）；底部 84px 縮圖條。
+  - **按鍵**（`asset-viewer.ts` 的 `viewerKeyAction`）：← → 切換並在頭尾停住；I 開關資訊卡；Esc 先關資訊卡，再回網格；F 讓視頻全屏（沿用 QC-104）；空白鍵在視頻／音訊上播放暫停，在圖片／Markdown 上開 QC-077 全視窗預覽。⌘⌫ 刪除後跳到下一個素材（`nextAfterRemoval`），不回網格。
+  - **資訊卡**：每次進檢視都收起；浮在內容上方，不推擠內容。欄位同上，替代文字只給圖片；「用在」列出作品可點開；檔案資訊摺疊。
+  - **內容**：圖片等比放大到舞台、不裁切，縮放沿用 QC-077 的 ⌘＋／⌘－／⌘0、捏合、雙擊與拖曳；視頻與音訊用原生完整控制；Markdown 以 `MarkdownReader`（mdast 轉 React，不注入 HTML、連結不可開）排版閱讀，「更多」可切原始文字或複製。文字經 main process 的 `creatorhub:asset-text` 讀取（`readAssetText`：只收素材 id、帶權杖、最多 1 MB，超過時標註只顯示開頭）。
+  - **視頻縮圖**：服務端只為圖片產生縮圖，所以視頻卡片由 App 在卡片進入畫面時用隱藏播放器擷取一格（`video-thumbs.ts`：一次一支、只做一次、記在本次執行的記憶體裡，最多 400 張）。Chromium 解不開的格式保留圖示。網格、縮圖條和回收站共用同一份。
 - **素材庫 v2（QC-037 前端，PT-20261119-001）。**
   - **範圍**：全部、未引用、回收站；⌘ 點選可以多選，多選後可批次加標籤或移除。
-  - **右側素材資訊**：可編輯名稱（`display_name`）、標籤、替代文字、備註，600 ms 後自動儲存，帶 `base_revision`。
+  - **素材資訊**：可編輯名稱（`display_name`）、標籤、替代文字、備註，600 ms 後自動儲存，帶 `base_revision`。QC-108 起收進圖庫檢視的資訊卡（見下）。
   - **409 衝突**：重新讀取最新版本，再看我改的欄位：
     - 別處沒改的欄位：重套後再存。
     - 兩邊都改了的欄位：不覆蓋，由使用者選「用最新的」或「用我的」（`AssetEditor`，`asset-session.ts`）。
@@ -1288,7 +1295,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 - 重啟後回到 idle（任務允許），待審提案仍由資料庫推導出 needs_attention。
 - 失敗匯入的錯誤狀態重啟後不會保留；匯入任務頁仍看得到失敗。
 
-## 作品文字字體（QC-103）
+## 作品文字字體（QC-103、QC-111）
 
 決策記錄 2026-11-26。程式在 `services/mac-server/src/works/text-script.ts`（轉換）與 `text-script-service.ts`（設定與套用），契約在 `packages/contracts/src/text-script.ts`。
 
@@ -1302,13 +1309,19 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 
 | 路由 | 轉換的欄位 |
 | --- | --- |
-| `POST /api/v1/works` | `title`、`markdown`、`description`、`tags` |
-| `PATCH /api/v1/works/:id` | 同上（`work_update_meta`、`work_update_body`） |
-| `POST /api/v1/works/:id/proposals` | `markdown`：轉換的是候選版本，仍要使用者採用 |
-| `PATCH /api/v1/works/:id/variants/:platform` | `title`、`tags`（平台正文不能寫入，跟著作品） |
-| `POST /api/v1/works/batch` 的 `add_tags` | 新增的標籤；`remove_tags` 不轉，要比對既有的字 |
+| `POST /api/v1/works` | 新作品：`title`、`markdown`、`description`、`tags` 整份轉換 |
+| `PATCH /api/v1/works/:id` | 只轉 Agent 改的部分，對照作品目前的內容（`work_update_meta`、`work_update_body`） |
+| `POST /api/v1/works/:id/proposals` | `markdown` 只轉改過的行，對照提案的 `base_revision`；轉換的是候選版本，仍要使用者採用 |
+| `PATCH /api/v1/works/:id/variants/:platform` | `title`、`tags` 只轉新的，對照平台目前顯示的值（平台正文不能寫入，跟著作品） |
+| `POST /api/v1/works/batch` 的 `add_tags` | 作品還沒有的標籤；`remove_tags` 不轉，要比對既有的字 |
 
 - 主權杖（App）的寫入、既有作品一律不轉，也沒有批次轉換。
+- **只轉 Agent 新增或修改的文字（QC-111）。** Agent 修改既有作品時常常送整份正文或整組標籤，裡面大多是使用者原本的字，不能跟著轉：
+  - 正文與描述：粒度是**行**（`text.split('\n')`），和提案拆 hunk 用的是同一個行級 diff（domain 的 `lineChanges`）。先把 Agent 的整份文字轉一次，讓程式碼區塊、front matter 這些上下文判斷正確；再只讓 diff 標為新增或修改的行採用轉換後的樣子，其他行逐字保留。因此提案不會多出 Agent 沒改的 hunk。Markdown 的段落通常就是一行，一段裡改一個字，整段（那一行）會轉換。
+  - 標題：和目前的標題相同就不轉；不同時整個標題轉換。
+  - 標籤：作品（或平台）已有的標籤不轉，只轉新加的。
+  - 對照的基準：`PATCH` 是作品目前的內容（`base_revision` 必須是目前版本，否則 409）；提案是它的 `base_revision` 那一版；平台版本是平台目前顯示的標題和標籤（跟著作品時就是作品的）。
+  - 萬一轉換改變了行數（OpenCC 不會增減換行），那次就整份不轉，寧可不轉也不動使用者的行。
 - 回應裡有 `script_conversion: { script, fields }` 表示服務改了哪些欄位；沒有改動就沒有這個欄位。冪等重送回傳第一次的結果，包含 `script_conversion`。提案事後再讀（`GET /proposals/:id`）不帶這個欄位，因為存下來的就是轉換後的文字。
 - OpenCC（`opencc-js`）：簡體用 `tw → cn`（臺灣異體與詞彙轉簡體），繁體用 `cn → tw`（只轉字和臺灣異體，不換詞彙，例如「软件」→「軟件」而不是「軟體」），保留 Agent 自己的用詞。目標字體的文字轉換後不變。
 - Markdown 只轉人讀的文字：用編輯器同一套 mdast／GFM／front matter 解析，只改文字節點與圖片 alt。程式碼區塊、行內程式碼、HTML、連結與圖片的網址和 title、參考定義、自動連結都不動。front matter 逐行轉換值、不轉鍵名；值看起來是網址、路徑或檔名（沒有空白，且有協定、`/` 或副檔名）就不動。

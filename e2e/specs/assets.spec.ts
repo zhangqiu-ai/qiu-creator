@@ -9,6 +9,8 @@ import { test } from '../fixtures/desktop.js';
  * QC-037 素材庫 v2 (PT-20261119-001 「v2 · 素材庫：刪除與編輯」): editing with
  * autosave and conflicts, delete rules (unreferenced, referenced, external),
  * 復原, 回收站, multi-select batch. The system Trash is the fixture's fake.
+ * QC-108: a click shows the asset in the gallery view; the fields live in its
+ * info card (I or 「資訊」), deleting there moves on to the next asset.
  * Set QC037_SHOTS=<dir> to also save screenshots for the acceptance record.
  */
 
@@ -61,12 +63,27 @@ test('素材庫：編輯、刪除規則、復原、回收站與批次', async ({
     .getByRole('button', { name: '素材庫', exact: true })
     .click();
   const tile = (name: string) => page.getByRole('button', { name: `${name}，圖片` });
-  const inspector = page.getByRole('complementary', { name: '素材資訊' });
+  const viewer = page.getByRole('region', { name: /^素材檢視：/ });
+  const inspector = page.getByRole('group', { name: '素材資訊' });
   const toast = page.locator('.toast');
+  /** Show an asset large and bring up its info card. */
+  const open = async (name: string) => {
+    await tile(name).click();
+    await expect(viewer).toBeVisible();
+    await page.keyboard.press('i');
+    await expect(inspector).toBeVisible();
+  };
+  /** Esc closes the card, then the view; the grid is back. */
+  const back = async () => {
+    while ((await viewer.count()) > 0) {
+      await page.keyboard.press('Escape');
+    }
+    await expect(viewer).toHaveCount(0);
+  };
 
   try {
     await test.step('編輯名稱、標籤、替代文字、備註，自動儲存', async () => {
-      await tile('kyoto.png').click();
+      await open('kyoto.png');
       await inspector.getByLabel('名稱').fill('嵐山竹林・清晨');
       await inspector.getByLabel('新增標籤').fill('京都');
       await inspector.getByLabel('新增標籤').press('Enter');
@@ -80,7 +97,8 @@ test('素材庫：編輯、刪除規則、復原、回收站與批次', async ({
           return [a.display_name, a.tags, a.alt_text, a.note];
         })
         .toEqual(['嵐山竹林・清晨', ['京都'], '清晨嵐山竹林小徑', '封面候選']);
-      await expect(tile('嵐山竹林・清晨')).toBeVisible();
+      await expect(viewer.locator('.aview__line')).toContainText('嵐山竹林・清晨');
+      await expect(viewer.locator('.aview__line')).toContainText('#京都');
       await shot(page, '01-edit-light');
     });
 
@@ -97,22 +115,28 @@ test('素材庫：編輯、刪除規則、復原、回收站與批次', async ({
       await conflict.getByRole('button', { name: '用我的' }).click();
       await expect.poll(async () => (await c.assets.get(kyoto.id)).note).toBe('這是我的備註');
       await expect(inspector.getByRole('status').filter({ hasText: '已儲存' })).toBeVisible();
+      await back();
+      await expect(tile('嵐山竹林・清晨')).toBeFocused();
     });
 
-    await test.step('未引用的託管素材：直接移到回收站，可復原', async () => {
+    await test.step('未引用的託管素材：直接移到回收站，可復原；檢視跳到下一個', async () => {
       await tile('outfit.png').click();
+      await expect(viewer).toHaveAttribute('data-asset-id', outfit.id);
       await page.keyboard.press('Meta+Backspace');
       await expect(toast).toContainText('已移到回收站');
-      await expect(tile('outfit.png')).toHaveCount(0);
+      // The view stays open on a neighbour instead of going back to the grid.
+      await expect(viewer).toBeVisible();
+      await expect(viewer).not.toHaveAttribute('data-asset-id', outfit.id);
       await shot(page, '03-deleted-undo-toast');
       await toast.getByRole('button', { name: '復原' }).click();
+      await expect.poll(async () => (await c.assets.get(outfit.id)).deleted_at).toBeNull();
+      await back();
       await expect(tile('outfit.png')).toBeVisible();
-      expect((await c.assets.get(outfit.id)).deleted_at).toBeNull();
     });
 
     await test.step('被引用的素材：列出作品並確認', async () => {
       await tile('desk.png').click();
-      await inspector.getByRole('button', { name: '移到回收站' }).click();
+      await viewer.getByRole('button', { name: '移到回收站' }).click();
       const dialog = page.getByRole('dialog', { name: '移到回收站？' });
       await expect(dialog).toContainText('被 1 件作品引用');
       // Linked directly (not an attach copy): the article really loses the image.
@@ -123,11 +147,12 @@ test('素材庫：編輯、刪除規則、復原、回收站與批次', async ({
       await dialog.getByRole('button', { name: '移到回收站' }).click();
       await expect(toast).toContainText('作品顯示為缺圖');
       expect((await c.assets.get(desk.id)).removal).toBe('trashed');
+      await back();
     });
 
     await test.step('外部素材：預設只移出素材庫；勾選才移到垃圾桶', async () => {
       await tile('tools-cover.png').click();
-      await inspector.getByRole('button', { name: '移出素材庫…' }).click();
+      await viewer.getByRole('button', { name: '移出素材庫…' }).click();
       let dialog = page.getByRole('dialog', { name: '移出素材庫？' });
       await expect(dialog.getByRole('radio', { name: /只從素材庫移除/ })).toBeChecked();
       await shot(page, '05-delete-external');
@@ -135,23 +160,28 @@ test('素材庫：編輯、刪除規則、復原、回收站與批次', async ({
       await expect(toast).toContainText('原檔未動');
       expect(existsSync(path.join(folder, 'tools-cover.png'))).toBe(true);
       expect(systemTrash.moved).toEqual([]);
+      await back();
 
       await tile('ulysses-screen.png').click();
-      await inspector.getByRole('button', { name: '移出素材庫…' }).click();
+      await viewer.getByRole('button', { name: '移出素材庫…' }).click();
       dialog = page.getByRole('dialog', { name: '移出素材庫？' });
       await dialog.getByRole('radio', { name: /原檔也移到系統垃圾桶/ }).check();
       await dialog.getByRole('button', { name: '移到垃圾桶' }).click();
       await expect(toast).toContainText('原檔已移到系統垃圾桶');
       expect(systemTrash.moved).toEqual([path.join(folder, 'ulysses-screen.png')]);
       expect(existsSync(path.join(folder, 'ulysses-screen.png'))).toBe(false);
+      await back();
     });
 
     await test.step('多選：批次加標籤與移除', async () => {
       await tile('嵐山竹林・清晨').click({ modifiers: ['Meta'] });
       await tile('coffee.png').click({ modifiers: ['Meta'] });
       const bar = page.getByRole('toolbar', { name: '批次操作' });
-      await expect(bar).toContainText('已選 2');
-      await expect(inspector).toContainText('已選 2 個素材');
+      // ⌘-click picks without opening the view; the actions are in the header, no side panel.
+      await expect(page.getByRole('heading', { name: '已選 2' })).toBeVisible();
+      await expect(viewer).toHaveCount(0);
+      await expect(page.getByRole('complementary')).toHaveCount(0);
+      await expect(bar.getByRole('button', { name: '在 Finder 顯示' })).toBeVisible();
       await shot(page, '06-multi-select');
       await bar.getByRole('button', { name: '加標籤' }).click();
       let dialog = page.getByRole('dialog', { name: '為 2 個素材加標籤' });
@@ -195,6 +225,18 @@ test('素材庫：編輯、刪除規則、復原、回收站與批次', async ({
       // Restored with its reference to the work.
       expect((await c.workAssets.list(work.id)).items.map((i) => i.asset.id)).toContain(desk.id);
 
+      // A click on a name shows it in the view, with 恢復 and 永久刪除 as its tools.
+      await list.getByRole('button', { name: '嵐山竹林・清晨', exact: true }).click();
+      await expect(viewer).toBeVisible();
+      await expect(viewer.getByRole('button', { name: '恢復' })).toBeVisible();
+      await expect(viewer.getByRole('button', { name: '資訊', exact: true })).toHaveCount(0);
+      await shot(page, '07b-trash-viewer');
+      await viewer.getByRole('button', { name: '恢復' }).click();
+      await expect(toast).toContainText('已恢復到原位置');
+      await expect.poll(async () => (await c.assets.get(kyoto.id)).deleted_at).toBeNull();
+      await back();
+      await expect(list.getByRole('listitem')).toHaveCount(3);
+
       await list
         .getByRole('listitem')
         .filter({ hasText: 'coffee.png' })
@@ -203,10 +245,10 @@ test('素材庫：編輯、刪除規則、復原、回收站與批次', async ({
       let dialog = page.getByRole('dialog', { name: '永久刪除這個素材？' });
       await expect(dialog.getByRole('button', { name: '取消' })).toBeFocused();
       await dialog.getByRole('button', { name: '永久刪除' }).click();
-      await expect(list.getByRole('listitem')).toHaveCount(3);
+      await expect(list.getByRole('listitem')).toHaveCount(2);
 
       await page.getByRole('button', { name: '清空' }).click();
-      dialog = page.getByRole('dialog', { name: '永久刪除 3 個素材？' });
+      dialog = page.getByRole('dialog', { name: '永久刪除 2 個素材？' });
       await dialog.getByRole('button', { name: '永久刪除' }).click();
       await expect(page.getByText('回收站是空的')).toBeVisible();
     });
@@ -214,15 +256,17 @@ test('素材庫：編輯、刪除規則、復原、回收站與批次', async ({
     await test.step('深色截圖', async () => {
       await page.emulateMedia({ colorScheme: 'dark' });
       await page.getByRole('group', { name: '範圍' }).getByRole('button', { name: '全部' }).click();
-      await tile('desk.png').click();
+      await open('desk.png');
       await shot(page, '08-inspector-dark');
-      await tile('desk.png').click();
+      await back();
       await tile('outfit.png').click({ modifiers: ['Meta'] });
       await tile('desk.png').click({ modifiers: ['Meta'] });
       await shot(page, '09-multi-dark');
       await page.keyboard.press('Escape');
       await tile('outfit.png').click();
       await page.keyboard.press('Meta+Backspace');
+      await expect(toast).toContainText('已移到回收站');
+      await back();
       await page
         .getByRole('group', { name: '範圍' })
         .getByRole('button', { name: /回收站/ })

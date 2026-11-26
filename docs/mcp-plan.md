@@ -139,9 +139,10 @@ mac-server 127.0.0.1:7420 ← 唯一權威，權限、409、冪等全在這裡
 
 - **告知：** 伺服器 `instructions` 寫出目標字體（`creatorhub mcp` 啟動時讀 session），`server_status` 回 `text_script`（全域預設、權杖看得到的項目覆寫、選用規則）。寫入作品文字的五個工具（`work_create`、`work_propose_edit`、`work_update_body`、`work_update_meta`、`variant_update`）說明各加一句。
 - **轉換：** Agent 權杖送來的標題、正文、描述、標籤、平台標題與標籤，由服務端用 OpenCC 轉成目標字體，程式碼、網址、路徑與 front matter 鍵名不動。回應的 `script_conversion` 列出改了哪些欄位。`works_batch` 的 `add_tags` 也轉換。
+- **只轉 Agent 改的部分（QC-111）：** 新建作品整份轉換。修改、提案、平台版本只轉 Agent 新增或修改的文字：正文和描述以行為單位對照目前版本（提案對照它的 `base_revision`），沒變的行逐字保留；標題沒變不轉；已有的標籤不轉。
 - **規則：** 作品屬於項目時以項目的覆寫為準（覆寫互相不同時用全域）；否則用全域設定（預設簡體）。
 - **不轉：** 主權杖的寫入、既有作品；不做批次轉換。
-- **設定 API：** `GET`／`PUT /api/v1/settings/text-script` 列在 `MCP_EXCLUDED`（讀取由 `server_status` 提供，修改只限主權杖）；項目的 `text_script` 只限主權杖，MCP 工具不提供。細節見 [架構](architecture.md#作品文字字體qc-103)。
+- **設定 API：** `GET`／`PUT /api/v1/settings/text-script` 列在 `MCP_EXCLUDED`（讀取由 `server_status` 提供，修改只限主權杖）；項目的 `text_script` 只限主權杖，MCP 工具不提供。細節見 [架構](architecture.md#作品文字字體qc-103qc-111)。
 
 ## 11. 不在這次範圍
 

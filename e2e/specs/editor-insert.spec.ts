@@ -290,7 +290,7 @@ test('插入素材：選單、抽屜、斜線、貼上、Finder 拖入，視覺�
         .click();
       await page.getByRole('button', { name: 'kyoto.png，圖片' }).click();
       await page
-        .getByRole('complementary', { name: '素材資訊' })
+        .getByRole('region', { name: /^素材檢視：/ })
         .getByRole('button', { name: '移到回收站' })
         .click();
       const dialog = page.getByRole('dialog', { name: '移到回收站？' });

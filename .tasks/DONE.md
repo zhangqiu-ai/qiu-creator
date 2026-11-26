@@ -1,3 +1,27 @@
+## QC-109: 作品文字字體設定介面
+
+**Priority:** P3 | **Assignee:** qc-frontend | **Tags:** frontend
+
+**Completed:** 2026-11-26（41d09a6）
+
+設定 › Agent 與 MCP 加「作品文字字體」（簡體／繁體，選了就存，預設值會標明）；項目設定加「跟隨全域（目前字體）／簡體／繁體」，隨對話框儲存、409 時一併重載。兩處說明只影響 Agent 新內容，三語文案。連續快速切換依序儲存、以最後一次為準。測試：desktop 504 passed；e2e 失敗只有當時未合併的 QC-111 三項。英文與簡中版面、VoiceOver NOT_VERIFIED。
+
+## QC-111: 簡繁轉換誤轉使用者原文（QC-103 缺陷）
+
+**Priority:** P1 | **Assignee:** qc-backend | **Tags:** backend
+
+**Completed:** 2026-11-26（ac689ca）
+
+Agent 修改既有作品時只轉相對於基準（PATCH 對目前內容、提案對 base_revision、平台版本對目前顯示）新增或修改的行；用與提案 hunk 相同的行級 diff，未改的行逐字保留。標題沒變不轉，標籤只轉新加的。代價：同一段改一個字整段會轉。e2e：兩支與字體無關的測試設 zh-Hant；`agent-proposals.spec.ts:62` 改為 Agent 改的行應為簡體，並加斷言使用者標題逐字不變。測試：unit 1410 passed；e2e 一般 65、動效 66 passed，皆 0 failed。
+
+## QC-108: 素材檢視實作（方案 B 圖庫檢視）
+
+**Priority:** P2 | **Assignee:** qc-frontend | **Tags:** frontend
+
+**Completed:** 2026-11-26（e74a942）
+
+素材庫取消右側常駐側欄與多選批次側欄；單擊在主區開 `AssetViewer`（工具列、淡化資訊行、84px 縮圖條、按 I 浮出的資訊卡），← → 切換、Esc 回網格並保留捲動與焦點、F 全屏、空白鍵播放或開 QC-077 燈箱；Markdown 排版閱讀與原文切換；多選改為頁首「已選 N」動作列；回收站共用檢視。視頻素材卡改為在 App 端擷取一格當縮圖。與原型的差異：視頻與音訊用原生控制（無 ±15 秒、進度條懸停縮圖、大波形），返回網格沒有縮回動畫，記為 QC-112。測試：desktop 500 passed；e2e 一般 63、動效 64 passed，失敗只有 QC-111 的 3 個已知項。真實 macOS 全螢幕、動效錄影、英文與簡中版面 NOT_VERIFIED。
+
 ## QC-104: 素材庫視頻無法全屏播放
 
 **Priority:** P2 | **Assignee:** qc-frontend | **Tags:** frontend

@@ -218,7 +218,12 @@ export class WorkTrash {
     const scripts = this.options.textScripts;
     const added =
       request.action === 'add_tags' && scripts !== undefined
-        ? scripts.forAgent({ tags: request.tags }, () => scripts.forWork(item.id))
+        ? scripts.forAgent(
+            { tags: request.tags },
+            () => scripts.forWork(item.id),
+            // QC-111: tags the work already has stay as they are.
+            () => ({ tags: current.tags }),
+          )
         : { value: { tags: request.tags }, conversion: undefined };
     const addTags = added.value.tags;
     const next =

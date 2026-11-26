@@ -1,13 +1,10 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
 import type {
   AssetKind,
-  AssetOrigin,
   AssetRecord,
   AssetReferences,
-  AssetWorkItem,
   Mount,
   Project,
-  WorkAssetRole,
 } from '@qiu-creator/contracts';
 import {
   useCallback,
@@ -15,12 +12,10 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type DragEvent,
   type MouseEvent,
 } from 'react';
 import {
-  AssetEditor,
   assetErrorText,
   batchInUseReferences,
   brokenLinkTitles,
@@ -30,70 +25,31 @@ import {
   type DeleteImpact,
   daysLeft,
   displayName,
-  FIELD_LABEL,
-  fileExt,
   inUseReferences,
   isExternal,
   referencingTitles,
-  type EditorState,
-  type SaveStatus,
 } from './asset-session.js';
 import { formatStamp } from './backups.js';
 import { Dialog } from './Dialog.js';
 import { projectColor } from './projects-store.js';
-import { TagEditor } from './TagEditor.js';
 import { assetMediaUrl, thumbnailUrl } from '../shared/bridge.js';
 import { Chip } from './Chip.js';
 import { useRefreshOn } from './events.js';
 import { useMounts } from './mounts.js';
-import {
-  ASSET_KIND,
-  assetName,
-  type ChipTone,
-  formatBytes,
-  formatDimensions,
-  formatDuration,
-  shortHash,
-  tildePath,
-} from './format.js';
+import { ASSET_KIND, formatDimensions, formatDuration, tildePath } from './format.js';
 import { useToast } from './toasts.js';
 import { Highlight, SearchHighlight } from './Highlight.js';
 import { Lightbox, type LightboxItem } from './Lightbox.js';
+import { AssetThumb } from './AssetThumb.js';
+import { AssetViewer, TextContent } from './AssetViewer.js';
+import { nextAfterRemoval } from './asset-viewer.js';
 import type { Rect } from './lightbox-math.js';
 import { Icon } from './Icon.js';
-import { formatDateTime, formatNumber, t } from './i18n.js';
+import { formatNumber, t } from './i18n.js';
 
 type KindFilter = 'all' | AssetKind;
 const KIND_FILTERS: readonly KindFilter[] = ['all', 'image', 'video', 'audio', 'markdown', 'other'];
 const PAGE_SIZE = 100;
-
-const ORIGIN_LABEL: Readonly<Record<AssetOrigin, string>> = {
-  get upload() {
-    return t('assets.originUpload');
-  },
-  get url() {
-    return t('assets.originUrl');
-  },
-  get folder() {
-    return t('assets.originFolder');
-  },
-  api: 'Agent API',
-  get manual() {
-    return t('assets.originManual');
-  },
-};
-
-const ROLE_LABEL: Readonly<Record<WorkAssetRole, string>> = {
-  get cover() {
-    return t('assets.roleCover');
-  },
-  get body() {
-    return t('assets.roleBody');
-  },
-  get video() {
-    return t('assets.roleVideo');
-  },
-};
 
 export interface AssetGroup {
   key: string;
@@ -201,6 +157,12 @@ export function AssetsPage({
   const [dragging, setDragging] = useState(false);
   const [dialog, setDialog] = useState<DeleteDialog | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
+  /** The asset shown in the gallery view (QC-108); null shows the grid. */
+  const [view, setView] = useState<{
+    id: string;
+    origin: Rect | null;
+    startAt: number | null;
+  } | null>(null);
   const limit = useRef(PAGE_SIZE);
   const request = useRef(0);
 
@@ -247,6 +209,9 @@ export function AssetsPage({
   useEffect(() => {
     if (focusAssetId === undefined || focusAssetId === null) return;
     setSelectedId(focusAssetId);
+    setScope('active');
+    // A new time point for the same video opens it there again.
+    setView({ id: focusAssetId, origin: null, startAt: startAt ?? null });
     let alive = true;
     client.assets
       .get(focusAssetId)
@@ -254,12 +219,12 @@ export function AssetsPage({
         if (alive) setFocused(asset);
       })
       .catch(() => {
-        // The grid still loads; the inspector just stays closed.
+        // The grid still loads; the view shows the asset once the list has it.
       });
     return () => {
       alive = false;
     };
-  }, [client, focusAssetId]);
+  }, [client, focusAssetId, startAt]);
 
   // A toast stays 6 s, long enough to reach 復原.
   useEffect(() => {
@@ -273,12 +238,7 @@ export function AssetsPage({
   }, [toast]);
 
   const items = listing?.items ?? [];
-  const selected =
-    picks.length > 0
-      ? null
-      : (items.find((a) => a.id === selectedId) ?? (focused?.id === selectedId ? focused : null));
   const filtering = kind !== 'all' || appliedQuery.trim() !== '' || scope === 'unreferenced';
-  const picked = items.filter((a) => picks.includes(a.id));
 
   // ---- 大圖預覽 (QC-077) ----
   const [lightbox, setLightbox] = useState<{ id: string; origin: Rect | null } | null>(null);
@@ -287,6 +247,46 @@ export function AssetsPage({
     () => groupAssets(items, mounts).flatMap((g) => g.items),
     [items, mounts],
   );
+  /**
+   * What the gallery view moves through: the grid's order (回收站: its list), plus
+   * an asset opened from elsewhere that is not on the loaded page.
+   */
+  const viewList = useMemo(() => {
+    const list = scope === 'trash' ? items : ordered;
+    if (view === null || list.some((a) => a.id === view.id)) return list;
+    return focused?.id === view.id ? [focused, ...list] : list;
+  }, [scope, items, ordered, view, focused]);
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const viewListRef = useRef(viewList);
+  viewListRef.current = viewList;
+  const viewIndex = view === null ? -1 : viewList.findIndex((a) => a.id === view.id);
+  const viewed = viewIndex < 0 ? null : (viewList[viewIndex] ?? null);
+  /** ⌘⌫ deletes the asset in the view, else the card last opened. */
+  const selected =
+    picks.length > 0
+      ? null
+      : (viewed ??
+        items.find((a) => a.id === selectedId) ??
+        (focused?.id === selectedId ? focused : null));
+
+  /** The card's picture box, for the view to grow from. */
+  const tileRect = (id: string): Rect | null => {
+    const r = document
+      .querySelector(`[data-asset-id="${id}"] .atile__thumb, [data-asset-id="${id}"] .trash__thumb`)
+      ?.getBoundingClientRect();
+    return r === undefined ? null : { left: r.left, top: r.top, width: r.width, height: r.height };
+  };
+  const openView = (id: string) => {
+    setSelectedId(id);
+    setView({ id, origin: tileRect(id), startAt: null });
+  };
+  /** Back to the grid: it was never unmounted, so it is where it was; focus returns to the card. */
+  const closeView = () => {
+    const id = view?.id ?? null;
+    setView(null);
+    if (id !== null) returnFocusTo.current = id;
+  };
   const returnFocusTo = useRef<string | null>(null);
   const openLightbox = (id: string, from?: Element | null) => {
     const el = from ?? document.querySelector(`[data-asset-id="${id}"] .atile__thumb`);
@@ -300,15 +300,17 @@ export function AssetsPage({
   };
   // Closing puts focus back on the card of the asset that was showing.
   useEffect(() => {
-    if (lightbox !== null || returnFocusTo.current === null) return;
+    if (lightbox !== null || view !== null || returnFocusTo.current === null) return;
     const id = returnFocusTo.current;
     returnFocusTo.current = null;
-    document.querySelector<HTMLElement>(`[data-asset-id="${id}"]`)?.focus();
-  }, [lightbox]);
+    document.querySelector<HTMLElement>(`button[data-asset-id="${id}"]`)?.focus();
+  }, [lightbox, view]);
   // Space on the selected asset opens it, wherever focus is in the page (not in a field or control).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== ' ' || e.isComposing || selectedId === null || lightbox !== null) return;
+      // The gallery view has its own Space (play, or the full-window preview).
+      if (view !== null) return;
       if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.defaultPrevented) return;
       const target = e.target;
       if (
@@ -345,6 +347,20 @@ export function AssetsPage({
   const afterRemoval = (ids: readonly string[]) => {
     setPicks([]);
     if (selectedId !== null && ids.includes(selectedId)) setSelectedId(null);
+    // Deleting in the view goes on to the next asset, not back to the grid. This runs when
+    // the request returns, so it reads the view as it is now: if the person left it
+    // meanwhile, it stays closed.
+    const current = viewRef.current;
+    if (current !== null && ids.includes(current.id)) {
+      const next = nextAfterRemoval(
+        viewListRef.current
+          .filter((a) => a.id === current.id || !ids.includes(a.id))
+          .map((a) => a.id),
+        current.id,
+      );
+      setView(next === null ? null : { id: next, origin: null, startAt: null });
+      if (next !== null) setSelectedId(next);
+    }
     load();
   };
 
@@ -452,17 +468,29 @@ export function AssetsPage({
         }}
         onDrop={onDrop}
       >
-        <div className="page__main">
-          <header className="page__header">
-            <h1 className="page__title">{t('assets.title')}</h1>
-            <span className="page__count">
-              {listing === null ? '' : formatNumber(listing.total)}
-            </span>
+        <div className="page__main" inert={view !== null && viewed !== null}>
+          <header
+            className={picks.length > 0 ? 'page__header page__header--picking' : 'page__header'}
+          >
+            {picks.length > 0 ? (
+              <>
+                <h1 className="page__title batchbar__count">
+                  {t('assets.picked', { count: picks.length })}
+                </h1>
+                <span className="batchbar__hint">
+                  {t('assets.pickHint')} · <kbd>esc</kbd> {t('common.cancel')}
+                </span>
+              </>
+            ) : (
+              <>
+                <h1 className="page__title">{t('assets.title')}</h1>
+                <span className="page__count">
+                  {listing === null ? '' : formatNumber(listing.total)}
+                </span>
+              </>
+            )}
             {picks.length > 0 ? (
               <div className="batchbar" role="toolbar" aria-label={t('assets.batchActions')}>
-                <span className="batchbar__count">
-                  {t('assets.picked', { count: picks.length })}
-                </span>
                 <button
                   type="button"
                   className="btn btn--ghost btn--small"
@@ -477,6 +505,19 @@ export function AssetsPage({
                   type="button"
                   className="btn btn--ghost btn--small"
                   onClick={() => {
+                    // Finder shows the picked files (at most 10, so it does not flood the screen).
+                    for (const id of picks.slice(0, 10)) {
+                      void window.creatorhub?.reveal({ kind: 'asset', id });
+                    }
+                  }}
+                >
+                  <Icon name="folder" size={14} />
+                  {t('common.revealInFinder')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--danger btn--small"
+                  onClick={() => {
                     setDialog({ kind: 'batch', ids: [...picks] });
                   }}
                 >
@@ -486,12 +527,12 @@ export function AssetsPage({
                 <button
                   type="button"
                   className="btn btn--ghost btn--small"
+                  aria-keyshortcuts="Escape"
                   onClick={() => {
                     setPicks([]);
                   }}
                 >
-                  {t('common.cancel')}
-                  <kbd>esc</kbd>
+                  {t('assets.cancelPick')}
                 </button>
               </div>
             ) : (
@@ -523,6 +564,7 @@ export function AssetsPage({
                         setScope(s);
                         setPicks([]);
                         setSelectedId(null);
+                        setView(null);
                       }}
                     >
                       {scopeLabel(s)}
@@ -606,6 +648,7 @@ export function AssetsPage({
                 setDialog({ kind: 'empty', count: listing?.total ?? 0 });
               }}
               onToast={setToast}
+              onOpen={openView}
             />
           ) : (
             <section
@@ -723,16 +766,15 @@ export function AssetsPage({
                               selected={picks.length === 0 && a.id === selectedId}
                               picked={picks.includes(a.id)}
                               multi={picks.length > 0}
-                              onOpen={() => {
+                              onQuickLook={() => {
                                 openLightbox(a.id);
                               }}
                               onSelect={(e) => {
-                                // The second click of a double-click keeps the selection.
-                                if (e.detail >= 2) return;
+                                // ⌘-click picks (no view); a plain click shows the asset large.
                                 if (e.metaKey || e.ctrlKey || e.shiftKey || picks.length > 0) {
                                   togglePick(a.id);
                                 } else {
-                                  setSelectedId(a.id === selectedId ? null : a.id);
+                                  openView(a.id);
                                 }
                               }}
                               onTogglePick={() => {
@@ -769,25 +811,25 @@ export function AssetsPage({
           )}
         </div>
 
-        {scope !== 'trash' && picks.length > 0 && <MultiInspector assets={picked} />}
-
-        {scope !== 'trash' && selected !== null && (
-          <AssetInspector
-            key={selected.id}
+        {view !== null && viewed !== null && (
+          <AssetViewer
             client={client}
-            asset={selected}
+            mode={scope === 'trash' ? 'trash' : 'active'}
+            assets={viewList}
+            index={viewIndex}
+            origin={view.origin}
+            startAt={view.startAt}
             home={home}
-            mount={
-              selected.mount_id === null || selected.mount_id === undefined
-                ? null
-                : (mounts.get(selected.mount_id) ?? null)
-            }
+            mounts={mounts}
             userHome={userHome}
-            onOpenWork={onOpenWork}
-            startAt={selected.id === focusAssetId ? (startAt ?? null) : null}
-            onPreview={(el) => {
-              openLightbox(selected.id, el);
+            onIndex={(i) => {
+              const next = viewList[i];
+              if (next === undefined) return;
+              setSelectedId(next.id);
+              setView({ id: next.id, origin: null, startAt: null });
             }}
+            onBack={closeView}
+            onOpenWork={onOpenWork}
             onSaved={(saved) => {
               setListing((l) =>
                 l === null
@@ -795,34 +837,58 @@ export function AssetsPage({
                   : { ...l, items: l.items.map((a) => (a.id === saved.id ? saved : a)) },
               );
             }}
-            onDelete={() => {
-              deleteOne(selected);
+            onDelete={deleteOne}
+            onRestore={(asset) => {
+              client.assets
+                .restore(asset.id)
+                .then(() => {
+                  afterRemoval([asset.id]);
+                  setToast({ message: t('assets.restored'), undo: null });
+                })
+                .catch((err: unknown) => {
+                  setToast({ message: assetErrorText(err), undo: null, tone: 'bad' });
+                });
             }}
-            onClose={() => {
-              setSelectedId(null);
+            onPurge={(asset) => {
+              setDialog({ kind: 'purge', asset });
+            }}
+            onFullPreview={(asset, from) => {
+              openLightbox(asset.id, from);
             }}
           />
         )}
 
         {lightbox !== null &&
-          scope !== 'trash' &&
           (() => {
-            const at = ordered.findIndex((a) => a.id === lightbox.id);
+            const list = view !== null ? viewList : ordered;
+            const at = list.findIndex((a) => a.id === lightbox.id);
             if (at < 0) return null;
             return (
               <Lightbox
-                items={ordered.map(toLightboxItem)}
+                items={list.map(toLightboxItem)}
                 index={at}
                 origin={lightbox.origin}
                 onIndex={(i) => {
-                  const next = ordered[i];
+                  const next = list[i];
                   if (next === undefined) return;
                   setSelectedId(next.id);
                   setLightbox({ id: next.id, origin: null });
+                  // The view behind follows, so closing lands on the same asset.
+                  if (view !== null) setView({ id: next.id, origin: null, startAt: null });
                 }}
                 onClose={() => {
-                  returnFocusTo.current = lightbox.id;
                   setLightbox(null);
+                  if (view === null) {
+                    returnFocusTo.current = lightbox.id;
+                  } else {
+                    document.querySelector<HTMLElement>('.aview')?.focus({ preventScroll: true });
+                  }
+                }}
+                content={(item) => {
+                  const asset = list.find((a) => a.id === item.id);
+                  return asset?.kind === 'markdown' ? (
+                    <TextContent asset={asset} raw={false} />
+                  ) : null;
                 }}
                 extra={(item) => (
                   <button
@@ -882,112 +948,6 @@ function assetLocation(
   return mount === null ? asset.path : `${tildePath(mount.root_path, userHome)}/${asset.path}`;
 }
 
-function Thumb({ asset, size }: { asset: AssetRecord; size: number }) {
-  const [broken, setBroken] = useState(false);
-  const showImage = asset.kind === 'image' && asset.thumbnail_status !== 'failed' && !broken;
-  if (showImage) {
-    return (
-      <img
-        className="thumb__img"
-        src={thumbnailUrl(asset.id)}
-        alt=""
-        loading="lazy"
-        draggable={false}
-        onError={() => {
-          setBroken(true);
-        }}
-      />
-    );
-  }
-  return (
-    <span className="thumb__icon">
-      <Icon name={ASSET_KIND[asset.kind].icon} size={size} />
-    </span>
-  );
-}
-
-/**
- * Viewer preview: the original image, a video or an audio player. Media URLs
- * come only from `assetMediaUrl`, so the way they are authorized can change
- * without touching this component. Formats Chromium cannot decode (e.g. some
- * HEVC .mov files) fall back to an icon with a note instead of a broken player.
- */
-function MediaPreview({
-  asset,
-  startAt,
-  onPreview,
-}: {
-  asset: AssetRecord;
-  startAt: number | null;
-  onPreview: (from: Element) => void;
-}) {
-  const [failed, setFailed] = useState(false);
-  const onError = () => {
-    setFailed(true);
-  };
-  const playable = asset.kind === 'image' || asset.kind === 'video' || asset.kind === 'audio';
-  if (!playable || failed) {
-    return (
-      <div className="viewer__preview">
-        <Thumb asset={asset} size={36} />
-        {failed && (
-          <span className="viewer__preview-note" role="status">
-            {asset.kind === 'image'
-              ? t('assets.previewImageFailed')
-              : t('assets.previewFormatFailed')}
-          </span>
-        )}
-      </div>
-    );
-  }
-  const name = assetName(asset);
-  return (
-    <div className={`viewer__preview viewer__preview--${asset.kind}`}>
-      {asset.kind === 'image' ? (
-        <img
-          className="thumb__img"
-          src={assetMediaUrl(asset.id)}
-          alt={name}
-          role="button"
-          tabIndex={0}
-          title={t('assets.openLarge')}
-          onClick={(e) => {
-            onPreview(e.currentTarget);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') onPreview(e.currentTarget);
-          }}
-          onError={onError}
-        />
-      ) : asset.kind === 'video' ? (
-        <video
-          className="viewer__media"
-          src={assetMediaUrl(asset.id)}
-          controls
-          preload="metadata"
-          aria-label={name}
-          onError={onError}
-          onLoadedMetadata={(e) => {
-            if (startAt === null) return;
-            const video = e.currentTarget;
-            video.currentTime = Math.min(startAt, video.duration || startAt);
-            void video.play().catch(() => undefined);
-          }}
-        />
-      ) : (
-        <audio
-          className="viewer__audio"
-          src={assetMediaUrl(asset.id)}
-          controls
-          preload="metadata"
-          aria-label={name}
-          onError={onError}
-        />
-      )}
-    </div>
-  );
-}
-
 function toLightboxItem(asset: AssetRecord): LightboxItem {
   const kind =
     asset.kind === 'image' || asset.kind === 'video' || asset.kind === 'audio'
@@ -1014,7 +974,7 @@ function AssetTile({
   multi,
   onSelect,
   onTogglePick,
-  onOpen,
+  onQuickLook,
 }: {
   asset: AssetRecord;
   selected: boolean;
@@ -1022,7 +982,8 @@ function AssetTile({
   multi: boolean;
   onSelect: (e: MouseEvent) => void;
   onTogglePick: () => void;
-  onOpen: () => void;
+  /** Space: the full-window preview (QC-077, unchanged by the gallery view). */
+  onQuickLook: () => void;
 }) {
   const name = displayName(asset);
   return (
@@ -1038,12 +999,11 @@ function AssetTile({
         onClick={(e) => {
           onSelect(e);
         }}
-        onDoubleClick={onOpen}
         onKeyDown={(e) => {
           // Space opens the large preview (Quick Look); the button's own click is held back.
           if (e.key === ' ' && !e.nativeEvent.isComposing) {
             e.preventDefault();
-            onOpen();
+            onQuickLook();
           }
         }}
         onKeyUp={(e) => {
@@ -1051,7 +1011,7 @@ function AssetTile({
         }}
       >
         <span className="atile__thumb">
-          <Thumb asset={asset} size={28} />
+          <AssetThumb asset={asset} size={28} />
           {asset.duration !== null && (asset.kind === 'video' || asset.kind === 'audio') && (
             <span className="atile__dur">{formatDuration(asset.duration)}</span>
           )}
@@ -1071,469 +1031,6 @@ function AssetTile({
   );
 }
 
-function metadataNote(asset: AssetRecord): string | null {
-  if (asset.metadata_status === 'pending') return t('assets.metaPending');
-  if (asset.metadata_status === 'unavailable') return t('assets.metaUnavailable');
-  if (asset.metadata_status === 'failed') return t('assets.metaFailed');
-  return null;
-}
-
-function AssetRefs({
-  client,
-  assetId,
-  onOpenWork,
-}: {
-  client: CreatorHubClient;
-  assetId: string;
-  onOpenWork: (workId: string) => void;
-}) {
-  const [refs, setRefs] = useState<AssetWorkItem[] | null>(null);
-  const [failed, setFailed] = useState(false);
-  const load = useCallback(() => {
-    client.assets
-      .works(assetId)
-      .then((res) => {
-        setFailed(false);
-        setRefs(res.items);
-      })
-      .catch(() => {
-        setFailed(true);
-      });
-  }, [client, assetId]);
-  useEffect(() => {
-    setRefs(null);
-    load();
-  }, [load]);
-  // Linking or unlinking arrives as work.assets_changed.
-  useRefreshOn(['work'], load, 400);
-
-  return (
-    <div className="viewer__refs">
-      <span className="faint">{t('assets.refsLabel')}</span>
-      {failed ? (
-        <span className="muted">{t('assets.refsFailed')}</span>
-      ) : refs === null ? (
-        <span className="skel skel--line" aria-busy="true" />
-      ) : refs.length === 0 ? (
-        <span className="muted">{t('assets.refsNone')}</span>
-      ) : (
-        <ul className="refs">
-          {refs.map((r) => (
-            <li key={`${r.work_id}:${r.role}`}>
-              <button
-                type="button"
-                className="ref"
-                onClick={() => {
-                  onOpenWork(r.work_id);
-                }}
-              >
-                <Icon name="library" size={14} />
-                <span className="ref__title">{r.title}</span>
-                <span className="faint">{ROLE_LABEL[r.role]}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-const SAVE_LABEL: Readonly<Record<SaveStatus, { label: string; tone: ChipTone }>> = {
-  saved: {
-    get label() {
-      return t('format.saveSaved');
-    },
-    tone: 'ok',
-  },
-  pending: {
-    get label() {
-      return t('format.saveDirty');
-    },
-    tone: 'neutral',
-  },
-  saving: {
-    get label() {
-      return t('format.saveSaving');
-    },
-    tone: 'neutral',
-  },
-  error: {
-    get label() {
-      return t('format.saveError');
-    },
-    tone: 'bad',
-  },
-  conflict: {
-    get label() {
-      return t('assets.saveConflict');
-    },
-    tone: 'warn',
-  },
-};
-
-function useEditor(editor: AssetEditor): EditorState {
-  return useSyncExternalStore(editor.subscribe, editor.getSnapshot);
-}
-
-/**
- * The inspector of one asset (replaces the read-only viewer): edit 名稱、
- * 標籤、替代文字、備註 with autosave; 檔案資訊 folds away; Finder and delete
- * at the bottom.
- */
-function AssetInspector({
-  client,
-  asset,
-  home,
-  mount,
-  userHome,
-  onOpenWork,
-  onClose,
-  onSaved,
-  onDelete,
-  startAt,
-  onPreview,
-}: {
-  client: CreatorHubClient;
-  asset: AssetRecord;
-  startAt: number | null;
-  home: string | null;
-  mount: Mount | null;
-  userHome: string | null;
-  onOpenWork: (workId: string) => void;
-  onClose: () => void;
-  onSaved: (asset: AssetRecord) => void;
-  onDelete: () => void;
-  onPreview: (from: Element) => void;
-}) {
-  // Created in the effect: StrictMode would dispose an instance made during render (QC-025).
-  const [editor, setEditor] = useState<AssetEditor | null>(null);
-  const onSavedRef = useRef(onSaved);
-  onSavedRef.current = onSaved;
-  const initial = useRef(asset);
-  useEffect(() => {
-    const e = new AssetEditor(client, initial.current, (saved) => {
-      onSavedRef.current(saved);
-    });
-    setEditor(e);
-    return () => {
-      // Leaving the asset saves what was typed, then lets go.
-      void e.flush().finally(() => {
-        e.dispose();
-      });
-    };
-  }, [client]);
-  if (editor === null) return null;
-  return (
-    <InspectorBody
-      client={client}
-      editor={editor}
-      asset={asset}
-      home={home}
-      mount={mount}
-      userHome={userHome}
-      onOpenWork={onOpenWork}
-      onClose={onClose}
-      onDelete={onDelete}
-      startAt={startAt}
-      onPreview={onPreview}
-    />
-  );
-}
-
-function InspectorBody({
-  client,
-  editor,
-  asset,
-  home,
-  mount,
-  userHome,
-  onOpenWork,
-  onClose,
-  onDelete,
-  startAt,
-  onPreview,
-}: {
-  client: CreatorHubClient;
-  editor: AssetEditor;
-  asset: AssetRecord;
-  startAt: number | null;
-  home: string | null;
-  mount: Mount | null;
-  userHome: string | null;
-  onOpenWork: (workId: string) => void;
-  onClose: () => void;
-  onDelete: () => void;
-  onPreview: (from: Element) => void;
-}) {
-  const state = useEditor(editor);
-  const [copied, setCopied] = useState(false);
-  const [revealFailed, setRevealFailed] = useState(false);
-  const [nameDraft, setNameDraft] = useState(displayName(asset));
-  useEffect(() => {
-    editor.adopt(asset);
-  }, [editor, asset]);
-
-  const current = state.asset;
-  const name = displayName(current);
-  const dims = formatDimensions(current.width, current.height);
-  const note = metadataNote(current);
-  const timed = current.kind === 'video' || current.kind === 'audio';
-  const save = SAVE_LABEL[state.status];
-  const external = isExternal(current);
-
-  return (
-    <aside className="viewer inspector" aria-label={t('assets.inspector')}>
-      <div className="inspector__scroll">
-        <MediaPreview
-          key={`${asset.id}:${String(startAt)}`}
-          asset={asset}
-          startAt={startAt}
-          onPreview={onPreview}
-        />
-        <div className="inspector__name">
-          <label className="visually-hidden" htmlFor="asset-name">
-            {t('assets.name')}
-          </label>
-          <input
-            id="asset-name"
-            className="inline-input"
-            value={nameDraft}
-            onChange={(e) => {
-              setNameDraft(e.target.value);
-              const v = e.target.value.trim();
-              // An empty name goes back to the original file name.
-              editor.change('display_name', v === '' || v === assetName(current) ? null : v);
-            }}
-            onBlur={() => {
-              void editor.flush();
-              if (nameDraft.trim() === '') setNameDraft(assetName(current));
-            }}
-          />
-          {fileExt(current) !== '' && <Chip>{fileExt(current)}</Chip>}
-          <button
-            type="button"
-            className="btn btn--ghost btn--icon btn--small"
-            aria-label={t('assets.closeInspector')}
-            onClick={onClose}
-          >
-            <Icon name="close" />
-          </button>
-        </div>
-        <div className="viewer__chips">
-          <Chip>{ASSET_KIND[current.kind].label}</Chip>
-          {external ? (
-            <Chip tone="warn">{t('format.sourceExternal')}</Chip>
-          ) : (
-            <Chip>{t('assets.managed')}</Chip>
-          )}
-          <span className="inspector__save" role="status">
-            <Chip tone={save.tone}>{save.label}</Chip>
-          </span>
-        </div>
-        {state.error !== null && (
-          <p className="ln__err" role="alert">
-            {state.error}
-          </p>
-        )}
-        {state.conflict !== null && (
-          <div className="inspector__conflict" role="alert">
-            <span>
-              {t('assets.conflictFields', {
-                fields: state.conflict.fields
-                  .map((f) => FIELD_LABEL[f])
-                  .join(t('common.listSeparator')),
-              })}
-            </span>
-            <div className="inspector__conflict-actions">
-              <button
-                type="button"
-                className="btn btn--small"
-                onClick={() => {
-                  void editor.resolve('theirs');
-                  setNameDraft(displayName(state.conflict?.theirs ?? current));
-                }}
-              >
-                {t('assets.useTheirs')}
-              </button>
-              <button
-                type="button"
-                className="btn btn--small btn--primary"
-                onClick={() => {
-                  void editor.resolve('mine');
-                }}
-              >
-                {t('assets.useMine')}
-              </button>
-            </div>
-          </div>
-        )}
-        {note !== null && (
-          <p className="viewer__note" role="status">
-            {note}
-          </p>
-        )}
-        <div className="field-block">
-          <span className="field-block__label">{t('assets.tags')}</span>
-          <TagEditor
-            tags={editor.value('tags') ?? []}
-            disabled={state.status === 'conflict'}
-            onChange={(tags) => {
-              editor.change('tags', tags);
-              void editor.flush();
-            }}
-          />
-        </div>
-        <div className="field-block">
-          <label className="field-block__label" htmlFor="asset-alt">
-            {t('assets.altText')}
-          </label>
-          <input
-            id="asset-alt"
-            className="input"
-            placeholder={t('assets.altPlaceholder')}
-            value={editor.value('alt_text') ?? ''}
-            onChange={(e) => {
-              editor.change('alt_text', e.target.value === '' ? null : e.target.value);
-            }}
-            onBlur={() => {
-              void editor.flush();
-            }}
-          />
-        </div>
-        <div className="field-block">
-          <label className="field-block__label" htmlFor="asset-note">
-            {t('assets.note')}
-          </label>
-          <textarea
-            id="asset-note"
-            className="input inspector__note"
-            placeholder={t('assets.notePlaceholder')}
-            value={editor.value('note') ?? ''}
-            onChange={(e) => {
-              editor.change('note', e.target.value === '' ? null : e.target.value);
-            }}
-            onBlur={() => {
-              void editor.flush();
-            }}
-          />
-        </div>
-        <AssetRefs client={client} assetId={asset.id} onOpenWork={onOpenWork} />
-        <details className="inspector__details">
-          <summary>{t('assets.fileInfo')}</summary>
-          <dl className="kv">
-            <dt>{t('assets.fileName')}</dt>
-            <dd className="mono">{assetName(current)}</dd>
-            <dt>{t('assets.dimensions')}</dt>
-            <dd>{dims ?? '—'}</dd>
-            {timed && (
-              <>
-                <dt>{t('assets.duration')}</dt>
-                <dd>{current.duration === null ? '—' : formatDuration(current.duration)}</dd>
-              </>
-            )}
-            <dt>{t('assets.codec')}</dt>
-            <dd>{current.codec ?? current.mime_type}</dd>
-            <dt>{t('assets.size')}</dt>
-            <dd>{formatBytes(current.bytes)}</dd>
-            <dt>SHA-256</dt>
-            <dd className="mono kv__hash">
-              <span title={current.sha256}>{shortHash(current.sha256)}</span>
-              <button
-                type="button"
-                className="btn btn--ghost btn--icon btn--tiny"
-                aria-label={t('assets.copyHash')}
-                onClick={() => {
-                  void window.creatorhub?.copyText(current.sha256).then(() => {
-                    setCopied(true);
-                  });
-                }}
-              >
-                <Icon name={copied ? 'check' : 'copy'} size={13} />
-              </button>
-              {copied && (
-                <span className="visually-hidden" role="status">
-                  {t('common.copied')}
-                </span>
-              )}
-            </dd>
-            <dt>{t('assets.location')}</dt>
-            <dd className="mono">
-              {external
-                ? mount === null
-                  ? current.path
-                  : `${tildePath(mount.root_path, userHome)}/${current.path}`
-                : home === null
-                  ? current.path
-                  : `${home}/${current.path}`}
-            </dd>
-            <dt>{t('assets.origin')}</dt>
-            <dd>{ORIGIN_LABEL[current.origin]}</dd>
-            <dt>{t('assets.added')}</dt>
-            <dd>{formatDateTime(new Date(current.created_at))}</dd>
-          </dl>
-        </details>
-        <span className="visually-hidden">{name}</span>
-      </div>
-      <div className="inspector__foot">
-        <button
-          type="button"
-          className="btn btn--small"
-          onClick={() => {
-            void window.creatorhub?.reveal({ kind: 'asset', id: current.id }).then((ok) => {
-              setRevealFailed(!ok);
-            });
-          }}
-        >
-          <Icon name="folder" size={14} />
-          {t('common.revealInFinder')}
-        </button>
-        {revealFailed && (
-          <span className="viewer__error" role="alert">
-            {t('assets.revealFailed')}
-          </span>
-        )}
-        <button
-          type="button"
-          className="btn btn--ghost btn--danger btn--small inspector__delete"
-          aria-keyshortcuts="Meta+Backspace"
-          onClick={() => {
-            void editor.flush().then(onDelete);
-          }}
-        >
-          {external ? t('assets.removeFromLibrary') : t('assets.moveToTrash')}
-        </button>
-      </div>
-    </aside>
-  );
-}
-
-function MultiInspector({ assets }: { assets: readonly AssetRecord[] }) {
-  const bytes = assets.reduce((n, a) => n + a.bytes, 0);
-  const external = assets.filter(isExternal).length;
-  return (
-    <aside className="viewer inspector" aria-label={t('assets.inspector')}>
-      <div className="inspector__scroll">
-        <div className="inspector__picks">
-          {assets.slice(0, 6).map((a) => (
-            <span key={a.id} className="inspector__pick">
-              <Thumb asset={a} size={20} />
-            </span>
-          ))}
-        </div>
-        <h2 className="inspector__title">{t('assets.pickedAssets', { count: assets.length })}</h2>
-        <dl className="kv">
-          <dt>{t('assets.size')}</dt>
-          <dd>{formatBytes(bytes)}</dd>
-          <dt>{t('format.sourceExternal')}</dt>
-          <dd>{external === 0 ? t('assets.none') : t('assets.countItems', { count: external })}</dd>
-        </dl>
-        <p className="faint">{t('assets.multiHintFields')}</p>
-      </div>
-    </aside>
-  );
-}
-
 function TrashView({
   client,
   listing,
@@ -1545,6 +1042,7 @@ function TrashView({
   onPurge,
   onEmpty,
   onToast,
+  onOpen,
 }: {
   client: CreatorHubClient;
   listing: Listing | null;
@@ -1556,6 +1054,8 @@ function TrashView({
   onPurge: (asset: AssetRecord) => void;
   onEmpty: () => void;
   onToast: (t: Toast) => void;
+  /** A click on the picture or name shows it in the gallery view (還原 and 永久刪除 there too). */
+  onOpen: (id: string) => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
@@ -1602,12 +1102,21 @@ function TrashView({
           {items.map((a) => {
             const left = daysLeft(a.purge_at);
             return (
-              <li key={a.id} className="trash__row">
+              <li key={a.id} className="trash__row" data-asset-id={a.id}>
                 <span className="trash__thumb">
-                  <Thumb asset={a} size={20} />
+                  <AssetThumb asset={a} size={20} />
                 </span>
                 <div className="trash__main">
-                  <span className="trash__name">{displayName(a)}</span>
+                  <button
+                    type="button"
+                    className="trash__name trash__open"
+                    data-asset-id={a.id}
+                    onClick={() => {
+                      onOpen(a.id);
+                    }}
+                  >
+                    {displayName(a)}
+                  </button>
                   <span className="mono faint trash__from">
                     {assetLocation(a, home, mounts, userHome)}
                   </span>

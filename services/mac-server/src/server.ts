@@ -686,9 +686,12 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     async (req, reply) => {
       // Articles go straight to WorkService.patch; image and video works are
       // composed from their front matter (QC-045/046).
-      // QC-103: an agent's title, tags and text go in the work's script.
-      const { value, conversion } = textScripts.forAgent(req.body, () =>
-        textScripts.forWork(req.params.id),
+      // QC-103: an agent's title, tags and text go in the work's script;
+      // QC-111: only what it changes, never the text already there.
+      const { value, conversion } = textScripts.forAgent(
+        req.body,
+        () => textScripts.forWork(req.params.id),
+        () => works.get(req.params.id),
       );
       const work = await composer.patch(req.params.id, value, req.headers['if-match']);
       reply.header('etag', revisionEtag(work.current_revision_id));
@@ -783,7 +786,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerSettingsRoutes(app, textScripts);
   registerImportRoutes(app, imports, idempotency);
   registerTokenRoutes(app, tokens, activity);
-  registerProposalRoutes(app, proposals, idempotency, textScripts);
+  registerProposalRoutes(app, proposals, idempotency, textScripts, works);
   registerMountRoutes(app, mounts);
   registerMediaRoutes(app, media, assets, signer, tokens, workLinks, works);
   registerVariantRoutes(app, variants, textScripts);
