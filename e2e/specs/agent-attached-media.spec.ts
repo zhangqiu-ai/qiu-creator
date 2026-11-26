@@ -24,6 +24,10 @@ async function shot(page: Page, name: string): Promise<void> {
 test('Agent 掛上的圖片、視頻和封面在編輯頁與作品卡看得到', async ({ desktop }) => {
   const { page, backend } = desktop;
   await page.setViewportSize({ width: 1440, height: 900 });
+  // QC-103/QC-111: agents here create works with Traditional titles, like
+  // the user's own data in these screens; with the global 作品文字字體 set
+  // to zh-Hant they stay as written (conversion has its own tests).
+  await backend.client.settings.setTextScript({ script: 'zh-Hant' });
   const token = backend.tokens.create({ name: 'Gemini', scopes: ['read', 'import', 'write'] });
   const agent = createClient({ baseUrl: backend.baseUrl, token: token.secret });
   const picture = async (name: string, color: string) =>

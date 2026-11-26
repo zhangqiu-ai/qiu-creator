@@ -333,6 +333,169 @@ describe('agent writes are converted; the owner’s are not (QC-103)', () => {
   });
 });
 
+/** The owner's Traditional article from the QC-110 reproduction. */
+const OWNER_MD = [
+  '# 京都紅葉季七日慢遊路線',
+  '',
+  '第四天從京都車站搭 JR 奈良線到稻荷站，大約走 5 分鐘。',
+  '',
+  '伏見稻荷大社免門票。',
+  '',
+].join('\n');
+
+describe('only text the agent adds or changes is converted (QC-111)', () => {
+  it('a one-line proposal changes one line; the owner’s other lines stay word for word', async () => {
+    const s = await start();
+    const work = await s.client.works.create({ title: '京都紅葉', markdown: OWNER_MD });
+    const proposed = OWNER_MD.replace(
+      '伏見稻荷大社免門票。',
+      '伏見稻荷大社免門票，清水寺門票 500 日圓。',
+    );
+    const p = await agent(s).proposals.create(
+      work.id,
+      { base_revision: work.current_revision_id, markdown: proposed },
+      { idempotencyKey: 'qc111-proposal-1' },
+    );
+    expect(p.hunk_count).toBe(1);
+    expect(p.hunks).toEqual([
+      expect.objectContaining({
+        removed: ['伏見稻荷大社免門票。'],
+        added: ['伏见稻荷大社免门票，清水寺门票 500 日圆。'],
+      }),
+    ]);
+    expect(p.proposed_markdown).toBe(
+      OWNER_MD.replace('伏見稻荷大社免門票。', '伏见稻荷大社免门票，清水寺门票 500 日圆。'),
+    );
+    expect(p.script_conversion).toEqual({ script: 'zh-Hans', fields: ['markdown'] });
+  });
+
+  it('a proposal that only adds lines leaves every existing line alone', async () => {
+    const s = await start();
+    const work = await s.client.works.create({ title: '京都紅葉', markdown: OWNER_MD });
+    const p = await agent(s).proposals.create(
+      work.id,
+      { base_revision: work.current_revision_id, markdown: `${OWNER_MD}\n新增的說明段落。\n` },
+      { idempotencyKey: 'qc111-proposal-2' },
+    );
+    expect(p.proposed_markdown).toBe(`${OWNER_MD}\n新增的说明段落。\n`);
+    expect(p.hunks.flatMap((h) => h.removed)).toEqual([]);
+  });
+
+  it('a proposal from an older revision is compared with that revision', async () => {
+    const s = await start();
+    const work = await s.client.works.create({ title: '京都紅葉', markdown: OWNER_MD });
+    const later = await s.client.works.patch(work.id, {
+      base_revision: work.current_revision_id,
+      markdown: `${OWNER_MD}\n使用者後來加的。\n`,
+    });
+    expect(later.current_revision_id).not.toBe(work.current_revision_id);
+    const p = await agent(s).proposals.create(
+      work.id,
+      {
+        base_revision: work.current_revision_id,
+        markdown: OWNER_MD.replace('伏見稻荷大社免門票。', '伏見稻荷大社免門票喔。'),
+      },
+      { idempotencyKey: 'qc111-proposal-3' },
+    );
+    expect(p.hunks).toEqual([
+      expect.objectContaining({
+        removed: ['伏見稻荷大社免門票。'],
+        added: ['伏见稻荷大社免门票喔。'],
+      }),
+    ]);
+  });
+
+  it('direct body edits convert only changed lines', async () => {
+    const s = await start();
+    const work = await s.client.works.create({ title: '京都紅葉', markdown: OWNER_MD });
+    const a = agent(s, ALL, { allow_direct_body_edit: true });
+    const patched = await a.works.patch(work.id, {
+      base_revision: work.current_revision_id,
+      markdown: OWNER_MD.replace('大約走 5 分鐘。', '大約走 10 分鐘。'),
+    });
+    expect(patched.markdown).toBe(
+      OWNER_MD.replace(
+        '第四天從京都車站搭 JR 奈良線到稻荷站，大約走 5 分鐘。',
+        '第四天从京都车站搭 JR 奈良线到稻荷站，大约走 10 分钟。',
+      ),
+    );
+    // Sending the text back unchanged changes nothing.
+    const same = await a.works.patch(work.id, {
+      base_revision: patched.current_revision_id,
+      markdown: patched.markdown,
+    });
+    expect(same.markdown).toBe(patched.markdown);
+    expect(same.script_conversion).toBeUndefined();
+  });
+
+  it('image descriptions convert only changed lines', async () => {
+    const s = await start();
+    const work = await s.client.works.create({
+      title: '貼圖',
+      type: 'image',
+      description: '第一行說明。\n第二行說明。',
+    });
+    const a = agent(s, ALL, { allow_direct_body_edit: true });
+    const patched = await a.works.patch(work.id, {
+      base_revision: work.current_revision_id,
+      description: '第一行說明。\n第二行說明，補充。',
+    });
+    expect(patched.description).toBe('第一行說明。\n第二行说明，补充。');
+  });
+
+  it('meta edits keep the owner’s title and tags; only new ones convert', async () => {
+    const s = await start();
+    const work = await s.client.works.create({ title: '臺灣軟體', tags: ['臺灣', '設計'] });
+    const a = agent(s);
+    const sameTitle = await a.works.patch(work.id, {
+      base_revision: work.current_revision_id,
+      title: '臺灣軟體',
+      tags: ['臺灣', '設計', '開發'],
+    });
+    expect(sameTitle).toMatchObject({ title: '臺灣軟體', tags: ['臺灣', '設計', '开发'] });
+    expect(sameTitle.script_conversion).toEqual({ script: 'zh-Hans', fields: ['tags'] });
+    expect(sameTitle.markdown).toBe(work.markdown);
+    const newTitle = await a.works.patch(work.id, {
+      base_revision: sameTitle.current_revision_id,
+      title: '臺灣軟體開發',
+    });
+    expect(newTitle).toMatchObject({ title: '台湾软体开发', tags: ['臺灣', '設計', '开发'] });
+  });
+
+  it('platform title and tags: unchanged values stay, new ones convert', async () => {
+    const s = await start();
+    const work = await s.client.works.create({ title: '臺灣軟體', tags: ['臺灣'] });
+    const a = agent(s);
+    // The platform shows the work's title and tags; sending them back with one new tag.
+    const v = await a.variants.patch(work.id, 'xiaohongshu', {
+      base_revision: 0,
+      title: '臺灣軟體',
+      tags: ['臺灣', '設計'],
+    });
+    expect(v).toMatchObject({ title: '臺灣軟體', tags: ['臺灣', '设计'] });
+    expect(v.script_conversion).toEqual({ script: 'zh-Hans', fields: ['tags'] });
+    const v2 = await a.variants.patch(work.id, 'xiaohongshu', {
+      base_revision: v.revision,
+      title: '小紅書標題',
+    });
+    expect(v2.title).toBe('小红书标题');
+  });
+
+  it('batch add_tags leaves tags the work already has', async () => {
+    const s = await start();
+    const work = await s.client.works.create({ title: '简体', tags: ['臺灣'] });
+    const res = await agent(s).works.batch(
+      {
+        action: 'add_tags',
+        tags: ['臺灣', '設計'],
+        items: [{ id: work.id, base_revision: work.current_revision_id }],
+      },
+      { idempotencyKey: 'qc111-batch-1' },
+    );
+    expect(res.results[0]).toMatchObject({ ok: true, work: { tags: ['臺灣', '设计'] } });
+  });
+});
+
 describe('migration 0023 rollback', () => {
   it('drops project overrides only, and re-applies', () => {
     const home = makeTempHome();

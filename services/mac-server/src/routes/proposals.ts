@@ -17,6 +17,19 @@ import type { App } from '../http/app-type.js';
 import type { IdempotencyService } from '../idempotency/idempotency-service.js';
 import type { ProposalService } from '../proposals/proposal-service.js';
 import { withConversion, type TextScriptService } from '../works/text-script-service.js';
+import type { WorkService } from '../works/work-service.js';
+
+/**
+ * The text a proposal was written from: its base revision, or the current
+ * text when that revision is unknown (the proposal is then refused anyway).
+ */
+function baseMarkdown(works: WorkService, workId: string, baseRevision: string): string {
+  try {
+    return works.revision(workId, baseRevision).markdown;
+  } catch {
+    return works.get(workId).markdown;
+  }
+}
 
 const errors = {
   400: ErrorResponseSchema,
@@ -37,6 +50,7 @@ export function registerProposalRoutes(
   proposals: ProposalService,
   idempotency: IdempotencyService,
   textScripts: TextScriptService,
+  works: WorkService,
 ): void {
   app.post(
     '/api/v1/works/:id/proposals',
@@ -58,9 +72,12 @@ export function registerProposalRoutes(
         { work_id: req.params.id, ...req.body },
         () => {
           // QC-103: the proposed text is converted to the work's script; the
-          // user still accepts or discards it.
-          const { value, conversion } = textScripts.forAgent(req.body, () =>
-            textScripts.forWork(req.params.id),
+          // user still accepts or discards it. QC-111: only lines the agent
+          // changed from the revision it edited, so no hunk is the server's.
+          const { value, conversion } = textScripts.forAgent(
+            req.body,
+            () => textScripts.forWork(req.params.id),
+            () => ({ markdown: baseMarkdown(works, req.params.id, req.body.base_revision) }),
           );
           return {
             statusCode: 201,
