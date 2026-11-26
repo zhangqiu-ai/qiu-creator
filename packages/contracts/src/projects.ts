@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ErrorCodeSchema, WorkListItemSchema } from './api.js';
 import { IdSchema, TimestampSchema, WorkStatusSchema } from './entities.js';
 import { PROJECT_DESCRIPTION_MAX_CHARS, ProjectRulesSchema } from './project-rules.js';
+import { ProjectTextScriptSchema } from './text-script.js';
 
 /**
  * Projects group works in the library (QC-062). A work may be in several
@@ -47,6 +48,11 @@ export const ProjectSchema = z.object({
   description: z.string().optional(),
   /** Rules for suggesting and auto-assigning works (QC-092). Absent from older servers. */
   rules: ProjectRulesSchema.optional(),
+  /**
+   * QC-103: script for agent text in this project's works; null follows the
+   * global setting. Absent from older servers.
+   */
+  text_script: ProjectTextScriptSchema.optional(),
   created_at: TimestampSchema,
   updated_at: TimestampSchema,
 });
@@ -63,6 +69,8 @@ export const CreateProjectRequestSchema = z.object({
   color: ProjectColorSchema.default(0),
   description: z.string().trim().max(PROJECT_DESCRIPTION_MAX_CHARS).optional(),
   rules: ProjectRulesSchema.optional(),
+  /** QC-103: owner only (403 for agent tokens); null or absent follows the global setting. */
+  text_script: ProjectTextScriptSchema.optional(),
 });
 export type CreateProjectRequest = z.input<typeof CreateProjectRequestSchema>;
 
@@ -77,6 +85,8 @@ export const PatchProjectRequestSchema = z
     description: z.string().trim().max(PROJECT_DESCRIPTION_MAX_CHARS).optional(),
     /** QC-092: replaces all rules; send empty lists to clear. */
     rules: ProjectRulesSchema.optional(),
+    /** QC-103: owner only (403 for agent tokens); null follows the global setting again. */
+    text_script: ProjectTextScriptSchema.optional(),
   })
   .refine(
     (v) =>
@@ -84,8 +94,12 @@ export const PatchProjectRequestSchema = z
       v.color !== undefined ||
       v.archived !== undefined ||
       v.description !== undefined ||
-      v.rules !== undefined,
-    { message: 'at least one of name, color, archived, description or rules is required' },
+      v.rules !== undefined ||
+      v.text_script !== undefined,
+    {
+      message:
+        'at least one of name, color, archived, description, rules or text_script is required',
+    },
   );
 export type PatchProjectRequest = z.input<typeof PatchProjectRequestSchema>;
 

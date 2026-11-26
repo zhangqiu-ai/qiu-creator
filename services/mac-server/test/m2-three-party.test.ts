@@ -549,7 +549,10 @@ describe('same platform version, three parties', () => {
     }
     for (const [i, platform] of platforms.entries()) {
       const v = await r.app.variants.get(r.workId, platform);
-      expect(v.title, platform).toBe(`標題 ${platform}`);
+      // QC-103: the agent's title is converted to the default script (zh-Hans).
+      expect(v.title, platform).toBe(
+        writers[i] === r.agent ? `标题 ${platform}` : `標題 ${platform}`,
+      );
       // The body always follows the original (QC-084).
       expect(v.body, platform).toContain('原稿正文');
       expect(v.cover, platform).toEqual({ asset_id: covers[i] });

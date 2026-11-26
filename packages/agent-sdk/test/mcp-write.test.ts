@@ -70,6 +70,9 @@ beforeEach(async () => {
   });
   baseUrl = await server.app.listen({ host: '127.0.0.1', port: 0 });
   owner = createClient({ baseUrl, token: OWNER });
+  // These scenarios write Traditional Chinese as agents; keep it as written
+  // (QC-103 conversion is covered by mcp-text-script.test.ts).
+  await owner.settings.setTextScript({ script: 'zh-Hant' });
 });
 afterEach(async () => {
   for (const c of clients.splice(0)) await c.close();

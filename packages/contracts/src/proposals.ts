@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { IdSchema, TimestampSchema } from './entities.js';
 import { MarkdownSchema, WorkDetailSchema } from './api.js';
+import { ScriptConversionSchema } from './text-script.js';
 
 /**
  * Agent proposals (QC-089, prototype PT-20261124-001). An agent with the
@@ -95,6 +96,8 @@ export const ProposalDetailSchema = ProposalSummarySchema.extend({
   accepted_hunk_ids: z.array(z.string()),
   /** Pending and `conflict`: one entry per overlapping region. */
   conflicts: z.array(ProposalConflictSchema),
+  /** Only on create, when the proposed Markdown was converted to the target script (QC-103). */
+  script_conversion: ScriptConversionSchema.optional(),
 });
 export type ProposalDetail = z.infer<typeof ProposalDetailSchema>;
 

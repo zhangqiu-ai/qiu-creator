@@ -18,7 +18,14 @@ import {
   WorkStatusSchema,
 } from '@qiu-creator/contracts';
 import { z } from 'zod';
-import { id, tool, ToolInputError, USER_DATA_NOTE, type McpToolDef } from './define.js';
+import {
+  id,
+  SCRIPT_NOTE,
+  tool,
+  ToolInputError,
+  USER_DATA_NOTE,
+  type McpToolDef,
+} from './define.js';
 
 const idempotencyKey = IdempotencyKeySchema.describe(
   'Your own unique key for this request (8–200 printable ASCII, e.g. a UUID). Reuse the SAME key when retrying the same request so it is not done twice; use a new key for a new request.',
@@ -81,8 +88,7 @@ export const WRITE_TOOLS: readonly McpToolDef[] = [
     group: 'works',
     access: 'import',
     routes: ['POST /api/v1/works'],
-    description:
-      'Create a work in the library: an article (Markdown), an image post or a video (type image/video; their text goes in description). Put it in projects with project_ids, or set auto_assign=true to also add it to every project whose rules score it ≥ 0.8 (auto_assignment in the result lists them and 0.5–0.8 suggestions, with reasons; check projects_suggest first if unsure). Retrying with the same idempotency_key returns the work created the first time instead of a duplicate. Returns the work with current_revision_id (the base_revision for later edits).',
+    description: `Create a work in the library: an article (Markdown), an image post or a video (type image/video; their text goes in description). Put it in projects with project_ids, or set auto_assign=true to also add it to every project whose rules score it ≥ 0.8 (auto_assignment in the result lists them and 0.5–0.8 suggestions, with reasons; check projects_suggest first if unsure). Retrying with the same idempotency_key returns the work created the first time instead of a duplicate. Returns the work with current_revision_id (the base_revision for later edits). ${SCRIPT_NOTE}`,
     inputSchema: { ...CreateWorkRequestSchema.shape, idempotency_key: idempotencyKey },
     run: async (client, { idempotency_key, ...input }) =>
       client.works.create(
@@ -95,8 +101,7 @@ export const WRITE_TOOLS: readonly McpToolDef[] = [
     group: 'works',
     access: 'write',
     routes: ['PATCH /api/v1/works/:id'],
-    description:
-      "Change a work's title, tags or status, never its text (the Markdown and descriptions are the user's original). base_revision is required: the current_revision_id you read; a stale one returns 409 and nothing is written. Each change becomes a new revision the user can restore.",
+    description: `Change a work's title, tags or status, never its text (the Markdown and descriptions are the user's original). base_revision is required: the current_revision_id you read; a stale one returns 409 and nothing is written. Each change becomes a new revision the user can restore. ${SCRIPT_NOTE}`,
     inputSchema: {
       id: id('work'),
       base_revision: workBase,
@@ -307,7 +312,8 @@ export const WRITE_TOOLS: readonly McpToolDef[] = [
     routes: ['POST /api/v1/projects'],
     description:
       'Create a project (a group of works; it never moves files). Check projects_list first so you do not make a duplicate.',
-    inputSchema: CreateProjectRequestSchema.shape,
+    // text_script is the owner's setting (QC-103): agents get 403, so it is not offered.
+    inputSchema: CreateProjectRequestSchema.omit({ text_script: true }).shape,
     run: (client, args) => client.projects.create(args),
   }),
   tool({
@@ -376,7 +382,7 @@ export const WRITE_TOOLS: readonly McpToolDef[] = [
       'PATCH /api/v1/works/:id/variants/:platform',
       'DELETE /api/v1/works/:id/variants/:platform',
     ],
-    description: `Override how one platform shows a work: title, cover ({asset_id} or a video {time_seconds}), images (ids to show, in order; work images left out are hidden) and tags. null follows the work again; reset_all=true clears every override. The body cannot be set: it always follows the work (only body: null, to drop an old separate body). base_revision is the platform's revision from variant_get (0 before the first override); a stale one returns 409. ${USER_DATA_NOTE}`,
+    description: `Override how one platform shows a work: title, cover ({asset_id} or a video {time_seconds}), images (ids to show, in order; work images left out are hidden) and tags. null follows the work again; reset_all=true clears every override. The body cannot be set: it always follows the work (only body: null, to drop an old separate body). base_revision is the platform's revision from variant_get (0 before the first override); a stale one returns 409. ${SCRIPT_NOTE} ${USER_DATA_NOTE}`,
     inputSchema: {
       id: id('work'),
       platform: PlatformSchema,

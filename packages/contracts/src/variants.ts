@@ -6,6 +6,7 @@ import {
   TimestampSchema,
   type Platform,
 } from './entities.js';
+import { ScriptConversionSchema } from './text-script.js';
 
 // ---- Per-platform limits ------------------------------------------------------
 
@@ -358,6 +359,8 @@ export const VariantViewSchema = z.object({
   warnings: z.array(VariantWarningSchema),
   /** Last override change; null while `exists` is false. */
   updated_at: TimestampSchema.nullable(),
+  /** Only on a PATCH by an agent token whose title or tags were converted (QC-103). */
+  script_conversion: ScriptConversionSchema.optional(),
 });
 export type VariantView = z.infer<typeof VariantViewSchema>;
 

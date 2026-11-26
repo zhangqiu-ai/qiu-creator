@@ -7,6 +7,8 @@ export {
   enabledTools,
   parseToolsets,
   MCP_SERVER_NAME,
+  TEXT_SCRIPT_RULE,
+  textScriptInstruction,
   type CreatorHubMcpOptions,
 } from './server.js';
 export { serveMcpStdio } from './stdio.js';
@@ -20,6 +22,7 @@ export {
   REPORT_SCOPES,
   TOOLSETS,
   USER_DATA_NOTE,
+  SCRIPT_NOTE,
   isReadOnly,
   retryHint,
   platformRules,

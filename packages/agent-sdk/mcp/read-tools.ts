@@ -27,7 +27,7 @@ export const READ_TOOLS: readonly McpToolDef[] = [
     access: 'any',
     routes: ['GET /api/v1/session'],
     description:
-      'CreatorHub server version, this token (owner or agent, name, scopes: read / import / write), and the MCP tools enabled in this session with whether this token may use each. Call this first.',
+      'CreatorHub server version, this token (owner or agent, name, scopes: read / import / write), text_script (the Chinese script to write works in: the default and project overrides, with the rule), and the MCP tools enabled in this session with whether this token may use each. Call this first.',
     inputSchema: {},
     run: async (client) => {
       const [health, session] = await Promise.all([client.health(), client.session()]);

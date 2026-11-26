@@ -16,6 +16,7 @@ import { requirePrincipal } from '../auth/token-service.js';
 import type { App } from '../http/app-type.js';
 import type { IdempotencyService } from '../idempotency/idempotency-service.js';
 import type { ProposalService } from '../proposals/proposal-service.js';
+import { withConversion, type TextScriptService } from '../works/text-script-service.js';
 
 const errors = {
   400: ErrorResponseSchema,
@@ -35,6 +36,7 @@ export function registerProposalRoutes(
   app: App,
   proposals: ProposalService,
   idempotency: IdempotencyService,
+  textScripts: TextScriptService,
 ): void {
   app.post(
     '/api/v1/works/:id/proposals',
@@ -54,7 +56,20 @@ export function registerProposalRoutes(
         'POST /api/v1/works/:id/proposals',
         req.headers[IDEMPOTENCY_KEY_HEADER],
         { work_id: req.params.id, ...req.body },
-        () => ({ statusCode: 201, body: proposals.create(principal, req.params.id, req.body) }),
+        () => {
+          // QC-103: the proposed text is converted to the work's script; the
+          // user still accepts or discards it.
+          const { value, conversion } = textScripts.forAgent(req.body, () =>
+            textScripts.forWork(req.params.id),
+          );
+          return {
+            statusCode: 201,
+            body: {
+              ...proposals.create(principal, req.params.id, value),
+              ...withConversion(conversion),
+            },
+          };
+        },
       );
       reply.code(result.statusCode);
       if (result.replayed) reply.header(IDEMPOTENT_REPLAYED_HEADER, 'true');

@@ -166,6 +166,8 @@ describe('creatorhub mcp: tools and toolsets', () => {
       project_ids: null,
       // QC-094: the CLI path is for the owner only.
       cli: null,
+      // QC-103: the script to write works in.
+      text_script: { default: 'zh-Hans', projects: [] },
     });
     const allowed = status.tools
       .filter((t) => t.allowed)
