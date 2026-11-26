@@ -1,16 +1,8 @@
-## QC-109: 作品文字字體設定介面
-
-**Priority:** P3 | **Assignee:** qc-frontend | **Tags:** frontend
-
-QC-103 的介面部分：設定頁加「作品文字字體：簡體／繁體」（`client.settings.textScript()`／`setTextScript()`），項目設定加「跟隨全域／簡體／繁體」（`text_script`）。說明這只影響 Agent 送來的新內容。
-
-**Started:** 2026-11-26
-
-## QC-110: 發版前檢查與升級（QC-102～104）
+## QC-110: 發版前檢查與升級（QC-102～104、108、109、111）
 
 **Priority:** P1 | **Assignee:** qc-test, qc-release | **Tags:** M3
 
-qc-test 在 main（66068e9 之後）跑一般與 `QC_E2E_MOTION=on` 兩種模式全套 e2e，加上 Agent 經 MCP 建貼圖／視頻作品並掛附件、繁體文字被轉成簡體的端到端檢查（臨時資料目錄）。第一輪（a057917）不可發版：QC-103 誤轉原文，開 QC-111；修好後重跑。通過後 qc-release 升級本機安裝（含 migration 0023，升級前備份），總監複核 /health。
+qc-test 在 main（66068e9 之後）跑一般與 `QC_E2E_MOTION=on` 兩種模式全套 e2e，加上 Agent 經 MCP 建貼圖／視頻作品並掛附件、繁體文字被轉成簡體的端到端檢查（臨時資料目錄）。第一輪（a057917）不可發版：QC-103 誤轉原文，開 QC-111。QC-111、QC-108、QC-109 合併後在新 main 重跑（含 QC-108、QC-109），使用者已授權「做完直接發版」。通過後 qc-release 升級本機安裝（含 migration 0023，升級前備份），總監複核 /health。
 
 **Started:** 2026-11-26
 

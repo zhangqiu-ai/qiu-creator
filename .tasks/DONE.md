@@ -1,3 +1,11 @@
+## QC-109: 作品文字字體設定介面
+
+**Priority:** P3 | **Assignee:** qc-frontend | **Tags:** frontend
+
+**Completed:** 2026-11-26（41d09a6）
+
+設定 › Agent 與 MCP 加「作品文字字體」（簡體／繁體，選了就存，預設值會標明）；項目設定加「跟隨全域（目前字體）／簡體／繁體」，隨對話框儲存、409 時一併重載。兩處說明只影響 Agent 新內容，三語文案。連續快速切換依序儲存、以最後一次為準。測試：desktop 504 passed；e2e 失敗只有當時未合併的 QC-111 三項。英文與簡中版面、VoiceOver NOT_VERIFIED。
+
 ## QC-111: 簡繁轉換誤轉使用者原文（QC-103 缺陷）
 
 **Priority:** P1 | **Assignee:** qc-backend | **Tags:** backend
