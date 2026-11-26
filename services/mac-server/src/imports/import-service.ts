@@ -7,13 +7,14 @@ import {
   ListJobsQuerySchema,
   type ImportErrorCode,
   type ImportJobRecord,
+  type AssetRecord,
   type ImportUrlRequest,
   type ListJobsQuery,
   type ListJobsResponse,
-  type WorkAssetRole,
 } from '@qiu-creator/contracts';
 import type { AssetService } from '../assets/asset-service.js';
-import type { Principal } from '../auth/token-service.js';
+import { runAs } from '../auth/actor-context.js';
+import type { Principal, TokenService } from '../auth/token-service.js';
 import type { Db } from '../db/database.js';
 import { notFound, ServiceError } from '../errors.js';
 import type { ChangeFeed } from '../events/change-feed.js';
@@ -26,6 +27,7 @@ import {
   safeDownload,
   type DownloadOptions,
 } from '../net/safe-download.js';
+import type { WorkAssetLinks } from '../works/work-asset-links.js';
 
 interface ImportRow {
   id: string;
@@ -72,6 +74,8 @@ export class ImportService {
     private readonly assets: AssetService,
     private readonly jobs: JobQueue,
     private readonly feed: ChangeFeed,
+    private readonly links: WorkAssetLinks,
+    private readonly tokens: TokenService,
     private readonly download: DownloadSettings = {},
   ) {
     jobs.register('import.url', (job) => this.runUrlImport(job));
@@ -108,6 +112,8 @@ export class ImportService {
           deleted_at: work.deleted_at,
         });
       }
+      // QC-102: a role the work cannot show, or no right to change the work, fails now.
+      this.links.checkImport(principal, req.work_id, req.role);
     }
     const id = randomUUID();
     const now = new Date().toISOString();
@@ -204,6 +210,25 @@ export class ImportService {
       .run(...entries.map(([, v]) => v), new Date().toISOString(), id);
   }
 
+  /** Put the downloaded asset on its work, as the token that asked for the import. */
+  private async linkToWork(
+    job: ImportJobRecord,
+    workId: string,
+    asset: AssetRecord,
+  ): Promise<void> {
+    const row = this.db
+      .prepare<[string], Pick<ImportRow, 'created_by'>>(
+        'SELECT created_by FROM import_jobs WHERE id = ?',
+      )
+      .get(job.id);
+    const creator = row?.created_by ?? null;
+    const principal = creator === null ? null : this.tokens.activeById(creator);
+    if (creator !== null && principal === null) this.links.refuseRevoked(workId);
+    await runAs(principal, () =>
+      this.links.linkImported(principal, workId, asset, job.link_role ?? undefined),
+    );
+  }
+
   private async runUrlImport(bg: JobRecord): Promise<void> {
     const job = this.get(bg.subject_id);
     if (job.url === null) throw new PermanentJobError('import job has no URL');
@@ -219,10 +244,7 @@ export class ImportService {
         maxBytes: this.download.maxBytes ?? maxUploadBytes(this.assets.limits),
       });
       const { asset } = await this.assets.ingest(temp, job.filename ?? result.suggestedName, 'url');
-      if (job.link_work_id !== null) {
-        const role: WorkAssetRole = job.link_role ?? (asset.kind === 'video' ? 'video' : 'body');
-        this.assets.link(job.link_work_id, asset.id, role);
-      }
+      if (job.link_work_id !== null) await this.linkToWork(job, job.link_work_id, asset);
       this.db.transaction(() => {
         this.update(job.id, {
           status: 'succeeded',

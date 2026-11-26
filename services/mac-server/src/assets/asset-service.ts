@@ -502,6 +502,44 @@ export class AssetService {
     return this.workAssets(workId);
   }
 
+  hasLink(workId: string, assetId: string, role: WorkAssetRole): boolean {
+    return this.roleOrder(workId, role).includes(assetId);
+  }
+
+  /**
+   * QC-102: record the links of one role of an image or video work after its
+   * front matter was written. `current` (in order) is what the work shows for
+   * the role. `single` roles (cover, video) hold only that; for `body`, links
+   * the front matter does not name are kept, after the others.
+   */
+  syncRole(
+    workId: string,
+    role: WorkAssetRole,
+    current: readonly string[],
+    options: { single: boolean; assetId?: string; change: 'linked' | 'reordered' },
+  ): void {
+    this.requireWork(workId);
+    this.db.transaction(() => {
+      const others = this.roleOrder(workId, role).filter((id) => !current.includes(id));
+      if (options.single) {
+        const drop = this.db.prepare(
+          'DELETE FROM work_assets WHERE work_id = ? AND asset_id = ? AND role = ?',
+        );
+        for (const id of others) drop.run(workId, id, role);
+      }
+      const add = this.db.prepare(
+        'INSERT OR IGNORE INTO work_assets (work_id, asset_id, role, position) VALUES (?, ?, ?, 0)',
+      );
+      for (const id of current) add.run(workId, id, role);
+      this.writeOrder(workId, role, options.single ? [...current] : [...current, ...others]);
+      this.feed?.record('work', workId, 'work.assets_changed', {
+        role,
+        ...(options.assetId === undefined ? {} : { asset_id: options.assetId }),
+        change: options.change,
+      });
+    })();
+  }
+
   private roleOrder(workId: string, role: WorkAssetRole): string[] {
     return this.db
       .prepare<[string, string], { asset_id: string }>(

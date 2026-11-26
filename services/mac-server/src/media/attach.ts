@@ -23,7 +23,8 @@ import type { WorkService } from '../works/work-service.js';
  *   sha256 and fsynced before it appears under its final name.
  * - Every path is checked to stay inside `library/works/<id>/assets/`.
  * - The asset is linked to the work (idempotent), so QC-037 treats it as in use.
- * - The work's Markdown is never written here.
+ * - The work's Markdown is never written here. Image and video works show the
+ *   files in their front matter; `WorkAssetLinks` (QC-102) writes that.
  *
  * External (mounted) works answer 409 `attach_external_unsupported`: the app
  * never writes into the user's own folders.
@@ -38,9 +39,19 @@ export class WorkMediaAttacher {
     private readonly assets: AssetService,
   ) {}
 
-  attach(workId: string, assetId: string): Promise<AttachWorkMediaResponse> {
+  /**
+   * `link: false` only copies the file: the caller records the link itself,
+   * under the role it was asked for (QC-102).
+   */
+  attach(
+    workId: string,
+    assetId: string,
+    options: { link?: boolean } = {},
+  ): Promise<AttachWorkMediaResponse> {
     const previous = this.queues.get(workId) ?? Promise.resolve();
-    const run = previous.catch(() => undefined).then(() => this.attachNow(workId, assetId));
+    const run = previous
+      .catch(() => undefined)
+      .then(() => this.attachNow(workId, assetId, options.link ?? true));
     this.queues.set(workId, run);
     // Clean up on both outcomes without leaving a second, unhandled rejection behind.
     const done = (): void => {
@@ -50,7 +61,11 @@ export class WorkMediaAttacher {
     return run;
   }
 
-  private async attachNow(workId: string, assetId: string): Promise<AttachWorkMediaResponse> {
+  private async attachNow(
+    workId: string,
+    assetId: string,
+    link: boolean,
+  ): Promise<AttachWorkMediaResponse> {
     const ctx = this.works.mediaContext(workId); // 404 for an unknown work
     if (ctx.mountId !== null) {
       throw new ServiceError(
@@ -85,7 +100,8 @@ export class WorkMediaAttacher {
     const copied = name === null;
     if (name === null) name = await this.copyIn(source, dir, attachName(asset), asset.sha256);
 
-    const linked = this.assets.workAssets(workId).some((item) => item.asset.id === assetId);
+    const linked =
+      !link || this.assets.workAssets(workId).some((item) => item.asset.id === assetId);
     if (!linked) this.assets.link(workId, assetId, asset.kind === 'video' ? 'video' : 'body');
 
     return { src: `assets/${name}`, copied, asset: this.assets.get(assetId) };
