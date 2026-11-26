@@ -22,14 +22,6 @@
 
 **Started:** 2026-11-26
 
-## QC-102: Agent 掛到貼圖／視頻作品的附件，編輯頁看不到
-
-**Priority:** P1 | **Assignee:** qc-bugfix | **Tags:** backend, frontend
-
-使用者 2026-11-26 用 Gemini、Claude Code Agent 經 MCP 建立兩個作品：文字有了，圖片和視頻只進了素材庫，作品編輯頁顯示「圖片 0」「尚未選擇視頻」「暫無封面」。服務日誌顯示 `POST /api/v1/works/:id/assets`（MCP `work_attach_asset`，不帶 copy_into_work）對貼圖作品 f70a1bed… 連打 5 次、視頻作品 f3a98acb… 打 2 次，都回 200。推測：連結寫進 work_assets 表，但貼圖／視頻編輯頁和作品卡讀的是另一份資料（作品自己的媒體清單），兩者不同步。修好後 Agent 照工具說明操作，App 必須看得到；同一根因的 API／MCP 說明一併修。
-
-**Started:** 2026-11-26
-
 ## QC-033: Mac 生產可用實機驗收
 
 **Priority:** P1 | **Assignee:** qc-test | **Tags:** M3

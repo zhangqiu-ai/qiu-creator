@@ -1,5 +1,11 @@
 # Backlog
 
+## QC-107: 素材庫「引用」在 App 編輯後可能不準
+
+**Priority:** P3 | **Assignee:** qc-bugfix | **Tags:** backend
+
+QC-102 範圍外發現：使用者在 App 裡改貼圖／視頻作品的媒體後，`work_assets` 表不一定跟著更新，素材庫右側的「引用」可能和作品實際內容不一致。另有兩項較小的發現，詳見 qc-bugfix 的 QC-102 交付報告。
+
 ## QC-099: Agent 回報帶位置：編輯頁圖片佔位上的步驟、就地重試
 
 **Priority:** P3 | **Assignee:** qc-backend ＋ qc-frontend | **Tags:** M3

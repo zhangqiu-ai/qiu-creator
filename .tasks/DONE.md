@@ -1,3 +1,11 @@
+## QC-102: Agent 掛到貼圖／視頻作品的附件，編輯頁看不到
+
+**Priority:** P1 | **Assignee:** qc-bugfix | **Tags:** backend, frontend
+
+**Completed:** 2026-11-26（f9fbdcd）
+
+根因：貼圖和視頻作品只讀原稿 front matter，Agent 掛附件只寫 `work_assets` 表；`copy_into_work`、帶 `work_id` 的 URL 匯入、調整順序、解除掛載也有同樣問題。修法：這些路徑都同步寫 front matter，每次是一個可恢復、標明 Agent 的版本；`position` 生效，不合用途或類型回 400；URL 匯入到貼圖或視頻作品需要 `write`。文章行為不變，MCP 說明、`docs/architecture.md`、`docs/mcp-plan.md` 已更新。測試：根目錄 1374 passed；e2e 一般 64、動效 65 passed，皆 0 failed。已受影響的兩個真實作品不會自動顯示，需升級後重新掛載。
+
 ## QC-100: QC-095～098 發版前檢查與升級
 
 **Priority:** P1 | **Assignee:** qc-test ＋ qc-release | **Tags:** M3 | **Done:** 2026-11-25
