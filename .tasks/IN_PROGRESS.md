@@ -1,3 +1,11 @@
+## QC-103: Agent 寫入作品的文字統一簡繁字體
+
+**Priority:** P2 | **Assignee:** qc-backend | **Tags:** backend
+
+使用者 2026-11-26 反映 Agent 建的作品有時繁體、有時簡體。決策見 `docs/decisions.md` 2026-11-26：預設簡體，全域設定可改繁體，項目可覆寫；MCP 說明與 `server_status` 告知目標字體；Agent 權杖寫入的標題、正文、描述、標籤、平台版本文字由服務端用 OpenCC 轉換並在回應註明；使用者自己的文字與既有作品不動。設定頁與項目設定的介面另開任務給 qc-frontend。
+
+**Started:** 2026-11-26
+
 ## QC-102: Agent 掛到貼圖／視頻作品的附件，編輯頁看不到
 
 **Priority:** P1 | **Assignee:** qc-bugfix | **Tags:** backend, frontend
