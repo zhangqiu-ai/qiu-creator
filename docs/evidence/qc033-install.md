@@ -375,3 +375,15 @@ exit 0。升級前備份 id：**`20261121T154449342Z-manual`**。
 - 偏好檔 `preferences.json`：以升級前一刻為基準，升級前後 sha256 完全相同（`56216512…a6bd`）。此值與上次升級後的 `50082307…` 不同，是使用者 App 在兩次升級之間自己寫入的（本會話未碰）。
 - 升級後有一個 qiu-creator App 行程（pid 89378），本會話未開關，仍是舊行程；除備份外未動 `~/CreatorHub` 內容，未刪任何使用者資料，未碰金鑰與 Keychain，未發 AI 請求。
 - NOT_VERIFIED：新版介面、視窗截圖、真實安裝上帶權杖的 MCP 連線與狀態回報。
+
+## 升級到 4501a9f（2026-11-26，QC-102～104、QC-108、QC-109、QC-111，遷移 0023）：成功
+
+- 建置：乾淨 worktree，commit `4501a9f5679229a5f6991c84c63b71662927cc31`（無 `-dirty`），`codesign --verify --deep --strict` 通過（建置產物與安裝後的 `/Applications/qiu-creator.app`）。
+- 升級前（08:25:49）：7420 只有 launchd 服務（pid 157），7431 無監聽；`/health` 為 8d73900；schema 最新 0022。
+- 乾跑後 `upgrade --yes`（08:26:22）exit 0；installer 先做備份並確認完整性，通過後才停服務：`20261126T162622745Z-manual`（ok）。
+- 升級後：`/health` commit 4501a9f、built_at `2026-11-26T16:25:56.800Z`；launchd running（pid 52936）；schema 最新 `0023|project_text_script`，其次 0022；`server.prev`（8d73900）與 `app.prev` 在；日誌 level-50 為 0 筆、err.log 0 位元組。
+- 真實安裝的 CLI：`creatorhub --help` exit 0；`printf '' | creatorhub mcp`（假權杖）exit 0，stdout、stderr 皆 0 位元組。
+- App 啟動：以 e2e desktop fixture（`CREATORHUB_E2E_APP` 指向已安裝的 `/Applications/qiu-creator.app`，背景模式，臨時 home、profile、服務與埠，持 `qc-e2e.lock`）跑 `background-run`、`save-chip`，3 passed／0 failed／3 total。fixture 的服務是 worktree 原始碼（同一 commit），不是安裝的服務。
+- 偏好檔 `preferences.json`：升級前、升級後、啟動檢查後 sha256 相同（`9061bbfe…3e3f`）。
+- 使用者 App 行程（pid 45101）未開關，仍是舊行程；除備份與遷移外未動 `~/CreatorHub` 內容，未碰金鑰與 Keychain，未發 AI 請求。
+- NOT_VERIFIED：使用者自己的 App 以新版開啟並連到正式服務、視窗截圖、真實安裝上帶權杖的 MCP 連線。
