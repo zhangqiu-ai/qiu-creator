@@ -12,6 +12,7 @@ export * from './ai-video.js';
 export * from './backups.js';
 export * from './work-trash.js';
 export * from './ai-models.js';
+export * from './project-groups.js';
 export * from './projects.js';
 export * from './ai-images.js';
 export * from './ai-prompts.js';

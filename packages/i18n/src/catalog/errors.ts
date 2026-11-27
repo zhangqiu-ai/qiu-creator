@@ -42,6 +42,8 @@ export const errors = defineMessages({
     proposal_closed: '這個提案已經採用或捨棄了',
     membership_manual: '這是你手動歸入的項目，Agent 和規則不會變動它',
     project_scope: '這個 Agent 只能在指定的項目內操作',
+    group_name_taken: '這個項目已經有同名的分組',
+    work_not_in_project: '有作品不在這個項目裡，請先把它加進項目',
     body_not_editable: '平台正文跟隨原稿，請直接修改原稿',
     front_matter_invalid: '作品檔案開頭的 front matter 格式有誤，請先在檔案裡修正',
     work_in_trash: '這個作品在回收站，請先恢復再編輯',
@@ -87,6 +89,8 @@ export const errors = defineMessages({
     proposal_closed: '这个提案已经采用或舍弃了',
     membership_manual: '这是你手动归入的项目，Agent 和规则不会变动它',
     project_scope: '这个 Agent 只能在指定的项目内操作',
+    group_name_taken: '这个项目已经有同名的分组',
+    work_not_in_project: '有作品不在这个项目里，请先把它加进项目',
     body_not_editable: '平台正文跟随原稿，请直接修改原稿',
     front_matter_invalid: '作品文件开头的 front matter 格式有误，请先在文件里修正',
     work_in_trash: '这个作品在回收站中，请先恢复再编辑',
@@ -134,6 +138,8 @@ export const errors = defineMessages({
     membership_manual:
       'You put this work in the project yourself, so agents and rules leave it alone.',
     project_scope: 'This agent can only work inside its projects.',
+    group_name_taken: 'This project already has a group with that name.',
+    work_not_in_project: 'Some works aren’t in this project. Add them to the project first.',
     body_not_editable: 'The platform text follows the original. Edit the original instead.',
     front_matter_invalid:
       'The front matter at the top of this work’s file isn’t valid. Fix it in the file first.',

@@ -26,6 +26,18 @@ export type Platform = z.infer<typeof PlatformSchema>;
 export const TagSchema = z.string().trim().min(1).max(64);
 export const TagsSchema = z.array(TagSchema).max(64);
 
+/** QC-113: a work's group in one project. */
+export const WorkProjectGroupSchema = z.object({
+  project_id: IdSchema,
+  group_id: IdSchema,
+  group_name: z.string(),
+  /** The group is a series (系列). */
+  ordered: z.boolean(),
+  /** 1-based episode number in a series; null in a group that is not one. */
+  episode: z.number().int().positive().nullable(),
+});
+export type WorkProjectGroup = z.infer<typeof WorkProjectGroupSchema>;
+
 export const WorkSchema = z.object({
   id: IdSchema,
   title: z.string().min(1).max(500),
@@ -50,6 +62,12 @@ export const WorkSchema = z.object({
   purge_at: TimestampSchema.nullable().optional(),
   /** Projects the work is in (QC-062), deleted projects left out; archived ones included. */
   project_ids: z.array(IdSchema).optional(),
+  /**
+   * QC-113: the work's group in each of those projects where it is in one
+   * (none listed means 未分組 there), for 「› 分組 #集數」 on cards. Absent
+   * from older servers.
+   */
+  project_groups: z.array(WorkProjectGroupSchema).optional(),
   /** How it was removed; null when active. See `WorkRemovalSchema`. */
   removal: z.enum(['trashed', 'unindexed', 'original_trashed']).nullable().optional(),
 });

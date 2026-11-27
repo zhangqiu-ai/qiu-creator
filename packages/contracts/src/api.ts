@@ -101,6 +101,10 @@ export const ErrorCodeSchema = z.enum([
    * assignments (409).
    */
   'membership_manual',
+  /** QC-113: the project already has a group with this name (409); `details.group_id`. */
+  'group_name_taken',
+  /** QC-113: these works are not in the project, so they cannot go in its groups (409); `details.work_ids`. */
+  'work_not_in_project',
   /** No card image to serve: `details.reason` none/missing/needs_frame/decode_failed (404, QC-061). */
   'thumbnail_unavailable',
   /** The uploaded frame is for a video or time the work no longer uses as its card; reload (409, QC-061). */

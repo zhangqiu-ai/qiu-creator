@@ -31,6 +31,12 @@ const WRITE_ROUTES = new Set([
   'DELETE /api/v1/projects/:id',
   'POST /api/v1/projects/:id/restore',
   'POST /api/v1/works/batch/projects',
+  // QC-113: groups and series inside a project. Metadata only; deleting a
+  // group puts its works back in 未分組 and deletes nothing else.
+  'POST /api/v1/projects/:id/groups',
+  'PATCH /api/v1/projects/:id/groups/:groupId',
+  'DELETE /api/v1/projects/:id/groups/:groupId',
+  'POST /api/v1/projects/:id/groups/assign',
   'POST /api/v1/works/:id/assets',
   // QC-039: copies an asset into the work's own folder and links it (like linking an asset).
   'POST /api/v1/works/:id/media/attach',

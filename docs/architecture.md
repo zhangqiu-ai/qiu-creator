@@ -393,6 +393,28 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
   - `work.projects_changed`（`data.added`、`data.removed`）。
 - **權限**：讀取需要 `read`；新建、修改、排序、刪除、復原、批量都需要 `write`。刪除可以復原，也不會刪作品。
 
+## 項目分組與系列（QC-113）
+
+依已核准原型 PT-20261126-002（方案 A，[決策記錄](decisions.md) 2026-11-27）。實作在 `src/projects/project-groups.ts`，路由在 `src/routes/project-groups.ts`，契約在 `packages/contracts/src/project-groups.ts`。
+
+- **資料**（migration `0024`，只加不刪；回滾 SQL 是 `PROJECT_GROUPS_ROLLBACK_SQL`）：
+  - 新表 `project_groups`：`id`、`project_id`、`name`、`ordered`、`sort_order`、`created_by`（`user`／`agent`）與 `created_by_token`、`created_by_name`、`revision`、`created_at`、`updated_at`。同一個項目內名稱唯一。
+  - `work_projects` 加 `group_id`（NULL 是未分組）與 `position`（組內順序）。`group_id` 不設外鍵，方便回滾時刪欄；刪分組時由服務清掉，項目被清除時歸屬和分組一起刪。
+- **規則**：
+  - 分組只有一層。同一個項目裡一件作品只屬於一個分組；作品在不同項目可以各自分組。
+  - 新作品、Agent 沒指定分組的作品、依項目規則歸入的作品都進未分組。作品離開項目時一併離開分組，再加回來仍是未分組。
+  - `ordered` 開啟就是系列：`work_ids` 的順序就是集數。集數只算不在回收站的作品，讀取時依順序編號，所以永遠是 1..n、沒有空號；回收站的作品還原後回到原位。
+  - 刪除分組時作品回未分組，仍留在項目裡。項目軟刪除時分組跟著隱藏，還原時一併回來，30 天後清除時一起刪掉。
+- **API**（都需要 `write`，讀取經 `GET /projects/:id`）：
+  - `GET /api/v1/projects/:id` 多帶 `groups`（依順序，每組含 `revision`、`created_by`、`work_count`、`work_ids`）。項目列表不帶。
+  - `POST /api/v1/projects/:id/groups { name, ordered? }`：排在最後；同名回 409 `group_name_taken`（`details.group_id`）；一個項目最多 100 組。
+  - `PATCH /api/v1/projects/:id/groups/:groupId { name?, ordered?, sort_order? }`：要帶 `base_revision` 或 `If-Match`（分組自己的 revision），沒帶回 428，過期回 409 `revision_conflict`。`sort_order` 是 0 起算的目標位置，其他分組順移（上移／下移）。
+  - `DELETE /api/v1/projects/:id/groups/:groupId`：回傳項目與剩下的分組。
+  - `POST /api/v1/projects/:id/groups/assign { work_ids, group_id|null, position? }`：最多 200 件，全部成功或全部不改。作品必須已在項目裡，否則 409 `work_not_in_project`（`details.work_ids`）；回收站中的作品 409 `work_in_trash`。`position`（1 起算，只數不在回收站的作品）把作品依給定順序插到該集，後面的順延；沒帶就放最後；對組內已有的作品就是調整集數。之後重新寫 `position` 為 1..n。作品的 revision 與檔案都不變。
+- **作品回應**：`Work` 多帶 `project_groups: [{ project_id, group_id, group_name, ordered, episode }]`，只列有分組的項目，`episode` 只在系列裡有值；供「全部作品」卡片顯示「› 分組 #集數」。限定項目的 Agent 權杖只看得到自己項目的分組。
+- **事件**：實體 `project` 的 `project.groups_changed`，`data.change` 是 `created`／`updated`／`deleted`／`assigned`，帶 `data.group_id`；修改帶 `data.fields`、`data.revision`；作品的分組或集數有變時帶 `data.work_ids`（改名、切換系列也帶，因為卡片上的字會變）。沒有實際變更不發事件。
+- **權限**：四個寫入路由都是 `write`；只有 `propose` 的權杖不能建立、修改、刪除分組或歸組。限定項目的權杖碰其他項目的分組回 404。
+
 ### Mac 介面（QC-062 前端）
 
 - **共用狀態**：`renderer/projects-store.ts` 的 `ProjectsStore`。每個連線一份，收到 SSE 的 `project` 或 `work` 事件時重新讀取。側欄、作品庫、素材庫篩選和編輯器（經 `ProjectsContext`）都用這一份。
@@ -1333,7 +1355,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 - `creatorhub mcp` 啟動時讀一次 session，伺服器 `instructions` 寫出目標字體（例如 Simplified Chinese (zh-Hans)，以及覆寫的項目）；讀不到時改說「看 server_status」。
 - `work_create`、`work_propose_edit`、`work_update_body`、`work_update_meta`、`variant_update` 的說明都加了一句 `SCRIPT_NOTE`。
 
-## MCP（QC-087～QC-089、QC-092、QC-096、QC-103）
+## MCP（QC-087～QC-089、QC-092、QC-096、QC-103、QC-113）
 
 設計與任務拆分見 [MCP 規劃](mcp-plan.md)。`creatorhub mcp` 是由 Agent（Claude Code、Codex、Claude Desktop）在本機啟動的 stdio MCP 伺服器，程式在 `packages/agent-sdk/mcp/`。
 
@@ -1355,7 +1377,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 | `work_revisions` | `GET /api/v1/works/:id/revisions[/:rid]` | read |
 | `work_diff` | 兩個版本的 Markdown，在 MCP 端算行級 unified diff | read |
 | `assets_search`、`asset_get` | `GET /api/v1/assets`、`…/:id`、`…/references`、`…/works` | read |
-| `projects_list`、`project_get` | `GET /api/v1/projects`、`…/:id`、`…/summary` | read |
+| `projects_list`、`project_get` | `GET /api/v1/projects`、`…/:id`（含分組，QC-113）、`…/summary` | read |
 | `variant_get` | `GET /api/v1/works/:id/variants…`（QC-084 的 `VariantView`：覆寫值、推導正文、`*_source`、超限位置；含覆寫歷史） | read |
 | `platform_rules` | 不呼叫服務：contracts 的 `PLATFORM_LIMITS` | 任何權杖 |
 
@@ -1376,6 +1398,7 @@ Base URL 與金鑰一起存入 Keychain 的 `new-api` 項目。遷移 `0012_new_
 | `work_restore_revision` | `POST /api/v1/works/:id/revisions/:rid/restore`（新增一個 `restore` 版本） | write |
 | `project_create`、`project_update`、`project_delete`、`project_restore` | `POST /api/v1/projects`、`PATCH …/:id`（`base_revision` 必填）、`DELETE …/:id`、`POST …/:id/restore` | write |
 | `works_assign_projects` | `POST /api/v1/works/batch/projects`（Agent 不能移除使用者手動的歸屬：`membership_manual`） | write |
+| `project_group_create`、`project_group_update`、`project_group_delete`、`works_assign_group` | `POST /api/v1/projects/:id/groups`、`PATCH …/groups/:groupId`（`base_revision` 必填）、`DELETE …/groups/:groupId`、`POST …/groups/assign`（QC-113；Agent 建的分組記下權杖，App 顯示 Agent 標記） | write |
 | `projects_suggest` | `GET /api/v1/works/:id/project-suggestions` 或 `POST /api/v1/projects/suggestions`（QC-092） | read |
 | `project_rules_preview` | `POST /api/v1/projects/:id/rules/preview`（QC-092） | read |
 | `variant_update` | `PATCH /api/v1/works/:id/variants/:platform`；`reset_all` 時 `DELETE` 同一路由 | write |
@@ -1569,7 +1592,7 @@ Claude Desktop（`~/Library/Application Support/Claude/claude_desktop_config.jso
 
 ## 變更事件（SSE）
 
-`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `ai_job.queued`／`running`／`progress`／`succeeded`／`failed`／`cancelled`（AI 任務）、`work.variant_created`／`work.variant_updated`／`work.variant_deleted`／`work.variant_changed`（平台版本；QC-084 起覆寫值改變時發 `variant_changed`，帶 `data.fields`）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`；Agent 寫入時帶 `data.agent`，採用提案時帶 `data.proposal_id`）、實體 `work` 的 `proposal.created`／`proposal.updated`（QC-089）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`（素材進出回收站時 `data.change` 為 `trashed`／`restored`／`deleted`）、`asset.created`、`asset.updated`（編輯時 `data.fields`、`data.revision`）、`asset.trashed`（`data.removal`）、`asset.restored`、`asset.deleted`（`data.removal`、`data.reason`：`manual`／`empty`／`expired`）（QC-037）、`work.trashed`（`data.removal`）、`work.restored`、`work.deleted`（`data.removal`、`data.reason`）（QC-051）、`work.projects_changed` 與實體 `project` 的 `project.created`／`updated`／`deleted`／`restored`／`reordered`（QC-062）、`job.queued`、`job.running`、`job.succeeded`、`job.failed`，以及實體 `system`（`entity_id` 為 `database`）的 `backup.created`／`backup.failed`／`backup.restore_started`／`backup.restored`（QC-030）。每個事件帶 `actor`：`owner`、Agent 權杖 id，或服務自己時為 null（QC-089）。
+`GET /api/v1/events` 回 `text/event-stream`：`id` 是 `change_log.seq`，`event` 是動作名，`data` 是 `ChangeEvent` JSON。動作包括 `ai_job.queued`／`running`／`progress`／`succeeded`／`failed`／`cancelled`（AI 任務）、`work.variant_created`／`work.variant_updated`／`work.variant_deleted`／`work.variant_changed`（平台版本；QC-084 起覆寫值改變時發 `variant_changed`，帶 `data.fields`）、`work.created`、`work.updated`（`data.source` 為 `edit` 或 `restore`；Agent 寫入時帶 `data.agent`，採用提案時帶 `data.proposal_id`）、實體 `work` 的 `proposal.created`／`proposal.updated`（QC-089）、`work.external_revision`（外部編輯器改了 `source.md`）、`work.assets_changed`（素材進出回收站時 `data.change` 為 `trashed`／`restored`／`deleted`）、`asset.created`、`asset.updated`（編輯時 `data.fields`、`data.revision`）、`asset.trashed`（`data.removal`）、`asset.restored`、`asset.deleted`（`data.removal`、`data.reason`：`manual`／`empty`／`expired`）（QC-037）、`work.trashed`（`data.removal`）、`work.restored`、`work.deleted`（`data.removal`、`data.reason`）（QC-051）、`work.projects_changed` 與實體 `project` 的 `project.created`／`updated`／`deleted`／`restored`／`reordered`（QC-062）、`project.groups_changed`（QC-113）、`job.queued`、`job.running`、`job.succeeded`、`job.failed`，以及實體 `system`（`entity_id` 為 `database`）的 `backup.created`／`backup.failed`／`backup.restore_started`／`backup.restored`（QC-030）。每個事件帶 `actor`：`owner`、Agent 權杖 id，或服務自己時為 null（QC-089）。
 
 - 和其他 `/api` 路由一樣要 Bearer 權杖。瀏覽器的 `EventSource` 不能帶 header，所以 api-client 用 fetch 讀串流（`client.events.subscribe`）；權杖不接受放在 URL。
 - 事件先寫進 `change_log` 再推送：在寫入方的交易提交後才發出，交易回滾的變更不會被推送。

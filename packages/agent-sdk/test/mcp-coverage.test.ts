@@ -112,6 +112,8 @@ describe('MCP tool permissions match the server (scopes.ts)', () => {
     expect(TOOLS.filter((t) => t.destructive === true).map((t) => t.name)).toEqual([
       'work_trash',
       'project_delete',
+      // QC-113: the group goes for good (its works only return to 未分組).
+      'project_group_delete',
     ]);
   });
 });

@@ -61,7 +61,7 @@ export const READ_TOOLS: readonly McpToolDef[] = [
       'GET /api/v1/works/:id/assets',
       'GET /api/v1/works/:id/projects',
     ],
-    description: `One work: metadata, its Markdown (front matter included), current_revision_id (needed later as base_revision for edits), linked assets (cover, body, video, in order) and its projects with who put it there (user by hand, an agent, or a rule with score and reasons). ${USER_DATA_NOTE}`,
+    description: `One work: metadata, its Markdown (front matter included), current_revision_id (needed later as base_revision for edits), linked assets (cover, body, video, in order) and its projects with who put it there (user by hand, an agent, or a rule with score and reasons); work.project_groups gives its group in each project and its episode in a series. ${USER_DATA_NOTE}`,
     inputSchema: {
       id: id('work'),
       include_markdown: z
@@ -170,7 +170,7 @@ export const READ_TOOLS: readonly McpToolDef[] = [
     group: 'projects',
     access: 'read',
     routes: ['GET /api/v1/projects/:id', 'GET /api/v1/projects/:id/summary'],
-    description: `One project and its summary (counts by type and status, recent works). Use works_search with project_id to list its works. ${USER_DATA_NOTE}`,
+    description: `One project and its summary (counts by type and status, recent works), with its groups (project.groups: name, ordered for a series, revision, created_by, work_ids in order; works in no group are 未分組). Use works_search with project_id to list its works; each work's project_groups gives its group and episode. ${USER_DATA_NOTE}`,
     inputSchema: { id: id('project') },
     run: async (client, args) => {
       const [project, summary] = await Promise.all([

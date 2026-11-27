@@ -1,5 +1,6 @@
 import {
   BatchWorkProjectsResponseSchema,
+  ProjectGroupSchema,
   ProjectListResponseSchema,
   ProjectSchema,
   ProjectSuggestionsResponseSchema,
@@ -7,7 +8,11 @@ import {
   RulesPreviewResponseSchema,
   WorkProjectsResponseSchema,
   type BatchWorkProjectsRequest,
+  type AssignProjectGroupRequest,
   type BatchWorkProjectsResponse,
+  type CreateProjectGroupRequest,
+  type PatchProjectGroupRequest,
+  type ProjectGroup,
   type CreateProjectRequest,
   type PatchProjectRequest,
   type Project,
@@ -51,6 +56,19 @@ export interface CreatorHubProjectsApi {
   suggest(input: SuggestProjectsRequest): Promise<ProjectSuggestionsResponse>;
   /** QC-092: try rules on recent works without saving them. */
   previewRules(projectId: string, input: RulesPreviewRequest): Promise<RulesPreviewResponse>;
+  /** QC-113: a new group (or series with `ordered: true`) after the project's others. */
+  createGroup(projectId: string, input: CreateProjectGroupRequest): Promise<ProjectGroup>;
+  /** QC-113: pass `base_revision` (the group's `revision`) or `options.ifMatch`; stale is 409. */
+  patchGroup(
+    projectId: string,
+    groupId: string,
+    input: PatchProjectGroupRequest,
+    options?: { ifMatch?: number },
+  ): Promise<ProjectGroup>;
+  /** QC-113: delete a group; its works go back to 未分組. Returns the project with its groups. */
+  removeGroup(projectId: string, groupId: string): Promise<Project>;
+  /** QC-113: put works in a group (or 未分組 with null). Returns the project with its groups. */
+  assignGroup(projectId: string, input: AssignProjectGroupRequest): Promise<Project>;
 }
 
 export function createProjectsApi(ctx: Ctx): CreatorHubProjectsApi {
@@ -97,6 +115,21 @@ export function createProjectsApi(ctx: Ctx): CreatorHubProjectsApi {
     remove: (id) => call(ctx, ProjectSchema, 'DELETE', p(id)),
     restore: (id) => call(ctx, ProjectSchema, 'POST', `${p(id)}/restore`),
     summary: (id) => call(ctx, ProjectSummarySchema, 'GET', `${p(id)}/summary`),
+    createGroup: (projectId, input) =>
+      call(ctx, ProjectGroupSchema, 'POST', `${p(projectId)}/groups`, input),
+    patchGroup: (projectId, groupId, input, options = {}) =>
+      call(
+        ctx,
+        ProjectGroupSchema,
+        'PATCH',
+        `${p(projectId)}/groups/${encodeURIComponent(groupId)}`,
+        input,
+        options.ifMatch === undefined ? {} : { 'if-match': `"${String(options.ifMatch)}"` },
+      ),
+    removeGroup: (projectId, groupId) =>
+      call(ctx, ProjectSchema, 'DELETE', `${p(projectId)}/groups/${encodeURIComponent(groupId)}`),
+    assignGroup: (projectId, input) =>
+      call(ctx, ProjectSchema, 'POST', `${p(projectId)}/groups/assign`, input),
     batchWorks: (input) =>
       call(ctx, BatchWorkProjectsResponseSchema, 'POST', '/api/v1/works/batch/projects', input),
   };
