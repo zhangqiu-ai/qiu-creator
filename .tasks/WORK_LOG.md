@@ -1,5 +1,10 @@
 # Work Log
 
+## 2026-11-27 · QC-113 合併，派 QC-114
+
+- 合併 QC-113（項目分組後端、API、MCP，遷移 0024）。合併後 lint、typecheck、e2e tsc、format 通過，受影響套件全過。
+- QC-114 從 Next 移到進行中，派給 qc-frontend。
+
 ## 2026-11-27 · QC-115 合併
 
 - 合併 QC-115（降低提示頻率）。合併後 lint、typecheck、e2e tsc、format 通過，mac 503/503、i18n 30/30。等 QC-113／QC-114 完成後一起發版。

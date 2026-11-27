@@ -1,8 +1,8 @@
-## QC-113: 項目分組與系列（後端、API、MCP）
+## QC-114: 項目分組與系列（Mac 介面）
 
-**Priority:** P2 | **Assignee:** qc-backend | **Tags:** backend
+**Priority:** P2 | **Assignee:** qc-frontend | **Tags:** frontend
 
-依已核准原型 PT-20261126-002（`docs/design/prototype/changes.json` 的 dataModel、`docs/decisions.md` 2026-11-27）實作：`project_groups` 表（name、ordered、sort_order、created_by、revision）、項目成員加 group_id 與 position；分組 CRUD 與 `POST /projects/:id/groups/assign`（If-Match／409）；系列集數自動重排不留空號；刪分組作品回未分組、刪項目連帶刪分組；變更事件；作品回應帶分組與集數供「全部作品」頁顯示。MCP 新增 `project_group_create`／`update`／`delete` 與 `works_assign_group`，`project_get` 帶分組，覆蓋測試要過。項目規則與新作品一律進未分組。
+依已核准原型 PT-20261126-002 方案 A 實作項目頁分段：未分組在上、段首折疊與 sticky、「⋯」選單、當作系列與「第 N 集」、列表「集」欄、拖曳歸組（插入線、多選、Esc、減少動態效果）、右鍵「移到分組」子選單與新建分組、「全部作品」卡片的「› 分組 #集數」、Agent 建立分組的標記。依賴 QC-113 的 API。
 
 **Started:** 2026-11-27
 

@@ -1,3 +1,11 @@
+## QC-113: 項目分組與系列（後端、API、MCP）
+
+**Priority:** P2 | **Assignee:** qc-backend | **Tags:** backend
+
+完成（7de3e4a）。遷移 0024：`project_groups` 表，`work_projects` 加 group_id、position（只加不刪，附 `PROJECT_GROUPS_ROLLBACK_SQL`）。`ProjectGroupService` 與分組 CRUD、`/groups/assign` 路由（PATCH 無版本 428、過期 409）。系列集數只算不在回收站的作品，永遠 1..n，移出、進回收站、還原時重排。刪分組作品回未分組；項目軟刪除時分組隱藏、還原時回來、清除時刪掉。作品回應帶各項目的分組名與集數。MCP 新增 `project_group_create`／`update`／`delete`、`works_assign_group`，`project_get`、`work_get` 帶分組，propose-only 權杖 403。自定規則：同項目分組名不重複（409 `group_name_taken`）、每項目最多 100 組、每次歸組最多 200 件、歸組全有或全無（`work_not_in_project`／`work_in_trash`）。驗證：合併後 mac-server 607、agent-sdk 56、contracts 26、api-client 22、i18n 30、mac 503 全過；子會話報 e2e 一般 67、動效 68，0 failed。NOT_VERIFIED：大量分組效能。
+
+**Completed:** 2026-11-27
+
 ## QC-115: 降低提示頻率，只提醒重要事項
 
 **Priority:** P2 | **Assignee:** qc-bugfix | **Tags:** frontend
