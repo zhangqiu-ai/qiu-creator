@@ -151,8 +151,6 @@ export const editor = defineMessages({
     pastedImageName: '貼上的圖片 {time}.{ext}',
     fileFallback: '檔案',
     pasteCacheFailed: '無法暫存貼上的圖片',
-    insertedAsset: '已插入「{name}」',
-    insertedAndLibrary: '已插入「{name}」，同時加入素材庫',
 
     // 版本衝突 dialog
     resolved: '已解決',
@@ -346,8 +344,6 @@ export const editor = defineMessages({
     pastedImageName: '粘贴的图片 {time}.{ext}',
     fileFallback: '文件',
     pasteCacheFailed: '无法暂存粘贴的图片',
-    insertedAsset: '已插入“{name}”',
-    insertedAndLibrary: '已插入“{name}”，同时加入素材库',
 
     resolved: '已解决',
     conflictTitle: '版本冲突',
@@ -544,8 +540,6 @@ export const editor = defineMessages({
     pastedImageName: 'Pasted image {time}.{ext}',
     fileFallback: 'File',
     pasteCacheFailed: 'Couldn’t hold on to the pasted image',
-    insertedAsset: 'Inserted “{name}”',
-    insertedAndLibrary: 'Inserted “{name}” and added it to the library',
 
     resolved: 'Resolved',
     conflictTitle: 'Version conflict',

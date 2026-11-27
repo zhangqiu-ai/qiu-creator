@@ -4706,6 +4706,16 @@ kbd {
 .tab--flash {
   animation: tab-flash 0.9s ease-out;
 }
+/* Often the only answer to opening an open work (QC-115): a colour change, so it
+   stays under Reduce Motion and the lite set. */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='off']) .tab--flash {
+    animation: tab-flash 0.9s ease-out !important;
+  }
+}
+:root[data-motion='lite'] .tab--flash {
+  animation: tab-flash 0.9s ease-out !important;
+}
 .tabbar__all {
   position: relative;
   flex: none;

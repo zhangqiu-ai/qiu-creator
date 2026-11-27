@@ -3,6 +3,7 @@ import type { WorkDetail } from '@qiu-creator/contracts';
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -51,8 +52,6 @@ const alongTheBar: Modifier = ({ transform }) => ({ ...transform, y: 0 });
 type Notice =
   | { kind: 'closed'; title: string }
   | { kind: 'already'; title: string }
-  | { kind: 'restored'; count: number }
-  | { kind: 'closedOthers'; count: number }
   | { kind: 'renameFailed'; message: string };
 
 const NOTICE_MS = 8000;
@@ -107,8 +106,8 @@ export interface EditorTabsProps {
  * above the work's header, one mounted editor per loaded tab (the ones in the
  * background are hidden, not unmounted, so drafts, caret, scroll, mode and
  * side panel stay as they were), the all-tabs menu, the close-unsaved dialog
- * and the 重新開啟／已恢復 notices. Any kind of editor can sit in a tab; today
- * articles use `EditorPage`.
+ * and the tab notices (重新開啟, a tab already open past the edge of the bar, a
+ * failed rename). Any kind of editor can sit in a tab.
  */
 export function EditorTabs(props: EditorTabsProps) {
   const { model, visible, onFocusEditor } = props;
@@ -148,7 +147,7 @@ export function EditorTabs(props: EditorTabsProps) {
   }, [side]);
 
   useEffect(() => {
-    if (notice === null || notice.kind === 'restored') return;
+    if (notice === null) return;
     const timer = setTimeout(() => {
       setNotice(null);
       if (notice.kind === 'closed') model.dismissClosed();
@@ -158,17 +157,15 @@ export function EditorTabs(props: EditorTabsProps) {
     };
   }, [notice, model]);
 
-  // 已恢復上次的 N 個分頁 after launch.
-  useEffect(() => {
-    if (state.restored !== null) setNotice({ kind: 'restored', count: state.restored });
-  }, [state.restored]);
-
-  // Opening a work that is already open: the tab flashes, and a notice says so.
-  useEffect(() => {
-    if (state.flashId === null) return;
-    const tab = model.find(state.flashId);
-    if (tab !== null) setNotice({ kind: 'already', title: tabTitle(tab) });
-  }, [state.flashSeq, state.flashId, model]);
+  // Opening a work that is already open flashes its tab; words only when the tab
+  // was out of sight (QC-115).
+  const sayAlreadyOpen = useCallback(
+    (id: string) => {
+      const tab = model.find(id);
+      if (tab !== null) setNotice({ kind: 'already', title: tabTitle(tab) });
+    },
+    [model],
+  );
 
   const finishClose = useCallback(
     (id: string, draft: Draft | null) => {
@@ -304,7 +301,6 @@ export function EditorTabs(props: EditorTabsProps) {
 
   // Tab notices go through the shared queue (QC-045), shown while the editor area is in front.
   const closeNotice = () => {
-    if (notice?.kind === 'restored') model.dismissRestored();
     if (notice?.kind === 'closed') model.dismissClosed();
     setNotice(null);
   };
@@ -317,11 +313,7 @@ export function EditorTabs(props: EditorTabsProps) {
               ? t('tabs.closedTab', { title: notice.title })
               : notice.kind === 'already'
                 ? t('tabs.alreadyOpen', { title: notice.title })
-                : notice.kind === 'restored'
-                  ? t('tabs.restored', { count: notice.count })
-                  : notice.kind === 'renameFailed'
-                    ? notice.message
-                    : t('tabs.closedOthers', { count: notice.count }),
+                : notice.message,
           tone:
             notice.kind === 'already' ? 'neutral' : notice.kind === 'renameFailed' ? 'bad' : 'ok',
           actions:
@@ -339,17 +331,7 @@ export function EditorTabs(props: EditorTabsProps) {
                     },
                   },
                 ]
-              : notice.kind === 'restored'
-                ? [
-                    {
-                      label: t('tabs.closeAll'),
-                      onClick: () => {
-                        model.closeAll();
-                        setNotice(null);
-                      },
-                    },
-                  ]
-                : [],
+              : [],
           onClose: closeNotice,
         },
   );
@@ -371,11 +353,14 @@ export function EditorTabs(props: EditorTabsProps) {
             void requestClose(id);
           }}
           onCloseOthers={(id) => {
-            const n = model.closeOthers(id);
-            if (n > 0) setNotice({ kind: 'closedOthers', count: n });
+            // The bar shows what closed. 重新開啟 is gone with it, so its notice goes too.
+            if (model.closeOthers(id) > 0) {
+              setNotice((n) => (n?.kind === 'closed' ? null : n));
+            }
             onFocusEditor();
           }}
           onRename={renameTab}
+          onOpenedOutOfView={sayAlreadyOpen}
         />
         {loaded.map((tab) => (
           <TabPane
@@ -674,6 +659,7 @@ function TabBar({
   onClose,
   onCloseOthers,
   onRename,
+  onOpenedOutOfView,
 }: {
   model: TabsModel;
   tabs: readonly Tab[];
@@ -684,6 +670,8 @@ function TabBar({
   onClose: (id: string) => void;
   onCloseOthers: (id: string) => void;
   onRename: (id: string, title: string) => void;
+  /** An already open work was opened again while its tab was past the edge of the bar. */
+  onOpenedOutOfView: (id: string) => void;
 }) {
   const strip = useRef<HTMLDivElement>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -698,23 +686,49 @@ function TabBar({
       right: el.scrollLeft + el.clientWidth < el.scrollWidth - 1,
     });
   }, []);
+  /** Scroll the active tab into view, noting the width of the bar it was done for. */
+  const revealedAt = useRef(0);
+  const reveal = useCallback((id: string) => {
+    revealedAt.current = strip.current?.clientWidth ?? 0;
+    document.getElementById(`tab-${id}`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, []);
+  const activeNow = useRef(activeId);
+  activeNow.current = activeId;
   useEffect(() => {
     const el = strip.current;
     if (el === null) return;
     measure();
-    const observer = new ResizeObserver(measure);
+    const observer = new ResizeObserver(() => {
+      // A new editor's sidebar narrows the bar after the tab was scrolled to.
+      const width = el.clientWidth;
+      if (width > 0 && width !== revealedAt.current && activeNow.current !== null) {
+        reveal(activeNow.current);
+      }
+      measure();
+    });
     observer.observe(el);
     return () => {
       observer.disconnect();
     };
-  }, [measure, tabs.length]);
-  // Keep the active tab in view.
+  }, [measure, reveal, tabs.length]);
+  // Opened again: was the tab in sight (at least half of it)? A layout effect,
+  // so this is measured before the effect below scrolls it into view.
+  const measuredFlash = useRef(flashSeq);
+  useLayoutEffect(() => {
+    if (measuredFlash.current === flashSeq) return;
+    measuredFlash.current = flashSeq;
+    const bar = strip.current;
+    const tab = flashId === null ? null : document.getElementById(`tab-${flashId}`);
+    if (flashId === null || bar === null || tab === null) return;
+    const view = bar.getBoundingClientRect();
+    const box = tab.getBoundingClientRect();
+    const middle = box.left + box.width / 2;
+    if (middle < view.left || middle > view.right) onOpenedOutOfView(flashId);
+  }, [flashSeq, flashId, onOpenedOutOfView]);
+  // Keep the active tab in view, also when it is opened again.
   useEffect(() => {
-    if (activeId === null) return;
-    document
-      .getElementById(`tab-${activeId}`)
-      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  }, [activeId]);
+    if (activeId !== null) reveal(activeId);
+  }, [activeId, flashSeq, reveal]);
 
   // Drag to reorder (QC-065, DESIGN.md 動效 · 編輯分頁): dnd-kit sortable along the bar;
   // the other tabs move aside (`base`), the dropped tab settles, Esc puts it back.

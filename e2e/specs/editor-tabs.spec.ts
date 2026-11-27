@@ -210,13 +210,12 @@ test('開多個作品、切換保留狀態、重複開啟、快捷鍵與選單',
     expect(labels).toEqual(['關閉分頁', '顯示上一個分頁', '顯示下一個分頁', '最後一個分頁']);
   });
 
-  await test.step('重複開啟：聚焦既有分頁並提示', async () => {
+  await test.step('重複開啟看得到的分頁：聚焦並閃一下，不跳提示（QC-115）', async () => {
     await openFromLibrary(page, '甲篇長文');
     await expect(tabBar(page).getByRole('tab')).toHaveCount(3);
     expect(await selectedTitles(page)).toEqual(['甲篇長文']);
-    await expect(
-      page.getByRole('status').filter({ hasText: '「甲篇長文」已經開啟' }),
-    ).toBeVisible();
+    await expect(tab(page, '甲篇長文')).toHaveClass(/tab--flash/);
+    await expect(page.locator('[data-toast]').filter({ hasText: '已經開啟' })).toHaveCount(0);
     // The draft opened again is the one in the tab, not a fresh copy.
     await expect(page.getByRole('textbox', { name: '內文' })).toHaveValue(/^.{10}Q/s);
   });
@@ -267,7 +266,8 @@ test('開多個作品、切換保留狀態、重複開啟、快捷鍵與選單',
     // 甲's edit was autosaved, so 關閉其他 closes it as well.
     await expect(tabBar(page).getByRole('tab')).toHaveCount(1);
     expect(await order(page)).toEqual(['乙篇草稿']);
-    await expect(page.getByRole('status').filter({ hasText: '已關閉 2 個分頁' })).toBeVisible();
+    // The tabs that closed are gone from the bar: nothing more to say (QC-115).
+    await expect(page.locator('[data-toast]').filter({ hasText: '已關閉' })).toHaveCount(0);
   });
 
   await test.step('⌘W 關閉最後一個分頁，回到作品庫', async () => {
@@ -351,25 +351,86 @@ test('最多同時載入 8 個編輯器；重開 App 恢復全部分頁，只載
   const again = await relaunch();
   const p2 = again.page;
   await expect(tabBar(p2).getByRole('tab')).toHaveCount(9);
-  await expect(p2.getByRole('status').filter({ hasText: '已恢復上次的 9 個分頁' })).toBeVisible();
   await expect(p2.locator('.tab-pane')).toHaveCount(1);
   await expect(tabBar(p2).locator('.tab--unloaded')).toHaveCount(8);
   await expect(p2.getByRole('textbox', { name: '標題' })).toHaveValue('第1篇');
   await expect(p2.getByRole('textbox', { name: '內文' })).toBeVisible();
+  // The tabs are there to see: restoring them says nothing (QC-115).
+  await expect(p2.locator('[data-toast]')).toHaveCount(0);
   // Others load when clicked.
   await tab(p2, '第5篇').click();
   await expect(p2.getByRole('textbox', { name: '標題' })).toHaveValue('第5篇');
   await expect(p2.locator('.tab-pane')).toHaveCount(2);
   await p2.keyboard.press('Meta+9');
   await expect(p2.getByRole('textbox', { name: '標題' })).toHaveValue('第9篇');
+});
 
-  // 全部關閉 from the notice.
-  await p2
-    .getByRole('status')
-    .filter({ hasText: '已恢復上次的 9 個分頁' })
-    .getByRole('button', { name: '全部關閉' })
-    .click();
-  await expect(tabBar(p2)).toBeHidden();
+/** The tab lies inside the part of the strip that is on screen. */
+async function onScreen(page: Page, title: string): Promise<boolean> {
+  const strip = await tabBar(page).boundingBox();
+  const box = await tab(page, title).boundingBox();
+  if (strip === null || box === null) return false;
+  return box.x >= strip.x - 1 && box.x + box.width <= strip.x + strip.width + 1;
+}
+
+test('已開啟的分頁：看得到就只閃一下，收在分頁列外才提示（QC-115）', async ({ desktop }) => {
+  const { page, backend } = desktop;
+  await page.setViewportSize({ width: 1200, height: 800 });
+  const titles = Array.from({ length: 7 }, (_, i) => `第${String(i + 1)}篇`);
+  for (const t of titles)
+    await backend.client.works.create({ title: t, markdown: `${PARAGRAPH}\n` });
+  for (const t of titles) await openFromLibrary(page, t);
+  const already = page.locator('[data-toast]').filter({ hasText: '已經開啟' });
+  // Seven tabs do not fit: the last one is in view, the first is past the edge.
+  await expect.poll(() => onScreen(page, '第7篇')).toBe(true);
+  expect(await onScreen(page, '第1篇')).toBe(false);
+
+  await test.step('作用中、看得到的分頁：不提示', async () => {
+    await openFromLibrary(page, '第7篇');
+    await expect(tab(page, '第7篇')).toHaveClass(/tab--flash/);
+    await expect(already).toHaveCount(0);
+    await shot(page, 'qc115-in-view-no-toast');
+  });
+
+  await test.step('收在分頁列外的分頁：捲進來並提示', async () => {
+    await openFromLibrary(page, '第1篇');
+    await expect(already).toHaveText(/「第1篇」已經開啟/);
+    await expect(tab(page, '第1篇')).toHaveClass(/tab--flash/);
+    await expect.poll(() => onScreen(page, '第1篇')).toBe(true);
+    await shot(page, 'qc115-past-the-edge-toast');
+    await already.getByRole('button').click();
+    await expect(already).toHaveCount(0);
+  });
+
+  await test.step('作用中的分頁被捲出畫面：一樣捲回來並提示', async () => {
+    await tabBar(page).evaluate((el) => {
+      const strip = el as unknown as { scrollLeft: number; scrollWidth: number };
+      strip.scrollLeft = strip.scrollWidth;
+    });
+    expect(await onScreen(page, '第1篇')).toBe(false);
+    await openFromLibrary(page, '第1篇');
+    await expect(already).toHaveText(/「第1篇」已經開啟/);
+    await expect.poll(() => onScreen(page, '第1篇')).toBe(true);
+    await already.getByRole('button').click();
+  });
+
+  await test.step('減少動態效果時分頁仍會閃：那是唯一的回應', async () => {
+    await page.evaluate("document.documentElement.setAttribute('data-motion', 'lite')");
+    await openFromLibrary(page, '第1篇');
+    await expect(tab(page, '第1篇')).toHaveCSS('animation-name', 'tab-flash');
+    await shot(page, 'qc115-flash-reduced-motion');
+    await expect(already).toHaveCount(0);
+  });
+
+  await test.step('關閉其他分頁：不提示，也收掉上一個「重新開啟」', async () => {
+    await page.keyboard.press('Meta+w');
+    const closed = page.locator('[data-toast]').filter({ hasText: '已關閉「第1篇」' });
+    await expect(closed).toBeVisible();
+    await page.getByRole('button', { name: '全部分頁（6）' }).click();
+    await page.getByRole('button', { name: /關閉其他分頁/ }).click();
+    await expect(tabBar(page).getByRole('tab')).toHaveCount(1);
+    await expect(page.locator('[data-toast]')).toHaveCount(0);
+  });
 });
 
 test('切換語言：兩個分頁的編輯器工具列都換成新語言，草稿與游標不變', async ({ desktop }) => {

@@ -125,7 +125,6 @@ export function SidebarProjects({
     if (name === null) return;
     try {
       const p = await store.create(name);
-      notify({ message: t('projects.created', { name: p.name }) });
       onOpen({ kind: 'project', id: p.id });
     } catch {
       notify({ message: t('common.cannotConnect'), tone: 'bad' });

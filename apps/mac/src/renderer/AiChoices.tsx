@@ -422,12 +422,12 @@ function FallbackNote({ error }: { error: AiModelsResponse['errors'][number] | u
 export function LanguageModelSwitch({
   variant,
   sample,
-  onNotice,
+  onError,
   onOpenServices,
 }: {
   variant: 'toolbar' | 'panel';
   sample: string;
-  onNotice: (text: string) => void;
+  onError: (text: string) => void;
   onOpenServices: (() => void) | null;
 }) {
   const { library, state } = useAiLibrary();
@@ -443,29 +443,15 @@ export function LanguageModelSwitch({
   if (library === null) return null;
   const pickLang = (next: AiOutputLanguage, close: () => void) => {
     close();
-    void library.setLanguage(next).then(
-      () => {
-        onNotice(
-          t('ai.langSet', {
-            lang: next === 'follow' ? t('ai.langFollow') : languageName(next),
-          }),
-        );
-      },
-      () => {
-        onNotice(t('ai.prefsFailed'));
-      },
-    );
+    void library.setLanguage(next).catch(() => {
+      onError(t('ai.prefsFailed'));
+    });
   };
   const pickModel = (next: AiModelChoice, close: () => void) => {
     close();
-    void library.setModel('rewrite', next).then(
-      () => {
-        onNotice(t('ai.modelSet', { model: modelShort(next) }));
-      },
-      () => {
-        onNotice(t('ai.prefsFailed'));
-      },
-    );
+    void library.setModel('rewrite', next).catch(() => {
+      onError(t('ai.prefsFailed'));
+    });
   };
   const langText =
     variant === 'toolbar'

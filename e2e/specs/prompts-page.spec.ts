@@ -102,8 +102,9 @@ test('內建唯讀可複製、自訂指令的建立與儲存、搜尋高亮、�
     await shot(page, '2-builtin');
 
     await editor(page).getByRole('button', { name: '複製成自訂' }).click();
-    await expect(page.getByText('已複製成自訂指令')).toBeVisible();
     await expect(name(page)).toHaveValue('潤色（副本）');
+    // The copy is open in front: no notice (QC-115).
+    await expect(page.locator('[data-toast]').filter({ hasText: '已複製成' })).toHaveCount(0);
     await expect(name(page)).toHaveJSProperty('readOnly', false);
     await expect(page.getByText('6 個內建 · 1 個自訂')).toBeVisible();
     expect((await c.ai.prompts.list()).items.filter((p) => !p.builtin)).toHaveLength(1);
@@ -183,9 +184,10 @@ test('內建唯讀可複製、自訂指令的建立與儲存、搜尋高亮、�
 
     await editor(page).getByRole('button', { name: '刪除' }).click();
     await page.getByRole('dialog').getByRole('button', { name: '刪除' }).click();
-    await expect(page.getByText('已刪除「潤色（副本）」')).toBeVisible();
     await expect(list(page).getByRole('button', { name: /潤色（副本）/ })).toHaveCount(0);
     await expect(page.getByText('6 個內建 · 1 個自訂')).toBeVisible();
+    // It left the list: no notice (QC-115).
+    await expect(page.locator('[data-toast]').filter({ hasText: '已刪除' })).toHaveCount(0);
   });
 });
 
@@ -229,9 +231,9 @@ test('AI 建議：候選以 diff 出現，捨棄不寫入、保留才寫入', as
     await editor(page).getByRole('button', { name: '生成' }).click();
     await expect(page.getByRole('group', { name: 'AI 候選' }).first()).toBeVisible();
     await editor(page).getByRole('button', { name: /保留/ }).click();
-    await expect(page.getByText('已保留，寫入指令')).toBeVisible();
     await expect(name(page)).toHaveValue('小紅書口吻');
     await expect(content(page)).toHaveValue('把 {選取} 改寫成小紅書口吻：短句、每 2–3 句分段。');
+    await expect(page.locator('[data-toast]').filter({ hasText: '已保留' })).toHaveCount(0);
     await expect
       .poll(async () => (await c.ai.prompts.list()).items.filter((p) => !p.builtin).length)
       .toBe(1);
@@ -283,7 +285,7 @@ test('匯出與匯入：同名另存副本，不覆蓋', async ({ desktop }) => 
     await page.getByRole('button', { name: '更多操作' }).click();
     await shot(page, '8-io-menu');
     await page.getByRole('menuitem', { name: '匯出全部自訂指令' }).click();
-    await expect(page.getByText('已匯出 1 條指令')).toBeVisible();
+    await expect.poll(() => page.evaluate<number>('window.__qcFiles.length')).toBe(1);
     const file = await page.evaluate<{ name: string; text: string }>(LAST_DOWNLOAD);
     expect(file.name).toMatch(/^prompts-\d{4}-\d{2}-\d{2}\.json$/);
     const parsed = JSON.parse(file.text) as {
@@ -299,6 +301,8 @@ test('匯出與匯入：同名另存副本，不覆蓋', async ({ desktop }) => 
       }),
     ]);
     test.info().annotations.push({ type: 'export', description: file.name });
+    // The system's save dialog is the answer to 匯出 (QC-115).
+    await expect(page.locator('[data-toast]').filter({ hasText: '已匯出' })).toHaveCount(0);
 
     // Import the file back: the file picker is the system's, so the chosen file
     // is handed to the same hidden input the menu item opens.

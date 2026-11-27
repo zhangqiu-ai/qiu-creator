@@ -647,7 +647,6 @@ export function AssetsPage({
               onEmpty={() => {
                 setDialog({ kind: 'empty', count: listing?.total ?? 0 });
               }}
-              onToast={setToast}
               onOpen={openView}
             />
           ) : (
@@ -843,7 +842,6 @@ export function AssetsPage({
                 .restore(asset.id)
                 .then(() => {
                   afterRemoval([asset.id]);
-                  setToast({ message: t('assets.restored'), undo: null });
                 })
                 .catch((err: unknown) => {
                   setToast({ message: assetErrorText(err), undo: null, tone: 'bad' });
@@ -1041,7 +1039,6 @@ function TrashView({
   onReload,
   onPurge,
   onEmpty,
-  onToast,
   onOpen,
 }: {
   client: CreatorHubClient;
@@ -1053,7 +1050,6 @@ function TrashView({
   onReload: () => void;
   onPurge: (asset: AssetRecord) => void;
   onEmpty: () => void;
-  onToast: (t: Toast) => void;
   /** A click on the picture or name shows it in the gallery view (還原 and 永久刪除 there too). */
   onOpen: (id: string) => void;
 }) {
@@ -1154,7 +1150,6 @@ function TrashView({
                         .restore(a.id)
                         .then(() => {
                           setBusy(null);
-                          onToast({ message: t('assets.restored'), undo: null });
                           onReload();
                         })
                         .catch((err: unknown) => {
@@ -1537,16 +1532,18 @@ function AssetDialogs({
                   .then((res) => {
                     setBusy(false);
                     const broken = brokenLinkTitles([res]);
-                    onDone([dialog.asset.id], {
-                      message:
-                        broken.length === 0
-                          ? t('assets.purged')
-                          : t('assets.purgedBroken', {
+                    onDone(
+                      [dialog.asset.id],
+                      broken.length === 0
+                        ? null
+                        : {
+                            message: t('assets.purgedBroken', {
                               works: broken.join(t('common.listSeparator')),
                             }),
-                      undo: null,
-                      tone: broken.length === 0 ? 'ok' : 'bad',
-                    });
+                            undo: null,
+                            tone: 'bad',
+                          },
+                    );
                   })
                   .catch((err: unknown) => {
                     setBusy(false);
@@ -1587,16 +1584,15 @@ function AssetDialogs({
                   const broken = brokenLinkTitles(res.purged);
                   onDone(
                     res.purged.map((p) => p.id),
-                    {
-                      message:
-                        broken.length === 0
-                          ? t('assets.emptied', { count: res.purged.length })
-                          : t('assets.emptiedBroken', {
-                              works: broken.join(t('common.listSeparator')),
-                            }),
-                      undo: null,
-                      tone: broken.length === 0 ? 'ok' : 'bad',
-                    },
+                    broken.length === 0
+                      ? null
+                      : {
+                          message: t('assets.emptiedBroken', {
+                            works: broken.join(t('common.listSeparator')),
+                          }),
+                          undo: null,
+                          tone: 'bad',
+                        },
                   );
                 })
                 .catch((err: unknown) => {

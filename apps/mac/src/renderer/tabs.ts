@@ -46,8 +46,6 @@ export interface TabsState {
   flashSeq: number;
   /** The last closed tab, while 重新開啟 is offered. */
   closed: ClosedTab | null;
-  /** 「已恢復上次的 N 個分頁」 after launch, until dismissed. */
-  restored: number | null;
 }
 
 /** The right sidebar's tab is the window's, not the tab's (QC-085). */
@@ -84,7 +82,6 @@ export class TabsModel {
     flashId: null,
     flashSeq: 0,
     closed: null,
-    restored: null,
   };
   private readonly listeners = new Set<() => void>();
   /** Most recently active last. */
@@ -274,21 +271,6 @@ export class TabsModel {
     return closing.length;
   }
 
-  /** 全部關閉 (from the restore notice): closes every tab without unsaved edits or a conflict. */
-  closeAll(): number {
-    const keep = (t: Tab) => t.unsaved || t.conflict;
-    const closing = this.state.tabs.filter((t) => !keep(t));
-    const ids = new Set(closing.map((t) => t.id));
-    this.recency = this.recency.filter((r) => !ids.has(r));
-    const tabs = this.state.tabs.filter(keep);
-    const active = tabs.some((t) => t.id === this.state.activeId)
-      ? this.state.activeId
-      : (tabs[0]?.id ?? null);
-    this.set({ tabs, activeId: active, closed: null, restored: null });
-    if (active !== null) this.activate(active);
-    return closing.length;
-  }
-
   /** Drag reorder: put tab `id` before the tab now at `toIndex` (or at the end). */
   move(id: string, toIndex: number): void {
     const from = this.state.tabs.findIndex((t) => t.id === id);
@@ -316,10 +298,6 @@ export class TabsModel {
     const tabs = this.state.tabs;
     const tab = n >= 9 ? tabs[tabs.length - 1] : tabs[n - 1];
     if (tab !== undefined) this.activate(tab.id);
-  }
-
-  dismissRestored(): void {
-    if (this.state.restored !== null) this.set({ restored: null });
   }
 
   persisted(): PersistedTabs {
@@ -360,7 +338,7 @@ export class TabsModel {
     if (tabs.length === 0) return;
     const active = tabs.some((t) => t.id === saved.active) ? saved.active : (tabs[0]?.id ?? null);
     this.recency = [];
-    this.set({ tabs, activeId: null, restored: tabs.length, closed: null });
+    this.set({ tabs, activeId: null, closed: null });
     if (active !== null) this.activate(active);
   }
 }

@@ -33,15 +33,15 @@ export function ProposalsPage({
   const [failed, setFailed] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<ProposalDetail | null>(null);
-  const [notice, setNotice] = useState<{ text: string; tone: 'ok' | 'bad' } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [epoch, setEpoch] = useState(0);
 
   useToast(
     notice === null
       ? null
       : {
-          message: notice.text,
-          tone: notice.tone,
+          message: notice,
+          tone: 'bad',
           onClose: () => {
             setNotice(null);
           },
@@ -247,9 +247,7 @@ export function ProposalsPage({
               onOpenInEditor={() => {
                 onOpenWork(detail.work_id);
               }}
-              onNotice={(text, tone) => {
-                setNotice({ text, tone });
-              }}
+              onNotice={setNotice}
             />
           )}
         </section>

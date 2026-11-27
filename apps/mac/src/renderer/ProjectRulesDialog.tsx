@@ -46,12 +46,10 @@ const PREVIEW_DELAY_MS = 350;
 export function ProjectRulesDialog({
   store,
   project,
-  onSaved,
   onClose,
 }: {
   store: ProjectsStore;
   project: Project;
-  onSaved: (text: string) => void;
   onClose: () => void;
 }) {
   const [description, setDescription] = useState(project.description ?? '');
@@ -124,7 +122,6 @@ export function ProjectRulesDialog({
           }
           return;
         }
-        onSaved(t('agents.rulesSaved', { name: project.name }));
         onClose();
       })
       .catch(() => {

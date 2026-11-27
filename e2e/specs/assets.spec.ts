@@ -220,8 +220,9 @@ test('素材庫：編輯、刪除規則、復原、回收站與批次', async ({
         .filter({ hasText: 'desk.png' })
         .getByRole('button', { name: '恢復' })
         .click();
-      await expect(toast).toContainText('已恢復到原位置');
       await expect(list.getByRole('listitem')).toHaveCount(4);
+      // The row left 回收站: no notice (QC-115).
+      await expect(toast.filter({ hasText: '恢復' })).toHaveCount(0);
       // Restored with its reference to the work.
       expect((await c.workAssets.list(work.id)).items.map((i) => i.asset.id)).toContain(desk.id);
 
@@ -232,10 +233,10 @@ test('素材庫：編輯、刪除規則、復原、回收站與批次', async ({
       await expect(viewer.getByRole('button', { name: '資訊', exact: true })).toHaveCount(0);
       await shot(page, '07b-trash-viewer');
       await viewer.getByRole('button', { name: '恢復' }).click();
-      await expect(toast).toContainText('已恢復到原位置');
       await expect.poll(async () => (await c.assets.get(kyoto.id)).deleted_at).toBeNull();
       await back();
       await expect(list.getByRole('listitem')).toHaveCount(3);
+      await expect(toast.filter({ hasText: '恢復' })).toHaveCount(0);
 
       await list
         .getByRole('listitem')
@@ -246,11 +247,13 @@ test('素材庫：編輯、刪除規則、復原、回收站與批次', async ({
       await expect(dialog.getByRole('button', { name: '取消' })).toBeFocused();
       await dialog.getByRole('button', { name: '永久刪除' }).click();
       await expect(list.getByRole('listitem')).toHaveCount(2);
+      await expect(toast.filter({ hasText: '永久刪除' })).toHaveCount(0);
 
       await page.getByRole('button', { name: '清空' }).click();
       dialog = page.getByRole('dialog', { name: '永久刪除 2 個素材？' });
       await dialog.getByRole('button', { name: '永久刪除' }).click();
       await expect(page.getByText('回收站是空的')).toBeVisible();
+      await expect(toast.filter({ hasText: '清空' })).toHaveCount(0);
     });
 
     await test.step('深色截圖', async () => {

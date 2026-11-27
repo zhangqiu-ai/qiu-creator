@@ -109,7 +109,6 @@ export const assets = defineMessages({
     daysLeft: '{count} 天',
     originalInTrash: '原檔在垃圾桶',
     removedChip: '已移出',
-    restored: '已恢復到原位置',
     purge: '永久刪除',
 
     // Delete rules
@@ -156,11 +155,9 @@ export const assets = defineMessages({
     // 永久刪除
     purgeTitle: '永久刪除這個素材？',
     purgeBody: '「{name}」的檔案會從磁碟刪除，無法復原。',
-    purged: '已永久刪除',
     purgedBroken: '已永久刪除；{works} 的正文仍連到這個檔案，會顯示為缺圖',
     emptyTrashTitle: '永久刪除 {count} 個素材？',
     emptyTrashBody: '回收站裡的檔案會從磁碟刪除，無法復原。',
-    emptied: '已清空回收站（{count} 個）',
     emptiedBroken: '已清空；{works} 的正文仍連到被刪的檔案，會顯示為缺圖',
 
     // Asset error codes, worded for this page
@@ -303,7 +300,6 @@ export const assets = defineMessages({
     daysLeft: '{count} 天',
     originalInTrash: '原文件在废纸篓',
     removedChip: '已移出',
-    restored: '已恢复到原位置',
     purge: '永久删除',
 
     movedToTrash: '已移到回收站',
@@ -346,11 +342,9 @@ export const assets = defineMessages({
 
     purgeTitle: '永久删除这个素材？',
     purgeBody: '“{name}”的文件会从磁盘删除，无法撤销。',
-    purged: '已永久删除',
     purgedBroken: '已永久删除；{works} 的正文仍链接到这个文件，会显示为缺图',
     emptyTrashTitle: '永久删除 {count} 个素材？',
     emptyTrashBody: '回收站里的文件会从磁盘删除，无法撤销。',
-    emptied: '已清空回收站（{count} 个）',
     emptiedBroken: '已清空；{works} 的正文仍链接到被删的文件，会显示为缺图',
 
     errNoResponse: '没有收到服务的响应',
@@ -492,7 +486,6 @@ export const assets = defineMessages({
     daysLeft: { one: '{count} day', other: '{count} days' },
     originalInTrash: 'Original in the Trash',
     removedChip: 'Removed',
-    restored: 'Restored to where it was',
     purge: 'Delete permanently',
 
     movedToTrash: 'Moved to Trash',
@@ -551,7 +544,6 @@ export const assets = defineMessages({
 
     purgeTitle: 'Delete this asset permanently?',
     purgeBody: 'The file for “{name}” is deleted from disk. This can’t be undone.',
-    purged: 'Deleted permanently',
     purgedBroken:
       'Deleted permanently. The body of {works} still links to this file and will show a missing image.',
     emptyTrashTitle: {
@@ -559,10 +551,6 @@ export const assets = defineMessages({
       other: 'Delete {count} assets permanently?',
     },
     emptyTrashBody: 'The files in Trash are deleted from disk. This can’t be undone.',
-    emptied: {
-      one: 'Trash emptied ({count} asset)',
-      other: 'Trash emptied ({count} assets)',
-    },
     emptiedBroken:
       'Emptied. The body of {works} still links to deleted files and will show a missing image.',
 

@@ -300,7 +300,7 @@ function RewriteTab({
         <LanguageModelSwitch
           variant="panel"
           sample={selectionText}
-          onNotice={onNotice}
+          onError={onNotice}
           onOpenServices={onOpenSettings}
         />
       </div>

@@ -214,8 +214,8 @@ export function LibraryPage({
     () => ({
       cache: memberships,
       client,
-      notify: (message: string, tone?: 'bad') => {
-        notifyProject(tone === undefined ? { message } : { message, tone });
+      notifyError: (message: string) => {
+        notifyProject({ message, tone: 'bad' });
       },
     }),
     [memberships, client, notifyProject],
@@ -595,10 +595,8 @@ export function LibraryPage({
       load();
       return;
     }
-    if (undoing) {
-      setNotice({ kind: 'text', tone: 'ok', message: t('workActions.undone') });
-      return;
-    }
+    // 復原 shows on the cards themselves.
+    if (undoing) return;
     const first = done[0];
     if (first === undefined) return;
     const label = WORK_STATUS[status].label;
@@ -675,11 +673,9 @@ export function LibraryPage({
           setNotice(null);
           void restoreWorks(client, trashed).then((back) => {
             const failedBack = back.failed[0];
-            setNotice(
-              failedBack === undefined
-                ? { kind: 'text', tone: 'ok', message: t('workActions.undone') }
-                : { kind: 'text', tone: 'bad', message: codeText(failedBack.code) },
-            );
+            if (failedBack !== undefined) {
+              setNotice({ kind: 'text', tone: 'bad', message: codeText(failedBack.code) });
+            }
             load();
           });
         },
@@ -722,10 +718,7 @@ export function LibraryPage({
         load();
         return;
       }
-      if (undoing) {
-        setNotice({ kind: 'text', tone: 'ok', message: t('workActions.undone') });
-        return;
-      }
+      if (undoing) return;
       const groups = tagUndoGroups(before, tags, mode);
       setNotice({
         kind: 'undo',
@@ -1019,18 +1012,12 @@ export function LibraryPage({
     if (store === null) return;
     try {
       const created = await store.create(name, color);
-      const added = await store.setMembership(
+      await store.setMembership(
         created.id,
         targets.map((w) => w.id),
         true,
       );
       load();
-      notifyProject({
-        message:
-          added.length > 0
-            ? t('projects.createdAdded', { name: created.name })
-            : t('projects.created', { name: created.name }),
-      });
     } catch {
       notifyProject({ message: t('common.cannotConnect'), tone: 'bad' });
     }
@@ -1474,7 +1461,6 @@ export function LibraryPage({
                             label={
                               <WorkProjectLabel
                                 workId={w.id}
-                                title={w.title}
                                 projectIds={w.project_ids}
                                 projects={projectList}
                                 currentId={projectId}
@@ -1608,7 +1594,6 @@ export function LibraryPage({
                             <td className="tbl__proj">
                               <WorkProjectLabel
                                 workId={w.id}
-                                title={w.title}
                                 projectIds={w.project_ids}
                                 projects={projectList}
                                 currentId={projectId}

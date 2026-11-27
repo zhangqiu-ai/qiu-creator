@@ -288,7 +288,6 @@ export function PromptsPage({
       const copy = await client.ai.prompts.duplicate(prompt.id);
       await library.loadPrompts();
       open(copy);
-      notify({ message: t('prompts.duplicated') });
     } catch (err) {
       notify({ message: messageOf(err), tone: 'bad' });
     }
@@ -306,7 +305,6 @@ export function PromptsPage({
         setSelection(null);
         setDraft(emptyDraft());
       } else open(pick);
-      notify({ message: t('prompts.deleted', { name: prompt.name }) });
     } catch (err) {
       notify({ message: messageOf(err), tone: 'bad' });
     }
@@ -329,7 +327,6 @@ export function PromptsPage({
       setTimeout(() => {
         URL.revokeObjectURL(url);
       }, REVOKE_AFTER_MS);
-      notify({ message: t('prompts.exported', { count: file.prompts.length }) });
     } catch (err) {
       notify({ message: messageOf(err), tone: 'bad' });
     }
@@ -347,12 +344,15 @@ export function PromptsPage({
       await library.loadPrompts();
       const first = result.items[0];
       if (first !== undefined) open(first);
-      notify({
-        message:
-          result.renamed === 0
-            ? t('prompts.imported', { count: result.imported })
-            : t('prompts.importedRenamed', { count: result.imported, renamed: result.renamed }),
-      });
+      // Only the renamed copies are news: the list shows what came in.
+      if (result.renamed > 0) {
+        notify({
+          message: t('prompts.importedRenamed', {
+            count: result.imported,
+            renamed: result.renamed,
+          }),
+        });
+      }
     } catch (err) {
       notify({ message: messageOf(err), tone: 'bad' });
     }
@@ -466,7 +466,6 @@ export function PromptsPage({
         });
         setDraft(draftOf(created));
         setSelection({ kind: 'prompt', id: created.id });
-        notify({ message: t('prompts.kept') });
       } catch (err) {
         setFailed(true);
         notify({ message: messageOf(err), tone: 'bad' });
@@ -485,7 +484,6 @@ export function PromptsPage({
       });
       await library.loadPrompts();
       setDraft(draftOf(saved));
-      notify({ message: t('prompts.kept') });
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         await library.loadPrompts();

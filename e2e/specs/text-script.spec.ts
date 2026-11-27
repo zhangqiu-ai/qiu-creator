@@ -44,12 +44,11 @@ test('作品文字字體：全域設定與項目覆寫', async ({ desktop }) => 
 
     await group.getByRole('radio', { name: '繁體' }).click();
     await expect(group.getByRole('radio', { name: '繁體' })).toBeChecked();
-    await expect(
-      page.locator('[data-toast]').filter({ hasText: '作品文字字體改為繁體' }),
-    ).toBeVisible();
     await expect.poll(async () => (await c.settings.textScript()).script).toBe('zh-Hant');
     expect((await c.settings.textScript()).updated_at).not.toBeNull();
     await expect(page.locator('.ag-script')).not.toContainText('預設值');
+    // The choice itself shows what was saved (QC-115).
+    await expect(page.locator('[data-toast]').filter({ hasText: '作品文字字體' })).toHaveCount(0);
 
     // Arrow keys move the choice, as in the other segmented settings.
     await group.getByRole('radio', { name: '繁體' }).focus();

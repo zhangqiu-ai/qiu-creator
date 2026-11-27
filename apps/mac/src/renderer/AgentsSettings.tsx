@@ -166,12 +166,7 @@ export function AgentsSettings({ client }: { client: CreatorHubClient }) {
         </div>
       </header>
 
-      <TextScriptSection
-        client={client}
-        onSaved={(text) => {
-          setNotice({ text, tone: 'ok' });
-        }}
-      />
+      <TextScriptSection client={client} />
 
       <div className="ag__cols">
         <section className="ag__list" aria-label={t('agents.tokensLabel')}>

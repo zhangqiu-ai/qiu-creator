@@ -114,7 +114,6 @@ test('語言與模型：工具列與面板同步、存在服務端；候選標�
     await expect(list.getByRole('option', { name: /跟隨原文/ })).toContainText('這段是繁體中文');
     await shot(page, '1-language');
     await list.getByRole('option', { name: '簡體中文' }).click();
-    await expect(page.getByText('之後的 AI 文字用簡體中文')).toBeVisible();
     await expect.poll(async () => (await c.ai.preferences()).output_language).toBe('zh-Hans');
     await expect(toolbar(page).getByRole('button', { name: '輸出語言' })).toHaveText('簡中');
     // The panel shows the same choice.
@@ -148,6 +147,9 @@ test('語言與模型：工具列與面板同步、存在服務端；候選標�
     const bar = page.locator('.inline-ai .cand-bar');
     await expect(bar).toContainText('簡中');
     await expect(bar).toContainText('New API · kimi-k3');
+    // Both pickers show what was chosen, so neither choice raised a notice (QC-115).
+    // Asked here: both saves have long been answered by the time a result is back.
+    await expect(page.locator('[data-toast]').filter({ hasText: '之後的 AI 文字' })).toHaveCount(0);
     await shot(page, '3-candidate');
     await content(page).click({ position: { x: 5, y: 5 } });
     await page.keyboard.press('Escape');

@@ -96,9 +96,14 @@ test('浮層動效錄影（正常速度）與減少動態效果', async ({ deskt
   await expect(page.locator('.scrim')).toHaveCount(0);
 
   // Three toasts stack, the newest lowest; the older ones slide up.
-  await nav(page).getByRole('button', { name: '新建項目', exact: true }).first().click();
-  await page.keyboard.type('春季選題');
-  await page.keyboard.press('Enter');
+  for (const name of ['春季選題', '舊選題']) {
+    await nav(page).getByRole('button', { name: '新建項目', exact: true }).first().click();
+    await page.keyboard.type(name);
+    await page.keyboard.press('Enter');
+    await expect(nav(page).locator('[data-project-row]', { hasText: name })).toBeVisible();
+  }
+  await nav(page).locator('[data-project-row]', { hasText: '舊選題' }).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: '封存', exact: true }).click();
   await nav(page).getByRole('button', { name: '全部作品', exact: true }).click();
   await card(page, '京都散步路線').click({ button: 'right' });
   await page.getByRole('menuitem', { name: '項目' }).hover();

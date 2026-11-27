@@ -44,7 +44,6 @@ import {
   SettleIn,
 } from './motion.js';
 
-type Notice = { message: string; tone: 'ok' | 'bad' };
 /** A deleted work as selection and actions see it: a loaded card or a ⌘A ref (QC-067). */
 type TrashWork = Pick<
   WorkRef,
@@ -87,7 +86,7 @@ export function TrashView({
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
   const [menu, setMenu] = useState<{ anchor: MenuAnchor; ids: readonly string[] } | null>(null);
   const [purge, setPurge] = useState<Purge | null>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const request = useRef(0);
   const queryRef = useRef(query);
@@ -146,8 +145,8 @@ export function TrashView({
     notice === null
       ? null
       : {
-          message: notice.message,
-          tone: notice.tone,
+          message: notice,
+          tone: 'bad',
           onClose: () => {
             setNotice(null);
           },
@@ -170,22 +169,11 @@ export function TrashView({
           firstFailed.code === 'source_missing' && work !== undefined
             ? t('workActions.restoreSourceMissing', { title: work.title })
             : codeText(firstFailed.code);
-        setNotice({
-          tone: 'bad',
-          message:
-            targets.length === 1
-              ? reason
-              : t('workActions.partial', { done: back.size, failed: res.failed.length, reason }),
-        });
-      } else {
-        const first = res.ok[0];
-        setNotice({
-          tone: 'ok',
-          message:
-            res.ok.length === 1 && first !== undefined
-              ? t('workActions.restored', { title: first.title })
-              : t('workActions.restoredMany', { count: res.ok.length }),
-        });
+        setNotice(
+          targets.length === 1
+            ? reason
+            : t('workActions.partial', { done: back.size, failed: res.failed.length, reason }),
+        );
       }
       load();
     } finally {
@@ -198,9 +186,8 @@ export function TrashView({
     setBusy(true);
     try {
       if (empty) {
-        const res = await client.works.emptyTrash();
+        await client.works.emptyTrash();
         feed.remove(new Set((works ?? []).map((w) => w.id)));
-        setNotice({ tone: 'ok', message: t('workActions.purged', { count: res.purged.length }) });
       } else {
         const res = await purgeWorks(
           client,
@@ -209,23 +196,20 @@ export function TrashView({
         const gone = new Set(res.purged);
         feed.remove(gone);
         const firstFailed = res.failed[0];
-        setNotice(
-          firstFailed === undefined
-            ? { tone: 'ok', message: t('workActions.purged', { count: res.purged.length }) }
-            : {
-                tone: 'bad',
-                message: t('workActions.partial', {
-                  done: res.purged.length,
-                  failed: res.failed.length,
-                  reason: codeText(firstFailed.code),
-                }),
-              },
-        );
+        if (firstFailed !== undefined) {
+          setNotice(
+            t('workActions.partial', {
+              done: res.purged.length,
+              failed: res.failed.length,
+              reason: codeText(firstFailed.code),
+            }),
+          );
+        }
       }
       setSelection(EMPTY_SELECTION);
       setAllRefs(null);
     } catch (err) {
-      setNotice({ tone: 'bad', message: errorText(err) });
+      setNotice(errorText(err));
     } finally {
       setBusy(false);
       load();
@@ -257,7 +241,7 @@ export function TrashView({
             });
           })
           .catch((err: unknown) => {
-            setNotice({ tone: 'bad', message: errorText(err) });
+            setNotice(errorText(err));
           });
       } else if (e.metaKey && e.key === 'Backspace' && selectedRef.current.length > 0) {
         e.preventDefault();

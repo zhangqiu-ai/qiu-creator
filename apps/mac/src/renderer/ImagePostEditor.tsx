@@ -472,18 +472,13 @@ function PostEditor({
   const over = counts.some((c) => c.over);
   const descLength = charCount(draft.markdown);
   // Notices go through the shared queue (QC-045); a background tab shows none.
-  const shownNotice = undo?.label ?? notice ?? insertState.notice?.message ?? null;
+  const shownNotice = undo?.label ?? notice ?? insertState.notice;
   useToast(
     !active || shownNotice === null
       ? null
       : {
           message: shownNotice,
-          tone:
-            undo !== null || (notice === null && insertState.notice?.tone === 'ok')
-              ? 'ok'
-              : notice !== null
-                ? 'neutral'
-                : 'bad',
+          tone: undo !== null ? 'ok' : notice !== null ? 'neutral' : 'bad',
           actions:
             undo === null
               ? []
@@ -1072,9 +1067,7 @@ function PostEditor({
                         : now.baseRevision;
                     }}
                     onHighlight={ignoreHighlight}
-                    onNotice={(text) => {
-                      setNotice(text);
-                    }}
+                    onNotice={setNotice}
                   />
                 ),
               }

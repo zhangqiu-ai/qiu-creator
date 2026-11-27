@@ -187,9 +187,6 @@ export function useProjectMenu({
         <ProjectRulesDialog
           store={store}
           project={settingsProject}
-          onSaved={(message) => {
-            notify({ message });
-          }}
           onClose={() => {
             setSettings(null);
           }}

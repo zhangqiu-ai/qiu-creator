@@ -274,15 +274,14 @@ test('貼圖：檔案遺失後重新指定、作品庫類型篩選與縮圖、�
     await expect(page.getByRole('textbox', { name: '標題' })).toHaveValue('一篇文章');
     await page.keyboard.press('Meta+1');
     await expect(editor(page)).toBeVisible();
-    // The editor's notice (復原) and then a tab notice (關閉其他).
+    // The editor's notice (復原) and then a tab notice (重新開啟).
     await tiles(page).first().focus();
     await page.keyboard.press('Backspace');
-    await page.getByRole('button', { name: '全部分頁（2）' }).click();
-    await page.getByRole('button', { name: /關閉其他分頁/ }).click();
+    await page.getByRole('button', { name: '關閉「一篇文章」' }).click();
     const toasts = page.locator('[data-toast]');
     await expect(toasts).toHaveCount(2);
     await expect(toasts.nth(0)).toContainText('已移除第 1 張');
-    await expect(toasts.nth(1)).toContainText('已關閉 1 個分頁');
+    await expect(toasts.nth(1)).toContainText('已關閉「一篇文章」');
     const upper = await toasts.nth(0).boundingBox();
     const lower = await toasts.nth(1).boundingBox();
     if (upper === null || lower === null) throw new Error('toasts not rendered');

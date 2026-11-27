@@ -126,9 +126,6 @@ test('Agent 提案：收件匣、部分採用、重疊不能採用與三方對�
     await shot(page, 'inbox');
     await changes.getByRole('checkbox', { name: '採用第 3 處' }).uncheck();
     await page.getByRole('button', { name: '採用選取的 2 / 3 處' }).click();
-    await expect(
-      page.locator('[data-toast]').filter({ hasText: '已採用 Claude Code 的提案' }),
-    ).toBeVisible();
     const after = await c.works.get(kyoto.id);
     // QC-103/QC-111: the lines the agent changed are in the default script
     // (zh-Hans); every line it did not change is the user's, word for word.
@@ -140,6 +137,8 @@ test('Agent 提案：收件匣、部分採用、重疊不能採用與三方對�
     const revs = await c.works.revisions(kyoto.id);
     expect(revs.items[0]?.agent).toMatchObject({ name: 'Claude Code', via: 'proposal' });
     await expect(inboxRow(page)).toHaveAccessibleName('Agent 提案 1 個待處理');
+    // The proposal left the list: no notice (QC-115).
+    await expect(page.locator('[data-toast]').filter({ hasText: '已採用' })).toHaveCount(0);
   });
 
   await test.step('和之後的修改重疊：紅色提示、不能採用；三方對照；捨棄後到已處理', async () => {
@@ -164,8 +163,8 @@ test('Agent 提案：收件匣、部分採用、重疊不能採用與三方對�
     await expect(dialog).toHaveCount(0);
     await expect(page.getByRole('checkbox', { name: '採用第 1 處' })).not.toBeChecked();
     await page.getByRole('button', { name: '捨棄' }).click();
-    await expect(page.locator('[data-toast]').filter({ hasText: '已捨棄提案' })).toBeVisible();
     await expect(list(page).getByText('沒有待處理的提案')).toBeVisible();
+    await expect(page.locator('[data-toast]').filter({ hasText: '已捨棄提案' })).toHaveCount(0);
     await expect(inboxRow(page)).toHaveAccessibleName('Agent 提案');
     await page
       .getByRole('group', { name: '提案狀態' })
@@ -433,10 +432,9 @@ test('項目設定：描述、規則與試算；Agent 歸入的作品卡標示�
     // Opening the explanation did not open the work.
     await expect(page.locator('.tab-pane:not([hidden]) .qc-md-editor__content')).toHaveCount(0);
     await pop.getByRole('button', { name: '保留（改為手動）' }).click();
-    await expect(
-      page.locator('[data-toast]').filter({ hasText: '已把「京都旅行」改為手動歸入' }),
-    ).toBeVisible();
     await expect(badge).toHaveCount(0);
+    // The agent mark left the card: no notice (QC-115).
+    await expect(page.locator('[data-toast]').filter({ hasText: '改為手動歸入' })).toHaveCount(0);
     const kept = await c.projects.workMemberships(made.id);
     expect(kept.items[0]?.added_by.kind).toBe('user');
   });
@@ -459,9 +457,10 @@ test('項目設定：描述、規則與試算；Agent 歸入的作品卡標示�
       .getByRole('dialog', { name: /由 Claude Code 歸入/ })
       .getByRole('button', { name: '復原歸入' })
       .click();
-    await expect(
-      page.locator('[data-toast]').filter({ hasText: '已把「京都錦市場第二輪」移出「京都旅行」' }),
-    ).toBeVisible();
     await expect.poll(async () => (await c.works.get(made.id)).project_ids ?? []).toEqual([]);
+    await expect(card.getByRole('button', { name: /由 Agent 歸入/ })).toHaveCount(0);
+    await expect(page.locator('[data-toast]').filter({ hasText: '移出「京都旅行」' })).toHaveCount(
+      0,
+    );
   });
 });
