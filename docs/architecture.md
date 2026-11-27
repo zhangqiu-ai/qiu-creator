@@ -449,6 +449,40 @@ SQLite 只存索引、中繼資料、任務與版本記錄；媒體永遠是磁�
   - 名稱提示改成一個 `position: fixed` 的浮動元素（`.sb__railtip`），顯示在被懸停或鍵盤聚焦的項目旁邊。原本的 `::after` 會被捲動區裁掉，所以不再使用。
 - **卡片圓點**：只顯示作品「其他」的未封存項目，最多 2 個，其餘以 +N 表示（`cardDots`）。
 
+## 項目分組與系列：Mac 介面（QC-114）
+
+依已核准原型 PT-20261126-002 方案 A（[決策記錄](decisions.md) 2026-11-27），建在 QC-113 的 API 上。
+
+- **程式位置**（`apps/mac/src/renderer/`）：
+  - `project-groups.ts`：純邏輯。分段（`sectionWorks`）、集數、本地先套用的歸組與排序（`assignLocally`、`moveLocally`，規則與服務相同）、插入線落點（`insertionIndex`、`positionAt`）、折疊記憶。
+  - `use-project-groups.ts`：`ProjectGroupsStore` 讀寫目前項目的分組，`useProjectGroups` 是給頁面用的 hook。
+  - `ProjectGroups.tsx`：段首、放置目標、拖曳追蹤（`useGroupDrop`）、選單與對話框。樣式在 `project-groups.css`。
+- **分段**：
+  - 項目有分組時，`LibraryPage` 依分組分段：未分組在最上面，有作品才出現；其後依 `sort_order` 排列各分組。
+  - 系列依 `work_ids` 的順序（也就是集數）排列；一般分組沿用頁面原本的排序。
+  - 項目還沒有分組時，維持原本的平鋪網格；頁首的「＋ 新分組」和右鍵「移到分組 ▸ 新分組…」是入口。
+  - 有分組的項目會一次讀完所有分頁，讓每個分組都顯示完整的作品。
+  - 篩選或搜尋時，數量只算畫面上顯示的作品，沒有符合作品的分組會隱藏，段首也不能拖曳。
+- **段首**：
+  - 包含折疊箭頭、名稱、數量、系列膠囊、Agent 建立標記（`created_by.kind === 'agent'`，沿用 QC-091 的 accentSoft 加機器人圖示），以及「⋯」。
+  - 網格模式下段首是 sticky。列表的表格外層會橫向捲動，所以列表裡的段首不是 sticky。
+  - 折疊狀態依項目記在 `localStorage` 的 `qc.projectGroups.collapsed`，只是單一使用者的便利設定，讀寫失敗就忽略。
+- **歸組**：
+  - **拖曳**：
+    - 和側欄共用同一個 `ProjectsDnd`。每個分段是一個 `group-target` 放置目標。
+    - `useGroupDrop` 用 `useDndMonitor` 追蹤拖曳：決定目標分段；系列裡依指標位置算插入線，換算成服務的 `position`（只計入其他作品）；算出跟手標籤「移到 X · 第 N 集」（經 `useDragHint` 交給浮層）；拖到折疊的分組上停 0.6 秒就展開它；放下時呼叫 assign。
+    - 拖段首可以排序分組。碰撞偵測只比對同一個項目的具名分組；拖側欄項目時只比對項目列。
+    - 放置目標在拖曳中會持續重新量測（`MeasuringStrategy.Always`），因為展開分組會改變版面。
+  - **選單**：右鍵或批量列的「移到分組 ▸」列出未分組、各分組（系列寫「放到第 N 集」）和「新分組…」。系列裡的作品另有「往前一集／往後一集」，給不用拖曳的人調整集數。
+  - **順序**：多選一起移動時，作品依畫面上的順序排列。
+- **同步與錯誤**：
+  - 分組的修改會先顯示在畫面上，再以服務的回應為準。`project.groups_changed` 會觸發重讀分組；作品清單照原本的方式，在 `project` 事件時重新整理。
+  - 任何失敗，包括 409 `revision_conflict`、`group_name_taken`，都會重讀分組，並用既有的錯誤文字跳 toast。
+  - 依 QC-115，成功不跳 toast：結果就在畫面上。
+- **全部作品**：
+  - 不分段。卡片的項目標籤（`ProjectLabel`／`WorkProjectLabel`）會在第一個項目名稱後面加淡色的「› 分組 #集數」，資料來自 `work.project_groups`。
+  - 寬度不夠時先縮分組名稱，項目名稱和集數保留。
+
 ## 作品庫卡片圖與摘要（QC-061）
 
 實作在 `src/works/card-images.ts`。卡片只載入一張圖片，列表裡不開 `<video>`。
