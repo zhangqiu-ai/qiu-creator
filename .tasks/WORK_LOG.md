@@ -1,5 +1,9 @@
 # Work Log
 
+## 2026-11-27 · 發版 23ff9fa（QC-113～116）
+
+- QC-116 可發版，證據合併。qc-release 升級本機 4501a9f → 23ff9fa，schema 0024，備份 `20261127T171544930Z-manual`。總監核對 /health commit 23ff9fa、err.log 0 位元組。
+
 ## 2026-11-27 · QC-114 合併，開 QC-116 發版前檢查
 
 - 合併 QC-114（項目分組 Mac 介面）。合併後 lint、typecheck、e2e tsc、format 通過，mac 523、i18n 30、mac-server 607。

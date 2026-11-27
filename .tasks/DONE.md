@@ -1,3 +1,11 @@
+## QC-116: 發版前檢查（QC-113、QC-114、QC-115）
+
+**Priority:** P1 | **Assignee:** qc-test | **Tags:** M3
+
+可發版（c1816f5）。單元 1459/0/1459；e2e 一般 69、動效 70，0 failed；MCP 分組實測通過；0023→0024 遷移、回滾、再升級演練通過。打包版煙霧測試由 qc-release 在升級前補做，2/2 passed。已發版：本機升級到 23ff9fa，schema 0024，備份 `20261127T171544930Z-manual`，/health 正常、err.log 0 位元組，既有作品、項目筆數與雜湊不變，全部在未分組。證據 `docs/evidence/qc116-prerelease.md`、`docs/evidence/qc033-install.md`。NOT_VERIFIED：使用者自己的 App 在真實資料上的項目頁、真實安裝上帶權杖的 MCP 分組工具（需重連 MCP）。
+
+**Completed:** 2026-11-27
+
 ## QC-114: 項目分組與系列（Mac 介面）
 
 **Priority:** P2 | **Assignee:** qc-frontend | **Tags:** frontend
