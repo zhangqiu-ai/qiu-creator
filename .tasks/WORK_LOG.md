@@ -1,5 +1,10 @@
 # Work Log
 
+## 2026-11-27 · QC-114 合併，開 QC-116 發版前檢查
+
+- 合併 QC-114（項目分組 Mac 介面）。合併後 lint、typecheck、e2e tsc、format 通過，mac 523、i18n 30、mac-server 607。
+- 開 QC-116 發版前檢查（qc-test），通過後交 qc-release 升級本機。
+
 ## 2026-11-27 · QC-113 合併，派 QC-114
 
 - 合併 QC-113（項目分組後端、API、MCP，遷移 0024）。合併後 lint、typecheck、e2e tsc、format 通過，受影響套件全過。

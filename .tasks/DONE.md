@@ -1,3 +1,11 @@
+## QC-114: 項目分組與系列（Mac 介面）
+
+**Priority:** P2 | **Assignee:** qc-frontend | **Tags:** frontend
+
+完成（f9e6646）。方案 A 項目頁分段：未分組在上、段首折疊（依項目記住）、sticky、系列膠囊、Agent 標記、「⋯」選單、「＋ 新分組」；系列「第 N 集」與列表「集」欄，拖曳插入線或右鍵「往前一集／往後一集」改集數；拖曳歸組（虛影、虛線框、跟手標籤、多選、Esc、折疊組停 0.6 秒展開、拖段首排序）；右鍵與批次列「移到分組」含「新分組…」；全部作品卡片「› 分組 #集數」；樂觀更新、跟 `project.groups_changed`、409 重載；成功不跳 toast（QC-115）。沒有分組的項目維持原本平鋪。與原型差異：右鍵選單無圖示、列表段首不 sticky、跟手標籤是膠囊。驗證：合併後 mac 523、i18n 30、mac-server 607 全過；子會話報 e2e 一般 69、動效 70，0 failed。證據 `docs/evidence/qc114/`、`docs/evidence/qc114-project-groups.md`。NOT_VERIFIED：實機觸控板拖曳手感、簡中與英文版面寬度、近 100 組效能。
+
+**Completed:** 2026-11-27
+
 ## QC-113: 項目分組與系列（後端、API、MCP）
 
 **Priority:** P2 | **Assignee:** qc-backend | **Tags:** backend

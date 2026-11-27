@@ -1,8 +1,8 @@
-## QC-114: 項目分組與系列（Mac 介面）
+## QC-116: 發版前檢查（QC-113、QC-114、QC-115）
 
-**Priority:** P2 | **Assignee:** qc-frontend | **Tags:** frontend
+**Priority:** P1 | **Assignee:** qc-test | **Tags:** M3
 
-依已核准原型 PT-20261126-002 方案 A 實作項目頁分段：未分組在上、段首折疊與 sticky、「⋯」選單、當作系列與「第 N 集」、列表「集」欄、拖曳歸組（插入線、多選、Esc、減少動態效果）、右鍵「移到分組」子選單與新建分組、「全部作品」卡片的「› 分組 #集數」、Agent 建立分組的標記。依賴 QC-113 的 API。
+使用者 2026-11-27 要求三張做完直接發版。對 main 全套檢查：根目錄 lint、typecheck、e2e tsc、format、全部單元測試，e2e 一般與 `QC_E2E_MOTION=on` 全套 0 failed；MCP 實測分組工具（臨時資料目錄、假服務）；遷移 0024 在一份舊資料庫副本上升級與回滾演練；打包版煙霧測試。通過後交 qc-release 備份並升級本機。證據 `docs/evidence/qc116-prerelease.md`。
 
 **Started:** 2026-11-27
 
