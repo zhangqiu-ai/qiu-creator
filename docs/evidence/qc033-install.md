@@ -387,3 +387,17 @@ exit 0。升級前備份 id：**`20261121T154449342Z-manual`**。
 - 偏好檔 `preferences.json`：升級前、升級後、啟動檢查後 sha256 相同（`9061bbfe…3e3f`）。
 - 使用者 App 行程（pid 45101）未開關，仍是舊行程；除備份與遷移外未動 `~/CreatorHub` 內容，未碰金鑰與 Keychain，未發 AI 請求。
 - NOT_VERIFIED：使用者自己的 App 以新版開啟並連到正式服務、視窗截圖、真實安裝上帶權杖的 MCP 連線。
+
+## 升級到 23ff9fa（2026-11-27，QC-113～115 項目分組與系列、降低提示頻率，遷移 0024）：成功
+
+- 建置：乾淨 worktree，commit `23ff9fa3e337f199b9925a3136b902a6f3d73455`（無 `-dirty`），ad-hoc 簽名（沒有 Developer ID、未公證），`codesign --verify --deep --strict` 通過（建置產物與安裝後的 `/Applications/qiu-creator.app`）。
+- 打包版煙霧測試（QC-116 留下的項目，升級前，09:15）：以 e2e desktop fixture（`CREATORHUB_E2E_APP` 指向本次建置的 App，背景模式，臨時 `CREATORHUB_HOME`、profile、服務與埠，持 `qc-e2e.lock`）跑 `background-run`、`project-groups`，2 passed／0 failed／2 total。涵蓋 App 能開、項目頁分段（未分組、系列第 N 集）、由選單「新分組…」建立分組並放入作品；另看過分段截圖 `01-sections`。fixture 的服務是 worktree 原始碼（同一 commit），不是打包的服務產物。
+- 升級前（09:14）：7420 只有 launchd 服務（pid 52936），7431 無監聽；`/health` 為 4501a9f；schema 最新 0023；作品 14（未刪除 10）、項目 3、作品與項目關聯 9、素材 31。
+- 乾跑後 `upgrade --yes`（09:15:44–09:15:53）exit 0；installer 先做備份並確認完整性，通過後才停服務：`20261127T171544930Z-manual`（ok）。
+- 升級後：`/health` commit 23ff9fa、built_at `2026-11-27T17:14:44.682Z`；launchd running（pid 31457）；schema 最新 `0024|project_groups`，其次 0023；`pragma integrity_check` ok；`server.prev`（4501a9f）與 `app.prev` 在；日誌 level-50、level-60 為 0 筆、err.log 0 位元組。
+- 既有資料：上述五項筆數不變；作品 id、項目 id、作品與項目關聯的雜湊升級前後相同。`project_groups` 0 筆，沒有任何關聯帶 `group_id` 或 `position`，即既有作品都在未分組。
+- 真實安裝的 CLI：`creatorhub --help` exit 0；`printf '' | creatorhub mcp`（假權杖）exit 0，stdout、stderr 皆 0 位元組。
+- 安裝後 App 啟動：同一 fixture 指向 `/Applications/qiu-creator.app`（臨時資料），`background-run`、`project-groups`，2 passed／0 failed／2 total；之後 `/health` 與 err.log 不變。
+- 偏好檔 `preferences.json`：升級前、升級後、啟動檢查後 sha256 相同（`8ae3eac6…a01f`）。
+- 使用者 App 行程（pid 37193，11-26 15:16 啟動）未開關，仍是舊行程；除備份與遷移外未動 `~/CreatorHub` 內容，未刪任何使用者資料，未碰金鑰與 Keychain，未發 AI 請求，未建立真權杖。
+- NOT_VERIFIED：使用者自己的 App 以新版開啟並連到正式服務（真實資料上的項目頁畫面）、真實安裝上帶權杖的 MCP 連線與分組工具。
