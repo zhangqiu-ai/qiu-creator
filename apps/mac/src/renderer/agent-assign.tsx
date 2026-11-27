@@ -1,5 +1,5 @@
 import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
-import type { Project, WorkProjectMembership } from '@qiu-creator/contracts';
+import type { Project, WorkProjectGroup, WorkProjectMembership } from '@qiu-creator/contracts';
 import {
   createContext,
   useContext,
@@ -14,7 +14,8 @@ import { createPortal } from 'react-dom';
 import { formatWhen } from './format.js';
 import { t } from './i18n.js';
 import { Icon } from './Icon.js';
-import { ProjectLabel } from './LibraryProjects.js';
+import { GroupSuffix, groupedName, ProjectLabel } from './LibraryProjects.js';
+import { workGroupIn } from './project-groups.js';
 import { projectColor, projectLabel } from './projects-store.js';
 import { reasonsText, scoreText } from './project-rules-ui.js';
 import { Avatar } from './ProposalView.js';
@@ -123,11 +124,14 @@ export function WorkProjectLabel({
   projectIds,
   projects,
   currentId,
+  groups,
 }: {
   workId: string;
   projectIds: readonly string[] | undefined;
   projects: readonly Project[];
   currentId: string | null;
+  /** QC-114: the work's groups (「› 分組 #集數」). */
+  groups?: readonly WorkProjectGroup[] | undefined;
 }) {
   const ctx = useContext(MembershipContext);
   const has = (projectIds ?? []).length > 0;
@@ -147,10 +151,18 @@ export function WorkProjectLabel({
           (m) => byAgent(m) && [label.first, ...label.others].some((p) => p.id === m.project_id),
         );
   if (ctx === null || label === null || agentMember === undefined) {
-    return <ProjectLabel projectIds={projectIds} projects={projects} currentId={currentId} />;
+    return (
+      <ProjectLabel
+        projectIds={projectIds}
+        projects={projects}
+        currentId={currentId}
+        groups={groups}
+      />
+    );
   }
   const project = projects.find((p) => p.id === agentMember.project_id) ?? label.first;
   const others = [label.first, ...label.others].filter((p) => p.id !== project.id);
+  const group = workGroupIn(groups, project.id);
   const toggle = (e: MouseEvent | KeyboardEvent) => {
     // The card itself opens the work: this only opens the explanation.
     e.stopPropagation();
@@ -168,7 +180,10 @@ export function WorkProjectLabel({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={t('agents.assignedAria', { project: project.name })}
-        title={[project, ...others].map((p) => p.name).join('、')}
+        title={[
+          group === null ? project.name : groupedName(project.name, group),
+          ...others.map((p) => p.name),
+        ].join('、')}
         onPointerDown={(e) => {
           e.stopPropagation();
         }}
@@ -179,6 +194,7 @@ export function WorkProjectLabel({
       >
         <Icon name="robot" size={11} />
         <span className="plabel__name">{project.name}</span>
+        {group !== null && <GroupSuffix group={group} />}
         {others.length > 0 && <span className="plabel__more num">+{others.length}</span>}
       </span>
       {open &&

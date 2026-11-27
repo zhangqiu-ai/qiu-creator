@@ -25,6 +25,8 @@ export type IconName =
   | 'video'
   | 'mixed'
   | 'offline'
+  | 'series'
+  | 'grip'
   | 'assets'
   | 'imports'
   | 'settings'
@@ -173,6 +175,17 @@ const PATHS: Readonly<Record<IconName, readonly string[]>> = {
     'M13 20l4-9 4 9',
     'M14.5 17h5',
   ],
+  // A series (QC-114): numbered lines.
+  series: [
+    'M10 6h10',
+    'M10 12h10',
+    'M10 18h10',
+    'M4 5l1.5-1v4',
+    'M4 11h2.5L4 14h2.5',
+    'M4 17h2.5L5 19l1.5 1H4',
+  ],
+  // A drag handle (QC-114): two columns of dots.
+  grip: ['M9 6h.01', 'M15 6h.01', 'M9 12h.01', 'M15 12h.01', 'M9 18h.01', 'M15 18h.01'],
   offline: [
     'M3 3l18 18',
     'M8.5 16.5a5 5 0 0 1 7 0',

@@ -2,6 +2,7 @@ import {
   closestCenter,
   DndContext,
   DragOverlay,
+  MeasuringStrategy,
   pointerWithin,
   useDraggable,
   type Announcements,
@@ -13,8 +14,11 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { getEventCoordinates, type Transform } from '@dnd-kit/utilities';
-import type { Project } from '@qiu-creator/contracts';
+import type { Project, ProjectGroup } from '@qiu-creator/contracts';
 import {
+  createContext,
+  useContext,
+  useMemo,
   useRef,
   useState,
   type ButtonHTMLAttributes,
@@ -35,7 +39,44 @@ import { projectColor, type ProjectsStore } from './projects-store.js';
  */
 
 export type DragData =
-  { type: 'works'; works: readonly Member[] } | { type: 'project'; project: Project };
+  | { type: 'works'; works: readonly Member[] }
+  | { type: 'project'; project: Project }
+  /** QC-114: a group's header, dragged to reorder the project's groups. */
+  | { type: 'group'; group: ProjectGroup };
+
+/** QC-114: a section of a project page that takes works (and, for named groups, headers). */
+export interface GroupTarget {
+  type: 'group-target';
+  projectId: string;
+  /** null for 未分組. */
+  groupId: string | null;
+  name: string;
+}
+
+export function isGroupTarget(value: unknown): value is GroupTarget {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === 'group-target'
+  );
+}
+
+/**
+ * What a drag over a project page's groups shows on the floating copy
+ * (「移到 X · 第 N 集」) and how the copy lands; set by the page while it
+ * owns the drop (QC-114).
+ */
+export interface DragHint {
+  label: string;
+  landing: Landing;
+}
+
+const DragHintContext = createContext<(hint: DragHint | null) => void>(() => undefined);
+
+/** Set (or clear) the label riding with the dragged works. */
+export function useDragHint(): (hint: DragHint | null) => void {
+  return useContext(DragHintContext);
+}
 
 export type DropAction =
   | { kind: 'add'; project: Project; works: readonly Member[] }
@@ -45,7 +86,7 @@ export type DropAction =
 function isDragData(value: unknown): value is DragData {
   if (typeof value !== 'object' || value === null) return false;
   const type = (value as { type?: unknown }).type;
-  return type === 'works' || type === 'project';
+  return type === 'works' || type === 'project' || type === 'group';
 }
 
 /**
@@ -56,6 +97,7 @@ function isDragData(value: unknown): value is DragData {
 export function dropAction(active: unknown, over: unknown, order: readonly Project[]): DropAction {
   if (!isDragData(active) || !isDragData(over) || over.type !== 'project') return null;
   if (over.project.archived) return null;
+  if (active.type === 'group') return null;
   if (active.type === 'works') {
     return active.works.length === 0
       ? null
@@ -97,15 +139,27 @@ export const besidePointer: Modifier = ({ activatorEvent, draggingNodeRect, tran
   return at === null ? transform : besidePointerAt(at, draggingNodeRect, transform);
 };
 
-/** Rows under the pointer for works (a precise drop); nearest row while sorting projects. */
+/**
+ * Rows under the pointer for works (a precise drop); the nearest project row
+ * while sorting projects, and the nearest named group while sorting groups.
+ */
 const collision: CollisionDetection = (args) => {
   const data: unknown = args.active.data.current;
-  return isDragData(data) && data.type === 'project' ? closestCenter(args) : pointerWithin(args);
+  if (!isDragData(data) || data.type === 'works') return pointerWithin(args);
+  const droppableContainers = args.droppableContainers.filter((c) => {
+    const target: unknown = c.data.current;
+    if (data.type === 'project') return isDragData(target) && target.type === 'project';
+    return (
+      isGroupTarget(target) && target.groupId !== null && target.projectId === data.group.project_id
+    );
+  });
+  return closestCenter({ ...args, droppableContainers });
 };
 
 function describe(data: unknown): string {
   if (!isDragData(data)) return '';
   if (data.type === 'project') return data.project.name;
+  if (data.type === 'group') return data.group.name;
   return data.works.length === 1
     ? (data.works[0]?.title ?? '')
     : t('projects.dragCount', { count: data.works.length });
@@ -114,13 +168,14 @@ function describe(data: unknown): string {
 /** Spoken at each step of a pointer drag, in the interface language (keyboard: SidebarProjects). */
 const announcements: Announcements = {
   onDragStart: ({ active }) => t('projects.dndPicked', { name: describe(active.data.current) }),
-  onDragOver: ({ active, over }) =>
-    over === null || !isDragData(over.data.current) || over.data.current.type !== 'project'
+  onDragOver: ({ active, over }) => {
+    const target: unknown = over?.data.current;
+    if (isGroupTarget(target))
+      return t('projects.dndOver', { name: describe(active.data.current), target: target.name });
+    return !isDragData(target) || target.type !== 'project'
       ? t('projects.dndNowhere', { name: describe(active.data.current) })
-      : t('projects.dndOver', {
-          name: describe(active.data.current),
-          target: over.data.current.project.name,
-        }),
+      : t('projects.dndOver', { name: describe(active.data.current), target: target.project.name });
+  },
   onDragEnd: ({ active, over }) =>
     over === null
       ? t('projects.dndCancelled', { name: describe(active.data.current) })
@@ -140,11 +195,14 @@ export function ProjectsDnd({
   const notify = useNotice();
   const [active, setActive] = useState<DragData | null>(null);
   const [landing, setLanding] = useState<Landing>('cancel');
+  /** QC-114: a project page's groups own this drop (label and landing). */
+  const [hint, setHint] = useState<DragHint | null>(null);
 
   const onStart = (e: DragStartEvent) => {
     const data: unknown = e.active.data.current;
     setActive(isDragData(data) ? data : null);
     setLanding('cancel');
+    setHint(null);
   };
   /** The row a works drop is over, so the copy can fly into it. */
   const overRect = useRef<{ left: number; top: number; width: number; height: number } | null>(
@@ -161,6 +219,7 @@ export function ProjectsDnd({
   };
   const onEnd = (e: DragEndEvent) => {
     setActive(null);
+    setHint(null);
     if (store === null) return;
     const action = dropAction(
       e.active.data.current,
@@ -171,33 +230,48 @@ export function ProjectsDnd({
     else if (action?.kind === 'reorder') void store.reorder(action.ids);
   };
 
+  const setHintStable = useMemo(
+    () => (next: DragHint | null) => {
+      setHint((was) => (was?.label === next?.label && was?.landing === next?.landing ? was : next));
+    },
+    [],
+  );
+
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={collision}
+      // A collapsed group opens under a drag (QC-114): targets are measured as the page changes.
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       onDragStart={onStart}
       onDragOver={onOver}
       onDragEnd={onEnd}
       onDragCancel={() => {
         setActive(null);
         setLanding('cancel');
+        setHint(null);
       }}
       accessibility={{
         restoreFocus: true,
         announcements,
       }}
     >
-      {children}
+      <DragHintContext.Provider value={setHintStable}>{children}</DragHintContext.Provider>
       <DragOverlay
-        dropAnimation={dropAnimationFor(landing, mode, () => overRect.current)}
+        dropAnimation={dropAnimationFor(hint?.landing ?? landing, mode, () => overRect.current)}
         modifiers={active?.type === 'works' ? [besidePointer] : []}
       >
         {active?.type === 'works' ? (
-          <div className="drag-ghost">
-            {active.works.length === 1
-              ? active.works[0]?.title
-              : t('projects.dragCount', { count: active.works.length })}
+          <div className="drag-stack">
+            <div className="drag-ghost">
+              {active.works.length === 1
+                ? active.works[0]?.title
+                : t('projects.dragCount', { count: active.works.length })}
+            </div>
+            {hint !== null && <div className="drag-hint">{hint.label}</div>}
           </div>
+        ) : active?.type === 'group' ? (
+          <div className="drag-ghost drag-ghost--project">{active.group.name}</div>
         ) : active?.type === 'project' ? (
           <div className="drag-ghost drag-ghost--project">
             <span

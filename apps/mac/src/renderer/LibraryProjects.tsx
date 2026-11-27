@@ -1,8 +1,9 @@
-import type { Project } from '@qiu-creator/contracts';
+import type { Project, WorkProjectGroup } from '@qiu-creator/contracts';
 import { useEffect, useState } from 'react';
 import type { MenuEntry } from './ContextMenu.js';
 import { t } from './i18n.js';
 import { addToProject, removeFromProject, type Notice } from './project-actions.js';
+import { workGroupIn } from './project-groups.js';
 import { membership, projectColor, projectLabel, type ProjectsStore } from './projects-store.js';
 
 /** Works the project pieces of 作品庫 act on: ids, titles and memberships. */
@@ -18,20 +19,48 @@ export function ProjectLabel({
   projectIds,
   projects,
   currentId,
+  groups,
 }: {
   projectIds: readonly string[] | undefined;
   projects: readonly Project[];
   currentId: string | null;
+  /** QC-114: the work's groups, for 「› 分組 #集數」 after the first project's name. */
+  groups?: readonly WorkProjectGroup[] | undefined;
 }) {
   const label = projectLabel(projectIds, projects, currentId);
   if (label === null) return null;
   const { first, others } = label;
-  const names = [first, ...others].map((p) => p.name).join('、');
+  const group = workGroupIn(groups, first.id);
+  const names = [
+    group === null ? first.name : groupedName(first.name, group),
+    ...others.map((p) => p.name),
+  ].join('、');
   return (
     <span className="plabel" title={names} aria-label={`${t('projects.inProjects')}：${names}`}>
       <span className="plabel__dot" style={{ background: projectColor(first.color) }} />
       <span className="plabel__name">{first.name}</span>
+      {group !== null && <GroupSuffix group={group} />}
       {others.length > 0 && <span className="plabel__more num">+{others.length}</span>}
+    </span>
+  );
+}
+
+/** 「創作助手 › 京都秋季系列 #4」: a project name with the work's group in it (QC-114). */
+export function groupedName(
+  project: string,
+  group: { name: string; episode: number | null },
+): string {
+  const inGroup = t('groups.inGroup', { project, group: group.name });
+  return group.episode === null ? inGroup : `${inGroup} #${String(group.episode)}`;
+}
+
+/** The faint 「› 分組 #集數」 after a project's name on a card (QC-114). */
+export function GroupSuffix({ group }: { group: { name: string; episode: number | null } }) {
+  return (
+    <span className="plabel__group" aria-hidden="true">
+      <span className="plabel__sep">›</span>
+      <span className="plabel__gname">{group.name}</span>
+      {group.episode !== null && <span className="num">#{group.episode}</span>}
     </span>
   );
 }

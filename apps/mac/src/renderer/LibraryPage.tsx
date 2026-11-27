@@ -1,6 +1,7 @@
 import type { CreatorHubClient } from '@qiu-creator/api-client';
 import type {
   Mount,
+  ProjectGroup,
   Work,
   WorkDetail,
   WorkListItem,
@@ -82,6 +83,30 @@ import { Icon } from './Icon.js';
 import { externalSource, useMounts } from './mounts.js';
 import { projectEntries, useProjectAssetCount } from './LibraryProjects.js';
 import { DragWorksButton } from './projects-dnd.js';
+import {
+  CollapsedRow,
+  DeleteGroupDialog,
+  EmptyGroup,
+  episodeItems,
+  GroupHeader,
+  GroupSection,
+  groupMenuItems,
+  groupName,
+  moveToGroupMenu,
+  NewGroupDialog,
+  sectionName,
+  useGroupDrop,
+} from './ProjectGroups.js';
+import {
+  episodeOf,
+  groupOfWork,
+  readCollapsed,
+  sectionWorks,
+  UNGROUPED,
+  writeCollapsed,
+  type Section,
+} from './project-groups.js';
+import { useProjectGroups } from './use-project-groups.js';
 import { removeFromProject, renameProject, useNotice } from './project-actions.js';
 import { NewProjectDialog, useProjectMenu } from './project-menu.js';
 import {
@@ -319,6 +344,17 @@ export function LibraryPage({
   useEffect(load, [load]);
   useRefreshOn(['work', 'project'], refresh, 300);
 
+  // ---- 分組與系列 (QC-114) ----
+  const groupsApi = useProjectGroups(
+    client,
+    inTrash ? null : projectId,
+    (message) => {
+      notifyProject({ message, tone: 'bad' });
+    },
+    refresh,
+  );
+  const groups = groupsApi.groups;
+
   // Card images (QC-061): signed URLs from the list; video frames the service could not
   // take are grabbed off-screen one at a time and uploaded, then the list is read again.
   const loadRef = useRef(refresh);
@@ -434,7 +470,47 @@ export function LibraryPage({
   const [renaming, setRenaming] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ anchor: MenuAnchor; ids: readonly string[] } | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const order = useMemo(() => shown.map((w) => w.id), [shown]);
+  const filtering = appliedQuery.trim() !== '' || type !== 'all' || status !== 'all';
+  /** A project with groups shows its works in sections, 未分組 first (QC-114). */
+  const sectioned = project !== null && !inTrash && groups !== null && groups.length > 0;
+  const sections = useMemo<Section<WorkListItem>[]>(
+    () => (sectioned ? sectionWorks(shown, groups, { filtering, total: feedState.total }) : []),
+    [sectioned, groups, shown, filtering, feedState.total],
+  );
+  const [collapsed, setCollapsedState] = useState<ReadonlySet<string>>(() =>
+    projectId === null ? new Set() : readCollapsed(projectId),
+  );
+  useEffect(() => {
+    setCollapsedState(projectId === null ? new Set() : readCollapsed(projectId));
+  }, [projectId]);
+  const setCollapsed = useCallback(
+    (next: ReadonlySet<string>) => {
+      setCollapsedState(next);
+      if (projectId !== null) writeCollapsed(projectId, next);
+    },
+    [projectId],
+  );
+  const toggleSection = (key: string) => {
+    const next = new Set(collapsed);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setCollapsed(next);
+  };
+  // Works in a project with groups load in full, so every group shows all of its works.
+  useEffect(() => {
+    if (sectioned && feedState.hasMore && !feedState.loading && !feedState.failed)
+      void feed.loadMore();
+  }, [sectioned, feed, feedState.hasMore, feedState.loading, feedState.failed]);
+  /** What the page shows, in order: by section when there are groups (folded ones hide theirs). */
+  const order = useMemo(
+    () =>
+      sectioned
+        ? sections
+            .filter((sec) => !collapsed.has(sec.key))
+            .flatMap((sec) => sec.works.map((w) => w.id))
+        : shown.map((w) => w.id),
+    [sectioned, sections, collapsed, shown],
+  );
   /**
    * ⌘A (QC-067): every work matching the filter, not only those loaded. The
    * service lists them all (`works.refs`); the selection holds their ids and
@@ -843,6 +919,7 @@ export function LibraryPage({
       return [
         statusMenu,
         ...projectItems(targets),
+        ...groupItems(targets.map((w) => w.id)),
         {
           kind: 'item',
           id: 'add-tags',
@@ -902,6 +979,8 @@ export function LibraryPage({
       },
       statusMenu,
       ...projectItems(targets),
+      ...groupItems([one.id]),
+      ...(groups === null ? [] : episodeItems(groupOfWork(groups, one.id), one.id, groupsApi)),
       ...(file === null
         ? []
         : ([
@@ -955,6 +1034,7 @@ export function LibraryPage({
     };
   });
   const [barMenu, setBarMenu] = useState<MenuAnchor | null>(null);
+  const [groupBar, setGroupBar] = useState<MenuAnchor | null>(null);
 
   // ---- 項目 (QC-062) ----
   const [projectBar, setProjectBar] = useState<MenuAnchor | null>(null);
@@ -1003,6 +1083,49 @@ export function LibraryPage({
                 },
               ]),
         ];
+  /** 移到分組 ▸ on a project page (QC-114): also offered before the first group exists. */
+  const [newGroupFor, setNewGroupFor] = useState<readonly string[] | null>(null);
+  const [deletingGroup, setDeletingGroup] = useState<ProjectGroup | null>(null);
+  const [renamingGroup, setRenamingGroup] = useState<string | null>(null);
+  const [groupMenu, setGroupMenu] = useState<{ anchor: MenuAnchor; group: ProjectGroup } | null>(
+    null,
+  );
+  const groupItems = (ids: readonly string[]): MenuEntry[] =>
+    project === null || groups === null
+      ? []
+      : [
+          moveToGroupMenu({
+            groups,
+            workIds: ids,
+            api: groupsApi,
+            onNew: () => {
+              setNewGroupFor(ids);
+            },
+          }),
+        ];
+  const createGroup = async (name: string, ordered: boolean, workIds: readonly string[]) => {
+    setNewGroupFor(null);
+    const group = await groupsApi.create(name, ordered);
+    if (group !== null && workIds.length > 0) await groupsApi.assign(workIds, group.id);
+  };
+  const orderedGroups = useMemo(
+    () => [...(groups ?? [])].sort((a, b) => a.sort_order - b.sort_order),
+    [groups],
+  );
+  const groupDrop = useGroupDrop({
+    projectId: sectioned ? projectId : null,
+    groups,
+    sections,
+    layout: view,
+    collapsed,
+    onExpand: (key) => {
+      if (!collapsed.has(key)) return;
+      const next = new Set(collapsed);
+      next.delete(key);
+      setCollapsed(next);
+    },
+    api: groupsApi,
+  });
   const createProjectWith = async (
     targets: readonly LibraryWork[],
     name: string,
@@ -1027,15 +1150,219 @@ export function LibraryPage({
     if (store !== null && project !== null)
       void renameProject(store, project, typed, notifyProject);
   };
+  /**
+   * The selection in the order the page shows it (a series by episode, QC-114),
+   * so works dragged or moved together keep their order; those not shown go last.
+   */
+  const selectedInOrder = useMemo(() => {
+    const at = new Map(order.map((id, i) => [id, i]));
+    return [...selectedWorks].sort(
+      (a, b) => (at.get(a.id) ?? order.length) - (at.get(b.id) ?? order.length),
+    );
+  }, [selectedWorks, order]);
   const dragWorks = (w: WorkListItem): readonly LibraryWork[] =>
-    selection.ids.has(w.id) ? selectedWorks : [w];
+    selection.ids.has(w.id) ? selectedInOrder : [w];
 
-  const filtering = appliedQuery.trim() !== '' || type !== 'all' || status !== 'all';
   const clearFilters = () => {
     setQuery('');
     setAppliedQuery('');
     setType('all');
     setStatus('all');
+  };
+
+  /** One work's card (in the grid, or in its group's section). */
+  const cardFor = (w: WorkListItem, episode: number | null) => (
+    <WorkCard
+      work={w}
+      episode={episode}
+      selected={selection.ids.has(w.id)}
+      menuTarget={menu?.ids.includes(w.id) === true}
+      renaming={renaming === w.id}
+      source={externalSource(w, mounts, userHome)}
+      imageUrl={imageUrl}
+      onNeedsFrame={onNeedsFrame}
+      label={
+        <WorkProjectLabel
+          workId={w.id}
+          projectIds={w.project_ids}
+          projects={projectList}
+          currentId={projectId}
+          groups={w.project_groups}
+        />
+      }
+      dragWorks={store === null ? undefined : dragWorks(w)}
+      onReview={onOpenProposals}
+      onRetry={onOpenImports}
+      onClick={(e, onTitle) => {
+        onItemClick(e, w, onTitle);
+      }}
+      onTitleDoubleClick={(e) => {
+        onTitleDoubleClick(e, w);
+      }}
+      onMenu={(e) => {
+        onItemMenu(e, w);
+      }}
+      onRename={(title) => {
+        rename(w, title);
+      }}
+      onRenameCancel={() => {
+        setRenaming(null);
+        focusWork(w.id);
+      }}
+    />
+  );
+  /** One work's list row; `insert` draws the series insertion line on its edge. */
+  const rowFor = (
+    w: WorkListItem,
+    episode: number | null,
+    insert: 'before' | 'after' | null = null,
+  ) => (
+    <tr
+      key={w.id}
+      data-group-item={sectioned ? w.id : undefined}
+      className={[
+        selection.ids.has(w.id) ? 'tbl__row--selected' : '',
+        menu?.ids.includes(w.id) === true ? 'tbl__row--menu' : '',
+        insert === 'before' ? 'tbl__row--insert-before' : '',
+        insert === 'after' ? 'tbl__row--insert-after' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      aria-selected={selection.ids.has(w.id)}
+      onContextMenu={(e) => {
+        onItemMenu(e, w);
+      }}
+    >
+      <td>
+        <span className="tbl__title">
+          {renaming === w.id ? (
+            <span className="tbl__open tbl__open--renaming">
+              <RowThumb work={w} />
+              <RenameField
+                value={w.title}
+                label={t('workActions.renameField', { title: w.title })}
+                className="rename--row"
+                onCommit={(title) => {
+                  rename(w, title);
+                }}
+                onCancel={() => {
+                  setRenaming(null);
+                  focusWork(w.id);
+                }}
+              />
+            </span>
+          ) : (
+            <DragWorksButton
+              dragId={w.id}
+              works={dragWorks(w)}
+              disabled={store === null}
+              className="tbl__open"
+              data-work-id={w.id}
+              onClick={(e) => {
+                onItemClick(e, w, false);
+              }}
+            >
+              {sectioned && (
+                <span className="tbl__grip" aria-hidden="true">
+                  <Icon name="grip" size={14} />
+                </span>
+              )}
+              <RowThumb work={w} />
+              <span
+                className="tbl__name"
+                title={isMissing(w) ? undefined : t('workActions.renameTip')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onItemClick(e, w, true);
+                }}
+                onDoubleClick={(e) => {
+                  onTitleDoubleClick(e, w);
+                }}
+              >
+                <Highlight text={w.title} />
+              </span>
+              <HitLine
+                title={w.title}
+                tags={w.tags}
+                excerpt={w.match_excerpt}
+                className="hitline hitline--row"
+              />
+              {selection.ids.has(w.id) && (
+                <span className="visually-hidden">{t('workActions.isSelected')}</span>
+              )}
+            </DragWorksButton>
+          )}
+          {w.storage_mode === 'external' && (
+            <span
+              className="src-ext src-ext--small"
+              title={externalSource(w, mounts, userHome)?.folder ?? undefined}
+            >
+              <Icon name="folder" size={11} />
+              {t('library.externalBadge')}
+            </span>
+          )}
+          {isMissing(w) && <MissingChip />}
+        </span>
+      </td>
+      {hasSeries && (
+        <td className="muted tbl__ep num">
+          {episode === null ? '' : t('groups.episode', { n: episode })}
+        </td>
+      )}
+      <LiveAgentCell workId={w.id} />
+      <td className="tbl__proj">
+        <WorkProjectLabel
+          workId={w.id}
+          projectIds={w.project_ids}
+          projects={projectList}
+          currentId={projectId}
+          groups={w.project_groups}
+        />
+        {projectLabel(w.project_ids, projectList, projectId) === null && (
+          <span className="faint" aria-hidden="true">
+            —
+          </span>
+        )}
+      </td>
+      <td className="muted">{WORK_TYPE[w.type].label}</td>
+      <td>
+        <Chip tone={WORK_STATUS[w.status].tone}>{WORK_STATUS[w.status].label}</Chip>
+      </td>
+      <td className="muted">{externalSource(w, mounts, userHome)?.label ?? sourceLabel(w)}</td>
+      <td className="faint">{w.tags.map((tag) => `#${tag}`).join(' ')}</td>
+      <td className="faint tbl__right">{formatWhen(w.updated_at)}</td>
+    </tr>
+  );
+  const hasSeries = sectioned && sections.some((sec) => sec.group?.ordered === true);
+  /** A section's header row (QC-114). */
+  const sectionHeader = (sec: Section<WorkListItem>) => {
+    const g = sec.group;
+    const dropping =
+      groupDrop?.kind === 'works' && groupDrop.key === sec.key ? sectionName(g) : null;
+    return (
+      <GroupHeader
+        section={sec}
+        collapsed={collapsed.has(sec.key)}
+        onToggle={() => {
+          toggleSection(sec.key);
+        }}
+        renaming={g !== null && renamingGroup === g.id}
+        onRename={(typed) => {
+          setRenamingGroup(null);
+          const name = groupName(typed);
+          if (g !== null && name !== null) void groupsApi.rename(g, name);
+        }}
+        onRenameCancel={() => {
+          setRenamingGroup(null);
+        }}
+        dropName={dropping}
+        menuOpen={g !== null && groupMenu?.group.id === g.id}
+        onMenu={(anchor) => {
+          if (g !== null) setGroupMenu({ anchor, group: g });
+        }}
+        draggable={!filtering}
+      />
+    );
   };
 
   const motionMode = useMotionMode();
@@ -1097,6 +1424,12 @@ export function LibraryPage({
               ) : (
                 <>
                   {t('projects.worksCount', { count: feedState.total })}
+                  {sectioned && (
+                    <>
+                      <span aria-hidden="true"> · </span>
+                      {t('groups.groupsCount', { count: groups.length })}
+                    </>
+                  )}
                   <LiveHeader
                     count={
                       project !== null
@@ -1183,6 +1516,18 @@ export function LibraryPage({
                     </button>
                   ))}
                 </div>
+                {project !== null && groups !== null && (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      setNewGroupFor([]);
+                    }}
+                  >
+                    <Icon name="plus" />
+                    {t('groups.newGroup')}
+                  </button>
+                )}
                 <NewMenu
                   open={menuOpen}
                   busy={creating}
@@ -1272,6 +1617,21 @@ export function LibraryPage({
                         <Icon name="chevronDown" size={14} />
                       </button>
                     )}
+                    {project !== null && groups !== null && (
+                      <button
+                        type="button"
+                        className="btn btn--small"
+                        aria-haspopup="menu"
+                        aria-expanded={groupBar !== null}
+                        onClick={(e) => {
+                          const r = e.currentTarget.getBoundingClientRect();
+                          setGroupBar({ x: r.left, y: r.bottom + 4 });
+                        }}
+                      >
+                        {t('groups.moveTo')}
+                        <Icon name="chevronDown" size={14} />
+                      </button>
+                    )}
                     {store !== null && project !== null && (
                       <button
                         type="button"
@@ -1341,7 +1701,7 @@ export function LibraryPage({
                       ))}
                     </div>
                   )
-                ) : works.length === 0 && !filtering && project !== null ? (
+                ) : works.length === 0 && !filtering && project !== null && !sectioned ? (
                   <div className="state-card state-card--dashed">
                     <span
                       className="proj-title__chip proj-title__chip--big"
@@ -1436,6 +1796,42 @@ export function LibraryPage({
                       {t('library.clearFilter')}
                     </button>
                   </div>
+                ) : sectioned && view === 'grid' ? (
+                  <div className="pgroups">
+                    {sections.map((sec) => {
+                      const shut = collapsed.has(sec.key);
+                      return (
+                        <GroupSection
+                          key={sec.key}
+                          projectId={project.id}
+                          section={sec}
+                          drop={groupDrop}
+                          header={sectionHeader(sec)}
+                        >
+                          {shut ? (
+                            <CollapsedRow works={sec.works} imageUrl={imageUrl} />
+                          ) : sec.works.length === 0 ? (
+                            sec.group !== null && !filtering && <EmptyGroup />
+                          ) : (
+                            <ul className="card-grid" aria-multiselectable="true">
+                              <Presence popLayout>
+                                {sec.works.map((w) => (
+                                  <AnimatedItem
+                                    key={w.id}
+                                    layout={animateCards}
+                                    quiet={!animateCards}
+                                    data-group-item={w.id}
+                                  >
+                                    {cardFor(w, episodeOf(sec.group, w.id))}
+                                  </AnimatedItem>
+                                ))}
+                              </Presence>
+                            </ul>
+                          )}
+                        </GroupSection>
+                      );
+                    })}
+                  </div>
                 ) : view === 'grid' ? (
                   <motion.ul
                     // Few cards: each slides to its new place. Many: the grid is drawn
@@ -1450,42 +1846,7 @@ export function LibraryPage({
                     <Presence popLayout>
                       {shown.map((w) => (
                         <AnimatedItem key={w.id} layout={animateCards} quiet={!animateCards}>
-                          <WorkCard
-                            work={w}
-                            selected={selection.ids.has(w.id)}
-                            menuTarget={menu?.ids.includes(w.id) === true}
-                            renaming={renaming === w.id}
-                            source={externalSource(w, mounts, userHome)}
-                            imageUrl={imageUrl}
-                            onNeedsFrame={onNeedsFrame}
-                            label={
-                              <WorkProjectLabel
-                                workId={w.id}
-                                projectIds={w.project_ids}
-                                projects={projectList}
-                                currentId={projectId}
-                              />
-                            }
-                            dragWorks={store === null ? undefined : dragWorks(w)}
-                            onReview={onOpenProposals}
-                            onRetry={onOpenImports}
-                            onClick={(e, onTitle) => {
-                              onItemClick(e, w, onTitle);
-                            }}
-                            onTitleDoubleClick={(e) => {
-                              onTitleDoubleClick(e, w);
-                            }}
-                            onMenu={(e) => {
-                              onItemMenu(e, w);
-                            }}
-                            onRename={(title) => {
-                              rename(w, title);
-                            }}
-                            onRenameCancel={() => {
-                              setRenaming(null);
-                              focusWork(w.id);
-                            }}
-                          />
+                          {cardFor(w, null)}
                         </AnimatedItem>
                       ))}
                     </Presence>
@@ -1496,6 +1857,11 @@ export function LibraryPage({
                       <thead>
                         <tr>
                           <th scope="col">{t('library.colTitle')}</th>
+                          {hasSeries && (
+                            <th scope="col" className="tbl__ep">
+                              {t('groups.episodeColumn')}
+                            </th>
+                          )}
                           <th scope="col">{t('live.agentColumn')}</th>
                           <th scope="col">{t('library.colProject')}</th>
                           <th scope="col">{t('library.colType')}</th>
@@ -1507,117 +1873,46 @@ export function LibraryPage({
                           </th>
                         </tr>
                       </thead>
-                      <tbody>
-                        {shown.map((w) => (
-                          <tr
-                            key={w.id}
-                            className={[
-                              selection.ids.has(w.id) ? 'tbl__row--selected' : '',
-                              menu?.ids.includes(w.id) === true ? 'tbl__row--menu' : '',
-                            ]
-                              .filter(Boolean)
-                              .join(' ')}
-                            aria-selected={selection.ids.has(w.id)}
-                            onContextMenu={(e) => {
-                              onItemMenu(e, w);
-                            }}
-                          >
-                            <td>
-                              <span className="tbl__title">
-                                {renaming === w.id ? (
-                                  <span className="tbl__open tbl__open--renaming">
-                                    <RowThumb work={w} />
-                                    <RenameField
-                                      value={w.title}
-                                      label={t('workActions.renameField', { title: w.title })}
-                                      className="rename--row"
-                                      onCommit={(title) => {
-                                        rename(w, title);
-                                      }}
-                                      onCancel={() => {
-                                        setRenaming(null);
-                                        focusWork(w.id);
-                                      }}
-                                    />
-                                  </span>
-                                ) : (
-                                  <DragWorksButton
-                                    dragId={w.id}
-                                    works={dragWorks(w)}
-                                    disabled={store === null}
-                                    className="tbl__open"
-                                    data-work-id={w.id}
-                                    onClick={(e) => {
-                                      onItemClick(e, w, false);
-                                    }}
-                                  >
-                                    <RowThumb work={w} />
-                                    <span
-                                      className="tbl__name"
-                                      title={isMissing(w) ? undefined : t('workActions.renameTip')}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        onItemClick(e, w, true);
-                                      }}
-                                      onDoubleClick={(e) => {
-                                        onTitleDoubleClick(e, w);
-                                      }}
-                                    >
-                                      <Highlight text={w.title} />
-                                    </span>
-                                    <HitLine
-                                      title={w.title}
-                                      tags={w.tags}
-                                      excerpt={w.match_excerpt}
-                                      className="hitline hitline--row"
-                                    />
-                                    {selection.ids.has(w.id) && (
-                                      <span className="visually-hidden">
-                                        {t('workActions.isSelected')}
-                                      </span>
-                                    )}
-                                  </DragWorksButton>
+                      {sectioned ? (
+                        sections.map((sec) => {
+                          const shut = collapsed.has(sec.key);
+                          const at =
+                            groupDrop?.kind === 'works' && groupDrop.key === sec.key
+                              ? groupDrop.index
+                              : null;
+                          return (
+                            <GroupSection
+                              key={sec.key}
+                              as="tbody"
+                              projectId={project.id}
+                              section={sec}
+                              drop={groupDrop}
+                              header={
+                                <tr className="tbl__group">
+                                  <th scope="rowgroup" colSpan={hasSeries ? 9 : 8}>
+                                    {sectionHeader(sec)}
+                                  </th>
+                                </tr>
+                              }
+                            >
+                              {!shut &&
+                                sec.works.map((w, i) =>
+                                  rowFor(
+                                    w,
+                                    episodeOf(sec.group, w.id),
+                                    at === i
+                                      ? 'before'
+                                      : at === sec.works.length && i === sec.works.length - 1
+                                        ? 'after'
+                                        : null,
+                                  ),
                                 )}
-                                {w.storage_mode === 'external' && (
-                                  <span
-                                    className="src-ext src-ext--small"
-                                    title={externalSource(w, mounts, userHome)?.folder ?? undefined}
-                                  >
-                                    <Icon name="folder" size={11} />
-                                    {t('library.externalBadge')}
-                                  </span>
-                                )}
-                                {isMissing(w) && <MissingChip />}
-                              </span>
-                            </td>
-                            <LiveAgentCell workId={w.id} />
-                            <td className="tbl__proj">
-                              <WorkProjectLabel
-                                workId={w.id}
-                                projectIds={w.project_ids}
-                                projects={projectList}
-                                currentId={projectId}
-                              />
-                              {projectLabel(w.project_ids, projectList, projectId) === null && (
-                                <span className="faint" aria-hidden="true">
-                                  —
-                                </span>
-                              )}
-                            </td>
-                            <td className="muted">{WORK_TYPE[w.type].label}</td>
-                            <td>
-                              <Chip tone={WORK_STATUS[w.status].tone}>
-                                {WORK_STATUS[w.status].label}
-                              </Chip>
-                            </td>
-                            <td className="muted">
-                              {externalSource(w, mounts, userHome)?.label ?? sourceLabel(w)}
-                            </td>
-                            <td className="faint">{w.tags.map((tag) => `#${tag}`).join(' ')}</td>
-                            <td className="faint tbl__right">{formatWhen(w.updated_at)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
+                            </GroupSection>
+                          );
+                        })
+                      ) : (
+                        <tbody>{shown.map((w) => rowFor(w, null))}</tbody>
+                      )}
                     </table>
                   </div>
                 )}
@@ -1703,6 +1998,70 @@ export function LibraryPage({
             />
           )}
           {projectMenu.node}
+          {groupBar !== null && selectedWorks.length > 0 && groups !== null && (
+            <ContextMenu
+              anchor={groupBar}
+              label={t('groups.moveTo')}
+              items={groupItems(selectedInOrder.map((w) => w.id)).flatMap((e) =>
+                e.kind === 'sub' ? e.items : [e],
+              )}
+              onClose={() => {
+                setGroupBar(null);
+              }}
+            />
+          )}
+          {groupMenu !== null && (
+            <ContextMenu
+              anchor={groupMenu.anchor}
+              label={t('groups.options', { name: groupMenu.group.name })}
+              items={groupMenuItems({
+                group: groupMenu.group,
+                index: orderedGroups.findIndex((g) => g.id === groupMenu.group.id),
+                total: orderedGroups.length,
+                api: groupsApi,
+                onRename: () => {
+                  setRenamingGroup(groupMenu.group.id);
+                },
+                onCollapseOthers: () => {
+                  setCollapsed(
+                    new Set(
+                      [UNGROUPED, ...orderedGroups.map((g) => g.id)].filter(
+                        (k) => k !== groupMenu.group.id,
+                      ),
+                    ),
+                  );
+                },
+                onDelete: () => {
+                  setDeletingGroup(groupMenu.group);
+                },
+              })}
+              onClose={() => {
+                setGroupMenu(null);
+              }}
+            />
+          )}
+          {newGroupFor !== null && (
+            <NewGroupDialog
+              onCancel={() => {
+                setNewGroupFor(null);
+              }}
+              onCreate={(name, ordered) => {
+                void createGroup(name, ordered, newGroupFor);
+              }}
+            />
+          )}
+          {deletingGroup !== null && (
+            <DeleteGroupDialog
+              group={deletingGroup}
+              onCancel={() => {
+                setDeletingGroup(null);
+              }}
+              onConfirm={() => {
+                void groupsApi.remove(deletingGroup);
+                setDeletingGroup(null);
+              }}
+            />
+          )}
           {confirm?.kind === 'delete' && (
             <DeleteDialog
               works={confirm.works}
@@ -1766,6 +2125,7 @@ function RowThumb({ work }: { work: WorkListItem }) {
  */
 function WorkCard({
   work,
+  episode = null,
   selected,
   menuTarget,
   renaming,
@@ -1783,6 +2143,8 @@ function WorkCard({
   onRetry,
 }: {
   work: WorkListItem;
+  /** QC-114: its episode in a series, shown 「第 N 集」 on the cover. */
+  episode?: number | null;
   /** QC-097: what 審閱提案 and 重試 on a live card open. */
   onReview?: (() => void) | undefined;
   onRetry?: (() => void) | undefined;
@@ -1880,6 +2242,9 @@ function WorkCard({
       onContextMenu={onMenu}
     >
       <CardCover work={work} imageUrl={imageUrl} onNeedsFrame={onNeedsFrame} />
+      {episode !== null && (
+        <span className="wcard__ep num">{t('groups.episode', { n: episode })}</span>
+      )}
       {live !== undefined && (
         <LiveCardLayer v={live} hasCover={(work.card_image?.url ?? null) !== null} />
       )}

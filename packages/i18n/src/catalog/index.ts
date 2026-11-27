@@ -8,6 +8,7 @@ import { editor } from './editor.js';
 import { editorSide } from './editorSide.js';
 import { errors } from './errors.js';
 import { format } from './format.js';
+import { groups } from './groups.js';
 import { imagePost } from './imagePost.js';
 import { library } from './library.js';
 import { live } from './live.js';
@@ -49,6 +50,7 @@ export const catalog = {
   aiServices,
   settingsPages,
   projects,
+  groups,
   prompts,
   phone,
   previewPanel,

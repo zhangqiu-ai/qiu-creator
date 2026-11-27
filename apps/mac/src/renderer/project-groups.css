@@ -1,0 +1,314 @@
+/* Groups and series on a project page (QC-114, PT-20261126-002 option A). */
+
+.pgroups {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.pgroup {
+  position: relative;
+  border-radius: var(--qc-radius-card);
+  /* The drop frame is drawn inside the padding so nothing moves when it appears. */
+  padding: 0 4px 4px;
+  margin: 0 -4px;
+  outline: 1.5px dashed transparent;
+  outline-offset: -1px;
+  transition:
+    outline-color var(--qc-dur-fast) var(--qc-ease-out),
+    background-color var(--qc-dur-fast) var(--qc-ease-out);
+}
+/* 拖放：經過目標 — the group that would take the works. */
+.pgroup--over {
+  outline-color: var(--qc-accent);
+  background: color-mix(in srgb, var(--qc-accent-soft) 60%, transparent);
+}
+/* Dragging a header: a line where the group would go. */
+.pgroup--before::before,
+.pgroup--after::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--qc-accent);
+}
+.pgroup--before::before {
+  top: -11px;
+}
+.pgroup--after::after {
+  bottom: -11px;
+}
+
+.pgroup__head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 4px;
+  margin-bottom: 8px;
+  background: var(--qc-bg);
+  color: var(--qc-ink);
+  touch-action: none;
+}
+.pgroup--over > .pgroup__head {
+  background: transparent;
+}
+.pgroup__head.is-dragging {
+  opacity: 0.4;
+}
+.pgroup__head > .icon {
+  color: var(--qc-ink3);
+  flex: none;
+}
+.pgroup__toggle {
+  flex: none;
+  color: var(--qc-ink3);
+}
+.pgroup__name {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+}
+.pgroup__count {
+  flex: none;
+  color: var(--qc-ink3);
+  font-size: 12px;
+}
+.pgroup__series,
+.pgroup__agent {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: var(--qc-accent-soft);
+  color: var(--qc-accent);
+}
+/* An agent's group: the QC-091 Agent mark (accentSoft with a frame and robot). */
+.pgroup__agent {
+  box-shadow: inset 0 0 0 1px var(--qc-accent);
+}
+.pgroup__hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--qc-ink3);
+}
+.pgroup__drop {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--qc-accent);
+}
+.pgroup__drop:empty {
+  display: none;
+}
+.pgroup__more {
+  flex: none;
+  margin-left: auto;
+  color: var(--qc-ink3);
+}
+.pgroup__drop:not(:empty) + .pgroup__more {
+  margin-left: 0;
+}
+.rename--group {
+  max-width: 320px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* A series insertion line between cards (or rows). */
+.pgroup__line {
+  position: absolute;
+  z-index: 2;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--qc-accent);
+  pointer-events: none;
+}
+.pgroup__line--h {
+  width: auto;
+  height: 3px;
+}
+
+/* A collapsed group: one line of small covers and its first two titles. */
+.pgroup__collapsed {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  padding: 0 4px 0 34px;
+  color: var(--qc-ink3);
+  font-size: 12px;
+}
+.pgroup__thumbs {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+}
+.pgroup__thumb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 24px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--qc-sunken);
+  color: var(--qc-ink3);
+}
+.pgroup__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.pgroup__titles {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pgroup__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  border: 1px dashed var(--qc-line);
+  border-radius: var(--qc-radius-card);
+  color: var(--qc-ink3);
+  font-size: 12px;
+}
+
+/* 「第 N 集」 on a series card's cover. */
+.wcard__ep {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: var(--qc-surface);
+  color: var(--qc-ink);
+  font-size: 11.5px;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+}
+/* A selected series card keeps its check: the badge steps aside. */
+.wcard--selected .wcard__ep {
+  left: 32px;
+}
+
+/* The list: groups are row groups; a series has an 集 column. */
+.pgroup--rows {
+  padding: 0;
+  margin: 0;
+  outline: 0;
+}
+.tbl__group th {
+  padding: 2px 8px;
+  background: var(--qc-sunken);
+  font-weight: 500;
+  color: var(--qc-ink);
+}
+.tbl__group .pgroup__head {
+  position: static;
+  min-height: 32px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+.pgroup--rows.pgroup--over .tbl__group th {
+  background: var(--qc-accent-soft);
+}
+.pgroup--rows.pgroup--over td {
+  background: color-mix(in srgb, var(--qc-accent-soft) 50%, transparent);
+}
+.pgroup--rows.pgroup--before .tbl__group th {
+  box-shadow: inset 0 2px 0 var(--qc-accent);
+}
+.pgroup--rows.pgroup--after tr:last-child td,
+.pgroup--rows.pgroup--after .tbl__group:last-child th {
+  box-shadow: inset 0 -2px 0 var(--qc-accent);
+}
+.tbl__row--insert-before td {
+  box-shadow: inset 0 3px 0 var(--qc-accent);
+}
+.tbl__row--insert-after td {
+  box-shadow: inset 0 -3px 0 var(--qc-accent);
+}
+.tbl__ep {
+  width: 1%;
+  color: var(--qc-ink3);
+}
+.tbl__grip {
+  display: inline-flex;
+  color: var(--qc-ink3);
+  margin-right: -4px;
+}
+
+/*
+ * 全部作品: 「› 分組 #集數」 after a card's project name, faint. The project
+ * name keeps its room; the group's name gives way first, the episode stays.
+ */
+.plabel__group {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  color: var(--qc-ink3);
+  font-weight: 400;
+}
+.plabel:has(.plabel__group) > .plabel__name {
+  flex: 0 0 auto;
+  max-width: 60%;
+}
+.plabel__gname {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plabel__sep {
+  flex: none;
+}
+
+/* The label riding with dragged works: 「移到 X · 第 N 集」. */
+.drag-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.drag-hint {
+  max-width: 260px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--qc-accent);
+  color: var(--qc-on-accent);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: var(--qc-shadow-dialog);
+}
