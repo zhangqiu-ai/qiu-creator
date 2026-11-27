@@ -10,13 +10,7 @@ import { SCRIPT_OPTIONS, scriptName } from './text-script-ui.js';
  * write into works, saved as soon as one is picked (like 語言). A null
  * `updated_at` means the default (簡體) is still in use.
  */
-export function TextScriptSection({
-  client,
-  onSaved,
-}: {
-  client: CreatorHubClient;
-  onSaved: (text: string) => void;
-}) {
+export function TextScriptSection({ client }: { client: CreatorHubClient }) {
   const [setting, setSetting] = useState<TextScriptSetting | null>(null);
   const [error, setError] = useState<string | null>(null);
   /** The last value the service confirmed; a failed save goes back to it. */
@@ -56,7 +50,6 @@ export function TextScriptSection({
         confirmed.current = saved;
         if (id !== latest.current) return;
         setSetting(saved);
-        onSaved(t('agents.scriptSaved', { name: scriptName(saved.script) }));
       })
       .catch(() => {
         if (id !== latest.current) return;

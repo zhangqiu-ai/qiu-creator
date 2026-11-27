@@ -291,7 +291,7 @@ function SessionEditor({
   );
   const [slashAt, setSlashAt] = useState<{ x: number; y: number } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  /** A quiet confirmation (an AI candidate kept), shown as an ok toast. */
+  /** A prompt saved to the library, which is not on screen. */
   const [okNotice, setOkNotice] = useState<string | null>(null);
   const { state: aiChoices } = useAiLibrary();
   useEffect(() => {
@@ -835,18 +835,13 @@ function SessionEditor({
   }, [conflict]);
   const remoteN = state.remote === null ? undefined : numbers.get(state.remote.revisionId);
   // Notices go through the shared queue (QC-045); a background tab shows none.
-  const shownNotice = notice ?? okNotice ?? insertState.notice?.message ?? null;
+  const shownNotice = notice ?? okNotice ?? insertState.notice;
   useToast(
     !active || shownNotice === null
       ? null
       : {
           message: shownNotice,
-          tone:
-            notice !== null
-              ? 'bad'
-              : okNotice !== null || insertState.notice?.tone === 'ok'
-                ? 'ok'
-                : 'bad',
+          tone: notice === null && okNotice !== null ? 'ok' : 'bad',
           onClose: () => {
             setNotice(null);
             setOkNotice(null);
@@ -1198,6 +1193,7 @@ function SessionEditor({
                   void session.save().finally(() => onOpenSettings?.());
                 }}
                 onNotice={setOkNotice}
+                onError={setNotice}
               />
             )}
             {ai !== null && mode === 'visual' && (
@@ -1211,7 +1207,7 @@ function SessionEditor({
                 active={active}
                 readOnly={readOnly}
                 onRewriteClosed={closeRewriteTarget}
-                onNotice={setOkNotice}
+                onNotice={setNotice}
               />
             )}
             <CoverStrip
@@ -1300,7 +1296,7 @@ function SessionEditor({
               }}
               onShorten={ai === null || readOnly ? undefined : shortenAll}
               onOverLimit={onOverLimit}
-              onNotice={setOkNotice}
+              onNotice={setNotice}
             />
           ),
           ai:
@@ -1319,7 +1315,7 @@ function SessionEditor({
                     : state.draft.markdown.slice(aiSelection.range.start, aiSelection.range.end)
                 }
                 insertOffset={insertOffset}
-                onNotice={setOkNotice}
+                onNotice={setNotice}
                 {...(tabRequest === undefined ? {} : { tabRequest })}
                 onOpenSettings={() => {
                   void session.save().finally(() => onOpenSettings?.());
@@ -1344,10 +1340,7 @@ function SessionEditor({
                         : now.baseRevision;
                     }}
                     onHighlight={setProposalHits}
-                    onNotice={(text, tone) => {
-                      if (tone === 'ok') setOkNotice(text);
-                      else setNotice(text);
-                    }}
+                    onNotice={setNotice}
                   />
                 ),
               }

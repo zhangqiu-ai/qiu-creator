@@ -130,7 +130,6 @@ export function ProjectTags({
       await store.setMembership(p.id, [workId], true);
       setIds((x) => (x.includes(p.id) ? x : [...x, p.id]));
       setQuery('');
-      notify({ message: t('projects.createdAdded', { name: p.name }) });
     } catch {
       notify({ message: t('common.cannotConnect'), tone: 'bad' });
     }

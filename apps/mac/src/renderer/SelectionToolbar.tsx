@@ -101,6 +101,7 @@ export function SelectionToolbar({
   onManagePrompts,
   onOpenAiServices,
   onNotice,
+  onError,
 }: {
   editor: RefObject<MarkdownEditorHandle | null>;
   /** The scrolling document area: the toolbar follows its scroll. */
@@ -116,6 +117,7 @@ export function SelectionToolbar({
   onManagePrompts: () => void;
   onOpenAiServices: () => void;
   onNotice: (text: string) => void;
+  onError: (text: string) => void;
 }) {
   const [place, setPlace] = useState<Place | null>(null);
   const [extra, setExtra] = useState<'tone' | 'prompt' | null>(null);
@@ -458,7 +460,7 @@ export function SelectionToolbar({
                   <LanguageModelSwitch
                     variant="toolbar"
                     sample={selectedText()}
-                    onNotice={onNotice}
+                    onError={onError}
                     onOpenServices={onOpenAiServices}
                   />
                 </>

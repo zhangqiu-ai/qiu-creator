@@ -127,10 +127,9 @@ test('視頻：選視頻、播放與 ←→、截取封面、共用與抖音文�
 
   await test.step('從幀條選一格當封面：App 截圖並上傳成素材', async () => {
     await editor(page).getByRole('button', { name: '0:03 的畫面' }).click();
-    await expect(
-      page.locator('[data-toast]').filter({ hasText: '已把 0:03 的畫面設為封面' }),
-    ).toBeVisible();
     await expect(editor(page).locator('.vw__crops img')).toHaveCount(2);
+    // The new cover shows in the crops: no notice repeats it (QC-115).
+    await expect(page.locator('[data-toast]').filter({ hasText: '設為封面' })).toHaveCount(0);
     await expect
       .poll(async () => {
         const c = (await backend.client.works.get(work.id)).media?.cover;

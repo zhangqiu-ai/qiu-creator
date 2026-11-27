@@ -17,7 +17,8 @@ import {
 } from './proposals.js';
 import './proposals.css';
 
-export type Notice = (text: string, tone: 'ok' | 'bad') => void;
+/** Says why a decision did not go through; a decision that did shows on screen. */
+export type Notice = (problem: string) => void;
 
 /** A work's revision numbers (r1, r2, …), for “基於 r12”. */
 export function useRevisionNumbers(
@@ -110,7 +111,7 @@ export function ProposalView({
 
   const reload = (message: string) => {
     void client.proposals.get(detail.id).then(onChanged, () => undefined);
-    onNotice(message, 'bad');
+    onNotice(message);
   };
 
   const accept = async () => {
@@ -119,7 +120,7 @@ export function ProposalView({
     try {
       const at = prepare === undefined ? detail.current_revision : await prepare();
       if (at === null) {
-        onNotice(t('agents.saveFirst'), 'bad');
+        onNotice(t('agents.saveFirst'));
         return;
       }
       const res = await client.proposals.accept(detail.id, {
@@ -127,12 +128,11 @@ export function ProposalView({
         base_revision: at,
       });
       onChanged(res.proposal);
-      onNotice(t('agents.accepted', { agent: detail.token_name }), 'ok');
     } catch (err) {
       if (err instanceof ApiError && err.code === 'proposal_conflict')
         reload(t('agents.conflictNow'));
       else if (err instanceof ApiError && err.status === 409) reload(t('agents.staleReloaded'));
-      else onNotice(t('agents.acceptFailed'), 'bad');
+      else onNotice(t('agents.acceptFailed'));
     } finally {
       setBusy(false);
     }
@@ -145,10 +145,9 @@ export function ProposalView({
       .discard(detail.id)
       .then((next) => {
         onChanged(next);
-        onNotice(t('agents.discarded'), 'ok');
       })
       .catch(() => {
-        onNotice(t('agents.discardFailed'), 'bad');
+        onNotice(t('agents.discardFailed'));
       })
       .finally(() => {
         setBusy(false);

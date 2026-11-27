@@ -131,14 +131,15 @@ describe('InsertSession', () => {
     const ok = await h.session.insertAsset(asset({ alt_text: '清晨竹林' }), 'caret');
     expect(ok).toBe(true);
     expect(h.inserted).toEqual([{ markdown: '![清晨竹林](assets/kyoto.png)', where: 'caret' }]);
-    expect(h.session.getSnapshot().notice).toEqual({ message: '已插入「kyoto.png」', tone: 'ok' });
+    // The picture is in the text: nothing to announce (QC-115).
+    expect(h.session.getSnapshot().notice).toBeNull();
   });
 
   it('inserts nothing and explains when the work is external', async () => {
     const h = harness(() => Promise.reject(apiError(409, 'attach_external_unsupported')));
     expect(await h.session.insertAsset(asset(), 'caret')).toBe(false);
     expect(h.inserted).toEqual([]);
-    expect(h.session.getSnapshot().notice?.tone).toBe('bad');
+    expect(h.session.getSnapshot().notice).toContain('外部掛載');
   });
 
   it('pasted image: uploading with progress, then attached and inserted where asked', async () => {
@@ -168,7 +169,8 @@ describe('InsertSession', () => {
     expect(h.inserted).toEqual([{ markdown: '![](assets/p.png)', where: { beforeBlock: 2 } }]);
     expect(h.session.getSnapshot().pending).toEqual([]);
     expect(h.revoked).toEqual(['blob:preview']);
-    expect(h.session.getSnapshot().notice?.message).toContain('同時加入素材庫');
+    // The picture is where it was put: nothing to announce (QC-115).
+    expect(h.session.getSnapshot().notice).toBeNull();
   });
 
   it('failed upload keeps the card with 重試 that uploads again, 移除 dismisses', async () => {

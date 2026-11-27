@@ -104,7 +104,7 @@ export class MembershipCache {
 export const MembershipContext = createContext<{
   cache: MembershipCache;
   client: CreatorHubClient;
-  notify: (message: string, tone?: 'bad') => void;
+  notifyError: (message: string) => void;
 } | null>(null);
 
 /** Agent or rule put it there (not the user's own choice). */
@@ -120,13 +120,11 @@ export function byAgent(m: WorkProjectMembership): boolean {
  */
 export function WorkProjectLabel({
   workId,
-  title,
   projectIds,
   projects,
   currentId,
 }: {
   workId: string;
-  title: string;
   projectIds: readonly string[] | undefined;
   projects: readonly Project[];
   currentId: string | null;
@@ -189,7 +187,6 @@ export function WorkProjectLabel({
           <AssignPopover
             anchor={anchor.current}
             workId={workId}
-            title={title}
             member={agentMember}
             color={projectColor(project.color)}
             onClose={() => {
@@ -212,14 +209,12 @@ const zero = (): number => 0;
 function AssignPopover({
   anchor,
   workId,
-  title,
   member,
   color,
   onClose,
 }: {
   anchor: HTMLElement;
   workId: string;
-  title: string;
   member: WorkProjectMembership;
   color: string;
   onClose: () => void;
@@ -269,20 +264,14 @@ function AssignPopover({
     run
       .then((res) => {
         ctx.cache.set(workId, res.items);
-        ctx.notify(
-          kind === 'keep'
-            ? t('agents.keptManual', { project: member.project_name })
-            : t('agents.undoneAssign', { title, project: member.project_name }),
-        );
         onClose();
       })
       .catch((err: unknown) => {
         setBusy(false);
-        ctx.notify(
+        ctx.notifyError(
           err instanceof ApiError && err.code === 'membership_manual'
             ? t('agents.assignManualAlready')
             : t('agents.assignFailed'),
-          'bad',
         );
       });
   };

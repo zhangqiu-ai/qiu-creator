@@ -225,8 +225,8 @@ export function AiImageTab({
     const placement: AiImagePlacement =
       where === 'cover' ? { type: 'cover' } : { type: 'insert', offset: insertOffset() };
     void images.keep(job.key, c.index, placement).then((r) => {
-      if (r === 'kept') onNotice(placement.type === 'cover' ? t('ai.coverSet') : t('ai.keptImage'));
-      else if (r === 'expired') onNotice(t('ai.candidateExpired'));
+      // Kept: the line above the form says so and offers 復原.
+      if (r === 'expired') onNotice(t('ai.candidateExpired'));
     });
   };
 

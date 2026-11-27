@@ -2,7 +2,6 @@ import { ApiError, type CreatorHubClient } from '@qiu-creator/api-client';
 import type { AssetRecord } from '@qiu-creator/contracts';
 import { imageMarkdown } from '@qiu-creator/markdown-editor-web';
 import type { CreatorHubBridge, UploadItem } from '../shared/bridge.js';
-import { assetName } from './format.js';
 import { t } from './i18n.js';
 
 /**
@@ -36,14 +35,9 @@ export interface PendingInsert {
   asset: AssetRecord | null;
 }
 
-export interface InsertNotice {
-  message: string;
-  tone: 'ok' | 'bad';
-}
-
 export interface InsertState {
   pending: PendingInsert[];
-  notice: InsertNotice | null;
+  notice: string | null;
 }
 
 export type InsertBridge = Pick<
@@ -167,12 +161,9 @@ export class InsertSession {
   async insertAsset(asset: AssetRecord, where: InsertWhere): Promise<boolean> {
     try {
       await this.placeAsset(asset, where);
-      this.set({
-        notice: { message: t('editor.insertedAsset', { name: displayOf(asset) }), tone: 'ok' },
-      });
       return true;
     } catch (err) {
-      this.set({ notice: { message: attachErrorText(err), tone: 'bad' } });
+      this.set({ notice: attachErrorText(err) });
       return false;
     }
   }
@@ -275,9 +266,6 @@ export class InsertSession {
     try {
       await this.placeAsset(asset, p.where);
       this.finish(key);
-      this.set({
-        notice: { message: t('editor.insertedAndLibrary', { name: p.name }), tone: 'ok' },
-      });
     } catch (err) {
       this.update(key, { state: 'failed', error: attachErrorText(err) });
     }
@@ -331,9 +319,4 @@ export class InsertSession {
     this.disposed = true;
     this.listeners.clear();
   }
-}
-
-function displayOf(asset: AssetRecord): string {
-  const d = asset.display_name ?? null;
-  return d !== null && d.trim() !== '' ? d : assetName(asset);
 }

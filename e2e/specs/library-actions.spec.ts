@@ -443,10 +443,9 @@ test('作品庫：刪除確認與復原、批量標籤、分頁關閉、回收�
 
       await list.locator('.wcard', { hasText: '夏日清單' }).click({ button: 'right' });
       await page.getByRole('menuitem', { name: '還原' }).click();
-      await expect(
-        page.getByRole('status').filter({ hasText: '已還原「夏日清單」' }),
-      ).toBeVisible();
       await expect(list.locator('.wcard')).toHaveCount(2);
+      // The card left 回收站: no notice (QC-115).
+      await expect(page.locator('[data-toast]').filter({ hasText: '已還原' })).toHaveCount(0);
       expect((await byTitle('夏日清單')).deleted_at ?? null).toBeNull();
 
       await list.locator('.wcard', { hasText: '冬至食譜' }).click();
@@ -456,10 +455,8 @@ test('作品庫：刪除確認與復原、批量標籤、分頁關閉、回收�
       await expect(purge.getByRole('button', { name: '取消' })).toBeFocused();
       await shot(page, 'zh-Hant-13-purge-confirm');
       await purge.getByRole('button', { name: '永久刪除' }).click();
-      await expect(
-        page.getByRole('status').filter({ hasText: '已永久刪除 1 個作品' }),
-      ).toBeVisible();
       await expect(list.locator('.wcard')).toHaveCount(1);
+      await expect(page.locator('[data-toast]').filter({ hasText: '已永久刪除' })).toHaveCount(0);
 
       await page.getByRole('button', { name: '清空回收站' }).click();
       const empty = page.getByRole('dialog', { name: '清空回收站？' });

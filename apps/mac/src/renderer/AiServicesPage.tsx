@@ -503,9 +503,6 @@ function ProviderDetail({
           onAskDelete={() => {
             setConfirm('delete');
           }}
-          onSaved={() => {
-            setToast(t('serviceSettings.aiKeySet'));
-          }}
         />
         {error !== null && (
           <p className="set-err" role="alert">
@@ -574,15 +571,11 @@ function ProviderDetail({
                   className="btn btn--primary btn--small"
                   disabled={busy}
                   onClick={() => {
-                    void store
-                      .consent(
-                        p.provider,
-                        p.notice.version,
-                        isRelay ? p.notice.credential_id : undefined,
-                      )
-                      .then((ok) => {
-                        if (ok) setToast(t('serviceSettings.aiKeychainReady'));
-                      });
+                    void store.consent(
+                      p.provider,
+                      p.notice.version,
+                      isRelay ? p.notice.credential_id : undefined,
+                    );
                   }}
                 >
                   {t('serviceSettings.aiConsentAction')}
@@ -691,7 +684,6 @@ function KeyForm({
   keyInput,
   baseInput,
   onAskDelete,
-  onSaved,
 }: {
   store: AiSettingsStore;
   p: AiProviderStatus;
@@ -701,7 +693,6 @@ function KeyForm({
   keyInput: Ref<HTMLInputElement>;
   baseInput: Ref<HTMLInputElement>;
   onAskDelete: () => void;
-  onSaved: () => void;
 }) {
   const isRelay = p.provider === 'new-api';
   const [key, setKey] = useState('');
@@ -735,7 +726,6 @@ function KeyForm({
     void store.saveKey(p.provider, typed, url).then((ok) => {
       if (ok) {
         onEditing(false);
-        onSaved();
       }
     });
   };

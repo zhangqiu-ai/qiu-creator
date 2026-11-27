@@ -460,7 +460,7 @@ export function PreviewPanel({
   }, [session, model, platform, ai, body, onEditSource, onShorten, setPrefs]);
 
   /** Apply an AI result as this platform's override, offering 復原. */
-  const applyAi = (field: 'title' | 'cover', value: string | VariantCover, notice: string) => {
+  const applyAi = (field: 'title' | 'cover', value: string | VariantCover) => {
     if (session === undefined || state === null) return;
     const before =
       field in state.pending
@@ -474,7 +474,6 @@ export function PreviewPanel({
             : null;
     setUndo({ platform, field, value: before ?? null });
     session.edit({ [field]: value });
-    onNotice(notice);
   };
 
   const anyOver = [...models.values()].some(overLimit);
@@ -632,7 +631,7 @@ export function PreviewPanel({
                   model={titleModel.current}
                   onUse={(text) => {
                     setSheet(null);
-                    applyAi('title', text, t('library.titleApplied'));
+                    applyAi('title', text);
                   }}
                   onClose={() => {
                     setSheet(null);
@@ -650,11 +649,7 @@ export function PreviewPanel({
                   body={model.body.text}
                   onSet={(cover) => {
                     setSheet(null);
-                    applyAi(
-                      'cover',
-                      cover,
-                      t('library.coverKept', { platform: shortName(platform) }),
-                    );
+                    applyAi('cover', cover);
                   }}
                   onClose={() => {
                     setSheet(null);

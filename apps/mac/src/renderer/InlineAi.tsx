@@ -400,9 +400,7 @@ export function InlineAi({
               rewrite.discard();
             }}
             onKeep={() => {
-              void rewrite.accept().then((r) => {
-                if (r === 'accepted') onNotice(t('ai.keptText'));
-              });
+              void rewrite.accept();
             }}
           />
         )}
@@ -640,7 +638,6 @@ function ImagePlaceholder({
     };
     void images.keep(job.key, shown.index, placement).then((r) => {
       if (r === 'kept') {
-        onNotice(t('ai.keptImage'));
         void images.remove(job.key);
       } else if (r === 'expired') onNotice(t('ai.candidateExpired'));
     });

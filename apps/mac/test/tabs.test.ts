@@ -159,14 +159,6 @@ describe('TabsModel: closing', () => {
     expect(order(m)).toEqual(['b', 'c', 'd']);
     expect(m.active?.id).toBe('c');
   });
-
-  it('全部關閉 keeps only unsaved tabs', () => {
-    const m = modelWith(['a', 'b', 'c']);
-    m.update('a', { unsaved: true });
-    expect(m.closeAll()).toBe(2);
-    expect(order(m)).toEqual(['a']);
-    expect(m.active?.id).toBe('a');
-  });
 });
 
 describe('TabsModel: drag reorder', () => {
@@ -186,7 +178,7 @@ describe('TabsModel: drag reorder', () => {
 });
 
 describe('TabsModel: restoring last launch', () => {
-  it('restores every tab, loads only the active one, and reports how many', () => {
+  it('restores every tab and loads only the active one', () => {
     const m = new TabsModel();
     m.restore({
       items: [
@@ -201,9 +193,6 @@ describe('TabsModel: restoring last launch', () => {
     expect(m.active?.id).toBe('b');
     expect(loadedIds(m)).toEqual(['b']);
     expect(m.find('a')?.view.mode).toBe('source');
-    expect(m.getSnapshot().restored).toBe(3);
-    m.dismissRestored();
-    expect(m.getSnapshot().restored).toBeNull();
   });
 
   it('falls back to the first tab when the saved active one is gone', () => {

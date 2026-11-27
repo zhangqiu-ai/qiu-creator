@@ -178,7 +178,8 @@ function VideoEditor({
     },
     [side, work.id],
   );
-  const [notice, setNotice] = useState<{ text: string; tone: 'ok' | 'bad' } | null>(null);
+  /** Why something did not work. */
+  const [notice, setNotice] = useState<string | null>(null);
   const [undo, setUndo] = useState<{ label: string; revision: string } | null>(null);
   const [adopt, setAdopt] = useState<Adopt | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -428,10 +429,7 @@ function VideoEditor({
       const blob = await grabber.frame(when);
       return await uploadBlob(bridge, `cover-${timeLabel(when).replace(':', 'm')}s.jpg`, blob);
     } catch (err) {
-      setNotice({
-        text: err instanceof Error ? err.message : t('videoWork.frameFailed'),
-        tone: 'bad',
-      });
+      setNotice(err instanceof Error ? err.message : t('videoWork.frameFailed'));
       return null;
     } finally {
       setBusy(null);
@@ -440,8 +438,8 @@ function VideoEditor({
   const setCoverFrom = async (at: number | null) => {
     const a = await grabCover(at);
     if (a !== null) {
+      // The crops below show the new cover.
       session.edit({ cover: { asset_id: a.id } });
-      setNotice({ text: t('videoWork.coverSet', { time: timeLabel(at ?? time) }), tone: 'ok' });
     }
   };
 
@@ -464,23 +462,23 @@ function VideoEditor({
         setUndo({ label: t('videoWork.adopted'), revision: res.previousRevision });
       } else {
         setAdopt(null);
-        setNotice({ text: t('videoWork.adoptBlocked'), tone: 'bad' });
+        setNotice(t('videoWork.adoptBlocked'));
       }
     } catch (err) {
-      setNotice({ text: codeText(err instanceof ApiError ? err.code : null), tone: 'bad' });
+      setNotice(codeText(err instanceof ApiError ? err.code : null));
     } finally {
       setBusy(null);
     }
   };
 
   // ---- Toast -----------------------------------------------------------------------------------
-  const toastText = undo?.label ?? notice?.text ?? insertState.notice?.message ?? null;
+  const toastText = undo?.label ?? notice ?? insertState.notice;
   useToast(
     !active || toastText === null
       ? null
       : {
           message: toastText,
-          tone: undo !== null ? 'ok' : (notice?.tone ?? insertState.notice?.tone ?? 'bad'),
+          tone: undo !== null ? 'ok' : 'bad',
           actions:
             undo === null
               ? []
@@ -939,10 +937,7 @@ function VideoEditor({
                 session.edit({ cover: { asset_id: a.id } });
               })
               .catch((err: unknown) => {
-                setNotice({
-                  text: err instanceof Error ? err.message : t('editor.uploadFailed'),
-                  tone: 'bad',
-                });
+                setNotice(err instanceof Error ? err.message : t('editor.uploadFailed'));
               })
               .finally(() => {
                 setBusy(null);
@@ -970,9 +965,7 @@ function VideoEditor({
               }}
               extraTitles={result?.title_suggestions ?? []}
               onOverLimit={onOverLimit}
-              onNotice={(text) => {
-                setNotice({ text, tone: 'ok' });
-              }}
+              onNotice={setNotice}
             />
           ),
           ai: (
@@ -1005,9 +998,7 @@ function VideoEditor({
                         : now.baseRevision;
                     }}
                     onHighlight={ignoreHighlight}
-                    onNotice={(text, tone) => {
-                      setNotice({ text, tone });
-                    }}
+                    onNotice={setNotice}
                   />
                 ),
               }
