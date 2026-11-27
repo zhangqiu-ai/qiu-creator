@@ -3644,6 +3644,146 @@
       "approvedBy": "user",
       "approvedAt": "2026-11-26",
       "approval": "方案 B 圖庫檢視；七個問題全部照推薦（「B 圖庫檢視」「全部照推薦」）"
+    },
+    {
+      "id": "PT-20261126-002",
+      "title": "項目內作品分組與系列（三個版面方案：分段標題、看板欄位、側欄二級清單）",
+      "date": "2026-11-26",
+      "status": "approved",
+      "model": "claude-opus-5-5",
+      "session": "qc-prototype",
+      "requestedBy": "使用者 via 開發總監",
+      "userRequest": "項目裡面的作品還要支持進行分組、系列，而不是一股腦全放在一起。（2026-11-26，QC-106）",
+      "tasks": ["QC-106"],
+      "relatedTasks": ["QC-062", "QC-069", "QC-091", "QC-092"],
+      "canvas": "https://claude.ai/artifact/GdTFo6sWag1CLMaGhTJqD1",
+      "canvasVersion": "NOT_PUBLISHED: this session cannot reach the canvas. Standalone prototype: /Users/feature/Library/Application Support/Claude/side-session-notes/local_2cc861c6-129e-4a37-abb5-5c6b43cd2ede/pt-20261126-002/groups.html (?v=now|a|b|c|all, &drag=1, &menu=1, &move=1, &list=1, &dark=1).",
+      "screenshots": {
+        "dir": "docs/evidence/qc106-prototype/",
+        "files": {
+          "00-now.png": "現況：項目內 11 個作品平鋪一個網格",
+          "a-sections.png": "方案 A 分段標題（推薦）：未分組在最上面並附一行提示，系列「京都秋季系列」卡片左上角標「第 N 集」",
+          "a-drag.png": "方案 A 拖曳歸組：原位留虛影，目標分組虛線框與「放開以移到…」，系列內插入線決定集數，跟手標籤「移到 京都秋季系列 · 第 5 集」",
+          "a-group-menu.png": "方案 A 分組「⋯」：重新命名、當作系列、上移／下移、折疊其他分組、刪除分組（作品回到未分組）；「器材與工作室」折疊成一行縮圖；「一人食」標「Claude Code 建立」",
+          "a-move-menu.png": "方案 A 不用拖曳也能歸組：右鍵 › 移到分組 › 子選單（系列會寫「放到第 5 集」、＋ 新分組…）",
+          "a-list.png": "方案 A 列表：分組是段落列，系列有「集」欄，列首有拖曳把手",
+          "a-dark.png": "方案 A 深色",
+          "b-board.png": "方案 B 看板：每個分組一欄，封面變小，分組多時要橫向捲動",
+          "c-sidebar.png": "方案 C 側欄二級清單：項目在側欄展開出分組，頁首分組膠囊，一次看一個分組",
+          "all-works.png": "全部作品頁：不分段；卡片的項目標籤後面淡字加「› 分組」，系列再加「#集數」"
+        },
+        "rendered": "headless Chromium (Playwright 1.65.1, cached chromium_headless_shell-1243); no window shown"
+      },
+      "boards": [
+        {
+          "file": "groups.html (standalone, notes folder)",
+          "title": "v15 · 項目分組與系列",
+          "states": [
+            "方案 A 分段標題（推薦）：項目頁同一頁分段；段首是折疊箭頭、名稱、數量、系列膠囊、Agent 建立標記與「⋯」；段首 sticky；折疊後只留一行縮圖與前兩個標題",
+            "未分組：永遠在最上面（新作品先到這裡），有作品才出現；段首說明怎麼歸組；不能改名、刪除或排序",
+            "系列：分組打開「當作系列」後依集數排序，卡片標「第 N 集」，列表多「集」欄；拖曳或「⋯ › 上移／下移」改集數，集數自動重排不留空號；一般分組依頁首排序選項排序",
+            "拖曳：卡片拖到分組標題或分組範圍內；多選後一起拖；Esc 取消；分組折疊時拖到標題上停 0.6 秒自動展開；減少動態效果時只留插入線與目標框",
+            "鍵盤與選單：右鍵或 ⌘ 多選後 › 移到分組 › 子選單；新分組可在子選單直接建立並放入",
+            "方案 B 看板欄位：每組一欄，欄內直排小卡，欄間拖曳；未分組是虛線欄",
+            "方案 C 側欄二級清單：側欄項目可展開出分組，頁首分組膠囊，一次看一個分組",
+            "全部作品頁：不分段，只在卡片的項目標籤加分組與集數"
+          ]
+        }
+      ],
+      "decisions": [
+        "分組是項目裡的一層，跟著項目走；同一件作品在不同項目可以各自屬於不同分組。",
+        "系列不是另一種東西，是分組的一個選項（ordered）：開了才有集數。",
+        "新作品、Agent 建立且沒指定分組的作品、依規則自動歸入的作品，都先進未分組；不自動分組。",
+        "Agent 建立的分組沿用 QC-091 的 Agent 標記（藍框 accentSoft 加圖示）。"
+      ],
+      "dataModel": {
+        "recommendation": "New table project_groups(id, project_id, name, ordered, sort_order, created_by {kind:user|agent, token_id?}, created_at, revision). Membership rows (project_works) gain group_id (nullable = 未分組) and position (used when the group is ordered). Deleting a group sets its works back to null; deleting a project removes its groups. Group changes go through the change stream like other project edits.",
+        "api": "GET /api/v1/projects/:id returns groups; POST /api/v1/projects/:id/groups; PATCH /api/v1/projects/:id/groups/:gid (name, ordered, sort_order, with If-Match); DELETE /api/v1/projects/:id/groups/:gid; POST /api/v1/projects/:id/groups/assign {work_ids, group_id|null, position?}.",
+        "mcp": "project_get includes groups; new tools project_group_create {project_id, name, ordered?}, project_group_update {project_id, group_id, base_revision, name?, ordered?, sort_order?}, project_group_delete, works_assign_group {project_id, work_ids, group_id|null, position?}. Scope: write (groups are metadata, not body text). project_group_delete is excluded from propose-only tokens. Agent-created groups record created_by and show the Agent mark."
+      },
+      "ipad": "第二期 iPad 雙欄：左欄項目清單可展開出分組（同方案 C 的二級清單，只當導航）；右欄是方案 A 的分段網格，點左欄的分組就捲到該段。拖曳用長按卡片；也有「移到分組」動作表。iPhone 用分段清單加折疊。",
+      "references": [
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/kubai-999-005-drag-sort/case.md",
+          "kind": "concept",
+          "borrowed": "Insertion line and neighbours easing aside to show where a dragged item will land; keep keyboard sorting and cancel; reduced motion leaves only the line.",
+          "adaptation": "Insertion line inside series groups sets the episode number; the dragged card is labelled with the target group and episode; Esc cancels; menu alternative for keyboard users. Concept card, not validated in production."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/drag-threshold-collapse/case.md",
+          "kind": "concept",
+          "borrowed": "Collapsing needs a button or keyboard alternative, not only a gesture.",
+          "adaptation": "Group headers collapse with a chevron button and from the ⋯ menu; collapsed groups still accept drops (hover 0.6 s expands)."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/fog-mail-summary-to-mail-groups/case.md",
+          "kind": "product",
+          "borrowed": "Grouped inbox where each group is clearly labelled, with counts, and zero-item groups are handled.",
+          "adaptation": "Section headers show name and count; 未分組 appears only when it has works; empty named groups stay with a drop hint."
+        },
+        {
+          "path": "/Users/feature/code/qiuge-design/cases/dashi-taskboard-agent-status-columns/case.md",
+          "kind": "product",
+          "borrowed": "Column board layout for grouped items.",
+          "adaptation": "Option B; not recommended because covers shrink and many groups need horizontal scrolling on the Mac window."
+        }
+      ],
+      "verified": [
+        "Rendered 10 screenshots with headless Chromium and checked each by eye (fixed: card size, overlay coordinates inside main, project dot collapsing in long labels, current-state header)."
+      ],
+      "notVerified": [
+        "NOT_VERIFIED: canvas upload; three-language fit (繁中 only); drag animation timing (described, not animated); performance with many groups.",
+        "Works and groups are synthetic."
+      ],
+      "openQuestions": [
+        {
+          "q": "分組和系列是同一個概念，還是兩個？",
+          "recommendation": "同一個：分組，可以打開「當作系列」就有集數與固定順序。"
+        },
+        {
+          "q": "一個作品可以同時屬於多個分組嗎？",
+          "recommendation": "在同一個項目裡只屬於一個分組；不同項目可以各自分組（作品本來就能屬於多個項目）。"
+        },
+        {
+          "q": "系列要不要有順序或集數？",
+          "recommendation": "要。系列依集數排序，顯示「第 N 集」，拖曳或上移下移改集數，自動重排不留空號。"
+        },
+        {
+          "q": "要不要巢狀分組？",
+          "recommendation": "不要，只有一層；需要更細時用標籤或另開項目。"
+        },
+        {
+          "q": "「未分組」放在哪裡？",
+          "recommendation": "放最上面，新作品先到這裡；沒有作品時不顯示。"
+        },
+        {
+          "q": "拖曳歸組怎麼操作？",
+          "recommendation": "拖到分組標題或分組範圍內；系列內有插入線；可多選一起拖；另有右鍵「移到分組」給不拖曳的人。"
+        },
+        {
+          "q": "分組要不要能折疊、改名、排序？",
+          "recommendation": "都要：段首箭頭折疊（記住），「⋯」改名、上移下移；也能直接拖段首排序。"
+        },
+        {
+          "q": "和項目規則、自動歸類怎麼搭配？",
+          "recommendation": "規則只決定進哪個項目，進來先放未分組；第一版不做分組規則。Agent 可以透過 MCP 指定分組。"
+        },
+        {
+          "q": "作品庫「全部作品」頁要不要顯示分組？",
+          "recommendation": "不分段，只在卡片的項目標籤後面淡字加「› 分組 #集數」。"
+        },
+        {
+          "q": "MCP 怎麼讓 Agent 建立分組、放作品？",
+          "recommendation": "project_get 帶 groups；新增 project_group_create／update／delete 與 works_assign_group；Agent 建的分組有標記。"
+        },
+        {
+          "q": "選哪個版面？A 分段標題、B 看板、C 側欄二級清單",
+          "recommendation": "A。一頁看完全部、封面不縮小、拖曳距離短；C 的二級清單留給第二期 iPad 左欄當導航。"
+        }
+      ],
+      "approvedBy": "user",
+      "approvedAt": "2026-11-27",
+      "approval": "方案 A 分段標題；十一個問題全部照推薦（「A 分段標題」「全部照推薦」）"
     }
   ]
 }

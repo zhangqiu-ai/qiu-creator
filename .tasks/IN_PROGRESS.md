@@ -1,10 +1,10 @@
-## QC-106: 項目內作品分組／系列（原型）
+## QC-113: 項目分組與系列（後端、API、MCP）
 
-**Priority:** P2 | **Assignee:** qc-prototype | **Tags:** prototype
+**Priority:** P2 | **Assignee:** qc-backend | **Tags:** backend
 
-使用者 2026-11-26 要求：項目裡的作品要能分組、成系列，不要全部混在一起。先做原型給使用者核准，再開後端和前端的實作任務。原型要回答這些問題：分組和系列是不是同一個概念、作品能不能同時屬於多個分組、系列要不要排序或集數、要不要支援巢狀、怎麼和項目規則與自動歸類搭配、MCP 怎麼讓 Agent 建立和使用分組。
+依已核准原型 PT-20261126-002（`docs/design/prototype/changes.json` 的 dataModel、`docs/decisions.md` 2026-11-27）實作：`project_groups` 表（name、ordered、sort_order、created_by、revision）、項目成員加 group_id 與 position；分組 CRUD 與 `POST /projects/:id/groups/assign`（If-Match／409）；系列集數自動重排不留空號；刪分組作品回未分組、刪項目連帶刪分組；變更事件；作品回應帶分組與集數供「全部作品」頁顯示。MCP 新增 `project_group_create`／`update`／`delete` 與 `works_assign_group`，`project_get` 帶分組，覆蓋測試要過。項目規則與新作品一律進未分組。
 
-**Started:** 2026-11-26
+**Started:** 2026-11-27
 
 ## QC-033: Mac 生產可用實機驗收
 

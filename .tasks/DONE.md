@@ -1,3 +1,11 @@
+## QC-106: 項目內作品分組／系列（原型）
+
+**Priority:** P2 | **Assignee:** qc-prototype | **Tags:** prototype
+
+原型 PT-20261126-002 完成（f195730），使用者 2026-11-27 核准方案 A「分段標題」與十一個問題全部推薦。三個方案（A 分段標題、B 看板、C 側欄二級清單）各有截圖，證據在 `docs/evidence/qc106-prototype/`；決策記在 `docs/decisions.md`。實作拆成 QC-113（後端）與 QC-114（前端）。NOT_VERIFIED：畫布上傳、三語版面、拖曳動畫時間、大量分組效能。
+
+**Completed:** 2026-11-27
+
 ## QC-110: 發版前檢查與升級（QC-102～104、108、109、111）
 
 **Priority:** P1 | **Assignee:** qc-test, qc-release | **Tags:** M3
