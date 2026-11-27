@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ErrorCodeSchema, WorkListItemSchema } from './api.js';
 import { IdSchema, TimestampSchema, WorkStatusSchema } from './entities.js';
 import { PROJECT_DESCRIPTION_MAX_CHARS, ProjectRulesSchema } from './project-rules.js';
+import { ProjectGroupSchema } from './project-groups.js';
 import { ProjectTextScriptSchema } from './text-script.js';
 
 /**
@@ -53,6 +54,11 @@ export const ProjectSchema = z.object({
    * global setting. Absent from older servers.
    */
   text_script: ProjectTextScriptSchema.optional(),
+  /**
+   * QC-113: the project's groups in order. Only on one project (`GET
+   * /projects/:id` and the answers of changes to it), not in the list.
+   */
+  groups: z.array(ProjectGroupSchema).optional(),
   created_at: TimestampSchema,
   updated_at: TimestampSchema,
 });

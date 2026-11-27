@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   createCreatorHubMcpServer,
   isReadOnly,
+  PROJECT_GROUP_TOOLS,
   PROJECT_RULE_TOOLS,
   AGENT_STATUS_TOOLS,
   PROPOSAL_TOOLS,
@@ -103,6 +104,7 @@ describe('creatorhub mcp: tools and toolsets', () => {
         WRITE_TOOLS.length +
         PROPOSAL_TOOLS.length +
         PROJECT_RULE_TOOLS.length +
+        PROJECT_GROUP_TOOLS.length +
         AGENT_STATUS_TOOLS.length,
     );
     for (const def of READ_TOOLS) {
@@ -116,6 +118,7 @@ describe('creatorhub mcp: tools and toolsets', () => {
       ...WRITE_TOOLS,
       ...PROPOSAL_TOOLS,
       ...PROJECT_RULE_TOOLS,
+      ...PROJECT_GROUP_TOOLS,
       ...AGENT_STATUS_TOOLS,
     ]) {
       const t = tools.find((x) => x.name === def.name);
@@ -135,12 +138,16 @@ describe('creatorhub mcp: tools and toolsets', () => {
       'project_create',
       'project_delete',
       'project_get',
+      'project_group_create',
+      'project_group_delete',
+      'project_group_update',
       'project_restore',
       'project_rules_preview',
       'project_update',
       'projects_list',
       'projects_suggest',
       'server_status',
+      'works_assign_group',
       'works_assign_projects',
     ]);
     const templates = (await c.listResourceTemplates()).resourceTemplates;

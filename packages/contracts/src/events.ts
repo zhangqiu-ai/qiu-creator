@@ -57,6 +57,14 @@ export const ChangeActionSchema = z.enum([
   'project.restored',
   /** `PUT /projects/order`; entity id is `order`. */
   'project.reordered',
+  /**
+   * QC-113: the project's groups changed (entity `project`): `data.change` is
+   * `created`, `updated`, `deleted` or `assigned`; `data.group_id` (null when
+   * works went back to 未分組), `data.fields` for updates, `data.work_ids`
+   * for works whose group or episode changed. Refetch the project, and the
+   * works when `work_ids` is set.
+   */
+  'project.groups_changed',
   /** Deleted permanently, by hand or after 30 days (QC-051); `data.removal`, `data.reason` (`manual`/`empty`/`expired`). */
   'work.deleted',
   'asset.created',

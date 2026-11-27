@@ -41,6 +41,7 @@ import {
 } from '@qiu-creator/domain';
 import { currentPrincipal } from '../auth/actor-context.js';
 import { addMembership, requesterAddedBy, ruleAddedBy } from '../projects/membership.js';
+import { workGroupsOf } from '../projects/project-groups.js';
 import { currentProjectLimit, WORK_IN_LIMIT_SQL } from '../auth/project-scope.js';
 import type { Db } from '../db/database.js';
 import { notFound, ServiceError } from '../errors.js';
@@ -945,7 +946,11 @@ export class WorkService {
   }
 
   private workOf(row: WorkRow): Work {
-    return { ...toWork(row), project_ids: this.projectIds(row.id) };
+    return {
+      ...toWork(row),
+      project_ids: this.projectIds(row.id),
+      project_groups: workGroupsOf(this.db, row.id),
+    };
   }
 
   // ---- 最近刪除 (QC-051) -------------------------------------------------------

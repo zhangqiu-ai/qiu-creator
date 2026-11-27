@@ -26,6 +26,7 @@ import { notFound, ServiceError } from '../errors.js';
 import type { ChangeFeed } from '../events/change-feed.js';
 import type { WorkService } from '../works/work-service.js';
 import { addMembership, membershipRow, requesterAddedBy, toAddedBy } from './membership.js';
+import { groupsOf } from './project-groups.js';
 import { parseRules } from './project-rules.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -98,8 +99,9 @@ export class ProjectService {
       .filter((p) => limit === null || limit.includes(p.id));
   }
 
+  /** One project with its groups (QC-113). */
   get(id: string): Project {
-    return toProject(this.liveRow(id));
+    return { ...toProject(this.liveRow(id)), groups: groupsOf(this.db, id) };
   }
 
   create(input: CreateProjectRequest): Project {

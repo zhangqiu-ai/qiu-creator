@@ -66,8 +66,9 @@ mac-server 127.0.0.1:7420 ← 唯一權威，權限、409、冪等全在這裡
 | 素材 | `assets_search`、`asset_get` | read |
 | 素材 | `asset_upload_file`（本機路徑）、`asset_import_url`、`job_get`／`job_wait` | import |
 | 素材 | `work_attach_asset`、`work_detach_asset`、`work_reorder_assets`（貼圖與視頻作品寫進 front matter，App 立即看得到；文章只記關聯，見[架構](architecture.md)「把素材掛到作品」，QC-102） | write |
-| 項目 | `projects_list`、`project_get`（含摘要） | read |
+| 項目 | `projects_list`、`project_get`（含摘要與分組） | read |
 | 項目 | `project_create`／`project_update`、`works_assign_projects` | write |
+| 項目 | `project_group_create`／`project_group_update`（帶 `base_revision`）／`project_group_delete`、`works_assign_group`（QC-113，見第 11 節） | write |
 | 項目 | `projects_suggest`（依內容建議歸屬，見第 5 節） | read |
 | 平台 | `variant_get`（四個平台的推導結果、字數、超限位置）、`platform_rules` | read |
 | 平台 | `variant_update`（標題、封面、圖片順序、標籤） | write |
@@ -144,7 +145,15 @@ mac-server 127.0.0.1:7420 ← 唯一權威，權限、409、冪等全在這裡
 - **不轉：** 主權杖的寫入、既有作品；不做批次轉換。
 - **設定 API：** `GET`／`PUT /api/v1/settings/text-script` 列在 `MCP_EXCLUDED`（讀取由 `server_status` 提供，修改只限主權杖）；項目的 `text_script` 只限主權杖，MCP 工具不提供。細節見 [架構](architecture.md#作品文字字體qc-103qc-111)。
 
-## 11. 不在這次範圍
+## 11. 項目分組與系列（QC-113，決策記錄 2026-11-27）
+
+- `project_get` 的 `project.groups` 列出分組（名稱、是否系列、`revision`、`created_by`、依集數排的 `work_ids`）；`work_get`、`works_search` 的作品帶 `project_groups`（分組與集數）。
+- 新工具 `project_group_create`、`project_group_update`、`project_group_delete`、`works_assign_group` 都需要 `write`：分組是項目的中繼資料，不是正文，所以不走提案；只有 `propose` 的權杖不能用。`project_group_delete` 標 `destructive`（分組本身不能復原，作品只是回到未分組）。
+- Agent 建的分組在 `created_by` 記下權杖 id 與名稱，App 用 QC-091 的 Agent 標記顯示。
+- Agent 沒指定分組的作品一律在未分組；`works_assign_group` 只接受已在項目裡的作品（先用 `works_assign_projects` 加入）。
+- 四個新路由都由工具呼叫，覆蓋測試照常檢查；沒有新增排除項。細節見 [架構](architecture.md#項目分組與系列qc-113)。
+
+## 12. 不在這次範圍
 
 - 公網或遠端存取（第二期經 Tailscale）。
 - 代為發布到平台（M4，只保留介面）。

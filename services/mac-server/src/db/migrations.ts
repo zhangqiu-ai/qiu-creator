@@ -675,6 +675,38 @@ export const migrations: readonly Migration[] = [
         CHECK (text_script IS NULL OR text_script IN ('zh-Hans','zh-Hant'));
     `,
   },
+  {
+    id: '0024',
+    name: 'project_groups',
+    sql: /* sql */ `
+      -- QC-113: groups inside a project (one level); ordered = 1 makes a
+      -- series. Groups go with their project (soft delete hides them, purge
+      -- removes them). See PROJECT_GROUPS_ROLLBACK_SQL.
+      CREATE TABLE project_groups (
+        id               TEXT PRIMARY KEY,
+        project_id       TEXT NOT NULL REFERENCES projects (id) ON DELETE CASCADE,
+        name             TEXT NOT NULL,
+        ordered          INTEGER NOT NULL DEFAULT 0 CHECK (ordered IN (0, 1)),
+        sort_order       INTEGER NOT NULL,
+        created_by       TEXT NOT NULL CHECK (created_by IN ('user','agent')),
+        created_by_token TEXT,
+        created_by_name  TEXT,
+        revision         INTEGER NOT NULL DEFAULT 1,
+        created_at       TEXT NOT NULL,
+        updated_at       TEXT NOT NULL,
+        UNIQUE (project_id, name)
+      );
+      CREATE INDEX project_groups_project ON project_groups (project_id, sort_order);
+      -- A work's group in a project (NULL = 未分組) and its place in the group.
+      -- No foreign key, so the rollback can drop the columns; the service
+      -- clears group_id when a group is deleted, and purging a project removes
+      -- its memberships and groups together.
+      ALTER TABLE work_projects ADD COLUMN group_id TEXT;
+      ALTER TABLE work_projects ADD COLUMN position INTEGER;
+      CREATE INDEX work_projects_group ON work_projects (group_id, position)
+        WHERE group_id IS NOT NULL;
+    `,
+  },
 ];
 
 /**
@@ -829,4 +861,18 @@ export const PROJECT_RULES_ROLLBACK_SQL = /* sql */ `
 export const PROJECT_TEXT_SCRIPT_ROLLBACK_SQL = /* sql */ `
   ALTER TABLE projects DROP COLUMN text_script;
   DELETE FROM schema_migrations WHERE id = '0023';
+`;
+
+/**
+ * Undoes `0024_project_groups` so an older build can open the database again
+ * (QC-113): groups and every work's group and place are dropped; works stay
+ * in their projects (in 未分組 when this build runs again).
+ */
+export const PROJECT_GROUPS_ROLLBACK_SQL = /* sql */ `
+  DROP INDEX work_projects_group;
+  ALTER TABLE work_projects DROP COLUMN position;
+  ALTER TABLE work_projects DROP COLUMN group_id;
+  DROP INDEX project_groups_project;
+  DROP TABLE project_groups;
+  DELETE FROM schema_migrations WHERE id = '0024';
 `;

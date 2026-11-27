@@ -105,7 +105,9 @@ import { TextScriptService, withConversion } from './works/text-script-service.j
 import { registerSettingsRoutes } from './routes/settings.js';
 import { registerWorkTrashRoutes } from './routes/work-trash.js';
 import { ProjectService, type ProjectServiceOptions } from './projects/project-service.js';
+import { ProjectGroupService } from './projects/project-groups.js';
 import { registerProjectRoutes } from './routes/projects.js';
+import { registerProjectGroupRoutes } from './routes/project-groups.js';
 import {
   applyPendingRestore,
   BackupService,
@@ -230,6 +232,8 @@ export interface CreatorHubServer {
   assetLibrary: AssetLibrary;
   workTrash: WorkTrash;
   projects: ProjectService;
+  /** Groups and series inside projects (QC-113). */
+  projectGroups: ProjectGroupService;
   feed: ChangeFeed;
   jobs: JobQueue;
   imports: ImportService;
@@ -325,6 +329,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     textScripts,
   });
   const projects = new ProjectService(db, works, feed, options.projects);
+  const projectGroups = new ProjectGroupService(db, works, feed, options.projects?.now);
   const projectRules = new ProjectRuleService(db, works);
   const assetLibrary = new AssetLibrary(db, layout, assets, feed, {
     ...options.assetLibrary,
@@ -767,6 +772,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
   registerAssetLibraryRoutes(app, assetLibrary);
   registerWorkTrashRoutes(app, workTrash, works, idempotency);
   registerProjectRoutes(app, projects, projectRules);
+  registerProjectGroupRoutes(app, projects, projectGroups);
   await registerWorkThumbnailRoutes(app, works);
   registerEventRoutes(app, feed, options.heartbeatMs, scope, agentActivity);
   registerAgentActivityRoutes(
@@ -825,6 +831,7 @@ export async function buildServer(options: BuildServerOptions): Promise<CreatorH
     assetLibrary,
     workTrash,
     projects,
+    projectGroups,
     feed,
     jobs,
     imports,
